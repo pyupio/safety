@@ -11,7 +11,8 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'Click>=6.0',
-    # TODO: put package requirements here
+    'requests',
+    'packaging',
 ]
 
 test_requirements = [
@@ -20,7 +21,7 @@ test_requirements = [
 
 setup(
     name='safety',
-    version='0.1.0',
+    version='0.2.0',
     description="Python Boilerplate contains all the boilerplate you need to create a Python package.",
     long_description=readme + '\n\n' + history,
     author="pyup.io",

@@ -1,0 +1,2 @@
+class DatabaseFetchError(Exception):
+    pass

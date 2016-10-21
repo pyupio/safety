@@ -34,7 +34,7 @@ setup(
                  'safety'},
     entry_points={
         'console_scripts': [
-            'safety=safety.cli:main'
+            'safety=safety.cli:cli'
         ]
     },
     include_package_data=True,

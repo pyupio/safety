@@ -21,7 +21,7 @@ test_requirements = [
 
 setup(
     name='safety',
-    version='0.2.0',
+    version='0.2.1',
     description="Python Boilerplate contains all the boilerplate you need to create a Python package.",
     long_description=readme + '\n\n' + history,
     author="pyup.io",

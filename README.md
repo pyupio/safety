@@ -1,4 +1,4 @@
-*Note: safety is currently not ready to be used in production.*
+*Note: Safety is currently in it's early stages. Don't use it.*
 
 [![PyPi](https://img.shields.io/pypi/v/safety.svg)](https://pypi.python.org/pypi/safety)
 [![Travis](https://img.shields.io/travis/pyupio/safety.svg)](https://travis-ci.org/pyupio/safety)
@@ -83,7 +83,7 @@ Run `safety check` again:
 ```
 install:
   - pip install safety
-  
+
 script:
   - safety check
 ```

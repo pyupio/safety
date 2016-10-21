@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 import sys
 import click
 from safety import __version__
 from safety import safety
 from safety.formatter import report
-
 
 
 @click.group()

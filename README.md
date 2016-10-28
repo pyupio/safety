@@ -78,6 +78,23 @@ Run `safety check` again:
 ╘══════════════════════════╧═══════════════╧═══════════════════╧═══════════════╛
 ```
 
+Safety is also able to read from stdin with the `--stdin` flag set.
+
+To check a local requirements file, run:
+```
+cat requirements.txt | safety check --stdin
+```
+
+or the output of `pip freeze`:
+```
+pip freeze | safety check --stdin
+```
+
+or to check a single package:
+```
+echo "insecure-package==0.1" | safety check --stdin
+```
+
 # Travis
 
 ```

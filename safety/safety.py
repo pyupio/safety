@@ -46,12 +46,12 @@ def get_vulnerabilities(pkg, spec, db):
             yield entry
 
 
-def check():
+def check(pkginfo_func=pip.get_installed_distributions):
     db = fetch_database()
     db_full = None
     packages = frozenset(db.keys())
     vulnerable = []
-    for pkg in pip.get_installed_distributions():
+    for pkg in pkginfo_func():
         # normalize the package name, the safety-db is converting underscores to dashes and uses
         # lowercase
         name = pkg.key.replace("_", "-").lower()

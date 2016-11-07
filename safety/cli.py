@@ -13,7 +13,16 @@ Package = namedtuple("Package", ["key", "version"])
 
 
 def read_requirements(fh):
-    for req in parse_requirements(fh.read()):
+    # filter out all "non-requirement" lines. Typically, they begin with a dash, like
+    # -r base.txt
+    # -e git://some-repo
+    # --index-server=https://foo.bar
+    reqs = []
+    for line in fh.readlines():
+        if not line.startswith("-"):
+            reqs.append(line)
+
+    for req in parse_requirements("\n".join(reqs)):
         if len(req.specs) == 1 and req.specs[0][0] == "==":
             yield Package(key=req.key, version=req.specs[0][1])
         else:

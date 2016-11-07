@@ -2,6 +2,11 @@
 History
 =======
 
+0.4.0 (2016-11-07)
+------------------
+
+* Filter out non-requirements when reading from stdin.
+
 0.3.0 (2016-10-28)
 ------------------
 

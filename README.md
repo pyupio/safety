@@ -78,6 +78,14 @@ Run `safety check` again:
 ╘══════════════════════════╧═══════════════╧═══════════════════╧═══════════════╛
 ```
 
+## From files
+Just like pip, Safety is able to read local requirement files:
+
+```bash
+safety check -r requirements.txt
+```
+
+## From stdin
 Safety is also able to read from stdin with the `--stdin` flag set.
 
 To check a local requirements file, run:
@@ -95,7 +103,7 @@ or to check a single package:
 echo "insecure-package==0.1" | safety check --stdin
 ```
 
-# Travis
+## Travis
 
 ```
 install:

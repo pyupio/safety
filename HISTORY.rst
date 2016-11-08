@@ -2,6 +2,11 @@
 History
 =======
 
+0.5.0 (2016-11-08)
+------------------
+
+* Added option to read requirements from files.
+
 0.4.0 (2016-11-07)
 ------------------
 

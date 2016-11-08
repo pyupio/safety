@@ -9,6 +9,7 @@ from safety import safety
 from safety.formatter import report
 from pkg_resources import parse_requirements
 from collections import namedtuple
+import itertools
 
 Package = namedtuple("Package", ["key", "version"])
 
@@ -69,8 +70,7 @@ def check(full_report, stdin, files):
         sys.exit(-1)
 
     if files:
-        for f in files:
-            packages = read_requirements(f, resolve=True)
+        packages = itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files)
     elif stdin:
         packages = read_requirements(sys.stdin)
     else:

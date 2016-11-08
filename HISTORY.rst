@@ -2,6 +2,11 @@
 History
 =======
 
+0.5.1 (2016-11-08)
+------------------
+
+* Fixed a bug where not all requirement files were read correctly.
+
 0.5.0 (2016-11-08)
 ------------------
 

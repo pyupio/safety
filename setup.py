@@ -13,6 +13,7 @@ requirements = [
     'Click>=6.0',
     'requests',
     'packaging',
+    'setuptools>=16'
 ]
 
 test_requirements = [

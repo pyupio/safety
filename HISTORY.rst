@@ -2,6 +2,11 @@
 History
 =======
 
+UNRELEASED
+----------
+
+* Running safety requires setuptools >= 16
+
 0.5.1 (2016-11-08)
 ------------------
 

@@ -77,7 +77,7 @@ def check(full_report, stdin, files):
         packages = pip.get_installed_distributions()
 
     vulns = safety.check(packages=packages)
-    click.secho(report(vulns=vulns, full=full_report))
+    click.secho(report(vulns=vulns))
     sys.exit(-1 if vulns else 0)
 
 

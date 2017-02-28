@@ -18,17 +18,17 @@ REPORT_BANNER = """
 """.strip()
 
 TABLE_HEADING = """
-╞══════════════════════════╤═══════════════╤═══════════════════╤═══════════════╡
-│ package                  │ installed     │ affected          │ source        │
-╞══════════════════════════╧═══════════════╧═══════════════════╧═══════════════╡
+╞════════════════════════════════╤═══════════════╤═════════════════════════════╡
+│ package                        │ installed     │ affected                    │
+╞════════════════════════════════╧═══════════════╧═════════════════════════════╡
 """.strip()
 
 TABLE_FOOTER = """
-╘══════════════════════════╧═══════════════╧═══════════════════╧═══════════════╛
+╘════════════════════════════════╧═══════════════╧═════════════════════════════╛
 """.strip()
 
 TABLE_BREAK = """
-╞══════════════════════════╡═══════════════╡═══════════════════╡═══════════════╡
+╞════════════════════════════════╡═══════════════╡═════════════════════════════╡
 """.strip()
 
 REPORT_HEADING = """
@@ -44,23 +44,15 @@ REPORT_FOOTER = """
 """.strip()
 
 
-def report(vulns, full=False):
+def report(vulns):
     if vulns:
         table = []
         for vuln in vulns:
-            table.append("│ {:24} │ {:13} │ {:17} │ {:13} │".format(
-                vuln.name[:24],
+            table.append("│ {:30} │ {:13} │ {:27} │".format(
+                vuln.name[:30],
                 vuln.version[:13],
-                vuln.spec[:17],
-                vuln.source
+                vuln.spec[:27]
             ))
-            if full:
-                table.append(REPORT_SECTION)
-                descr = vuln.description
-                for chunk in [descr[i:i + 76] for i in range(0, len(descr), 76)]:
-                    for line in chunk.splitlines():
-                        table.append("│ {:76} │".format(line))
-                table.append(REPORT_SECTION)
         table = "\n".join(table)
         return "\n".join([REPORT_BANNER, REPORT_HEADING, TABLE_HEADING, table, TABLE_FOOTER])
     else:

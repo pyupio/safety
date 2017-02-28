@@ -8,27 +8,8 @@ from .constants import DATABASE_MIRRORS, REQUEST_TIMEOUT
 from collections import namedtuple
 
 
-class Vulnerability(namedtuple("Vulnerability", ["name", "spec", "version", "data"])):
-
-    @property
-    def source(self):
-        return self.cve_id if self.is_cve else "changelog"
-
-    @property
-    def is_cve(self):
-        return "cve" in self.data
-
-    @property
-    def is_changelog(self):
-        return "changelog" in self.data
-
-    @property
-    def cve_id(self):
-        return self.data["cve"]
-
-    @property
-    def description(self):
-        return self.data["description"] if self.is_cve else self.data["changelog"]
+class Vulnerability(namedtuple("Vulnerability", ["name", "spec", "version"])):
+    pass
 
 
 def fetch_database(full=False):
@@ -48,7 +29,6 @@ def get_vulnerabilities(pkg, spec, db):
 
 def check(packages):
     db = fetch_database()
-    db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
     for pkg in packages:
@@ -61,10 +41,7 @@ def check(packages):
             for specifier in db[name]:
                 spec_set = SpecifierSet(specifiers=specifier)
                 if spec_set.contains(pkg.version):
-                    if not db_full:
-                        db_full = fetch_database(full=True)
-                    for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
-                        vulnerable.append(
-                            Vulnerability(name=name, spec=specifier, version=pkg.version, data=data)
-                        )
+                    vulnerable.append(
+                        Vulnerability(name=name, spec=specifier, version=pkg.version)
+                    )
     return vulnerable

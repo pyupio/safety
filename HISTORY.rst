@@ -2,9 +2,11 @@
 History
 =======
 
-UNRELEASED
-----------
+0.6.0 (2016-03-10)
+------------------
 
+* Made the requirements parser more robust. The parser should no longer fail on editable requirements
+  and requirements that are supplied by package URL.
 * Running safety requires setuptools >= 16
 
 0.5.1 (2016-11-08)

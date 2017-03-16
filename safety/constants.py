@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 
-DATABASE_MIRRORS = [
+OPEN_MIRRORS = [
     "https://raw.githubusercontent.com/pyupio/safety-db/master/data/",
 ]
+
+API_MIRRORS = [
+    "https://pyup.io/api/v1/safety/"
+]
+
 REQUEST_TIMEOUT = 5
 
 

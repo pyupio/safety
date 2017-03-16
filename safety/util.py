@@ -82,6 +82,4 @@ def read_requirements(fh, resolve=False):
                         fg="yellow"
                     )
             except ValueError:
-                import traceback
-                traceback.print_exc()
                 continue

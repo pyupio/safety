@@ -46,7 +46,7 @@ payment details and click on `Pay`.
 Once payment is complete, you'll be redirected to your subscriptions page. Click on `Account` to get
 back to your account page.
 
-![pyup.io subscriptions](images/api_key_subscriptions.png)
+![pyup.io subscriptions](images/api_key_subscriptions_page.png)
 
 ## Step 7 - Copy your API key
 

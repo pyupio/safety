@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import click
-import pip
 import requests
 from packaging.specifiers import SpecifierSet
 from .errors import DatabaseFetchError, InvalidKeyError, DatabaseFileNotFoundError

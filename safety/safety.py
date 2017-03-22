@@ -23,7 +23,7 @@ def get_from_cache(db_name):
                 data = json.loads(f.read())
                 if db_name in data:
                     if "cached_at" in data[db_name]:
-                        if data[db_name]["cached_at"] + 10 > time.time():
+                        if data[db_name]["cached_at"] + CACHE_VALID_SECONDS > time.time():
                             return data[db_name]["db"]
             except json.JSONDecodeError:
                 pass

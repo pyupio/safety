@@ -8,7 +8,8 @@ from .constants import OPEN_MIRRORS, API_MIRRORS, REQUEST_TIMEOUT
 from collections import namedtuple
 
 
-class Vulnerability(namedtuple("Vulnerability", ["name", "spec", "version"])):
+class Vulnerability(namedtuple("Vulnerability",
+                               ["name", "spec", "version", "advisory", "vuln_id"])):
     pass
 
 
@@ -30,15 +31,18 @@ def fetch_database(full=False, key=False):
 
 def get_vulnerabilities(pkg, spec, db):
     for entry in db[pkg]:
-        if spec == entry["v"]:
-            yield entry
+        for entry_spec in entry["specs"]:
+            if entry_spec == spec:
+                yield entry
 
 
 def check(packages, key):
 
     db = fetch_database(key=key)
+    db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
+    found_ids = set()
     for pkg in packages:
         # normalize the package name, the safety-db is converting underscores to dashes and uses
         # lowercase
@@ -49,7 +53,18 @@ def check(packages, key):
             for specifier in db[name]:
                 spec_set = SpecifierSet(specifiers=specifier)
                 if spec_set.contains(pkg.version):
-                    vulnerable.append(
-                        Vulnerability(name=name, spec=specifier, version=pkg.version)
-                    )
+                    if not db_full:
+                        db_full = fetch_database(full=True)
+                    for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
+                        if data.get("id") not in found_ids:
+                            vulnerable.append(
+                                Vulnerability(
+                                    name=name,
+                                    spec=specifier,
+                                    version=pkg.version,
+                                    advisory=data.get("advisory"),
+                                    vuln_id=data.get("id")
+                                )
+                            )
+                            found_ids.add(data.get("id"))
     return vulnerable

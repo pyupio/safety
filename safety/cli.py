@@ -36,7 +36,7 @@ def check(key, full_report, stdin, files):
 
     try:
         vulns = safety.check(packages=packages, key=key)
-        click.secho(report(vulns=vulns))
+        click.secho(report(vulns=vulns, full=full_report))
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key is invalid", fg="red")

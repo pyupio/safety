@@ -15,6 +15,10 @@ except ImportError:
             return size(rows=0, columns=0)
 
 
+def get_advisory(vuln):
+    return vuln.advisory if vuln.advisory else "No advisory found for this vulnerability."
+
+
 class SheetReport(object):
     REPORT_BANNER = """
 ╒══════════════════════════════════════════════════════════════════════════════╕
@@ -61,19 +65,31 @@ class SheetReport(object):
     """.strip()
 
     @staticmethod
-    def render(vulns):
+    def render(vulns, full):
         if vulns:
             table = []
-            for vuln in vulns:
+            for n, vuln in enumerate(vulns):
                 table.append("│ {:30} │ {:13} │ {:27} │".format(
                     vuln.name[:30],
                     vuln.version[:13],
                     vuln.spec[:27]
                 ))
+                if full:
+                    table.append(SheetReport.REPORT_SECTION)
+
+                    descr = get_advisory(vuln)
+
+                    for chunk in [descr[i:i + 76] for i in range(0, len(descr), 76)]:
+
+                        for line in chunk.splitlines():
+                            table.append("│ {:76} │".format(line))
+                    # append the REPORT_SECTION only if this isn't the last entry
+                    if n + 1 < len(vulns):
+                        table.append(SheetReport.REPORT_SECTION)
             table = "\n".join(table)
             return "\n".join(
                 [SheetReport.REPORT_BANNER, SheetReport.REPORT_HEADING, SheetReport.TABLE_HEADING,
-                 table, SheetReport.TABLE_FOOTER]
+                 table, SheetReport.REPORT_FOOTER]
             )
         else:
             content = "│ {:76} │".format("No known security vulnerabilities found.")
@@ -87,7 +103,7 @@ class BasicReport(object):
     """Basic report, intented to be used for terminals with < 80 columns"""
 
     @staticmethod
-    def render(vulns):
+    def render(vulns, full):
         table = ["safety report", "---"]
         if vulns:
 
@@ -97,6 +113,9 @@ class BasicReport(object):
                     vuln.version[:13],
                     vuln.spec[:27]
                 ))
+                if full:
+                    table.append(get_advisory(vuln))
+                    table.append("--")
         else:
             table.append("No known security vulnerabilities found.")
         return "\n".join(
@@ -104,8 +123,8 @@ class BasicReport(object):
         )
 
 
-def report(vulns):
+def report(vulns, full=False):
     size = get_terminal_size()
     if size.columns >= 80:
-        return SheetReport.render(vulns)
-    return BasicReport.render(vulns)
+        return SheetReport.render(vulns, full=full)
+    return BasicReport.render(vulns, full=full)

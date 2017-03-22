@@ -20,9 +20,10 @@ def cli():
 @click.option("--key", default="")
 @click.option("--db", default="")
 @click.option("--full-report/--short-report", default=False)
+@click.option("--cache/--no-cache", default=False)
 @click.option("--stdin/--no-stdin", default=False)
 @click.option("files", "--file", "-r", multiple=True, type=click.File())
-def check(key, db, full_report, stdin, files):
+def check(key, db, full_report, stdin, files, cache):
 
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
@@ -36,7 +37,7 @@ def check(key, db, full_report, stdin, files):
         packages = pip.get_installed_distributions()
 
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db)
+        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache)
         click.secho(report(vulns=vulns, full=full_report))
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:

@@ -4,25 +4,86 @@ import pip
 import requests
 from packaging.specifiers import SpecifierSet
 from .errors import DatabaseFetchError, InvalidKeyError, DatabaseFileNotFoundError
-from .constants import OPEN_MIRRORS, API_MIRRORS, REQUEST_TIMEOUT
+from .constants import OPEN_MIRRORS, API_MIRRORS, REQUEST_TIMEOUT, CACHE_VALID_SECONDS, CACHE_FILE
 from collections import namedtuple
 import os
 import json
+import time
+import errno
 
 class Vulnerability(namedtuple("Vulnerability",
                                ["name", "spec", "version", "advisory", "vuln_id"])):
     pass
 
 
-def fetch_database_url(mirror, db_name, key):
+def get_from_cache(db_name):
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE) as f:
+            try:
+                data = json.loads(f.read())
+                if db_name in data:
+                    if "cached_at" in data[db_name]:
+                        if data[db_name]["cached_at"] + 10 > time.time():
+                            return data[db_name]["db"]
+            except json.JSONDecodeError:
+                pass
+    return False
+
+
+def write_to_cache(db_name, data):
+    # cache is in: ~/safety/cache.json
+    # and has the following form:
+    # {
+    #   "insecure.json": {
+    #       "cached_at": 12345678
+    #       "db": {}
+    #   },
+    #   "insecure_full.json": {
+    #       "cached_at": 12345678
+    #       "db": {}
+    #   },
+    # }
+    if not os.path.exists(os.path.dirname(CACHE_FILE)):
+        try:
+            os.makedirs(os.path.dirname(CACHE_FILE))
+            with open(CACHE_FILE, "w") as _:
+                _.write(json.dumps({}))
+        except OSError as exc:  # Guard against race condition
+            if exc.errno != errno.EEXIST:
+                raise
+
+    with open(CACHE_FILE, "r") as f:
+        try:
+            cache = json.loads(f.read())
+        except json.JSONDecodeError:
+            cache = {}
+
+    with open(CACHE_FILE, "w") as f:
+        cache[db_name] = {
+            "cached_at": time.time(),
+            "db": data
+        }
+        f.write(json.dumps(cache))
+
+
+def fetch_database_url(mirror, db_name, key, cached):
+
     headers = {}
     if key:
         headers["X-Api-Key"] = key
 
+    if cached:
+        cached_data = get_from_cache(db_name=db_name)
+        if cached_data:
+            return cached_data
+
     url = mirror + db_name
     r = requests.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers)
     if r.status_code == 200:
-        return r.json()
+        data = r.json()
+        if cached:
+            write_to_cache(db_name, data)
+        return data
     elif r.status_code == 403:
         raise InvalidKeyError()
 
@@ -35,7 +96,7 @@ def fetch_database_file(path, db_name):
         return json.loads(f.read())
 
 
-def fetch_database(full=False, key=False, db=False):
+def fetch_database(full=False, key=False, db=False, cached=False):
 
     if db:
         mirrors = [db]
@@ -46,7 +107,7 @@ def fetch_database(full=False, key=False, db=False):
     for mirror in mirrors:
         # mirror can either be a local path or a URL
         if mirror.startswith("http://") or mirror.startswith("https://"):
-            data = fetch_database_url(mirror, db_name=db_name, key=key)
+            data = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached)
         else:
             data = fetch_database_file(mirror, db_name=db_name)
         if data:
@@ -61,9 +122,9 @@ def get_vulnerabilities(pkg, spec, db):
                 yield entry
 
 
-def check(packages, key, db_mirror):
+def check(packages, key, db_mirror, cached):
 
-    db = fetch_database(key=key, db=db_mirror)
+    db = fetch_database(key=key, db=db_mirror, cached=cached)
     db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []

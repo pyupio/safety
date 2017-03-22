@@ -8,7 +8,7 @@ from safety import safety
 from safety.formatter import report
 import itertools
 from safety.util import read_requirements
-from safety.errors import DatabaseFetchError, InvalidKeyError
+from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
 
 @click.group()
 @click.version_option(version=__version__)
@@ -18,10 +18,11 @@ def cli():
 
 @cli.command()
 @click.option("--key", default="")
+@click.option("--db", default="")
 @click.option("--full-report/--short-report", default=False)
 @click.option("--stdin/--no-stdin", default=False)
 @click.option("files", "--file", "-r", multiple=True, type=click.File())
-def check(key, full_report, stdin, files):
+def check(key, db, full_report, stdin, files):
 
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
@@ -35,11 +36,14 @@ def check(key, full_report, stdin, files):
         packages = pip.get_installed_distributions()
 
     try:
-        vulns = safety.check(packages=packages, key=key)
+        vulns = safety.check(packages=packages, key=key, db_mirror=db)
         click.secho(report(vulns=vulns, full=full_report))
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key is invalid", fg="red")
+        sys.exit(-1)
+    except DatabaseFileNotFoundError:
+        click.secho("Unable to load vulnerability database from {db}".format(db=db), fg="red")
         sys.exit(-1)
     except DatabaseFetchError:
         click.secho("Unable to load vulnerability database", fg="red")

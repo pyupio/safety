@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+
+# python 2.7 compat
+try:
+    FileNotFoundError
+except NameError:
+    FileNotFoundError = IOError
+
 try:
     from shutil import get_terminal_size
 except ImportError:

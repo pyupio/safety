@@ -2,6 +2,11 @@
 History
 =======
 
+1.0.1 (2017-03-23)
+------------------
+
+* Fixed an error on Python 2, FileNotFoundError was introduced in Python 3.
+
 1.0.0 (2017-03-22)
 ------------------
 

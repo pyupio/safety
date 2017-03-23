@@ -2,6 +2,12 @@
 History
 =======
 
+1.1.0 (2017-03-23)
+------------------
+
+* Compatablity release. Safety should now run on macOs, Linux and Windows with Python 2.7, 3.3-3.6.
+ Python 2.6 support is available on a best-effort basis on Linux.
+
 1.0.2 (2017-03-23)
 ------------------
 

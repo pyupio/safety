@@ -25,7 +25,11 @@ except ImportError:
         try:
             rows, columns = subprocess.check_output(['stty', 'size']).split()
             return size(rows=int(rows), columns=int(columns))
-        except (ValueError, FileNotFoundError):
+        # this won't work
+        # - on windows (FileNotFoundError)
+        # - python 2.6 (AttributeError)
+        # - if the output is somehow mangled (ValueError)
+        except (ValueError, FileNotFoundError, AttributeError):
             return size(rows=0, columns=0)
 
 

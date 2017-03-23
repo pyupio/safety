@@ -33,7 +33,7 @@ python:
   - "3.7-dev" # 3.7 development branch
   - "nightly" # currently points to 3.7-dev
 script:
-  - coverage python setup.py test
+  - coverage run setup.py test
   - pip freeze
 after_success:
   - codecov

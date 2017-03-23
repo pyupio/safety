@@ -1,0 +1,20 @@
+{
+    "django":[
+        {
+            "advisory": "Some adivsory",
+            "specs":[
+                "<1.9"
+            ],
+            "cve": "some cve",
+            "id": "some id"
+        },
+        {
+            "advisory": "Some other adivsory",
+            "specs":[
+                "<1.9"
+            ],
+            "cve": "some other cve",
+            "id": "some other id"
+        }
+    ]
+}

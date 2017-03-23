@@ -74,7 +74,7 @@ def read_requirements(fh, resolve=False):
                         break
                 req, = parse_line(parseable_line)
                 if len(req.specs) == 1 and req.specs[0][0] == "==":
-                    yield Package(key=req.name, version=req.specs[0][1])
+                    yield Package(key=req.key, version=req.specs[0][1])
                 else:
                     click.secho(
                         "Warning: unpinned requirement '{req}' found, unable to check.".format(

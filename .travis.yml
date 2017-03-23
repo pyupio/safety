@@ -32,4 +32,6 @@ python:
   - "3.6"
   - "3.7-dev" # 3.7 development branch
   - "nightly" # currently points to 3.7-dev
-script: python setup.py test
+script:
+  - python setup.py test
+  - pip freeze

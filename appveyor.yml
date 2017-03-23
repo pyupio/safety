@@ -14,9 +14,9 @@ environment:
 
 install:
   - "%PYTHON%\\python.exe -m pip install wheel"
-  - "%PYTHON%\\python.exe -m pip freeze"
 
 build: off
 
 test_script:
   - "%PYTHON%\\python.exe setup.py test"
+  - "%PYTHON%\\python.exe -m pip freeze"

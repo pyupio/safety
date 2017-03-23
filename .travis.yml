@@ -22,6 +22,7 @@ deploy:
       ZFlHZWtOd3o4eGpNcGFhcEswa204dzlJNzd2WllBdXhrenFpN3VKSytUa0F2Y2djRXhoeWJRRitl
       TmRsK2RzNnVmaGpsUkxhK3NCMnNrbjdoMW4rd0t2SVFmMUt3azlXaHV5VjlpS1pIUXJ5RWtrV289
 env:
+- TOXENV=py36
 - TOXENV=py35
 - TOXENV=py34
 - TOXENV=py33
@@ -30,5 +31,5 @@ env:
 - TOXENV=pypy
 install: pip install -U tox
 language: python
-python: 3.5
+python: 3.6
 script: tox -e ${TOXENV}

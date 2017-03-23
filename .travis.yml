@@ -2,9 +2,9 @@
 deploy:
   user: JayFK
   true:
-    condition: $TOXENV == py27
     repo: pyupio/safety
     tags: true
+    python: "2.7"
   distributions: sdist bdist_wheel
   provider: pypi
   password:
@@ -21,15 +21,16 @@ deploy:
       eEJ4amMzOUhjQy9rMUpORndnSzloQ1hscmFoNGtKdEs0QmlMR1lZVDhiYmprTm1lKzNod1Y5MzJR
       ZFlHZWtOd3o4eGpNcGFhcEswa204dzlJNzd2WllBdXhrenFpN3VKSytUa0F2Y2djRXhoeWJRRitl
       TmRsK2RzNnVmaGpsUkxhK3NCMnNrbjdoMW4rd0t2SVFmMUt3azlXaHV5VjlpS1pIUXJ5RWtrV289
-env:
-- TOXENV=py36
-- TOXENV=py35
-- TOXENV=py34
-- TOXENV=py33
-- TOXENV=py27
-- TOXENV=py26
-- TOXENV=pypy
-install: pip install -U tox
+
 language: python
-python: 3.5
-script: tox -e ${TOXENV}
+python:
+  - "2.6"
+  - "2.7"
+  - "3.2"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+  - "3.6"
+  - "3.7-dev" # 3.7 development branch
+  - "nightly" # currently points to 3.7-dev
+script: python setup.py test

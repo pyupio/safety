@@ -48,7 +48,7 @@ class TestFormatter(unittest.TestCase):
 
 class TestSafety(unittest.TestCase):
 
-    def test_check(self):
+    def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
         packages = util.read_requirements(reqs)
 
@@ -62,3 +62,38 @@ class TestSafety(unittest.TestCase):
             key=False
         )
         self.assertEqual(len(vulns), 2)
+
+    def test_check_live(self):
+        reqs = StringIO("insecure-package==0.1")
+        packages = util.read_requirements(reqs)
+
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=False,
+            cached=False,
+            key=False
+        )
+        self.assertEqual(len(vulns), 1)
+
+    def test_check_live_cached(self):
+        reqs = StringIO("insecure-package==0.1")
+        packages = util.read_requirements(reqs)
+
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=False,
+            cached=True,
+            key=False
+        )
+        self.assertEqual(len(vulns), 1)
+
+        reqs = StringIO("insecure-package==0.1")
+        packages = util.read_requirements(reqs)
+        # make a second call to use the cache
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=False,
+            cached=True,
+            key=False
+        )
+        self.assertEqual(len(vulns), 1)

@@ -15,6 +15,7 @@ class Vulnerability(namedtuple("Vulnerability",
 
 
 def get_from_cache(db_name):
+    print("getting", db_name)
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE) as f:
             try:
@@ -29,6 +30,7 @@ def get_from_cache(db_name):
 
 
 def write_to_cache(db_name, data):
+    print("writing", db_name)
     # cache is in: ~/safety/cache.json
     # and has the following form:
     # {

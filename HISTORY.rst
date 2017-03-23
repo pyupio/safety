@@ -2,7 +2,17 @@
 History
 =======
 
-0.6.0 (2016-03-10)
+1.0.0 (2017-03-22)
+------------------
+
+* Added terminal size detection. Terminals with fewer than 80 columns should now display nicer reports.
+* Added an option to load the database from the filesystem or a mirror that's reachable via http(s).
+ This can be done by using the --db flag.
+* Added an API Key option that uses pyup.io's vulnerability database.
+* Added an option to cache the database locally for 2 hours. The default still is to not use the cache. Use the --cache flag.
+
+
+0.6.0 (2017-03-10)
 ------------------
 
 * Made the requirements parser more robust. The parser should no longer fail on editable requirements

@@ -2,6 +2,11 @@
 History
 =======
 
+1.0.2 (2017-03-23)
+------------------
+
+* Fixed another error on Python 2. The fallback function for get_terminal_size wasn't working correctly.
+
 1.0.1 (2017-03-23)
 ------------------
 

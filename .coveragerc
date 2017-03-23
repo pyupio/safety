@@ -1,0 +1,3 @@
+[run]
+include = safety/*
+omit = *migrations*, *tests*

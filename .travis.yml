@@ -35,3 +35,7 @@ python:
 script:
   - python setup.py test
   - pip freeze
+after_success:
+  - codecov
+before_install:
+  - pip install codecov

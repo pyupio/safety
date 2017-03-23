@@ -14,7 +14,7 @@ except ImportError:
     from collections import namedtuple
 
     def get_terminal_size():
-        size = namedtuple("_", "rows", "columns")
+        size = namedtuple("_", ["rows", "columns"])
         try:
             rows, columns = subprocess.check_output(['stty', 'size']).split()
             return size(rows=int(rows), columns=int(columns))

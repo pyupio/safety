@@ -3,11 +3,19 @@
 
 from setuptools import setup
 
-with open('README.md') as readme_file:
-    readme = readme_file.read()
-
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
+# there are problems to run setup.py on windows if the encoding is not set.
+# additionally, supplying the encoding isn't supported on 2.7
+# wrap all of this an ugly try/catch block
+try:
+    with open('README.md', encoding='utf8') as readme_file:
+        readme = readme_file.read()
+    with open('HISTORY.rst', encoding='utf8') as history_file:
+        history = history_file.read()
+except TypeError:
+    with open('README.md') as readme_file:
+        readme = readme_file.read()
+    with open('HISTORY.rst') as history_file:
+        history = history_file.read()
 
 requirements = [
     'Click>=6.0',

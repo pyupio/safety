@@ -4,7 +4,10 @@
 [![Travis](https://img.shields.io/travis/pyupio/safety.svg)](https://travis-ci.org/pyupio/safety)
 [![Updates](https://pyup.io/repos/github/pyupio/safety/shield.svg)](https://pyup.io/repos/github/pyupio/safety/)
 
-Safety checks your installed dependencies for known security vulnerabilities
+Safety checks your installed dependencies for known security vulnerabilities. 
+
+By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db), 
+but can be upgraded to use pyup.io's [Safety API](https://github.com/pyupio/safety/blob/master/docs/api_key.md) using the `--key` option. 
 
 # Installation
 
@@ -103,8 +106,13 @@ or to check a single package:
 echo "insecure-package==0.1" | safety check --stdin
 ```
 
-## Travis
+## Using Safety with a CI service
 
+Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability. 
+
+Run it before or after your tests. If Safety finds something, your tests will fail.
+
+**Travis**
 ```
 install:
   - pip install safety
@@ -113,10 +121,16 @@ script:
   - safety check
 ```
 
-# How it Works
+**Deep GitHub Integration**
+
+If you are looking for a deep integration with your GitHub repositories: Safety is available as a 
+part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/ci/). Safety CI 
+checks your commits and pull requests for dependencies with known security vulnerabilities 
+and displays a status on GitHub.
 
 
-# Support
+# Using Safety in production
 
-If you are using `safety` in one of your projects, please consider getting a paid
-[pyup.io](https://pyup.io) account. This is what makes projects like this possible.
+Safety is free and open source (MIT Licensed). The underlying open vulnerability database is updated once per month.
+
+To get access to all vulnerabilites as soon as they are added, you need a [Safety API key](https://github.com/pyupio/safety/blob/master/docs/api_key.md) that comes with a paid [pyup.io](https://pyup.io) account, starting at $14.99 for individuals, or $49.99 for organizations.

@@ -29,7 +29,7 @@ except ImportError:
         # - on windows (FileNotFoundError)
         # - python 2.6 (AttributeError)
         # - if the output is somehow mangled (ValueError)
-        except (ValueError, FileNotFoundError, AttributeError):
+        except (ValueError, FileNotFoundError, AttributeError, subprocess.CalledProcessError):
             return size(rows=0, columns=0)
 
 

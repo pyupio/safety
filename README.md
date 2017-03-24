@@ -128,6 +128,8 @@ part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/c
 checks your commits and pull requests for dependencies with known security vulnerabilities 
 and displays a status on GitHub.
 
+![Safety CI](https://github.com/pyupio/safety/raw/master/safety_ci.png)
+
 
 # Using Safety in production
 

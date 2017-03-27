@@ -2,6 +2,11 @@
 History
 =======
 
+1.1.1 (2017-03-27)
+------------------
+
+* Fixed terminal size detection when feeded via stdin.
+
 1.1.0 (2017-03-23)
 ------------------
 

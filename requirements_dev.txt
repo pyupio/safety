@@ -4,6 +4,6 @@ watchdog==0.8.3
 flake8==3.0.4
 coverage==4.3.4
 cryptography==1.8.1
-Sphinx==1.5.3
+Sphinx==1.5.4
 PyYAML==3.12
 

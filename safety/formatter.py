@@ -150,13 +150,10 @@ class JsonReport(object):
         return json.dumps(vulns, indent=4, sort_keys=True)
 
 
-def report(vulns, full=False, report_format='text'):
-    if report_format == 'json':
+def report(vulns, full=False, json_report=False):
+    if json_report:
         return JsonReport.render(vulns, full=full)
-    elif report_format == 'basic':
-        return BasicReport.render(vulns, full=full)
-    else:
-        size = get_terminal_size()
-        if size.columns >= 80:
-            return SheetReport.render(vulns, full=full)
+    size = get_terminal_size()
+    if size.columns >= 80:
+        return SheetReport.render(vulns, full=full)
     return BasicReport.render(vulns, full=full)

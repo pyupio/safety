@@ -19,19 +19,15 @@ def cli():
 @cli.command()
 @click.option("--key", default="")
 @click.option("--db", default="")
-@click.option("--format", default="text", help="One of text, basic, or json")
+@click.option("--json/--no-json", default=False)
 @click.option("--full-report/--short-report", default=False)
 @click.option("--cache/--no-cache", default=False)
 @click.option("--stdin/--no-stdin", default=False)
 @click.option("files", "--file", "-r", multiple=True, type=click.File())
-def check(key, db, format, full_report, stdin, files, cache):
+def check(key, db, json, full_report, stdin, files, cache):
 
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
-        sys.exit(-1)
-
-    if format not in ['text', 'basic', 'json']:
-        click.secho("Output format must be one of 'text', 'basic', or 'json'", fg="red")
         sys.exit(-1)
 
     if files:
@@ -43,7 +39,7 @@ def check(key, db, format, full_report, stdin, files, cache):
 
     try:
         vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache)
-        click.secho(report(vulns=vulns, full=full_report, report_format=format))
+        click.secho(report(vulns=vulns, full=full_report, json_report=json))
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key is invalid", fg="red")

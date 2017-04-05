@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import platform
 import sys
+import json
 
 # python 2.7 compat
 try:
@@ -141,8 +142,21 @@ class BasicReport(object):
         )
 
 
-def report(vulns, full=False):
-    size = get_terminal_size()
-    if size.columns >= 80:
-        return SheetReport.render(vulns, full=full)
+class JsonReport(object):
+    """Json report, for when the output is input for something else"""
+
+    @staticmethod
+    def render(vulns, full):
+        return json.dumps(vulns, indent=4, sort_keys=True)
+
+
+def report(vulns, full=False, report_format='text'):
+    if report_format == 'json':
+        return JsonReport.render(vulns, full=full)
+    elif report_format == 'basic':
+        return BasicReport.render(vulns, full=full)
+    else:
+        size = get_terminal_size()
+        if size.columns >= 80:
+            return SheetReport.render(vulns, full=full)
     return BasicReport.render(vulns, full=full)

@@ -19,6 +19,7 @@ from safety import cli
 from safety import formatter
 from safety import util
 import os
+import json
 try:
     from StringIO import StringIO
 except ImportError:
@@ -44,6 +45,11 @@ class TestFormatter(unittest.TestCase):
             formatter.get_terminal_size()
         except TypeError as e:
             self.fail(e)
+
+    def test_report_json(self):
+        test_arr = [['libfoo'],['libbar']]
+        json_report = formatter.report(test_arr, full=False, json_report=True)
+        assert json.loads(json_report) == test_arr
 
 
 class TestSafety(unittest.TestCase):

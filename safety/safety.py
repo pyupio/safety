@@ -122,6 +122,8 @@ def get_vulnerabilities(pkg, spec, db):
 
 def check(packages, key, db_mirror, cached):
 
+    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+
     db = fetch_database(key=key, db=db_mirror, cached=cached)
     db_full = None
     vulnerable_packages = frozenset(db.keys())

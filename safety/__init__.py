@@ -2,4 +2,4 @@
 
 __author__ = """pyup.io"""
 __email__ = 'support@pyup.io'
-__version__ = '1.1.1'
+__version__ = '1.2.0'

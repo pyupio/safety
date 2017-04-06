@@ -2,6 +2,11 @@
 History
 =======
 
+1.2.0 (2017-04-06)
+------------------
+
+* Added JSON as an output format. Use it with the `--json` flag.
+
 1.1.1 (2017-03-27)
 ------------------
 

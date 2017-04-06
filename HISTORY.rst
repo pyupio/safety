@@ -5,7 +5,7 @@ History
 1.2.0 (2017-04-06)
 ------------------
 
-* Added JSON as an output format. Use it with the `--json` flag.
+* Added JSON as an output format. Use it with the `--json` flag. Thanks @Stype.
 
 1.1.1 (2017-03-27)
 ------------------

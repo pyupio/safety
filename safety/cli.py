@@ -42,7 +42,9 @@ def check(key, db, json, full_report, stdin, files, cache):
         click.secho(report(vulns=vulns, full=full_report, json_report=json))
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
-        click.secho("Your API Key is invalid", fg="red")
+        click.secho("Your API Key '{key}' is invalid. See {link}".format(
+            key=key, link='https://goo.gl/O7Y1rS'),
+            fg="red")
         sys.exit(-1)
     except DatabaseFileNotFoundError:
         click.secho("Unable to load vulnerability database from {db}".format(db=db), fg="red")

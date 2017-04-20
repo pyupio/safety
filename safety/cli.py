@@ -17,14 +17,26 @@ def cli():
 
 
 @cli.command()
-@click.option("--key", default="")
-@click.option("--db", default="")
-@click.option("--json/--no-json", default=False)
-@click.option("--full-report/--short-report", default=False)
-@click.option("--cache/--no-cache", default=False)
-@click.option("--stdin/--no-stdin", default=False)
-@click.option("files", "--file", "-r", multiple=True, type=click.File())
-def check(key, db, json, full_report, stdin, files, cache):
+@click.option("--key", default="",
+              help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
+                   "environment variable. Default: empty")
+@click.option("--db", default="",
+              help="Path to a local vulnerability database. Default: empty")
+@click.option("--json/--no-json", default=False,
+              help="Output vulnerabilities in JSON format. Default: --no-json")
+@click.option("--full-report/--short-report", default=False,
+              help='Full reports include a security advisory (if available). Default: '
+                   '--short-report')
+@click.option("--bare/--not-bare", default=False,
+              help='Output vulnerable packages only. Useful in combination with other tools.'
+                   'Default: --not-bare')
+@click.option("--cache/--no-cache", default=False,
+              help="Cache requests to the vulnerability database locally. Default: --no-cache")
+@click.option("--stdin/--no-stdin", default=False,
+              help="Read input from stdin. Default: --no-stdin")
+@click.option("files", "--file", "-r", multiple=True, type=click.File(),
+              help="Read input from one (or multiple) requirement files. Default: empty")
+def check(key, db, json, full_report, bare, stdin, files, cache):
 
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
@@ -39,7 +51,7 @@ def check(key, db, json, full_report, stdin, files, cache):
 
     try:
         vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache)
-        click.secho(report(vulns=vulns, full=full_report, json_report=json))
+        click.secho(report(vulns=vulns, full=full_report, json_report=json, bare_report=bare))
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(

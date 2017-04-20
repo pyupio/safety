@@ -2,6 +2,12 @@
 History
 =======
 
+Unreleased
+------------------
+
+* Added `--bare` output format.
+* Added a couple of help text to the command line interface.
+
 1.2.0 (2017-04-06)
 ------------------
 

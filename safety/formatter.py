@@ -150,7 +150,16 @@ class JsonReport(object):
         return json.dumps(vulns, indent=4, sort_keys=True)
 
 
-def report(vulns, full=False, json_report=False):
+class BareReport(object):
+    """Bare report, for command line tools"""
+    @staticmethod
+    def render(vulns, full):
+        return " ".join(set([v.name for v in vulns]))
+
+
+def report(vulns, full=False, json_report=False, bare_report=False):
+    if bare_report:
+        return BareReport.render(vulns, full=full)
     if json_report:
         return JsonReport.render(vulns, full=full)
     size = get_terminal_size()

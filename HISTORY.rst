@@ -2,11 +2,13 @@
 History
 =======
 
-Unreleased
+1.3.0 (2017-04-06)
 ------------------
 
 * Added `--bare` output format.
 * Added a couple of help text to the command line interface.
+* Fixed a bug that caused requirement files with unpinned dependencies to fail when using
+ a recent setuptools release.
 
 1.2.0 (2017-04-06)
 ------------------

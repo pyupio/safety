@@ -36,7 +36,7 @@ def cli():
               help="Read input from stdin. Default: --no-stdin")
 @click.option("files", "--file", "-r", multiple=True, type=click.File(),
               help="Read input from one (or multiple) requirement files. Default: empty")
-@click.option("ignore", "--ignore", "-i", multiple=True, type=str,
+@click.option("ignore", "--ignore", "-i", multiple=True, type=str, default=[],
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
 def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
 

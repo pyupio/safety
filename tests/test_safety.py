@@ -65,7 +65,8 @@ class TestSafety(unittest.TestCase):
                 "test_db"
             ),
             cached=False,
-            key=False
+            key=False,
+            ignore_ids=[]
         )
         self.assertEqual(len(vulns), 2)
 
@@ -77,7 +78,8 @@ class TestSafety(unittest.TestCase):
             packages=packages,
             db_mirror=False,
             cached=False,
-            key=False
+            key=False,
+            ignore_ids=[]
         )
         self.assertEqual(len(vulns), 1)
 
@@ -89,7 +91,8 @@ class TestSafety(unittest.TestCase):
             packages=packages,
             db_mirror=False,
             cached=True,
-            key=False
+            key=False,
+            ignore_ids=[]
         )
         self.assertEqual(len(vulns), 1)
 
@@ -100,6 +103,7 @@ class TestSafety(unittest.TestCase):
             packages=packages,
             db_mirror=False,
             cached=True,
-            key=False
+            key=False,
+            ignore_ids=[]
         )
         self.assertEqual(len(vulns), 1)

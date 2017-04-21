@@ -2,6 +2,11 @@
 History
 =======
 
+1.4.0 (2017-04-21)
+------------------
+
+* Added the ability to ignore one (or multiple) vulnerabilities by ID via the `--ignore`/`-i` flag.
+
 1.3.0 (2017-04-21)
 ------------------
 

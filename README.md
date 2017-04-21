@@ -143,7 +143,7 @@ To get access to all vulnerabilites as soon as they are added, you need a [Safet
 
 ## Options
 
-####`--key`
+### `--key`
 
 *API Key for pyup.io's vulnerability database. Can be set as `SAFETY_API_KEY` environment variable.*
 
@@ -154,7 +154,7 @@ safety check --key=12345-ABCDEFGH
 
 ___
 
-####`--db`
+### `--db`
 
 *Path to a directory with a local vulnerability database including `insecure.json` and `insecure_full.json`*
 
@@ -165,7 +165,7 @@ safety check --db=/home/safety-db/data
 
 ___
 
-####`--json`
+### `--json`
 
 *Output vulnerabilities in JSON format.*
 
@@ -186,7 +186,7 @@ safety check --json
 ```
 ___
 
-####`--full-report`
+### `--full-report`
 
 *Full reports include a security advisory (if available).*
 
@@ -224,7 +224,7 @@ safety check --full-report
 ```
 ___
 
-####`--bare`
+### `--bare`
 
 *Output vulnerable packages only. Useful in combination with other tools.*
 
@@ -238,7 +238,7 @@ cryptography django
 ```
 ___
 
-####`--cache`
+### `--cache`
 
 *Cache requests to the vulnerability database locally for 2 hours.*
 
@@ -248,7 +248,7 @@ safety check --cache
 ```
 ___
 
-####`--stdin`
+### `--stdin`
 
 *Read input from stdin.*
 
@@ -264,7 +264,7 @@ echo "insecure-package==0.1" | safety check --stdin
 ```
 ___
 
-####`--file`, `-r`
+### `--file`, `-r`
 
 *Read input from one (or multiple) requirement files.*
 
@@ -280,7 +280,7 @@ safety check -r req_dev.txt -r req_prod.txt
 ```
 ___
 
-####`--ignore`, `-i`
+### `--ignore`, `-i`
 
 *Ignore one (or multiple) vulnerabilities by ID*
 

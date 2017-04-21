@@ -58,17 +58,17 @@ class SheetReport(object):
     """.strip()
 
     TABLE_HEADING = """
-╞════════════════════════════════╤═══════════════╤═════════════════════════════╡
-│ package                        │ installed     │ affected                    │
-╞════════════════════════════════╧═══════════════╧═════════════════════════════╡
+╞════════════════════════════╤═══════════╤══════════════════════════╤══════════╡
+│ package                    │ installed │ affected                 │ ID       │
+╞════════════════════════════╧═══════════╧══════════════════════════╧══════════╡
     """.strip()
 
     TABLE_FOOTER = """
-╘════════════════════════════════╧═══════════════╧═════════════════════════════╛
+╘════════════════════════════╧═══════════╧══════════════════════════╧══════════╛
     """.strip()
 
     TABLE_BREAK = """
-╞════════════════════════════════╡═══════════════╡═════════════════════════════╡
+╞════════════════════════════╡═══════════╡══════════════════════════╡══════════╡
     """.strip()
 
     REPORT_HEADING = """
@@ -88,10 +88,11 @@ class SheetReport(object):
         if vulns:
             table = []
             for n, vuln in enumerate(vulns):
-                table.append("│ {:30} │ {:13} │ {:27} │".format(
-                    vuln.name[:30],
-                    vuln.version[:13],
-                    vuln.spec[:27]
+                table.append("│ {:26} │ {:9} │ {:24} │ {:8} │".format(
+                    vuln.name[:26],
+                    vuln.version[:9],
+                    vuln.spec[:24],
+                    vuln.vuln_id
                 ))
                 if full:
                     table.append(SheetReport.REPORT_SECTION)
@@ -127,10 +128,11 @@ class BasicReport(object):
         if vulns:
 
             for vuln in vulns:
-                table.append("-> {}, installed {}, affected {}".format(
+                table.append("-> {}, installed {}, affected {}, id {}".format(
                     vuln.name,
                     vuln.version[:13],
-                    vuln.spec[:27]
+                    vuln.spec[:27],
+                    vuln.vuln_id
                 ))
                 if full:
                     table.append(get_advisory(vuln))

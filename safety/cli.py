@@ -36,7 +36,9 @@ def cli():
               help="Read input from stdin. Default: --no-stdin")
 @click.option("files", "--file", "-r", multiple=True, type=click.File(),
               help="Read input from one (or multiple) requirement files. Default: empty")
-def check(key, db, json, full_report, bare, stdin, files, cache):
+@click.option("ignore", "--ignore", "-i", multiple=True, type=str,
+              help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
+def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
 
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
@@ -50,7 +52,7 @@ def check(key, db, json, full_report, bare, stdin, files, cache):
         packages = pip.get_installed_distributions()
 
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache)
+        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore)
         click.secho(report(vulns=vulns, full=full_report, json_report=json, bare_report=bare))
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:

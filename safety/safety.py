@@ -120,7 +120,7 @@ def get_vulnerabilities(pkg, spec, db):
                 yield entry
 
 
-def check(packages, key, db_mirror, cached):
+def check(packages, key, db_mirror, cached, ignore_ids):
 
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
 
@@ -142,15 +142,16 @@ def check(packages, key, db_mirror, cached):
                     if not db_full:
                         db_full = fetch_database(full=True, key=key, db=db_mirror)
                     for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
-                        if data.get("id") not in found_ids:
+                        vuln_id = data.get("id").replace("pyup.io-", "")
+                        if vuln_id not in found_ids and vuln_id not in ignore_ids:
                             vulnerable.append(
                                 Vulnerability(
                                     name=name,
                                     spec=specifier,
                                     version=pkg.version,
                                     advisory=data.get("advisory"),
-                                    vuln_id=data.get("id")
+                                    vuln_id=vuln_id
                                 )
                             )
-                            found_ids.add(data.get("id"))
+                            found_ids.add(vuln_id)
     return vulnerable

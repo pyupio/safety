@@ -2,6 +2,12 @@
 History
 =======
 
+Unreleased
+----------
+
+* Fixed a bug where absence of ``stty`` was causing a traceback in ``safety
+  check`` on Python 2.7 for Windows.
+
 1.4.0 (2017-04-21)
 ------------------
 

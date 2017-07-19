@@ -2,7 +2,6 @@ from dparse.parser import setuptools_parse_requirements_backport as _parse_requi
 from collections import namedtuple
 import click
 import os
-
 Package = namedtuple("Package", ["key", "version"])
 RequirementFile = namedtuple("RequirementFile", ["path"])
 
@@ -73,8 +72,9 @@ def read_requirements(fh, resolve=False):
                             continue
                         break
                 req, = parse_line(parseable_line)
-                if len(req.specs) == 1 and req.specs[0][0] == "==":
-                    yield Package(key=req.key, version=req.specs[0][1])
+                if len(req.specifier._specs) == 1 and \
+                        next(iter(req.specifier._specs))._spec[0] == "==":
+                    yield Package(key=req.name, version=next(iter(req.specifier._specs))._spec[1])
                 else:
                     click.secho(
                         "Warning: unpinned requirement '{req}' found, unable to check.".format(

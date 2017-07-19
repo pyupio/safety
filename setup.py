@@ -21,7 +21,7 @@ requirements = [
     'Click>=6.0',
     'requests',
     'packaging',
-    'setuptools'
+    'dparse>=2.1'
 ]
 
 test_requirements = [

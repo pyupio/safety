@@ -1,4 +1,4 @@
-from pkg_resources import parse_requirements as _parse_requirements
+from dparse.parser import setuptools_parse_requirements_backport as _parse_requirements
 from collections import namedtuple
 import click
 import os

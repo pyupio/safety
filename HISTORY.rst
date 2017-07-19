@@ -2,6 +2,11 @@
 History
 =======
 
+1.5.0 (2017-07-19)
+------------------
+
+* Internal refactoring. Removed dependency on setuptools and switched to the new dparse library.
+
 1.4.1 (2017-07-04)
 ------------------
 

@@ -30,7 +30,7 @@ test_requirements = [
 
 setup(
     name='safety',
-    version='1.4.1',
+    version='1.5.0',
     description="Safety checks your installed dependencies for known security vulnerabilities.",
     long_description=readme + '\n\n' + history,
     author="pyup.io",

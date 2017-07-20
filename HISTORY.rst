@@ -2,6 +2,11 @@
 History
 =======
 
+1.5.1 (2017-07-20)
+------------------
+
+* Fixed an error on unpinned VCS requirements. This is a regression, see https://github.com/pyupio/safety/issues/72
+
 1.5.0 (2017-07-19)
 ------------------
 

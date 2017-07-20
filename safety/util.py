@@ -78,7 +78,7 @@ def read_requirements(fh, resolve=False):
                 else:
                     click.secho(
                         "Warning: unpinned requirement '{req}' found, unable to check.".format(
-                            req=req.project_name),
+                            req=req.name),
                         fg="yellow"
                     )
             except ValueError:

@@ -24,7 +24,7 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
-
+from safety.util import read_requirements
 
 class TestSafetyCLI(unittest.TestCase):
 
@@ -107,3 +107,16 @@ class TestSafety(unittest.TestCase):
             ignore_ids=[]
         )
         self.assertEqual(len(vulns), 1)
+
+
+class ReadRequirementsTestCase(unittest.TestCase):
+
+    def test_unpinned_vcs_requirement(self):
+        """
+        https://github.com/pyupio/safety/issues/72
+        """
+        # this shouldn't raise an error
+        content = StringIO("-e git+https://github.com/jdunck/python-unicodecsv#egg=unicodecsv")
+        result = list(read_requirements(content))
+        self.assertEqual(len(result), 0)
+

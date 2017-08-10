@@ -70,6 +70,21 @@ class TestSafety(unittest.TestCase):
         )
         self.assertEqual(len(vulns), 2)
 
+    def test_multiple_versions(self):
+        reqs = StringIO("Django==1.8.1\n\rDjango==1.7.0")
+        packages = util.read_requirements(reqs)
+
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=False,
+            ignore_ids=[]
+        )
+        self.assertEqual(len(vulns), 4)
     def test_check_live(self):
         reqs = StringIO("insecure-package==0.1")
         packages = util.read_requirements(reqs)

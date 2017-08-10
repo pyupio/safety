@@ -123,12 +123,10 @@ def get_vulnerabilities(pkg, spec, db):
 def check(packages, key, db_mirror, cached, ignore_ids):
 
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
-
     db = fetch_database(key=key, db=db_mirror, cached=cached)
     db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
-    found_ids = set()
     for pkg in packages:
         # normalize the package name, the safety-db is converting underscores to dashes and uses
         # lowercase
@@ -143,7 +141,7 @@ def check(packages, key, db_mirror, cached, ignore_ids):
                         db_full = fetch_database(full=True, key=key, db=db_mirror)
                     for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
                         vuln_id = data.get("id").replace("pyup.io-", "")
-                        if vuln_id not in found_ids and vuln_id not in ignore_ids:
+                        if vuln_id and vuln_id not in ignore_ids:
                             vulnerable.append(
                                 Vulnerability(
                                     name=name,
@@ -153,5 +151,4 @@ def check(packages, key, db_mirror, cached, ignore_ids):
                                     vuln_id=vuln_id
                                 )
                             )
-                            found_ids.add(vuln_id)
     return vulnerable

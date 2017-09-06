@@ -24,7 +24,10 @@ except ImportError:
     def get_terminal_size():
         size = namedtuple("_", ["rows", "columns"])
         try:
-            rows, columns = subprocess.check_output(['stty', 'size']).split()
+            rows, columns = subprocess.check_output(
+                ['stty', 'size'],
+                stderr=subprocess.STDOUT
+            ).split()
             return size(rows=int(rows), columns=int(columns))
         # this won't work
         # - on windows (FileNotFoundError/OSError)

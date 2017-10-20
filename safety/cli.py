@@ -48,9 +48,9 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
         sys.exit(-1)
 
     if files:
-        packages = itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files)
+        packages = list(itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files))
     elif stdin:
-        packages = read_requirements(sys.stdin)
+        packages = list(read_requirements(sys.stdin))
     else:
         packages = pip.get_installed_distributions()
 

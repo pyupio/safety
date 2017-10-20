@@ -2,6 +2,7 @@
 import platform
 import sys
 import json
+import os
 
 # python 2.7 compat
 try:
@@ -88,7 +89,12 @@ class SheetReport(object):
     """.strip()
 
     @staticmethod
-    def render(vulns, full):
+    def render(vulns, full, checked_packages, used_db):
+        status = "│ checked {packages} packages, using {db: <49} │".format(
+            packages=checked_packages,
+            db=used_db,
+            section=SheetReport.REPORT_SECTION
+        )
         if vulns:
             table = []
             for n, vuln in enumerate(vulns):
@@ -110,25 +116,31 @@ class SheetReport(object):
                     # append the REPORT_SECTION only if this isn't the last entry
                     if n + 1 < len(vulns):
                         table.append(SheetReport.REPORT_SECTION)
-            table = "\n".join(table)
             return "\n".join(
-                [SheetReport.REPORT_BANNER, SheetReport.REPORT_HEADING, SheetReport.TABLE_HEADING,
-                 table, SheetReport.REPORT_FOOTER]
+                [SheetReport.REPORT_BANNER, SheetReport.REPORT_HEADING, status, SheetReport.TABLE_HEADING,
+                 "\n".join(table), SheetReport.REPORT_FOOTER]
             )
         else:
             content = "│ {:76} │".format("No known security vulnerabilities found.")
             return "\n".join(
-                [SheetReport.REPORT_BANNER, SheetReport.REPORT_HEADING, SheetReport.REPORT_SECTION,
-                 content, SheetReport.REPORT_FOOTER]
-            )
+                    [SheetReport.REPORT_BANNER, SheetReport.REPORT_HEADING, status, SheetReport.REPORT_SECTION,
+                     content, SheetReport.REPORT_FOOTER]
+                )
 
 
 class BasicReport(object):
     """Basic report, intented to be used for terminals with < 80 columns"""
 
     @staticmethod
-    def render(vulns, full):
-        table = ["safety report", "---"]
+    def render(vulns, full, checked_packages, used_db):
+        table = [
+            "safety report",
+            "checked {packages} packages, using {db}".format(
+                packages=checked_packages,
+                db=used_db
+            ),
+            "---"
+        ]
         if vulns:
 
             for vuln in vulns:
@@ -163,12 +175,22 @@ class BareReport(object):
         return " ".join(set([v.name for v in vulns]))
 
 
-def report(vulns, full=False, json_report=False, bare_report=False):
+def get_used_db(key, db):
+    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+    if key:
+        return "pyup.io's DB"
+    if db == '':
+        return 'default DB'
+    return "local DB"
+
+
+def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, db=None, key=None):
     if bare_report:
         return BareReport.render(vulns, full=full)
     if json_report:
         return JsonReport.render(vulns, full=full)
     size = get_terminal_size()
+    used_db = get_used_db(key=key, db=db)
     if size.columns >= 80:
-        return SheetReport.render(vulns, full=full)
-    return BasicReport.render(vulns, full=full)
+        return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+    return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)

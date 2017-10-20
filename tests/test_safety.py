@@ -51,6 +51,11 @@ class TestFormatter(unittest.TestCase):
         json_report = formatter.report(test_arr, full=False, json_report=True)
         assert json.loads(json_report) == test_arr
 
+    def test_get_used_db(self):
+        assert 'default DB' == formatter.get_used_db(key=None, db='')
+        assert 'pyup.io\'s DB' == formatter.get_used_db(key='foo', db='')
+        assert 'local DB' == formatter.get_used_db(key=None, db='/usr/local/some-db')
+
 
 class TestSafety(unittest.TestCase):
 

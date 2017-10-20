@@ -2,6 +2,13 @@
 History
 =======
 
+1.6.0 (2017-10-20)
+------------------
+
+* Added an indicator which DB is currently used
+* Added a package count how many packages have been checked
+* Allow multiple version of the same library. Thanks @thatarchguy
+
 1.5.1 (2017-07-20)
 ------------------
 

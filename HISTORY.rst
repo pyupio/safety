@@ -2,6 +2,11 @@
 History
 =======
 
+1.6.1 (2017-10-20)
+------------------
+
+* Fixed an error that caused the CLI to fail on requirement files/stdin.
+
 1.6.0 (2017-10-20)
 ------------------
 

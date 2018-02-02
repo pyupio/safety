@@ -77,8 +77,9 @@ def read_requirements(fh, resolve=False):
                     yield Package(key=req.name, version=next(iter(req.specifier._specs))._spec[1])
                 else:
                     click.secho(
-                        "Warning: unpinned requirement '{req}' found, unable to check.".format(
-                            req=req.name),
+                        "Warning: unpinned requirement '{req}' found in {fname}, "
+                        "unable to check.".format(req=req.name,
+                                                  fname=fh.name),
                         fg="yellow"
                     )
             except ValueError:

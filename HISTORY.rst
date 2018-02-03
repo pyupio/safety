@@ -2,6 +2,12 @@
 History
 =======
 
+1.7.0 (2018-02-03)
+------------------
+
+* Safety now shows a filename if it finds an unpinned requirement. Thanks @nnadeau
+* Removed official support for Python 2.6 and Python 3.3. Thanks @nnadeau
+
 1.6.1 (2017-10-20)
 ------------------
 

@@ -11,6 +11,8 @@ environment:
 
 install:
   - "%PYTHON%\\python.exe -m pip install wheel"
+  - "%PYTHON%\\python.exe -m pip install setuptools --upgrade"
+  
 
 build: off
 

@@ -18,6 +18,7 @@ except TypeError:
         history = history_file.read()
 
 requirements = [
+    'pip',
     'Click>=6.0',
     'requests',
     'packaging',
@@ -30,7 +31,7 @@ test_requirements = [
 
 setup(
     name='safety',
-    version='1.7.0',
+    version='1.8.0',
     description="Safety checks your installed dependencies for known security vulnerabilities.",
     long_description=readme + '\n\n' + history,
     author="pyup.io",

@@ -22,7 +22,7 @@ requirements = [
     'Click>=6.0',
     'requests',
     'packaging',
-    'dparse>=0.2.1'
+    'dparse>=0.4.1'
 ]
 
 test_requirements = [

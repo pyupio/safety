@@ -2,6 +2,11 @@
 History
 =======
 
+1.8.1 (2018-04-06)
+------------------
+
+* Fixed a packaging error with the dparse dependency
+
 1.8.0 (2018-04-05)
 ------------------
 

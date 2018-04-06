@@ -90,9 +90,10 @@ class SheetReport(object):
 
     @staticmethod
     def render(vulns, full, checked_packages, used_db):
-        status = "│ checked {packages} packages, using {db: <50} │".format(
+        db_format_str = '{: <' + str(51 - len(str(checked_packages))) + '}'
+        status = "│ checked {packages} packages, using {db} │".format(
             packages=checked_packages,
-            db=used_db,
+            db=db_format_str.format(used_db),
             section=SheetReport.REPORT_SECTION
         )
         if vulns:

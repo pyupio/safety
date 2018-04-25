@@ -15,7 +15,10 @@ try:
     from pip import get_installed_distributions
 except ImportError:
     # pip 10
-    from pip._internal.utils.misc import get_installed_distributions
+    import pkg_resources
+
+    def get_installed_distributions():
+        return [d for d in pkg_resources.working_set]
 
 
 @click.group()

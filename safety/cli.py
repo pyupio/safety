@@ -49,7 +49,7 @@ def cli():
 def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
 
     if files and stdin:
-        click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
+        click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red", file=sys.stderr)
         sys.exit(-1)
 
     if files:
@@ -75,13 +75,14 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(
             key=key, link='https://goo.gl/O7Y1rS'),
-            fg="red")
+            fg="red",
+            file=sys.stderr)
         sys.exit(-1)
     except DatabaseFileNotFoundError:
-        click.secho("Unable to load vulnerability database from {db}".format(db=db), fg="red")
+        click.secho("Unable to load vulnerability database from {db}".format(db=db), fg="red", file=sys.stderr)
         sys.exit(-1)
     except DatabaseFetchError:
-        click.secho("Unable to load vulnerability database", fg="red")
+        click.secho("Unable to load vulnerability database", fg="red", file=sys.stderr)
         sys.exit(-1)
 
 

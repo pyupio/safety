@@ -2,6 +2,11 @@
 History
 =======
 
+1.8.3b (2018-07-24)
+------------------
+
+* Allows both unicode and non-unicode type encoding when parsing requriment files
+
 1.8.2 (2018-07-10)
 ------------------
 

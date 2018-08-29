@@ -1,6 +1,6 @@
 pip==9.0.3
 wheel==0.29.0
-watchdog==0.8.3
+watchdog==0.9.0
 flake8==3.3.0
 coverage==4.4
 cryptography==2.3

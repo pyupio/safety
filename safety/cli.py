@@ -10,14 +10,6 @@ from safety.util import read_requirements
 from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
 
 
-try:
-    # pip 9
-    from pip import get_installed_distributions
-except ImportError:
-    # pip 10
-    from pip._internal.utils.misc import get_installed_distributions
-
-
 @click.group()
 @click.version_option(version=__version__)
 def cli():
@@ -57,7 +49,11 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
     elif stdin:
         packages = list(read_requirements(sys.stdin))
     else:
-        packages = get_installed_distributions()
+        import pkg_resources
+        packages = [
+            d for d in pkg_resources.working_set
+            if d.key not in {"python", "wsgiref", "argparse"}
+        ]
 
     try:
         vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore)

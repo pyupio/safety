@@ -139,7 +139,7 @@ and displays a status on GitHub.
 
 Safety is free and open source (MIT Licensed). The underlying open vulnerability database is updated once per month.
 
-To get access to all vulnerabilites as soon as they are added, you need a [Safety API key](https://github.com/pyupio/safety/blob/master/docs/api_key.md) that comes with a paid [pyup.io](https://pyup.io) account, starting at $14.99 for individuals, or $49.99 for organizations.
+To get access to all vulnerabilites as soon as they are added, you need a [Safety API key](https://github.com/pyupio/safety/blob/master/docs/api_key.md) that comes with a paid [pyup.io](https://pyup.io) account, starting at $99 for organizations.
 
 ## Options
 

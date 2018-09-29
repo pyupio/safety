@@ -62,15 +62,16 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
     try:
         vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore)
         click.secho(report(
-            vulns=vulns,
-            full=full_report,
-            json_report=json,
-            bare_report=bare,
-            checked_packages=len(packages),
-            db=db,
-            key=key
+                vulns=vulns,
+                full=full_report,
+                json_report=json,
+                bare_report=bare,
+                checked_packages=len(packages),
+                db=db,
+                key=key
+                ),
+            nl=0 if bare and not vulns else 1
             )
-        )
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(

@@ -133,7 +133,7 @@ class TestSafety(unittest.TestCase):
         )
         self.assertEqual(len(vulns), 1)
         
-        def test_check_proxy(self):
+    def test_check_proxy(self):
         reqs = StringIO("insecure-package==0.1")
         packages = util.read_requirements(reqs)
 

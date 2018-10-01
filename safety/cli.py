@@ -70,7 +70,7 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
                 db=db,
                 key=key
                 ),
-            nl=0 if bare and not vulns else 1
+            nl=False if bare and not vulns else True
             )
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:

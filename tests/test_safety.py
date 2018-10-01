@@ -132,6 +132,20 @@ class TestSafety(unittest.TestCase):
             proxy={}
         )
         self.assertEqual(len(vulns), 1)
+        
+        def test_check_proxy(self):
+        reqs = StringIO("insecure-package==0.1")
+        packages = util.read_requirements(reqs)
+
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=False,
+            cached=False,
+            key=False,
+            ignore_ids=[],
+            proxy={"http":"http:/127.0.0.1:80"}
+        )
+        self.assertEqual(len(vulns), 1)
 
 
 class ReadRequirementsTestCase(unittest.TestCase):

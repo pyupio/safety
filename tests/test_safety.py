@@ -71,7 +71,7 @@ class TestFormatter(unittest.TestCase):
         ]
         full_report = formatter.SheetReport.render(
             vulns, full=True, checked_packages=5, used_db='test DB')
-        self.assertMultiLineEqual(full_report + "\n", textwrap.dedent("""\
+        self.assertMultiLineEqual(full_report + "\n", textwrap.dedent(r"""
             ╒══════════════════════════════════════════════════════════════════════════════╕
             │                                                                              │
             │                               /$$$$$$            /$$                         │
@@ -99,7 +99,7 @@ class TestFormatter(unittest.TestCase):
             │                                                                              │
             │ All users are urged to upgrade please.                                       │
             ╘══════════════════════════════════════════════════════════════════════════════╛
-            """))
+            """.lstrip('\n')))
 
 
 class TestSafety(unittest.TestCase):

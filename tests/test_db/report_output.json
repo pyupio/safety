@@ -1,0 +1,149 @@
+[
+    [
+        "django",
+        "<1.2.7",
+        "1.2.2",
+        "django.contrib.sessions in Django before 1.2.7 and 1.3.x before 1.3.1, when session data is stored in the cache, uses the root namespace for both session identifiers and application-data keys, which allows remote attackers to modify a session by triggering use of a key that is equal to that session's identifier.",
+        "33063"
+    ],
+    [
+        "django",
+        "<1.2.7",
+        "1.2.2",
+        "The verify_exists functionality in the URLField implementation in Django before 1.2.7 and 1.3.x before 1.3.1 relies on Python libraries that attempt access to an arbitrary URL with no timeout, which allows remote attackers to cause a denial of service (resource consumption) via a URL associated with (1) a slow response, (2) a completed TCP connection with no application data sent, or (3) a large amount of application data, a related issue to CVE-2011-1521.",
+        "33064"
+    ],
+    [
+        "django",
+        "<1.2.7",
+        "1.2.2",
+        "The verify_exists functionality in the URLField implementation in Django before 1.2.7 and 1.3.x before 1.3.1 originally tests a URL's validity through a HEAD request, but then uses a GET request for the new target URL in the case of a redirect, which might allow remote attackers to trigger arbitrary GET requests with an unintended source IP address via a crafted Location header.",
+        "33065"
+    ],
+    [
+        "django",
+        "<1.2.7",
+        "1.2.2",
+        "The CSRF protection mechanism in Django through 1.2.7 and 1.3.x through 1.3.1 does not properly handle web-server configurations supporting arbitrary HTTP Host headers, which allows remote attackers to trigger unauthenticated forged requests via vectors involving a DNS CNAME record and a web page containing JavaScript code.",
+        "33066"
+    ],
+    [
+        "django",
+        "<1.3.2",
+        "1.2.2",
+        "The (1) django.http.HttpResponseRedirect and (2) django.http.HttpResponsePermanentRedirect classes in Django before 1.3.2 and 1.4.x before 1.4.1 do not validate the scheme of a redirect target, which might allow remote attackers to conduct cross-site scripting (XSS) attacks via a data: URL.",
+        "33067"
+    ],
+    [
+        "django",
+        "<1.3.2",
+        "1.2.2",
+        "The django.forms.ImageField class in the form system in Django before 1.3.2 and 1.4.x before 1.4.1 completely decompresses image data during image validation, which allows remote attackers to cause a denial of service (memory consumption) by uploading an image file.",
+        "33068"
+    ],
+    [
+        "django",
+        "<1.3.2",
+        "1.2.2",
+        "The get_image_dimensions function in the image-handling functionality in Django before 1.3.2 and 1.4.x before 1.4.1 uses a constant chunk size in all attempts to determine dimensions, which allows remote attackers to cause a denial of service (process or thread consumption) via a large TIFF image.",
+        "33069"
+    ],
+    [
+        "django",
+        "<1.3.4",
+        "1.2.2",
+        "The django.http.HttpRequest.get_host function in Django 1.3.x before 1.3.4 and 1.4.x before 1.4.2 allows remote attackers to generate and display arbitrary URLs via crafted username and password Host header values.",
+        "25709"
+    ],
+    [
+        "django",
+        "<1.4.18",
+        "1.2.2",
+        "The django.util.http.is_safe_url function in Django before 1.4.18, 1.6.x before 1.6.10, and 1.7.x before 1.7.3 does not properly handle leading whitespaces, which allows remote attackers to conduct cross-site scripting (XSS) attacks via a crafted URL, related to redirect URLs, as demonstrated by a \"\\njavascript:\" URL.",
+        "33071"
+    ],
+    [
+        "django",
+        "<1.4.18",
+        "1.2.2",
+        "The django.views.static.serve view in Django before 1.4.18, 1.6.x before 1.6.10, and 1.7.x before 1.7.3 reads files an entire line at a time, which allows remote attackers to cause a denial of service (memory consumption) via a long line in a file.",
+        "33072"
+    ],
+    [
+        "django",
+        "<1.4.18",
+        "1.2.2",
+        "Django before 1.4.18, 1.6.x before 1.6.10, and 1.7.x before 1.7.3 allows remote attackers to spoof WSGI headers by using an _ (underscore) character instead of a - (dash) character in an HTTP header, as demonstrated by an X-Auth_User header.",
+        "33070"
+    ],
+    [
+        "django",
+        "<1.4.20",
+        "1.2.2",
+        "The utils.http.is_safe_url function in Django before 1.4.20, 1.5.x, 1.6.x before 1.6.11, 1.7.x before 1.7.7, and 1.8.x before 1.8c1 does not properly validate URLs, which allows remote attackers to conduct cross-site scripting (XSS) attacks via a control character in a URL, as demonstrated by a \\x08javascript: URL.",
+        "25713"
+    ],
+    [
+        "django",
+        "<1.7.11",
+        "1.2.2",
+        "The get_format function in utils/formats.py in Django before 1.7.x before 1.7.11, 1.8.x before 1.8.7, and 1.9.x before 1.9rc2 might allow remote attackers to obtain sensitive application secrets via a settings key in place of a date/time format setting, as demonstrated by SECRET_KEY.",
+        "25714"
+    ],
+    [
+        "django",
+        "<1.7.6",
+        "1.2.2",
+        "Cross-site scripting (XSS) vulnerability in the contents function in admin/helpers.py in Django before 1.7.6 and 1.8 before 1.8b2 allows remote attackers to inject arbitrary web script or HTML via a model attribute in ModelAdmin.readonly_fields, as demonstrated by a @property.",
+        "25715"
+    ],
+    [
+        "django",
+        "<1.8.10",
+        "1.2.2",
+        "The password hasher in contrib/auth/hashers.py in Django before 1.8.10 and 1.9.x before 1.9.3 allows remote attackers to enumerate users via a timing attack involving login requests.",
+        "33074"
+    ],
+    [
+        "django",
+        "<1.8.10",
+        "1.2.2",
+        "The utils.http.is_safe_url function in Django before 1.8.10 and 1.9.x before 1.9.3 allows remote attackers to redirect users to arbitrary web sites and conduct phishing attacks or possibly conduct cross-site scripting (XSS) attacks via a URL containing basic authentication, as demonstrated by http://mysite.example.com\\@attacker.com.",
+        "33073"
+    ],
+    [
+        "django",
+        "<1.8.15",
+        "1.2.2",
+        "The cookie parsing code in Django before 1.8.15 and 1.9.x before 1.9.10, when used on a site with Google Analytics, allows remote attackers to bypass an intended CSRF protection mechanism by setting arbitrary cookies.",
+        "25718"
+    ],
+    [
+        "django",
+        ">=1.2,<1.2.4",
+        "1.2.2",
+        "The administrative interface in django.contrib.admin in Django before 1.1.3, 1.2.x before 1.2.4, and 1.3.x before 1.3 beta 1 does not properly restrict use of the query string to perform certain object filtering, which allows remote authenticated users to obtain sensitive information via a series of requests containing regular expressions, as demonstrated by a created_by__password__regex parameter.",
+        "33058"
+    ],
+    [
+        "django",
+        ">=1.2,<1.2.4",
+        "1.2.2",
+        "The password reset functionality in django.contrib.auth in Django before 1.1.3, 1.2.x before 1.2.4, and 1.3.x before 1.3 beta 1 does not validate the length of a string representing a base36 timestamp, which allows remote attackers to cause a denial of service (resource consumption) via a URL that specifies a large base36 integer.",
+        "33059"
+    ],
+    [
+        "django",
+        ">=1.2,<1.2.5",
+        "1.2.2",
+        "Django 1.1.x before 1.1.4 and 1.2.x before 1.2.5 does not properly validate HTTP requests that contain an X-Requested-With header, which makes it easier for remote attackers to conduct cross-site request forgery (CSRF) attacks via forged AJAX requests that leverage a \"combination of browser plugins and redirects,\" a related issue to CVE-2011-0447.",
+        "33060"
+    ],
+    [
+        "django",
+        ">=1.2,<1.2.5",
+        "1.2.2",
+        "Directory traversal vulnerability in Django 1.1.x before 1.1.4 and 1.2.x before 1.2.5 on Windows might allow remote attackers to read or execute files via a / (slash) character in a key in a session cookie, related to session replays.",
+        "33062"
+    ]
+]

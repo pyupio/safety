@@ -6,9 +6,10 @@ from safety import __version__
 from safety import safety
 from safety.formatter import report
 import itertools
-from safety.util import read_requirements
+from safety.util import read_requirements, read_vulnerabilities
 from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
 
+from json.decoder import JSONDecodeError
 
 try:
     # pip 9
@@ -46,8 +47,9 @@ def cli():
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("ignore", "--ignore", "-i", multiple=True, type=str, default=[],
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
-
+@click.option("--output", "-o", default="",
+              help="Path to where output file will be placed. Default: empty")
+def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output):
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
         sys.exit(-1)
@@ -61,17 +63,14 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
 
     try:
         vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore)
-        click.secho(report(
-                vulns=vulns,
-                full=full_report,
-                json_report=json,
-                bare_report=bare,
-                checked_packages=len(packages),
-                db=db,
-                key=key
-                ),
-            nl=False if bare and not vulns else True
-            )
+        output_report = report(vulns=vulns, full=full_report, json_report=json, bare_report=bare,
+                               checked_packages=len(packages), db=db, key=key)
+
+        if output:
+            with open(output) as output_file:
+                output_file.write(output_report)
+        else:
+            click.secho(output_report, nl=False if bare and not vulns else True)
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(
@@ -84,6 +83,32 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
     except DatabaseFetchError:
         click.secho("Unable to load vulnerability database", fg="red")
         sys.exit(-1)
+
+
+@cli.command()
+@click.option("--full-report/--short-report", default=False,
+              help='Full reports include a security advisory (if available). Default: '
+                   '--short-report')
+@click.option("--bare/--not-bare", default=False,
+              help='Output vulnerable packages only. Useful in combination with other tools.'
+                   'Default: --not-bare')
+@click.option("file", "--file", "-f", type=click.File(), required=True,
+              help="Read input from an insecure report file. Default: empty")
+def review(full_report, bare, file):
+    if full_report and bare:
+        click.secho("Can't choose both --bare and --full-report/--short-report", fg="red")
+        sys.exit(-1)
+
+    try:
+        input_vulns = read_vulnerabilities(file)
+    except JSONDecodeError:
+        click.secho("Not a valid JSON file", fg="red")
+        sys.exit(-1)
+
+    vulns = safety.review(input_vulns)
+    output_report = report(vulns=vulns, full=full_report, bare_report=bare)
+    click.secho(output_report, nl=False if bare and not vulns else True)
+    sys.exit(-1 if vulns else 0)
 
 
 if __name__ == "__main__":

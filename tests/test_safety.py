@@ -9,9 +9,7 @@ Tests for `safety` module.
 """
 
 
-import sys
 import unittest
-from contextlib import contextmanager
 from click.testing import CliRunner
 
 from safety import safety
@@ -25,6 +23,8 @@ try:
 except ImportError:
     from io import StringIO
 from safety.util import read_requirements
+from safety.util import read_vulnerabilities
+
 
 class TestSafetyCLI(unittest.TestCase):
 
@@ -47,7 +47,7 @@ class TestFormatter(unittest.TestCase):
             self.fail(e)
 
     def test_report_json(self):
-        test_arr = [['libfoo'],['libbar']]
+        test_arr = [['libfoo'], ['libbar']]
         json_report = formatter.report(test_arr, full=False, json_report=True)
         assert json.loads(json_report) == test_arr
 
@@ -58,6 +58,14 @@ class TestFormatter(unittest.TestCase):
 
 
 class TestSafety(unittest.TestCase):
+    def test_review_from_file(self):
+        insecure_file = "test_db/report_output.json"
+        abs_insecure_file = os.path.abspath(os.path.join(os.path.abspath(__file__), "../", insecure_file))
+        with open(abs_insecure_file) as insecure:
+            input_vulns = read_vulnerabilities(insecure)
+
+        vulns = safety.review(input_vulns)
+        assert(len(vulns), 21)
 
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
@@ -90,6 +98,7 @@ class TestSafety(unittest.TestCase):
             ignore_ids=[]
         )
         self.assertEqual(len(vulns), 4)
+
     def test_check_live(self):
         reqs = StringIO("insecure-package==0.1")
         packages = util.read_requirements(reqs)

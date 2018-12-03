@@ -9,7 +9,10 @@ import itertools
 from safety.util import read_requirements, read_vulnerabilities
 from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
 
-from json.decoder import JSONDecodeError
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError
 
 try:
     # pip 9

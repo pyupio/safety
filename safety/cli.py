@@ -111,7 +111,6 @@ def review(full_report, bare, file):
     vulns = safety.review(input_vulns)
     output_report = report(vulns=vulns, full=full_report, bare_report=bare)
     click.secho(output_report, nl=False if bare and not vulns else True)
-    sys.exit(-1 if vulns else 0)
 
 
 if __name__ == "__main__":

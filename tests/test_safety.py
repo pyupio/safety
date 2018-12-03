@@ -37,6 +37,21 @@ class TestSafetyCLI(unittest.TestCase):
         assert help_result.exit_code == 0
         assert '--help' in help_result.output
 
+    def test_review_pass(self):
+        runner = CliRunner()
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "example_report.json")
+        result = runner.invoke(cli.cli, ['review', '--bare', '--file', path_to_report])
+        assert result.exit_code == 0
+        assert result.output == u'django\n'
+
+    def test_review_fail(self):
+        runner = CliRunner()
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "invalid_example_report.json")
+        result = runner.invoke(cli.cli, ['review', '--bare', '--file', path_to_report])
+        assert result.exit_code == -1
+
 
 class TestFormatter(unittest.TestCase):
 
@@ -59,13 +74,13 @@ class TestFormatter(unittest.TestCase):
 
 class TestSafety(unittest.TestCase):
     def test_review_from_file(self):
-        insecure_file = "test_db/report_output.json"
-        abs_insecure_file = os.path.abspath(os.path.join(os.path.abspath(__file__), "../", insecure_file))
-        with open(abs_insecure_file) as insecure:
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "example_report.json")
+        with open(path_to_report) as insecure:
             input_vulns = read_vulnerabilities(insecure)
 
         vulns = safety.review(input_vulns)
-        assert(len(vulns), 21)
+        assert(len(vulns), 3)
 
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")

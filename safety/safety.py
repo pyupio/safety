@@ -10,7 +10,7 @@ import time
 import errno
 
 class Candidate(namedtuple("Candidate",
-                           ["name", "version", "spec"]):
+                           ["name", "version", "spec"])):
     pass
 
 
@@ -141,7 +141,7 @@ def find_candidates(packages, db):
                         Candidate(
                             name=name,
                             spec=specifier,
-                            version=version
+                            version=pkg.version
                         )
                     )
     return candidates

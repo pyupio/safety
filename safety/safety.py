@@ -9,6 +9,11 @@ import json
 import time
 import errno
 
+class Candidate(namedtuple("Candidate",
+                           ["name", "version", "spec"]):
+    pass
+
+
 class Vulnerability(namedtuple("Vulnerability",
                                ["name", "spec", "version", "advisory", "vuln_id"])):
     pass
@@ -120,35 +125,52 @@ def get_vulnerabilities(pkg, spec, db):
                 yield entry
 
 
-def check(packages, key, db_mirror, cached, ignore_ids):
-
-    key = key if key else os.environ.get("SAFETY_API_KEY", False)
-    db = fetch_database(key=key, db=db_mirror, cached=cached)
-    db_full = None
+def find_candidates(packages, db):
     vulnerable_packages = frozenset(db.keys())
-    vulnerable = []
+    candidates = []
     for pkg in packages:
         # normalize the package name, the safety-db is converting underscores to dashes and uses
         # lowercase
         name = pkg.key.replace("_", "-").lower()
-
         if name in vulnerable_packages:
             # we have a candidate here, build the spec set
             for specifier in db[name]:
                 spec_set = SpecifierSet(specifiers=specifier)
                 if spec_set.contains(pkg.version):
-                    if not db_full:
-                        db_full = fetch_database(full=True, key=key, db=db_mirror)
-                    for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
-                        vuln_id = data.get("id").replace("pyup.io-", "")
-                        if vuln_id and vuln_id not in ignore_ids:
-                            vulnerable.append(
-                                Vulnerability(
-                                    name=name,
-                                    spec=specifier,
-                                    version=pkg.version,
-                                    advisory=data.get("advisory"),
-                                    vuln_id=vuln_id
-                                )
-                            )
+                    candidates.append(
+                        Candidate(
+                            name=name,
+                            spec=specifier,
+                            version=version
+                        )
+                    )
+    return candidates
+
+
+def check_candidates(candidates, db_full, ignore_ids):
+    vulnerable = []
+    for cnd in candidates:
+        for data in get_vulnerabilities(pkg=cnd.name, spec=cnd.spec, db=db_full):
+            vuln_id = data.get("id").replace("pyup.io-", "")
+            if vuln_id and vuln_id not in ignore_ids:
+                vulnerable.append(
+                    Vulnerability(
+                        name=cnd.name,
+                        spec=cnd.spec,
+                        version=cnd.version,
+                        advisory=data.get("advisory"),
+                        vuln_id=vuln_id
+                    )
+                )
     return vulnerable
+
+
+def check(packages, key, db_mirror, cached, ignore_ids):
+    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+    db = fetch_database(key=key, db=db_mirror, cached=cached)
+    candidates = find_candidates(packages, db)
+    if candidates:
+        db_full = fetch_database(full=True, key=key, db=db_mirror)
+        return check_candidates(candidates, db_full, ignore_ids)
+    else:
+        return []

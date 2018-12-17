@@ -70,7 +70,7 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output)
                                checked_packages=len(packages), db=db, key=key)
 
         if output:
-            with open(output) as output_file:
+            with open(output, 'w+') as output_file:
                 output_file.write(output_report)
         else:
             click.secho(output_report, nl=False if bare and not vulns else True)

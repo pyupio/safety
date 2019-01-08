@@ -2,6 +2,21 @@
 History
 =======
 
+1.8.4 (2018-08-03)
+------------------
+
+* Update cryptography dependency from verision 1.9 to version 2.3 due to security vulnerability
+
+1.8.3b (2018-07-24)
+------------------
+
+* Allows both unicode and non-unicode type encoding when parsing requriment files
+
+1.8.2 (2018-07-10)
+------------------
+
+* Fixed unicode error
+
 1.8.1 (2018-04-06)
 ------------------
 

@@ -110,6 +110,19 @@ echo "insecure-package==0.1" | safety check --stdin
 
 *For more examples, take a look at the [options](#options) section.*
 
+## Using Safety in Docker
+
+Safety can be easily executed as Docker container. To build the container just execute:
+```
+docker build -t safety-docker .
+```
+
+The container can be used just as described in the [examples](#examples) section.
+```
+echo "insecure-package==0.1" | docker run -i --rm safety-docker safety check --stdin
+cat requirements_dev.txt | docker run -i --rm safety-docker safety check --stdin
+```
+
 ## Using Safety with a CI service
 
 Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability. 
@@ -139,7 +152,7 @@ and displays a status on GitHub.
 
 Safety is free and open source (MIT Licensed). The underlying open vulnerability database is updated once per month.
 
-To get access to all vulnerabilites as soon as they are added, you need a [Safety API key](https://github.com/pyupio/safety/blob/master/docs/api_key.md) that comes with a paid [pyup.io](https://pyup.io) account, starting at $14.99 for individuals, or $49.99 for organizations.
+To get access to all vulnerabilites as soon as they are added, you need a [Safety API key](https://github.com/pyupio/safety/blob/master/docs/api_key.md) that comes with a paid [pyup.io](https://pyup.io) account, starting at $99 for organizations.
 
 ## Options
 

@@ -18,7 +18,7 @@ except TypeError:
         history = history_file.read()
 
 requirements = [
-    'pip',
+    'setuptools',
     'Click>=6.0',
     'requests',
     'packaging',

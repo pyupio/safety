@@ -59,7 +59,8 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, proxypr
         packages = [
             d for d in pkg_resources.working_set
             if d.key not in {"python", "wsgiref", "argparse"}
-        ]    proxy_dictionary = {}
+        ]    
+    proxy_dictionary = {}
     if proxyhost is not None:
         if proxyprotocol in ["http", "https"]:
             proxy_dictionary = {proxyprotocol: "{0}://{1}:{2}".format(proxyprotocol, proxyhost, str(proxyport))}
@@ -69,17 +70,16 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, proxypr
     try:
         vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
         click.secho(report(
-                vulns=vulns,
-                full=full_report,
-                json_report=json,
-                bare_report=bare,
-                checked_packages=len(packages),
-                db=db,
-                key=key
-                ),
-            nl=False if bare and not vulns else True
-            )
-        )
+            vulns=vulns,
+            full=full_report,
+            json_report=json,
+            bare_report=bare,
+            checked_packages=len(packages),
+            db=db,
+            key=key
+            ),
+          nl=False if bare and not vulns else True
+          )
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(

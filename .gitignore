@@ -61,6 +61,10 @@ target/
 # pyenv python configuration file
 .python-version
 sandbox.py
+<<<<<<< HEAD
+
+# PyCharm
+.idea
 *.idea/*
 
 # Virtual Env

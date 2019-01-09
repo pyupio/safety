@@ -9,9 +9,8 @@ Tests for `safety` module.
 """
 
 
-import sys
 import unittest
-from contextlib import contextmanager
+import textwrap
 from click.testing import CliRunner
 
 from safety import safety
@@ -25,6 +24,8 @@ try:
 except ImportError:
     from io import StringIO
 from safety.util import read_requirements
+from safety.util import read_vulnerabilities
+
 
 class TestSafetyCLI(unittest.TestCase):
 
@@ -37,8 +38,25 @@ class TestSafetyCLI(unittest.TestCase):
         assert help_result.exit_code == 0
         assert '--help' in help_result.output
 
+    def test_review_pass(self):
+        runner = CliRunner()
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "example_report.json")
+        result = runner.invoke(cli.cli, ['review', '--bare', '--file', path_to_report])
+        assert result.exit_code == 0
+        assert result.output == u'django\n'
+
+    def test_review_fail(self):
+        runner = CliRunner()
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "invalid_example_report.json")
+        result = runner.invoke(cli.cli, ['review', '--bare', '--file', path_to_report])
+        assert result.exit_code == -1
+
 
 class TestFormatter(unittest.TestCase):
+
+    maxDiff = None
 
     def test_get_terminal_size(self):
         try:
@@ -47,7 +65,7 @@ class TestFormatter(unittest.TestCase):
             self.fail(e)
 
     def test_report_json(self):
-        test_arr = [['libfoo'],['libbar']]
+        test_arr = [['libfoo'], ['libbar']]
         json_report = formatter.report(test_arr, full=False, json_report=True)
         assert json.loads(json_report) == test_arr
 
@@ -56,8 +74,60 @@ class TestFormatter(unittest.TestCase):
         assert 'pyup.io\'s DB' == formatter.get_used_db(key='foo', db='')
         assert 'local DB' == formatter.get_used_db(key=None, db='/usr/local/some-db')
 
+    def test_full_report(self):
+        vulns = [
+            safety.Vulnerability(
+                name='libfoo',
+                spec='<2.0.0',
+                version='1.9.3',
+                advisory='libfoo prior to version 2.0.0 had a vulnerability'
+                         + ' blah' * 15 + '.\r\n\r\n'
+                         + 'All users are urged to upgrade please.\r\n',
+                vuln_id=1234,
+            ),
+        ]
+        full_report = formatter.SheetReport.render(
+            vulns, full=True, checked_packages=5, used_db='test DB')
+        self.assertMultiLineEqual(full_report + "\n", textwrap.dedent(r"""
+            ╒══════════════════════════════════════════════════════════════════════════════╕
+            │                                                                              │
+            │                               /$$$$$$            /$$                         │
+            │                              /$$__  $$          | $$                         │
+            │           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           │
+            │          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           │
+            │         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           │
+            │          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           │
+            │          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           │
+            │         |_______/  \_______/|__/     \_______/   \___/   \____  $$           │
+            │                                                          /$$  | $$           │
+            │                                                         |  $$$$$$/           │
+            │  by pyup.io                                              \______/            │
+            │                                                                              │
+            ╞══════════════════════════════════════════════════════════════════════════════╡
+            │ REPORT                                                                       │
+            │ checked 5 packages, using test DB                                            │
+            ╞════════════════════════════╤═══════════╤══════════════════════════╤══════════╡
+            │ package                    │ installed │ affected                 │ ID       │
+            ╞════════════════════════════╧═══════════╧══════════════════════════╧══════════╡
+            │ libfoo                     │ 1.9.3     │ <2.0.0                   │     1234 │
+            ╞══════════════════════════════════════════════════════════════════════════════╡
+            │ libfoo prior to version 2.0.0 had a vulnerability blah blah blah blah blah   │
+            │ blah blah blah blah blah blah blah blah blah blah.                           │
+            │                                                                              │
+            │ All users are urged to upgrade please.                                       │
+            ╘══════════════════════════════════════════════════════════════════════════════╛
+            """.lstrip('\n')))
+
 
 class TestSafety(unittest.TestCase):
+    def test_review_from_file(self):
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "example_report.json")
+        with open(path_to_report) as insecure:
+            input_vulns = read_vulnerabilities(insecure)
+
+        vulns = safety.review(input_vulns)
+        assert(len(vulns), 3)
 
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
@@ -71,7 +141,8 @@ class TestSafety(unittest.TestCase):
             ),
             cached=False,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 2)
 
@@ -87,9 +158,11 @@ class TestSafety(unittest.TestCase):
             ),
             cached=False,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 4)
+
     def test_check_live(self):
         reqs = StringIO("insecure-package==0.1")
         packages = util.read_requirements(reqs)
@@ -99,7 +172,8 @@ class TestSafety(unittest.TestCase):
             db_mirror=False,
             cached=False,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 1)
 
@@ -112,7 +186,8 @@ class TestSafety(unittest.TestCase):
             db_mirror=False,
             cached=True,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 1)
 
@@ -124,7 +199,8 @@ class TestSafety(unittest.TestCase):
             db_mirror=False,
             cached=True,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 1)
 

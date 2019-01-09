@@ -14,14 +14,6 @@ try:
 except ImportError:
     JSONDecodeError = ValueError
 
-try:
-    # pip 9
-    from pip import get_installed_distributions
-except ImportError:
-    # pip 10
-    from pip._internal.utils.misc import get_installed_distributions
-
-
 @click.group()
 @click.version_option(version=__version__)
 def cli():
@@ -52,7 +44,13 @@ def cli():
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
 @click.option("--output", "-o", default="",
               help="Path to where output file will be placed. Default: empty")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output):
+@click.option("proxyhost", "--proxy-host", "-ph", multiple=False, type=str, default=None,
+              help="Proxy host IP or DNS --proxy-host")
+@click.option("proxyport", "--proxy-port", "-pp", multiple=False, type=int, default=80,
+              help="Proxy port number --proxy-port")
+@click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
+              help="Proxy protocol (https or http) --proxy-protocol")
+def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
         sys.exit(-1)
@@ -62,12 +60,27 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output)
     elif stdin:
         packages = list(read_requirements(sys.stdin))
     else:
-        packages = get_installed_distributions()
-
+        import pkg_resources
+        packages = [
+            d for d in pkg_resources.working_set
+            if d.key not in {"python", "wsgiref", "argparse"}
+        ]    
+    proxy_dictionary = {}
+    if proxyhost is not None:
+        if proxyprotocol in ["http", "https"]:
+            proxy_dictionary = {proxyprotocol: "{0}://{1}:{2}".format(proxyprotocol, proxyhost, str(proxyport))}
+        else:
+            click.secho("Proxy Protocol should be http or https only.", fg="red")
+            sys.exit(-1)
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore)
-        output_report = report(vulns=vulns, full=full_report, json_report=json, bare_report=bare,
-                               checked_packages=len(packages), db=db, key=key)
+        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
+        output_report = report(vulns=vulns, 
+                               full=full_report, 
+                               json_report=json, 
+                               bare_report=bare,
+                               checked_packages=len(packages), 
+                               db=db, 
+                               key=key)
 
         if output:
             with open(output, 'w+') as output_file:

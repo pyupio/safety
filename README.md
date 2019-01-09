@@ -110,6 +110,19 @@ echo "insecure-package==0.1" | safety check --stdin
 
 *For more examples, take a look at the [options](#options) section.*
 
+## Using Safety in Docker
+
+Safety can be easily executed as Docker container. To build the container just execute:
+```
+docker build -t safety-docker .
+```
+
+The container can be used just as described in the [examples](#examples) section.
+```
+echo "insecure-package==0.1" | docker run -i --rm safety-docker safety check --stdin
+cat requirements_dev.txt | docker run -i --rm safety-docker safety check --stdin
+```
+
 ## Using Safety with a CI service
 
 Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability. 

@@ -1,6 +1,7 @@
 from dparse.parser import setuptools_parse_requirements_backport as _parse_requirements
 from collections import namedtuple
 import click
+import sys
 import json
 import os
 Package = namedtuple("Package", ["key", "version"])
@@ -90,7 +91,8 @@ def read_requirements(fh, resolve=False):
                         "Warning: unpinned requirement '{req}' found in {fname}, "
                         "unable to check.".format(req=req.name,
                                                   fname=fname),
-                        fg="yellow"
+                        fg="yellow",
+                        file=sys.stderr
                     )
             except ValueError:
                 continue

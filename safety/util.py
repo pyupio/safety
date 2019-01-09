@@ -2,9 +2,14 @@ from dparse.parser import setuptools_parse_requirements_backport as _parse_requi
 from collections import namedtuple
 import click
 import sys
+import json
 import os
 Package = namedtuple("Package", ["key", "version"])
 RequirementFile = namedtuple("RequirementFile", ["path"])
+
+
+def read_vulnerabilities(fh):
+    return json.load(fh)
 
 
 def iter_lines(fh, lineno=0):

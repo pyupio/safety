@@ -38,7 +38,13 @@ def cli():
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("ignore", "--ignore", "-i", multiple=True, type=str, default=[],
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
+@click.option("proxyhost", "--proxy-host", "-ph", multiple=False, type=str, default=None,
+              help="Proxy host IP or DNS --proxy-host")
+@click.option("proxyport", "--proxy-port", "-pp", multiple=False, type=int, default=80,
+              help="Proxy port number --proxy-port")
+@click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
+              help="Proxy protocol (https or http) --proxy-protocol")
+def check(key, db, json, full_report, bare, stdin, files, cache, ignore, proxyprotocol, proxyhost, proxyport):
 
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red")
@@ -53,21 +59,27 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore):
         packages = [
             d for d in pkg_resources.working_set
             if d.key not in {"python", "wsgiref", "argparse"}
-        ]
-
+        ]    
+    proxy_dictionary = {}
+    if proxyhost is not None:
+        if proxyprotocol in ["http", "https"]:
+            proxy_dictionary = {proxyprotocol: "{0}://{1}:{2}".format(proxyprotocol, proxyhost, str(proxyport))}
+        else:
+            click.secho("Proxy Protocol should be http or https only.", fg="red")
+            sys.exit(-1)
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore)
+        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
         click.secho(report(
-                vulns=vulns,
-                full=full_report,
-                json_report=json,
-                bare_report=bare,
-                checked_packages=len(packages),
-                db=db,
-                key=key
-                ),
-            nl=False if bare and not vulns else True
-            )
+            vulns=vulns,
+            full=full_report,
+            json_report=json,
+            bare_report=bare,
+            checked_packages=len(packages),
+            db=db,
+            key=key
+            ),
+          nl=False if bare and not vulns else True
+          )
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(

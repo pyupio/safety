@@ -116,7 +116,8 @@ class TestSafety(unittest.TestCase):
             ),
             cached=False,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 2)
 
@@ -132,7 +133,8 @@ class TestSafety(unittest.TestCase):
             ),
             cached=False,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 4)
     def test_check_live(self):
@@ -144,7 +146,8 @@ class TestSafety(unittest.TestCase):
             db_mirror=False,
             cached=False,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 1)
 
@@ -157,7 +160,8 @@ class TestSafety(unittest.TestCase):
             db_mirror=False,
             cached=True,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 1)
 
@@ -169,7 +173,8 @@ class TestSafety(unittest.TestCase):
             db_mirror=False,
             cached=True,
             key=False,
-            ignore_ids=[]
+            ignore_ids=[],
+            proxy={}
         )
         self.assertEqual(len(vulns), 1)
 

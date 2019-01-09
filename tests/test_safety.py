@@ -24,6 +24,8 @@ try:
 except ImportError:
     from io import StringIO
 from safety.util import read_requirements
+from safety.util import read_vulnerabilities
+
 
 class TestSafetyCLI(unittest.TestCase):
 
@@ -35,6 +37,21 @@ class TestSafetyCLI(unittest.TestCase):
         help_result = runner.invoke(cli.cli, ['--help'])
         assert help_result.exit_code == 0
         assert '--help' in help_result.output
+
+    def test_review_pass(self):
+        runner = CliRunner()
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "example_report.json")
+        result = runner.invoke(cli.cli, ['review', '--bare', '--file', path_to_report])
+        assert result.exit_code == 0
+        assert result.output == u'django\n'
+
+    def test_review_fail(self):
+        runner = CliRunner()
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "invalid_example_report.json")
+        result = runner.invoke(cli.cli, ['review', '--bare', '--file', path_to_report])
+        assert result.exit_code == -1
 
 
 class TestFormatter(unittest.TestCase):
@@ -48,7 +65,7 @@ class TestFormatter(unittest.TestCase):
             self.fail(e)
 
     def test_report_json(self):
-        test_arr = [['libfoo'],['libbar']]
+        test_arr = [['libfoo'], ['libbar']]
         json_report = formatter.report(test_arr, full=False, json_report=True)
         assert json.loads(json_report) == test_arr
 
@@ -103,6 +120,14 @@ class TestFormatter(unittest.TestCase):
 
 
 class TestSafety(unittest.TestCase):
+    def test_review_from_file(self):
+        dirname = os.path.dirname(__file__)
+        path_to_report = os.path.join(dirname, "test_db", "example_report.json")
+        with open(path_to_report) as insecure:
+            input_vulns = read_vulnerabilities(insecure)
+
+        vulns = safety.review(input_vulns)
+        assert(len(vulns), 3)
 
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
@@ -137,6 +162,7 @@ class TestSafety(unittest.TestCase):
             proxy={}
         )
         self.assertEqual(len(vulns), 4)
+
     def test_check_live(self):
         reqs = StringIO("insecure-package==0.1")
         packages = util.read_requirements(reqs)

@@ -61,6 +61,8 @@ target/
 # pyenv python configuration file
 .python-version
 sandbox.py
+*.idea/*
 
 # Virtual Env
 venv/
+.venv/

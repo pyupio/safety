@@ -9,6 +9,7 @@ import json
 import time
 import errno
 
+
 class Vulnerability(namedtuple("Vulnerability",
                                ["name", "spec", "version", "advisory", "vuln_id"])):
     pass
@@ -149,4 +150,20 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     vuln_id=vuln_id
                                 )
                             )
+    return vulnerable
+
+
+def review(vulnerabilities):
+    vulnerable = []
+    for vuln in vulnerabilities:
+        current_vuln = {
+            "name": vuln[0],
+            "spec": vuln[1],
+            "version": vuln[2],
+            "advisory": vuln[3],
+            "vuln_id": vuln[4],
+        }
+        vulnerable.append(
+            Vulnerability(**current_vuln)
+        )
     return vulnerable

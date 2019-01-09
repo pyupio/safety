@@ -307,4 +307,88 @@ safety check --ignore=1234
 ```bash
 safety check -i 1234 -i 4567 -i 89101
 ```
+
+### `--output`, `-o`
+
+*Save the report to a file*
+
+**Example**
+```bash
+safety check -o insecure_report.txt
+```
+```bash
+safety check --output --json insecure_report.json
+```
 ___
+
+# Review
+
+If you save the report in JSON format you can review in the report format again.
+
+## Options
+
+### `--file`, `-f` (REQUIRED)
+
+*Read an insecure report.*
+
+**Example**
+```bash
+safety check -f insecure.json
+```
+```bash
+safety check --file=insecure.json
+```
+___
+
+### `--full-report`
+
+*Full reports include a security advisory (if available).*
+
+**Example**
+```bash
+safety review -r insecure.json --full-report
+```
+
+```
+╒══════════════════════════════════════════════════════════════════════════════╕
+│                                                                              │
+│                               /$$$$$$            /$$                         │
+│                              /$$__  $$          | $$                         │
+│           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           │
+│          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           │
+│         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           │
+│          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           │
+│          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           │
+│         |_______/  \_______/|__/     \_______/   \___/   \____  $$           │
+│                                                          /$$  | $$           │
+│                                                         |  $$$$$$/           │
+│  by pyup.io                                              \______/            │
+│                                                                              │
+╞══════════════════════════════════════════════════════════════════════════════╡
+│ REPORT                                                                       │
+╞════════════════════════════╤═══════════╤══════════════════════════╤══════════╡
+│ package                    │ installed │ affected                 │ ID       │
+╞════════════════════════════╧═══════════╧══════════════════════════╧══════════╡
+│ django                     │ 1.2       │ <1.2.2                   │ 25701    │
+╞══════════════════════════════════════════════════════════════════════════════╡
+│ Cross-site scripting (XSS) vulnerability in Django 1.2.x before 1.2.2 allows │
+│  remote attackers to inject arbitrary web script or HTML via a csrfmiddlewar │
+│ etoken (aka csrf_token) cookie.                                              │
+╘══════════════════════════════════════════════════════════════════════════════╛
+```
+___
+
+### `--bare`
+
+*Output vulnerable packages only. *
+
+**Example**
+```bash
+safety review --file report.json --bare
+```
+
+```
+django
+```
+___
+

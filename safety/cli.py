@@ -86,10 +86,18 @@ def check(key, db, json, xml, full_report, bare, stdin, files, cache, ignore, ou
                                key=key)
 
         if output:
-            with open(output, 'w+') as output_file:
-                output_file.write(output_report)
+            if xml:
+                with open(output, 'wb') as output_file:
+                    output_file.write(output_report)
+            else:
+                with open(output, 'w+') as output_file:
+                    output_file.write(output_report)
         else:
-            click.secho(output_report, nl=False if bare and not vulns else True)
+            if xml:
+                click.echo(output_report, nl=False)
+            else:
+                click.secho(output_report, nl=False if bare and not vulns else True)
+
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(

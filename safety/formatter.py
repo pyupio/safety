@@ -5,6 +5,8 @@ import json
 import os
 import textwrap
 
+from lxml import etree
+
 # python 2.7 compat
 try:
     FileNotFoundError
@@ -174,6 +176,28 @@ class JsonReport(object):
         return json.dumps(vulns, indent=4, sort_keys=True)
 
 
+class XmlReport(object):
+    """Xml (JUnit) report, for ci integration"""
+
+    @staticmethod
+    def render(vulns, full, checked_packages):
+        root = etree.Element('testsuite', name='safety',
+                             tests=str(checked_packages),
+                             failures=str(len(vulns)))
+        for vuln in vulns:
+            case = etree.SubElement(root, "testcase", classname=vuln.name, name="insecure_package")
+            msg = "{}, installed {}, affected {}, id {}".format(
+                vuln.name,
+                vuln.version,
+                vuln.spec,
+                vuln.vuln_id
+            )
+            descr = get_advisory(vuln)
+            fail = etree.SubElement(case, "failure", message=msg, type=str(vuln.vuln_id))
+            fail.text = "{} -> {}".format(msg, descr)
+        return etree.tostring(root, xml_declaration=True, encoding="utf-8")
+
+
 class BareReport(object):
     """Bare report, for command line tools"""
     @staticmethod
@@ -190,11 +214,14 @@ def get_used_db(key, db):
     return "local DB"
 
 
-def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, db=None, key=None):
+def report(vulns, full=False, json_report=False, bare_report=False, xml_report=False,
+           checked_packages=0, db=None, key=None):
     if bare_report:
         return BareReport.render(vulns, full=full)
     if json_report:
         return JsonReport.render(vulns, full=full)
+    if xml_report:
+        return XmlReport.render(vulns, full=full, checked_packages=checked_packages)
     size = get_terminal_size()
     used_db = get_used_db(key=key, db=db)
     if size.columns >= 80:

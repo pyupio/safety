@@ -12,6 +12,7 @@ Tests for `safety` module.
 import unittest
 import textwrap
 from click.testing import CliRunner
+from lxml import etree
 
 from safety import safety
 from safety import cli
@@ -68,6 +69,29 @@ class TestFormatter(unittest.TestCase):
         test_arr = [['libfoo'], ['libbar']]
         json_report = formatter.report(test_arr, full=False, json_report=True)
         assert json.loads(json_report) == test_arr
+
+    def test_report_xml(self):
+        vulns = [
+            safety.Vulnerability(
+                name='libfoo',
+                spec='<2.0.0',
+                version='1.9.3',
+                advisory='libfoo prior to version 2.0.0 had a vulnerability'
+                         + ' blah' * 15 + '.\r\n\r\n'
+                         + 'All users are urged to upgrade please.\r\n',
+                vuln_id=1234,
+            ),
+        ]
+        xml_report = formatter.report(vulns, full=False, xml_report=True,
+                                      checked_packages=2)
+
+        schema_root = etree.parse("tests/junit.xsd")
+        schema = etree.XMLSchema(schema_root)
+        parser = etree.XMLParser(schema=schema)
+        root = etree.fromstring(xml_report, parser)
+        assert root.attrib["tests"] == str(2)
+        assert root.attrib["failures"] == str(1)
+        assert len(root) == 1
 
     def test_get_used_db(self):
         assert 'default DB' == formatter.get_used_db(key=None, db='')

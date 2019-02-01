@@ -28,6 +28,8 @@ def cli():
               help="Path to a local vulnerability database. Default: empty")
 @click.option("--json/--no-json", default=False,
               help="Output vulnerabilities in JSON format. Default: --no-json")
+@click.option("--xml/--no-xml", default=False,
+              help="Output vulnerabilities in XML (JUnit) format. Default: --no-xml")
 @click.option("--full-report/--short-report", default=False,
               help='Full reports include a security advisory (if available). Default: '
                    '--short-report')
@@ -50,7 +52,7 @@ def cli():
               help="Proxy port number --proxy-port")
 @click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
               help="Proxy protocol (https or http) --proxy-protocol")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
+def check(key, db, json, xml, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red", file=sys.stderr)
         sys.exit(-1)
@@ -74,12 +76,13 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
             sys.exit(-1)
     try:
         vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
-        output_report = report(vulns=vulns, 
-                               full=full_report, 
-                               json_report=json, 
+        output_report = report(vulns=vulns,
+                               full=full_report,
+                               json_report=json,
+                               xml_report=xml,
                                bare_report=bare,
-                               checked_packages=len(packages), 
-                               db=db, 
+                               checked_packages=len(packages),
+                               db=db,
                                key=key)
 
         if output:

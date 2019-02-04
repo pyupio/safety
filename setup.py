@@ -34,6 +34,7 @@ setup(
     version='1.8.4',
     description="Safety checks your installed dependencies for known security vulnerabilities.",
     long_description=readme + '\n\n' + history,
+    long_description_content_type="text/markdown",
     author="pyup.io",
     author_email='support@pyup.io',
     url='https://github.com/pyupio/safety',

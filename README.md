@@ -176,6 +176,18 @@ ___
 safety check --db=/home/safety-db/data
 ```
 
+### `--proxy-host`
+
+*Proxy host IP or DNS*
+
+### `--proxy-port`
+
+*Proxy port number*
+
+### `--proxy-protocol`
+
+*Proxy protocol (https or http)*
+
 ___
 
 ### `--json`
@@ -380,7 +392,7 @@ ___
 
 ### `--bare`
 
-*Output vulnerable packages only. *
+*Output vulnerable packages only.*
 
 **Example**
 ```bash

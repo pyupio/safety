@@ -31,7 +31,7 @@ test_requirements = [
 
 setup(
     name='safety',
-    version='1.8.4',
+    version='1.8.5',
     description="Safety checks your installed dependencies for known security vulnerabilities.",
     long_description=readme + '\n\n' + history,
     long_description_content_type="text/markdown",

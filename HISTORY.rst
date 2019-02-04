@@ -2,6 +2,13 @@
 History
 =======
 
+1.8.5 (2019-02-04)
+------------------
+
+* Wrap words in full report (Thanks @mgedmin)
+* Added Dockerfile and readme instructions (Thanks @ayeks)
+* Remove API dependency on pip (Thanks @benjaminp)
+
 1.8.4 (2018-08-03)
 ------------------
 

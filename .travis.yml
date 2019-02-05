@@ -32,6 +32,7 @@ matrix:
   include:
     - python: 3.7
       dist: xenial
+      sudo: true
 script:
   - coverage run setup.py test
   - pip freeze

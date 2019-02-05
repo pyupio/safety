@@ -5,4 +5,4 @@ flake8==3.6.0
 PyYAML==4.2b4
 cryptography==2.4.2
 coverage==4.5.2
-Sphinx==1.8.3
+Sphinx==1.8.4

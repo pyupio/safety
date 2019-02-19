@@ -1,7 +1,7 @@
 pip==18.1
 wheel==0.32.3
 watchdog==0.9.0
-flake8==3.6.0
+flake8==3.7.6
 PyYAML==4.2b4
 cryptography==2.4.2
 coverage==4.5.2

@@ -84,6 +84,10 @@ def fetch_database_url(mirror, db_name, key, cached, proxy):
         return data
     elif r.status_code == 403:
         raise InvalidKeyError()
+    else:
+        cached_data = get_from_cache(db_name=db_name)
+        if cached_data:
+            return cached_data
 
 
 def fetch_database_file(path, db_name):

@@ -15,14 +15,14 @@ class Vulnerability(namedtuple("Vulnerability",
     pass
 
 
-def get_from_cache(db_name):
+def get_from_cache(db_name, site_down=False):
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE) as f:
             try:
                 data = json.loads(f.read())
                 if db_name in data:
                     if "cached_at" in data[db_name]:
-                        if data[db_name]["cached_at"] + CACHE_VALID_SECONDS > time.time():
+                        if site_down or data[db_name]["cached_at"] + CACHE_VALID_SECONDS > time.time():
                             return data[db_name]["db"]
             except json.JSONDecodeError:
                 pass
@@ -85,7 +85,7 @@ def fetch_database_url(mirror, db_name, key, cached, proxy):
     elif r.status_code == 403:
         raise InvalidKeyError()
     else:
-        cached_data = get_from_cache(db_name=db_name)
+        cached_data = get_from_cache(db_name=db_name, site_down=True)
         if cached_data:
             return cached_data
 
@@ -141,7 +141,7 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                 spec_set = SpecifierSet(specifiers=specifier)
                 if spec_set.contains(pkg.version):
                     if not db_full:
-                        db_full = fetch_database(full=True, key=key, db=db_mirror)
+                        db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached)
                     for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
                         vuln_id = data.get("id").replace("pyup.io-", "")
                         if vuln_id and vuln_id not in ignore_ids:

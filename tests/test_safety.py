@@ -175,8 +175,8 @@ class TestSafety(unittest.TestCase):
             ignore_ids=[],
             proxy={}
         )
-        self.assertEqual(len(vulns), 1)
-
+        self.assertEqual(len(vulns), 1)    
+    
     def test_check_live_cached(self):
         reqs = StringIO("insecure-package==0.1")
         packages = util.read_requirements(reqs)
@@ -204,7 +204,34 @@ class TestSafety(unittest.TestCase):
         )
         self.assertEqual(len(vulns), 1)
 
+    def test_check_live_down_cached(self):
+        reqs = StringIO("insecure-package==0.1")
+        packages = util.read_requirements(reqs)
 
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=False,
+            cached=True,
+            key=False,
+            ignore_ids=[],
+            proxy={}
+        )
+        self.assertEqual(len(vulns), 1)
+        
+        reqs = StringIO("insecure-package==0.1")
+        packages = util.read_requirements(reqs)
+        # make a second call, where server responds with 400 error, so use
+        # the cache
+        vulns = safety.check(
+            packages=packages,
+            db_mirror="http://pyup.io/",
+            cached=False,
+            key=False,
+            ignore_ids=[],
+            proxy={}
+        )
+        self.assertEqual(len(vulns), 1)
+    
 class ReadRequirementsTestCase(unittest.TestCase):
 
     def test_unpinned_vcs_requirement(self):

@@ -96,3 +96,13 @@ def read_requirements(fh, resolve=False):
                     )
             except ValueError:
                 continue
+
+
+def read_pipfile(fh):
+    """
+    Reads Pipfile.lock
+    :param fh: file like object to read from
+    :return: generator
+    """
+    for key, data in json.load(fh)['default'].items():
+        yield Package(key=key, version=data['version'].replace('==', ''))

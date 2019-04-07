@@ -6,7 +6,7 @@ from safety import __version__
 from safety import safety
 from safety.formatter import report
 import itertools
-from safety.util import read_requirements, read_vulnerabilities
+from safety.util import read_requirements, read_vulnerabilities, read_pipfile
 from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
 
 try:
@@ -40,6 +40,8 @@ def cli():
               help="Read input from stdin. Default: --no-stdin")
 @click.option("files", "--file", "-r", multiple=True, type=click.File(),
               help="Read input from one (or multiple) requirement files. Default: empty")
+@click.option("pipfile", "--pipfile", "-p", type=click.File(),
+              help="Read input from one Pipfile.lock. Default: empty")
 @click.option("ignore", "--ignore", "-i", multiple=True, type=str, default=[],
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
 @click.option("--output", "-o", default="",
@@ -50,13 +52,15 @@ def cli():
               help="Proxy port number --proxy-port")
 @click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
               help="Proxy protocol (https or http) --proxy-protocol")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
-    if files and stdin:
+def check(key, db, json, full_report, bare, stdin, files, pipfile, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
+    if (files or pipfile) and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red", file=sys.stderr)
         sys.exit(-1)
 
     if files:
         packages = list(itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files))
+    elif pipfile:
+        packages = list(read_pipfile(pipfile))
     elif stdin:
         packages = list(read_requirements(sys.stdin))
     else:

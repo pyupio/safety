@@ -26,7 +26,7 @@ requirements = [
 ]
 
 test_requirements = [
-    # TODO: put package test requirements here
+    'mock==1.0.1',
 ]
 
 setup(
@@ -46,6 +46,9 @@ setup(
     entry_points={
         'console_scripts': [
             'safety=safety.cli:cli'
+        ],
+        'distutils.commands': [
+            'safety=safety.command:SafetyCommand'
         ]
     },
     include_package_data=True,

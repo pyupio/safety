@@ -23,7 +23,7 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
-from safety.util import read_requirements
+from safety.util import read_requirements, read_pipfile
 from safety.util import read_vulnerabilities
 
 
@@ -132,6 +132,23 @@ class TestSafety(unittest.TestCase):
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
         packages = util.read_requirements(reqs)
+
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=False,
+            ignore_ids=[],
+            proxy={}
+        )
+        self.assertEqual(len(vulns), 2)
+
+    def test_check_from_pipfile(self):
+        reqs = StringIO(json.dumps({'default': {'django': {'version': '==1.8.1'}}}))
+        packages = util.read_pipfile(reqs)
 
         vulns = safety.check(
             packages=packages,

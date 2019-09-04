@@ -146,6 +146,24 @@ class TestSafety(unittest.TestCase):
         )
         self.assertEqual(len(vulns), 2)
 
+    def test_check_from_file_with_hash_pins(self):
+        reqs = StringIO(("Django==1.8.1 "
+                         "--hash=sha256:c6c7e7a961e2847d050d214ca96dc3167bb5f2b25cd5c6cb2eea96e1717f4ade"))
+        packages = util.read_requirements(reqs)
+
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=False,
+            ignore_ids=[],
+            proxy={}
+        )
+        self.assertEqual(len(vulns), 2)
+
     def test_multiple_versions(self):
         reqs = StringIO("Django==1.8.1\n\rDjango==1.7.0")
         packages = util.read_requirements(reqs)

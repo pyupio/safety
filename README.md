@@ -147,6 +147,22 @@ and displays a status on GitHub.
 
 ![Safety CI](https://github.com/pyupio/safety/raw/master/safety_ci.png)
 
+## Using Safety from setup.py
+
+Safety includes a [distutils extension] that runs the check command.
+
+```
+python setup.py safety --full-report
+```
+
+The command-line options can also be configured in *setup.cfg*:
+
+```
+[safety]
+full-report yes
+```
+
+[distutils extension]: https://setuptools.readthedocs.io/en/latest/setuptools.html#extending-and-reusing-setuptools
 
 # Using Safety in production
 

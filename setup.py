@@ -1,33 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from io import open  # Python 2 compatibility
 
 from setuptools import setup
 
-# there are problems to run setup.py on windows if the encoding is not set.
-# additionally, supplying the encoding isn't supported on 2.7
-# wrap all of this an ugly try/catch block
-try:
-    with open('README.md', encoding='utf8') as readme_file:
-        readme = readme_file.read()
-    with open('HISTORY.rst', encoding='utf8') as history_file:
-        history = history_file.read()
-except TypeError:
-    with open('README.md') as readme_file:
-        readme = readme_file.read()
-    with open('HISTORY.rst') as history_file:
-        history = history_file.read()
+# There are problems running setup.py on Windows if the encoding is not set
+with open('README.md', encoding='utf8') as readme_file:
+    readme = readme_file.read()
+with open('HISTORY.rst', encoding='utf8') as history_file:
+    history = history_file.read()
 
-requirements = [
-    'setuptools',
-    'Click>=6.0',
-    'requests',
-    'packaging',
-    'dparse>=0.4.1'
-]
-
-test_requirements = [
-    # TODO: put package test requirements here
-]
 
 setup(
     name='safety',
@@ -41,20 +23,26 @@ setup(
     packages=[
         'safety',
     ],
-    package_dir={'safety':
-                 'safety'},
+    package_dir={'safety': 'safety'},
     entry_points={
         'console_scripts': [
             'safety=safety.cli:cli'
         ]
     },
     include_package_data=True,
-    install_requires=requirements,
+    install_requires=[
+        'setuptools',
+        'Click>=6.0',
+        'requests',
+        'packaging',
+        'dparse>=0.4.1'
+    ],
+    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     license="MIT license",
     zip_safe=False,
     keywords='safety',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
@@ -64,6 +52,5 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
-    test_suite='tests',
-    tests_require=test_requirements
+    test_suite='tests'
 )

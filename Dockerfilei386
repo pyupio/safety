@@ -5,3 +5,6 @@ COPY requirements_dev.txt /requirements_dev.txt
 RUN pip3 install -r /requirements_dev.txt
 RUN mkdir /app
 WORKDIR /app
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8

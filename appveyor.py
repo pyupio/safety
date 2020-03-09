@@ -87,7 +87,7 @@ class environment:
             # there seems to be no way to tell pyinstaller the name of the actual binary
             # this leads to problems with appveyors artifact collector because every binary is named the same
             # move them around so they can be picked up correctly
-            artifact_path = os.path.join(os.getcwd(), "dist", f"safety-{self.os}-{arch}")
+            artifact_path = os.path.join(os.getcwd(), "dist", f"safety-{self.os}-{'i686' if arch == 32 else 'x86_64'}")
             binary_path = os.path.join(os.getcwd(), build_path, "safety")
             if self.os == self.WIN:
                 self.run(f"move {binary_path}.exe {artifact_path}.exe")

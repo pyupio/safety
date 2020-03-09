@@ -26,16 +26,16 @@ init:
 build: off
 
 artifacts:
-  - path: "dist\\safety-win-32.exe"
-    name: "safety-win-32.exe"
-  - path: "dist\\safety-win-64.exe"
-    name: "safety-win-64.exe"
-  - path: "dist\\safety-linux-32"
-    name: "safety-linux-32"
-  - path: "dist\\safety-linux-64"
-    name: "safety-linux-64"
-  - path: "dist\\safety-macos-64"
-    name: "safety-macos-64"
+  - path: "dist\\safety-win-i686.exe"
+    name: "safety-win-i686.exe"
+  - path: "dist\\safety-win-x86_64.exe"
+    name: "safety-win-x86_64.exe"
+  - path: "dist\\safety-linux-i686"
+    name: "safety-linux-i686"
+  - path: "dist\\safety-linux-x86_64"
+    name: "safety-linux-x86_64"
+  - path: "dist\\safety-macos-x86_64"
+    name: "safety-macos-x86_64"
 
 install:
   - "python --version"

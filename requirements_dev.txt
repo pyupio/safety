@@ -1,4 +1,4 @@
-Click==8.0.1
+Click==7.0
 requests==2.23.0
 packaging==20.3
 dparse==0.4.1

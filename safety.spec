@@ -9,6 +9,7 @@ a = Analysis(
     datas=[],
     hiddenimports=[
         'click',
+        'pkg_resources.py2_warn',
     ],
     hookspath=[],
     runtime_hooks=[],

@@ -1,8 +1,5 @@
-pip==18.1
-wheel==0.32.3
-watchdog==0.9.0
-flake8==3.6.0
-PyYAML==4.2b4
-cryptography==2.4.2
-coverage==4.5.2
-Sphinx==1.8.3
+Click==7.0
+requests==2.23.0
+packaging==20.3
+dparse==0.4.1
+pyinstaller==3.6

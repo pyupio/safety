@@ -2,6 +2,11 @@
 History
 =======
 
+1.8.6 (2019-03-10)
+------------------
+
+* Safety is now available as a binary release for macOS, Windows and Linux.
+
 1.8.5 (2019-02-04)
 ------------------
 

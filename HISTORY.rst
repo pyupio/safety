@@ -2,7 +2,12 @@
 History
 =======
 
-1.8.6 (2019-03-10)
+1.8.7 (2020-03-10)
+------------------
+
+* Fixed a hidden import caused the binary to produce errors on Linux.
+
+1.8.6 (2020-03-10)
 ------------------
 
 * Safety is now available as a binary release for macOS, Windows and Linux.

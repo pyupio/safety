@@ -27,7 +27,7 @@ requirements = [
 
 setup(
     name='safety',
-    version='1.8.8a',
+    version='1.9.0a',
     description="Checks installed dependencies for known vulnerabilities.",
     long_description=readme + '\n\n' + history,
     long_description_content_type="text/markdown",
@@ -53,8 +53,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
-        "Programming Language :: Python :: 2",
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',

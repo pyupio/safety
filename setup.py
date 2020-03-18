@@ -19,10 +19,10 @@ except TypeError:
 
 requirements = [
     'setuptools',
-    'Click>=6.0',
+    'click',
     'requests',
     'packaging',
-    'dparse>=0.4.1'
+    'dparse'
 ]
 
 setup(

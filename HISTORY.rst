@@ -7,6 +7,7 @@ History
 
 * Dropped Python 2.7, 3.3 and 3.4 support
 * Removed binary release support for MacOS, Windows and Linux.
+* Unpinned package dependencies and removed requirements_dev.txt
 
 1.8.8 (2020-03-20)
 ------------------

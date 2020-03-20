@@ -21,6 +21,8 @@ def parse_line(line):
     if line.startswith('-e') or line.startswith('http://') or line.startswith('https://'):
         if "#egg=" in line:
             line = line.split("#egg=")[-1]
+    if ' --hash' in line:
+        line = line.split(" --hash")[0]
     return _parse_requirements(line)
 
 

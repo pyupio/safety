@@ -25,14 +25,10 @@ requirements = [
     'dparse>=0.4.1'
 ]
 
-test_requirements = [
-    # TODO: put package test requirements here
-]
-
 setup(
     name='safety',
     version='1.8.8a',
-    description="Safety checks your installed dependencies for known security vulnerabilities.",
+    description="Checks installed dependencies for known vulnerabilities.",
     long_description=readme + '\n\n' + history,
     long_description_content_type="text/markdown",
     author="pyup.io",
@@ -41,8 +37,7 @@ setup(
     packages=[
         'safety',
     ],
-    package_dir={'safety':
-                 'safety'},
+    package_dir={'safety': 'safety'},
     entry_points={
         'console_scripts': [
             'safety=safety.cli:cli'
@@ -65,7 +60,5 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
-    ],
-    test_suite='tests',
-    tests_require=test_requirements
+    ]
 )

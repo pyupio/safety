@@ -31,7 +31,7 @@ test_requirements = [
 
 setup(
     name='safety',
-    version='1.8.7',
+    version='1.8.8a',
     description="Safety checks your installed dependencies for known security vulnerabilities.",
     long_description=readme + '\n\n' + history,
     long_description_content_type="text/markdown",
@@ -63,6 +63,8 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     test_suite='tests',
     tests_require=test_requirements

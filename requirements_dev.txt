@@ -1,5 +1,0 @@
-Click==7.0
-requests==2.23.0
-packaging==20.3
-dparse==0.4.1
-pyinstaller==3.6

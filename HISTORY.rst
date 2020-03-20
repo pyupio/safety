@@ -2,6 +2,12 @@
 History
 =======
 
+1.8.8 (2020-03-20)
+------------------
+
+* Dropped binary support for macOS, Windows and Linux
+* Using tox to help with local tests against different Python versions
+
 1.8.7 (2020-03-10)
 ------------------
 

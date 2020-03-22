@@ -54,7 +54,14 @@ def read_requirements(fh, resolve=False):
             # if this is a tempfile, skip
             if is_temp_file:
                 continue
-            filename = line.strip("-r ").strip("--requirement").strip()
+
+            # strip away the recursive flag
+            prefixes = ["-r ", "--requirement "]
+            filename = line.strip()
+            for prefix in prefixes:
+                if filename.startswith(prefix):
+                    filename = filename[len(prefix):]
+
             # if there is a comment, remove it
             if " #" in filename:
                 filename = filename.split(" #")[0].strip()

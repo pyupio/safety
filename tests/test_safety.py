@@ -127,7 +127,7 @@ class TestSafety(unittest.TestCase):
             input_vulns = read_vulnerabilities(insecure)
 
         vulns = safety.review(input_vulns)
-        assert(len(vulns), 3)
+        self.assertEqual(len(vulns), 3)
 
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
@@ -234,3 +234,13 @@ class ReadRequirementsTestCase(unittest.TestCase):
         result = list(read_requirements(content))
         self.assertEqual(len(result), 0)
 
+    def test_recursive_requirement(self):
+        """
+        https://github.com/pyupio/safety/issues/132
+        """
+        # this should find 2 bad packages
+        dirname = os.path.dirname(__file__)
+        test_filename = os.path.join(dirname, "reqs_1.txt")
+        with open(test_filename) as fh:
+            result = list(read_requirements(fh, resolve=True))
+        self.assertEqual(len(result), 2)

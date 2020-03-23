@@ -2,6 +2,12 @@
 History
 =======
 
+1.8.8 (2020-03-24)
+------------------
+
+* Binary adjustments and enhancements on top of reported vulnerability
+* Using tox to help with local tests against different Python versions
+
 1.8.7 (2020-03-10)
 ------------------
 

@@ -5,8 +5,9 @@ a look at the corresponding appveyor.yml as well.
 
 """
 import os
-import sys
 import subprocess
+import sys
+from collections import OrderedDict
 
 
 class environment:
@@ -33,15 +34,15 @@ class environment:
             64: "C:\\Python38-x64\\python.exe",
             32: "C:\\Python38\\python.exe",
         },
-        LINUX: {
-            # Order is important. If the 32 bit release gets built first,
-            # you'll run into permission problems due to docker clobbering
-            # up the current working directory.
-            64: "python",
 
-            # 32 bit linux is built using docker
-            32: f"docker run -t -v {os.getcwd()}:/app 32-bit-linux python3",
-        },
+        # Order is important. If the 32 bit release gets built first,
+        # you'll run into permission problems due to docker clobbering
+        # up the current working directory.
+        LINUX: OrderedDict([
+            (64, "python"),
+            (32, f"docker run -t -v {os.getcwd()}:/app 32-bit-linux python3"),
+        ]),
+
         MACOS: {
             # On macOS the binary is built using Python 3.7 (Homebrew), because
             # the shipped Python lacks libraries PyInstaller needs.
@@ -58,11 +59,11 @@ class environment:
         try:
             print(f"RUNNING: {command}")
             print("-" * 80)
-            print(subprocess.check_output(command, shell=True))
+            print(subprocess.check_output(command, shell=True).decode('utf-8'))
         except subprocess.CalledProcessError as e:
             print(f"ERROR calling '{command}'")
             print("-" * 20)
-            print(e.output)
+            print(e.output and e.output.decode('utf-8'))
             sys.exit(-1)
 
     def install(self):
@@ -76,8 +77,10 @@ class environment:
             self.run("docker build -t 32-bit-linux -f Dockerfilei386 .")
 
         for arch, python in self.python:
-            self.run(f"{python} --no-cache-dir -m pip install pytest")
-            self.run(f"{python} --no-cache-dir -m pip install -e .")
+            self.run(f"{python} -m pip install setuptools")
+            self.run(f"{python} -m pip install pyinstaller")
+            self.run(f"{python} -m pip install pytest")
+            self.run(f"{python} -m pip install -e .")
 
     def dist(self):
         """Runs Pyinstaller producing a binary for every platform arch."""

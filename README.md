@@ -120,7 +120,7 @@ docker build -t safety-docker .
 The container can be used just as described in the [examples](#examples) section.
 ```
 echo "insecure-package==0.1" | docker run -i --rm safety-docker safety check --stdin
-cat requirements.txt | docker run -i --rm safety-docker safety check --stdin
+cat requirements_dev.txt | docker run -i --rm safety-docker safety check --stdin
 ```
 
 ## Using Safety with a CI service

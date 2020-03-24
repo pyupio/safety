@@ -56,11 +56,11 @@ def read_requirements(fh, resolve=False):
                 continue
 
             # strip away the recursive flag
-            prefixes = ["-r ", "--requirement "]
+            prefixes = ["-r", "--requirement"]
             filename = line.strip()
             for prefix in prefixes:
                 if filename.startswith(prefix):
-                    filename = filename[len(prefix):]
+                    filename = filename[len(prefix):].strip()
 
             # if there is a comment, remove it
             if " #" in filename:

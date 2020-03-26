@@ -2,10 +2,10 @@
 History
 =======
 
-1.8.8 (2020-03-20)
-------------------
+1.8.8a (unstable)
+-----------------
 
-* Dropped binary support for macOS, Windows and Linux
+* Binary adjustments and enhancements on top of reported vulnerability
 * Using tox to help with local tests against different Python versions
 
 1.8.7 (2020-03-10)

@@ -48,12 +48,9 @@ test_script:
 
 
 deploy:
-  description: ''
-  provider: GitHub
-  auth_token:
-    secure: dDJgAsevLfBL9BKNuCKpbFhB5rlfbefw696Xe6Na8BhHabwoGYcg8FydNpppnKzX
-  draft: false
-  prerelease: false
-  on:
-    branch: master
-    APPVEYOR_REPO_TAG: true
+  - provider: GitHub
+    description: 'Safety Binary Release'
+    auth_token:
+      secure: dDJgAsevLfBL9BKNuCKpbFhB5rlfbefw696Xe6Na8BhHabwoGYcg8FydNpppnKzX
+    on:
+      APPVEYOR_REPO_TAG: true

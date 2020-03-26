@@ -2,8 +2,8 @@
 History
 =======
 
-1.8.8 (2020-03-24)
-------------------
+1.8.8a (unstable)
+-----------------
 
 * Binary adjustments and enhancements on top of reported vulnerability
 * Using tox to help with local tests against different Python versions

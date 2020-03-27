@@ -46,53 +46,53 @@ def get_advisory(vuln):
 
 class SheetReport(object):
     REPORT_BANNER = r"""
-╒══════════════════════════════════════════════════════════════════════════════╕
-│                                                                              │
-│                               /$$$$$$            /$$                         │
-│                              /$$__  $$          | $$                         │
-│           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           │
-│          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           │
-│         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           │
-│          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           │
-│          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           │
-│         |_______/  \_______/|__/     \_______/   \___/   \____  $$           │
-│                                                          /$$  | $$           │
-│                                                         |  $$$$$$/           │
-│  by pyup.io                                              \______/            │
-│                                                                              │
-╞══════════════════════════════════════════════════════════════════════════════╡
++==============================================================================+
+|                                                                              |
+|                               /$$$$$$            /$$                         |
+|                              /$$__  $$          | $$                         |
+|           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
+|          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
+|         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
+|          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
+|          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
+|         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
+|                                                          /$$  | $$           |
+|                                                         |  $$$$$$/           |
+|  by pyup.io                                              \______/            |
+|                                                                              |
++==============================================================================+
     """.strip()
 
     TABLE_HEADING = r"""
-╞════════════════════════════╤═══════════╤══════════════════════════╤══════════╡
-│ package                    │ installed │ affected                 │ ID       │
-╞════════════════════════════╧═══════════╧══════════════════════════╧══════════╡
++============================+===========+==========================+==========+
+| package                    | installed | affected                 | ID       |
++============================+===========+==========================+==========+
     """.strip()
 
     TABLE_FOOTER = r"""
-╘════════════════════════════╧═══════════╧══════════════════════════╧══════════╛
++============================+===========+==========================+==========+
     """.strip()
 
-    TABLE_BREAK = r"""
-╞════════════════════════════╡═══════════╡══════════════════════════╡══════════╡
+    TABLE_BREAK = r"""1
++============================+===========+==========================+==========+
     """.strip()
 
     REPORT_HEADING = r"""
-│ REPORT                                                                       │
+| REPORT                                                                       |
     """.strip()
 
     REPORT_SECTION = r"""
-╞══════════════════════════════════════════════════════════════════════════════╡
++==============================================================================+
     """.strip()
 
     REPORT_FOOTER = r"""
-╘══════════════════════════════════════════════════════════════════════════════╛
++==============================================================================+
     """.strip()
 
     @staticmethod
     def render(vulns, full, checked_packages, used_db):
         db_format_str = '{: <' + str(51 - len(str(checked_packages))) + '}'
-        status = "│ checked {packages} packages, using {db} │".format(
+        status = "| checked {packages} packages, using {db} |".format(
             packages=checked_packages,
             db=db_format_str.format(used_db),
             section=SheetReport.REPORT_SECTION
@@ -100,7 +100,7 @@ class SheetReport(object):
         if vulns:
             table = []
             for n, vuln in enumerate(vulns):
-                table.append("│ {:26} │ {:9} │ {:24} │ {:8} │".format(
+                table.append("| {:26} | {:9} | {:24} | {:8} |".format(
                     vuln.name[:26],
                     vuln.version[:9],
                     vuln.spec[:24],
@@ -113,12 +113,12 @@ class SheetReport(object):
 
                     for pn, paragraph in enumerate(descr.replace('\r', '').split('\n\n')):
                         if pn:
-                            table.append("│ {:76} │".format(''))
+                            table.append("| {:76} |".format(''))
                         for line in textwrap.wrap(paragraph, width=76):
                             try:
-                                table.append("│ {:76} │".format(line.encode('utf-8')))
+                                table.append("| {:76} |".format(line.encode('utf-8')))
                             except TypeError:
-                                table.append("│ {:76} │".format(line))
+                                table.append("| {:76} |".format(line))
                     # append the REPORT_SECTION only if this isn't the last entry
                     if n + 1 < len(vulns):
                         table.append(SheetReport.REPORT_SECTION)
@@ -127,7 +127,7 @@ class SheetReport(object):
                  "\n".join(table), SheetReport.REPORT_FOOTER]
             )
         else:
-            content = "│ {:76} │".format("No known security vulnerabilities found.")
+            content = "| {:76} |".format("No known security vulnerabilities found.")
             return "\n".join(
                     [SheetReport.REPORT_BANNER, SheetReport.REPORT_HEADING, status, SheetReport.REPORT_SECTION,
                      content, SheetReport.REPORT_FOOTER]

@@ -4,6 +4,13 @@ image:
   - Ubuntu
   - macOS
 
+# Do not build feature branch with open Pull Requests
+skip_branch_with_pr: true
+branches:
+  only:
+    - master
+    - /v\d*\.\d*\.\d*/
+
 # note: on macOS the binary is built using Python 3.7 (installed via Homebrew), because
 # the shipped Python lacks libraries PyInstaller needs.
 stack: python 3.6

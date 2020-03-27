@@ -1,3 +1,8 @@
+branches:
+  only:
+    - master
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
+
 deploy:
   user: JayFK
   true:
@@ -31,8 +36,6 @@ python:
 install:
   - pip install tox-travis
   - pip install codecov
-after_install:
-  - pip freeze
 script:
   - tox
 after_success:

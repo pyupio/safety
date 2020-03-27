@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
+import errno
+import json
+import os
+import time
+from collections import namedtuple
+
 import requests
 from packaging.specifiers import SpecifierSet
-from .errors import DatabaseFetchError, InvalidKeyError, DatabaseFileNotFoundError
-from .constants import OPEN_MIRRORS, API_MIRRORS, REQUEST_TIMEOUT, CACHE_VALID_SECONDS, CACHE_FILE
-from collections import namedtuple
-import os
-import json
-import time
-import errno
+
+from .constants import (API_MIRRORS, CACHE_FILE, CACHE_VALID_SECONDS,
+                        OPEN_MIRRORS, REQUEST_TIMEOUT)
+from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
+                     InvalidKeyError)
+from .util import RequirementFile
 
 
 class Vulnerability(namedtuple("Vulnerability",
@@ -127,6 +132,10 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
     for pkg in packages:
+        # Ignore recursive files not resolved
+        if isinstance(pkg, RequirementFile):
+            continue
+
         # normalize the package name, the safety-db is converting underscores to dashes and uses
         # lowercase
         name = pkg.key.replace("_", "-").lower()

@@ -112,15 +112,12 @@ echo "insecure-package==0.1" | safety check --stdin
 
 ## Using Safety in Docker
 
-Safety can be easily executed as Docker container. To build the container just execute:
-```
-docker build -t safety-docker .
-```
+Safety can be easily executed as Docker container. It can be used just as
+described in the [examples](#examples) section.
 
-The container can be used just as described in the [examples](#examples) section.
-```
-echo "insecure-package==0.1" | docker run -i --rm safety-docker safety check --stdin
-cat requirements.txt | docker run -i --rm safety-docker safety check --stdin
+```console
+echo "insecure-package==0.1" | docker run -i --rm pyupio/safety safety check --stdin
+cat requirements.txt | docker run -i --rm pyupio/safety safety check --stdin
 ```
 
 ## Using Safety with a CI service
@@ -144,6 +141,20 @@ safety:
   script:
     - pip install safety
     - safety check
+```
+
+**Tox**
+```toml
+[tox]
+envlist = py37
+
+[testenv]
+deps =
+    safety
+    pytest
+commands =
+    safety check
+    pytest
 ```
 
 **Deep GitHub Integration**

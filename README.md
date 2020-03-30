@@ -144,7 +144,7 @@ safety:
 ```
 
 **Tox**
-```toml
+```ini
 [tox]
 envlist = py37
 

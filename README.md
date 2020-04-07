@@ -120,6 +120,14 @@ echo "insecure-package==0.1" | docker run -i --rm pyupio/safety safety check --s
 cat requirements.txt | docker run -i --rm pyupio/safety safety check --stdin
 ```
 
+## Using the Safety binaries
+
+The Safety [binaries](https://github.com/pyupio/safety/releases) provide some
+[extra security](https://pyup.io/posts/patched-vulnerability/).
+
+After installation, they can be used just like the regular command line version
+of Safety.
+
 ## Using Safety with a CI service
 
 Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability. 

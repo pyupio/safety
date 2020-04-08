@@ -32,7 +32,8 @@ def cli():
               help='Full reports include a security advisory (if available). Default: '
                    '--short-report')
 @click.option("--bare/--not-bare", default=False,
-              help='Output vulnerable packages only. Useful in combination with other tools.'
+              help='Output vulnerable packages only. '
+                   'Useful in combination with other tools. '
                    'Default: --not-bare')
 @click.option("--cache/--no-cache", default=False,
               help="Cache requests to the vulnerability database locally. Default: --no-cache")

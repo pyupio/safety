@@ -28,7 +28,6 @@ deploy:
 
 language: python
 python:
-  - "2.7.17"
   - "3.5.9"
   - "3.6.10"
   - "3.7.7"

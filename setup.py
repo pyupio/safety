@@ -35,7 +35,7 @@ setup(
         'Click>=6.0',
         'requests',
         'packaging',
-        'dparse>=0.5.1'
+        'dparse>=0.5.0'
     ],
     python_requires=">=3.5",
     license="MIT license",

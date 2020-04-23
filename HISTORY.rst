@@ -2,11 +2,13 @@
 History
 =======
 
-1.8.8a (unstable)
------------------
+1.8.8a
+------
 
 * Binary adjustments and enhancements on top of reported vulnerability
 * Using tox to help with local tests against different Python versions
+* Drop dead Python 2.7 support, requiring Python 3.5+
+* Fixed Python Requirement metadata setting requirement to Python >= 3.5
 
 1.8.7 (2020-03-10)
 ------------------

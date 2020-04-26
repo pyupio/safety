@@ -4,7 +4,7 @@ branches:
     - /^\d+\.\d+(\.\d+)?(-\S*)?$/
 
 deploy:
-  user: JayFK
+  user: __token__
   true:
     repo: pyupio/safety
     tags: true
@@ -12,19 +12,7 @@ deploy:
   distributions: sdist bdist_wheel
   provider: pypi
   password:
-    secure: !!binary |
-      WXFTRWNSbUJTRjltSFRXMlpjYldpYTZWbTFZRVprYWlwcDhWaS9FMXV0SUZkbEJ3b0lmWm5ydnpP
-      dkF1SkppaUN3UDRKbk9vMmRVaEdhOHJnaU9BV1JWRGZEVHo1SWtzNHN5eXJyVXlmR2U4YTA5b0ZS
-      bFdPTGZtalEwQnlMNVEvZFgzUlV6OUhtV3FNd0p0VjNvWnMySUpFM3FjbkpKU0RsN0NTRmY3bHg0
-      dXlHREVxendvT3R1ZmJFR1NTK2tmS1JRdlYwTDBYdU94K3BrWmxEQjhrTFdDWW5vSCtBaUFobi80
-      N1M2T2hab0lFSVF1R2FlR2JUYUY0am5BcllQcitvOENRa2toeE51K3BQYStqVlpqQllsTUpwYjM5
-      Zno0anR4K1oxcFJIeUFLY21Fb2RPNGROYlNDT2s3NjlCdWNZUUladVN6b09NUVFiaWU4K00zSFMz
-      cGdIdkd0dmJoSERvK0d2K3ZsNjZyWnFhc2twTFpudHdrVDVPRm9neFZQT2g2dk1CRGYyV0NJYUhT
-      RlRkK1dENHkrWkFQQTRpdHpmZjlyZ1FrZW9vODBMOU9tMks0c3V5bGpTd0plZUVwK2ZRa0F0MnJZ
-      YmNtTnRBRmV4U0NOeUI2Y0l5ZDBSUTdnRHRXOUtIdHdqdkQ3bVFVSkxuK21NQllRQXZ1bWIvU3Uz
-      eEJ4amMzOUhjQy9rMUpORndnSzloQ1hscmFoNGtKdEs0QmlMR1lZVDhiYmprTm1lKzNod1Y5MzJR
-      ZFlHZWtOd3o4eGpNcGFhcEswa204dzlJNzd2WllBdXhrenFpN3VKSytUa0F2Y2djRXhoeWJRRitl
-      TmRsK2RzNnVmaGpsUkxhK3NCMnNrbjdoMW4rd0t2SVFmMUt3azlXaHV5VjlpS1pIUXJ5RWtrV289
+    secure: hLWwfIbFbeKGWDU5EZT+89IgVCDc9B8GwLb4YWrfW9bnkfpD3DNjlCXJ1Z2pkxlP+t7YUzNWgSGxxVBQXF1diU5wHMx/qDfQ3zFrWUtZdMu+ffD1sHSs0HoVciCFINse6kgy73WdDtOumrb36/S/QINx+8WuHRACtJmPRvpdfNyA8ttrtTkkEYHqkAAbCl0kSenrcmIsmD38GL99Ow/zZ4KvDmhMG7pShL8pxODEy3YBAEPysh7mNZ9YW6aDcY39Qbfohav/RSCSZpANnrOTcVKz3JPtOeUXzkrrJ2PLDY6UMIfLJGvMMvtHSO5wWK0Fl3kC6QH22Lognb2+iaNjpaIvXc2apl5rzB3dlCRQrvOEE6ZWBmY/zrZaAUeVxWzn45cKmVxQVf4n+lr/06spD6491OMs8jIWT0YXEDdeeZKoxRYK6DbgkQle+FZkFHKx4z0Qveh33gGwo2poU/5kJxiWKtirB/zaTypTkCnX8EWNm2SydpvyJZ+8FbOIUJrKXpuY+1s0pu1zMVibHq/o6/mIIX2ULt5k2crXtyIfy/44duTg3wmtN7q8oCFlBix21caR9eGwz/IFyKJD3iuLYEGzH/sy+cn3HwIyRblX7E05kNCDM0CcUm8JZ5WdE+nsNcSHul4due9DXXHPeKk6rW01kR+af672/xRz5ZnvGZA=
 
 language: python
 python:

@@ -13,7 +13,7 @@ with open('HISTORY.rst', encoding='utf8') as history_file:
 
 setup(
     name='safety',
-    version='1.9.0a',
+    version='1.9.0',
     description="Checks installed dependencies for known vulnerabilities.",
     long_description=readme + '\n\n' + history,
     long_description_content_type="text/markdown",
@@ -35,7 +35,7 @@ setup(
         'Click>=6.0',
         'requests',
         'packaging',
-        'dparse>=0.5.0'
+        'dparse>=0.5.1'
     ],
     python_requires=">=3.5",
     license="MIT license",

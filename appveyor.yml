@@ -58,6 +58,6 @@ deploy:
   - provider: GitHub
     description: 'Safety Binary Release'
     auth_token:
-      secure: dDJgAsevLfBL9BKNuCKpbFhB5rlfbefw696Xe6Na8BhHabwoGYcg8FydNpppnKzX
+      secure: h8S0XqdLIUQIPPshQfVy/ytDZ8lSD5o17RzabHGGXz2p68UNcxbSKtbu179TlI0C
     on:
       APPVEYOR_REPO_TAG: true

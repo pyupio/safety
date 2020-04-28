@@ -11,7 +11,8 @@ but can be upgraded to use pyup.io's [Safety API](https://github.com/pyupio/safe
 
 # Installation
 
-Install `safety` with pip
+Install `safety` with pip. Keep in mind that we support only Python 3.5 and up.
+Look at *Python 2.7* section at the end of this document.
 
 ```bash
 pip install safety
@@ -431,3 +432,18 @@ django
 ```
 ___
 
+# Python 2.7
+
+This tool requires latest Python patch versions starting with version 3.5. We
+did support Python 2.7 in the past but, as for other Python 3.x minor versions,
+it reached its End-Of-Life and as such we are not able to support it anymore.
+
+We understand you might still have Python 2.7 projects running. At the same
+time, Safety itself has a commitment to encourage developers to keep their
+software up-to-date, and it would not make sense for us to work with officially
+unsupported Python versions, or even those that reached their end of life.
+
+If you still need to run Safety from a Python 2.7 environment, please use
+version 1.8.7 available at PyPi. Alternatively, you can run Safety from a
+Python 3 environment to check the requirements file for your Python 2.7
+project.

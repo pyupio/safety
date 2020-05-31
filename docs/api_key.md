@@ -4,8 +4,7 @@ This is a step by step guide on how to get an API key that can be used for safet
 with safety gives you access to the latest vulnerabilities. The freely available database
 is synced only once per month.
 
-In order to get an API Key you need a monthly subscription on [pyup.io](https://pyup.io), starting at $14.99
-for individuals or $49.99 for organizations.
+In order to get an API Key you need a subscription on [pyup.io](https://pyup.io).
 
 ## Step 1 - Sign Up
 

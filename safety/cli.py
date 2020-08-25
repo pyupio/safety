@@ -31,6 +31,8 @@ def cli():
 @click.option("--full-report/--short-report", default=False,
               help='Full reports include a security advisory (if available). Default: '
                    '--short-report')
+# @click.option("--cvss", default="",
+#               help="Extend reports with premium CVSS information (if available). Default: empty")
 @click.option("--bare/--not-bare", default=False,
               help='Output vulnerable packages only. '
                    'Useful in combination with other tools. '

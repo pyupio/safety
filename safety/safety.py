@@ -4,6 +4,7 @@ import json
 import os
 import time
 from collections import namedtuple
+from datetime import datetime
 
 import requests
 from packaging.specifiers import SpecifierSet
@@ -131,6 +132,8 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
     db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
+    timestamp = db.get("$meta", {}).get("timestamp", None)
+    db_last_update = datetime.fromtimestamp(timestamp).date() if timestamp else None
     for pkg in packages:
         # Ignore recursive files not resolved
         if isinstance(pkg, RequirementFile):
@@ -159,7 +162,7 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     vuln_id=vuln_id
                                 )
                             )
-    return vulnerable
+    return vulnerable, db_last_update
 
 
 def review(vulnerabilities):

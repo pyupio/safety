@@ -73,14 +73,15 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
             click.secho("Proxy Protocol should be http or https only.", fg="red")
             sys.exit(-1)
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
+        vulns, db_last_update = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
         output_report = report(vulns=vulns, 
                                full=full_report, 
                                json_report=json, 
                                bare_report=bare,
                                checked_packages=len(packages), 
                                db=db, 
-                               key=key)
+                               key=key,
+                               db_last_update=db_last_update)
 
         if output:
             with open(output, 'w+') as output_file:

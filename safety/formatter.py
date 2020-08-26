@@ -82,11 +82,19 @@ class SheetReport(object):
     """.strip()
 
     @staticmethod
-    def render(vulns, full, checked_packages, used_db):
-        db_format_str = '{: <' + str(51 - len(str(checked_packages))) + '}'
-        status = "| checked {packages} packages, using {db} |".format(
+    def render(vulns, full, checked_packages, used_db, db_last_update=None):
+        width = 50
+        if db_last_update:
+            last_update = "Last DB update at {date}".format(date=db_last_update)
+            width -= len(str(last_update))
+        else:
+            last_update = ""
+        db_format_str = '{: <' + str(width - len(str(checked_packages))) + '}'
+
+        status = "| checked {packages} packages, using {db} {updated} |".format(
             packages=checked_packages,
             db=db_format_str.format(used_db),
+            updated=last_update,
             section=SheetReport.REPORT_SECTION
         )
         if vulns:
@@ -130,15 +138,17 @@ class BasicReport(object):
     """Basic report, intented to be used for terminals with < 80 columns"""
 
     @staticmethod
-    def render(vulns, full, checked_packages, used_db):
+    def render(vulns, full, checked_packages, used_db, db_last_update=None):
         table = [
             "safety report",
             "checked {packages} packages, using {db}".format(
                 packages=checked_packages,
                 db=used_db
             ),
-            "---"
         ]
+        if db_last_update:
+            table.append("last DB update at {date}".format(date=db_last_update))
+        table.append("---")
         if vulns:
 
             for vuln in vulns:
@@ -182,7 +192,7 @@ def get_used_db(key, db):
     return "local DB"
 
 
-def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, db=None, key=None):
+def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, db=None, key=None, db_last_update=None):
     if bare_report:
         return BareReport.render(vulns, full=full)
     if json_report:
@@ -190,5 +200,5 @@ def report(vulns, full=False, json_report=False, bare_report=False, checked_pack
     size = get_terminal_size()
     used_db = get_used_db(key=key, db=db)
     if size.columns >= 80:
-        return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
-    return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+        return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db, db_last_update=db_last_update)
+    return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db, db_last_update=db_last_update)

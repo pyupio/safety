@@ -16,7 +16,7 @@ from .util import RequirementFile
 
 
 class Vulnerability(namedtuple("Vulnerability",
-                               ["name", "spec", "version", "advisory", "vuln_id"])):
+                               ["name", "spec", "version", "advisory", "vuln_id", "cvssv2", "cvssv3"])):
     pass
 
 
@@ -138,7 +138,6 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy)
     db_full = None
-    premium = False
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
     for pkg in packages:
@@ -156,14 +155,15 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                 spec_set = SpecifierSet(specifiers=specifier)
                 if spec_set.contains(pkg.version):
                     if not db_full:
-                        premium = True
-                        db_full = fetch_database(full=True, premium=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
-                        if not db_full:
-                            premium = False
+                        try:
+                            db_full = fetch_database(full=True, premium=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
+                        except:
                             db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
                     for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
                         vuln_id = data.get("id").replace("pyup.io-", "")
-                        cve_ids = map(str.strip, data.get("cve").split(','))
+                        cve_id = data.get("cve")
+                        if cve_id:
+                            cve_id = cve_id.split(",")[0].strip()
                         if vuln_id and vuln_id not in ignore_ids:
                             vulnerable.append(
                                 Vulnerability(
@@ -171,7 +171,9 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     spec=specifier,
                                     version=pkg.version,
                                     advisory=data.get("advisory"),
-                                    vuln_id=vuln_id
+                                    vuln_id=vuln_id,
+                                    cvssv2=db_full.get("$meta", {}).get("cve", {}).get(cve_id, {}).get("cvssv2", None),
+                                    cvssv3=db_full.get("$meta", {}).get("cve", {}).get(cve_id, {}).get("cvssv3", None)
                                 )
                             )
     return vulnerable
@@ -186,6 +188,8 @@ def review(vulnerabilities):
             "version": vuln[2],
             "advisory": vuln[3],
             "vuln_id": vuln[4],
+            "cvssv2": None,
+            "cvssv3": None
         }
         vulnerable.append(
             Vulnerability(**current_vuln)

@@ -161,8 +161,8 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                 )
                             )
     db_last_update = None
-    if db_full:
-        meta_list = db_full.get("$meta", [])
+    if db:
+        meta_list = db.get("$meta", [])
         metadata = next(iter(meta_list), {})
         timestamp = metadata.get('timestamp', None)
         db_last_update = datetime.fromtimestamp(timestamp).date() if timestamp else None

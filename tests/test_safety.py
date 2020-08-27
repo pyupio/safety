@@ -143,7 +143,7 @@ class TestSafety(unittest.TestCase):
             key=False,
             ignore_ids=[],
             proxy={}
-        )
+        )[0]
         self.assertEqual(len(vulns), 2)
 
     def test_check_from_file_with_hash_pins(self):
@@ -161,7 +161,7 @@ class TestSafety(unittest.TestCase):
             key=False,
             ignore_ids=[],
             proxy={}
-        )
+        )[0]
         self.assertEqual(len(vulns), 2)
 
     def test_multiple_versions(self):
@@ -178,7 +178,7 @@ class TestSafety(unittest.TestCase):
             key=False,
             ignore_ids=[],
             proxy={}
-        )
+        )[0]
         self.assertEqual(len(vulns), 4)
 
     def test_check_live(self):
@@ -192,7 +192,7 @@ class TestSafety(unittest.TestCase):
             key=False,
             ignore_ids=[],
             proxy={}
-        )
+        )[0]
         self.assertEqual(len(vulns), 1)
 
     def test_check_live_cached(self):
@@ -206,7 +206,7 @@ class TestSafety(unittest.TestCase):
             key=False,
             ignore_ids=[],
             proxy={}
-        )
+        )[0]
         self.assertEqual(len(vulns), 1)
 
         reqs = StringIO("insecure-package==0.1")
@@ -219,7 +219,7 @@ class TestSafety(unittest.TestCase):
             key=False,
             ignore_ids=[],
             proxy={}
-        )
+        )[0]
         self.assertEqual(len(vulns), 1)
 
 

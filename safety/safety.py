@@ -132,8 +132,6 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
     db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
-    timestamp = db.get("$meta", {}).get("timestamp", None)
-    db_last_update = datetime.fromtimestamp(timestamp).date() if timestamp else None
     for pkg in packages:
         # Ignore recursive files not resolved
         if isinstance(pkg, RequirementFile):
@@ -162,6 +160,13 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     vuln_id=vuln_id
                                 )
                             )
+    db_last_update = None
+    if db_full:
+        meta_list = db_full.get("$meta", [])
+        metadata = next(iter(meta_list), {})
+        timestamp = metadata.get('timestamp', None)
+        db_last_update = datetime.fromtimestamp(timestamp).date() if timestamp else None
+    
     return vulnerable, db_last_update
 
 

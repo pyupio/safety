@@ -83,20 +83,17 @@ class SheetReport(object):
 
     @staticmethod
     def render(vulns, full, checked_packages, used_db, db_last_update=None):
-        width = 50
-        if db_last_update:
-            last_update = "Last DB update at {date}".format(date=db_last_update)
-            width -= len(str(last_update))
-        else:
-            last_update = ""
-        db_format_str = '{: <' + str(width - len(str(checked_packages))) + '}'
+        db_format_str = '{: <' + str(51 - len(str(checked_packages))) + '}'
 
-        status = "| checked {packages} packages, using {db} {updated} |".format(
+        status = "| checked {packages} packages, using {db} |".format(
             packages=checked_packages,
             db=db_format_str.format(used_db),
-            updated=last_update,
             section=SheetReport.REPORT_SECTION
         )
+        if db_last_update:
+            status += "\n| last DB update at {date} |".format(
+                date="{:58}".format(db_last_update)
+            )
         if vulns:
             table = []
             for n, vuln in enumerate(vulns):

@@ -301,6 +301,19 @@ safety check --cache
 ```
 ___
 
+### `--color`
+
+*change report text output in terminal*
+
+**Example**
+```bash
+safety check --color cyan
+```
+```bash
+safety report --file insecure_report.json --color blue
+```
+___
+
 ### `--stdin`
 
 *Read input from stdin.*

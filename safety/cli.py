@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
-import sys
-import click
-from safety import __version__
-from safety import safety
-from safety.formatter import report
+
 import itertools
-from safety.util import read_requirements, read_vulnerabilities
+import sys
+
+import click
+
+from safety import __version__, safety
 from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
+from safety.formatter import report
+from safety.util import read_requirements, read_vulnerabilities
 
 try:
     from json.decoder import JSONDecodeError
@@ -50,7 +52,8 @@ def cli():
               help="Proxy port number --proxy-port")
 @click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
               help="Proxy protocol (https or http) --proxy-protocol")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
+@click.option("--color", type=str, default="", help='Set color for report text. Default: white')
+def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport, color):
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red", file=sys.stderr)
         sys.exit(-1)
@@ -86,7 +89,7 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
             with open(output, 'w+') as output_file:
                 output_file.write(output_report)
         else:
-            click.secho(output_report, nl=False if bare and not vulns else True)
+            click.secho(output_report, fg=color, nl=False if bare and not vulns else True)
         sys.exit(-1 if vulns else 0)
     except InvalidKeyError:
         click.secho("Your API Key '{key}' is invalid. See {link}".format(
@@ -111,7 +114,8 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
                    'Default: --not-bare')
 @click.option("file", "--file", "-f", type=click.File(), required=True,
               help="Read input from an insecure report file. Default: empty")
-def review(full_report, bare, file):
+@click.option("--color", type=str, default="", help='Set color for report text. Default: white')
+def review(full_report, bare, file, color):
     if full_report and bare:
         click.secho("Can't choose both --bare and --full-report/--short-report", fg="red")
         sys.exit(-1)
@@ -124,7 +128,7 @@ def review(full_report, bare, file):
 
     vulns = safety.review(input_vulns)
     output_report = report(vulns=vulns, full=full_report, bare_report=bare)
-    click.secho(output_report, nl=False if bare and not vulns else True)
+    click.secho(output_report, fg=color, nl=False if bare and not vulns else True)
 
 
 if __name__ == "__main__":

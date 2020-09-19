@@ -162,11 +162,11 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                             )
     db_last_update = None
     if db:
-        meta_list = db.get("$meta", [])
-        metadata = next(iter(meta_list), {})
+        metadata = db.get("$meta", {})
         timestamp = metadata.get('timestamp', None)
-        db_last_update = str(datetime.fromtimestamp(timestamp)) + " UTC" if timestamp else None
-    
+        if timestamp:
+            db_last_update = str(datetime.fromtimestamp(timestamp)) + " UTC"
+
     return vulnerable, db_last_update
 
 

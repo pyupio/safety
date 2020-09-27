@@ -42,6 +42,8 @@ def cli():
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("ignore", "--ignore", "-i", multiple=True, type=str, default=[],
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
+@click.option("--licenses-only/--vulnerabilities-only", default=False,
+              help="Display packages licenses (if available). Default: --vulnerabilities-only")
 @click.option("--output", "-o", default="",
               help="Path to where output file will be placed. Default: empty")
 @click.option("proxyhost", "--proxy-host", "-ph", multiple=False, type=str, default=None,
@@ -50,7 +52,7 @@ def cli():
               help="Proxy port number --proxy-port")
 @click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
               help="Proxy protocol (https or http) --proxy-protocol")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
+def check(key, db, json, full_report, bare, licenses_only, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
     if files and stdin:
         click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red", file=sys.stderr)
         sys.exit(-1)
@@ -73,12 +75,13 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
             click.secho("Proxy Protocol should be http or https only.", fg="red")
             sys.exit(-1)
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
+        vulns, licenses_dict = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary, licenses_only=licenses_only)
         output_report = report(vulns=vulns, 
                                full=full_report, 
                                json_report=json, 
                                bare_report=bare,
-                               checked_packages=len(packages), 
+                               checked_packages=len(packages),
+                               licenses=licenses_dict,
                                db=db, 
                                key=key)
 

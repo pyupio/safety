@@ -125,12 +125,13 @@ def get_vulnerabilities(pkg, spec, db):
                 yield entry
 
 
-def check(packages, key, db_mirror, cached, ignore_ids, proxy):
+def check(packages, key, db_mirror, cached, ignore_ids, proxy, licenses_only):
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy)
     db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
+    licenses = {} if licenses_only else None
     for pkg in packages:
         # Ignore recursive files not resolved
         if isinstance(pkg, RequirementFile):
@@ -159,7 +160,15 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     vuln_id=vuln_id
                                 )
                             )
-    return vulnerable
+            if licenses_only and name not in licenses: # Currently only reporting for not secure packages.
+                if not db_full:
+                    db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
+                meta_licenses = db_full.get("$meta", {}).get("licenses", {})
+                if name in meta_licenses:
+                    licenses[name] = meta_licenses[name]
+                else:
+                    licenses[name] = "N/A"
+    return vulnerable, licenses
 
 
 def review(vulnerabilities):

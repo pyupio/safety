@@ -69,6 +69,12 @@ class SheetReport(object):
 +============================+===========+==========================+==========+
     """.strip()
 
+    TABLE_HEADING_LICENSES = r"""
++=========================================================+====================+
+| package                                                 | license            |
++=========================================================+====================+
+    """.strip()
+
     REPORT_HEADING = r"""
 | REPORT                                                                       |
     """.strip()
@@ -125,6 +131,47 @@ class SheetReport(object):
                      content, SheetReport.REPORT_FOOTER]
                 )
 
+    @staticmethod
+    def render_licenses(vulns, licenses):
+        heading = SheetReport.REPORT_HEADING.replace(" ", "", 12).replace(
+            "REPORT", " Packages licenses"
+        )
+        if not licenses:
+            content = "| {:76} |".format("No packages licenses found.")
+            return "\n".join(
+                    [SheetReport.REPORT_BANNER, heading, SheetReport.REPORT_SECTION,
+                     content, SheetReport.REPORT_FOOTER]
+                )
+
+        table = []
+        iteration = 1
+        for package, license in licenses.items():
+            max_char = last_char = 55  # defines a limit for package name.
+            current_line = 1
+            license_line = int(int(len(package) / max_char) / 2) + 1  # Calc to get which line to add the license info.
+
+            table.append("| {:55} | {:18} |".format(
+                package[:max_char],
+                license[:18] if current_line == license_line else "",
+            ))
+
+            long_name = True if len(package[max_char:]) > 0 else False
+            while long_name:  # If the package has a long name, break it into multiple lines.
+                current_line += 1
+                table.append("| {:55} | {:18} |".format(
+                    package[last_char:last_char+max_char],
+                    license[:18] if current_line == license_line else "",
+                ))
+                last_char = last_char+max_char
+                long_name = True if len(package[last_char:]) > 0 else False
+
+            if iteration != len(licenses):  # Do not add dashes "----" for last package.
+                table.append("|" + ("-" * 78) + "|")
+            iteration += 1
+        return "\n".join(
+            [SheetReport.REPORT_BANNER, heading, SheetReport.TABLE_HEADING_LICENSES,
+                "\n".join(table), SheetReport.REPORT_FOOTER]
+        )
 
 class BasicReport(object):
     """Basic report, intented to be used for terminals with < 80 columns"""
@@ -157,12 +204,29 @@ class BasicReport(object):
             table
         )
 
+    @staticmethod
+    def render_licenses(vulns, licenses):
+        table = [
+            "safety",
+            "packages licenses",
+            "---"
+        ]
+        if not licenses:
+            table.append("No packages licenses found.")
+            return "\n".join(table)
+        
+        for package, license in licenses.items():
+            table.append(package + ": " + license + "\n")
+        
+        return "\n".join(table)
 
 class JsonReport(object):
     """Json report, for when the output is input for something else"""
 
     @staticmethod
-    def render(vulns, full):
+    def render(vulns, full, licenses):
+        if licenses:
+            return json.dumps(licenses, indent=4, sort_keys=True)
         return json.dumps(vulns, indent=4, sort_keys=True)
 
 
@@ -182,13 +246,19 @@ def get_used_db(key, db):
     return "local DB"
 
 
-def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, db=None, key=None):
+def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, licenses=None, db=None, key=None):
     if bare_report:
         return BareReport.render(vulns, full=full)
     if json_report:
-        return JsonReport.render(vulns, full=full)
+        return JsonReport.render(vulns, full=full, licenses=licenses)
     size = get_terminal_size()
     used_db = get_used_db(key=key, db=db)
     if size.columns >= 80:
-        return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
-    return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+        if licenses is not None:
+            return SheetReport.render_licenses(vulns, licenses=licenses)
+        else:
+            return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+    if licenses is not None:
+        return BasicReport.render_licenses(vulns, licenses=licenses)
+    else:
+        return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)

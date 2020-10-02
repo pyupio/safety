@@ -101,16 +101,22 @@ class SheetReport(object):
                 if full:
                     table.append(SheetReport.REPORT_SECTION)
 
-                    descr = get_advisory(vuln)
+                    advisory_lines = get_advisory(vuln).replace(
+                        '\r', ''
+                    ).splitlines()
 
-                    for pn, paragraph in enumerate(descr.replace('\r', '').split('\n\n')):
-                        if pn:
-                            table.append("| {:76} |".format(''))
-                        for line in textwrap.wrap(paragraph, width=76):
+                    for line in advisory_lines:
+                        if line == '':
+                            table.append("| {:76} |".format(" "))
+                        for wrapped_line in textwrap.wrap(line, width=76):
                             try:
-                                table.append("| {:76} |".format(line.encode('utf-8')))
+                                table.append("| {:76} |".format(
+                                    wrapped_line.encode('utf-8')
+                                ))
                             except TypeError:
-                                table.append("| {:76} |".format(line))
+                                table.append("| {:76} |".format(
+                                    wrapped_line
+                                ))
                     # append the REPORT_SECTION only if this isn't the last entry
                     if n + 1 < len(vulns):
                         table.append(SheetReport.REPORT_SECTION)

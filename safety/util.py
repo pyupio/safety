@@ -105,3 +105,22 @@ def read_requirements(fh, resolve=False):
                     )
             except ValueError:
                 continue
+
+
+def get_proxy_dict(proxyprotocol, proxyhost, proxyport):
+    proxy_dictionary = {}
+    if proxyhost is not None:
+        if proxyprotocol in ["http", "https"]:
+            proxy_dictionary = {proxyprotocol: "{0}://{1}:{2}".format(proxyprotocol, proxyhost, str(proxyport))}
+        else:
+            click.secho("Proxy Protocol should be http or https only.", fg="red")
+            sys.exit(-1)
+    return proxy_dictionary
+
+
+def get_license_name_by_id(license_id, db):
+    licenses = db.get('licenses', [])
+    for name, id in licenses.items():
+        if id == license_id:
+            return name
+    return None

@@ -5,6 +5,9 @@ import json
 import os
 import textwrap
 
+from packaging.version import parse as parse_version
+from .util import RequirementFile, get_license_name_by_id
+
 # python 2.7 compat
 try:
     FileNotFoundError
@@ -132,7 +135,7 @@ class SheetReport(object):
                 )
 
     @staticmethod
-    def render_licenses(vulns, licenses):
+    def render_licenses(packages, licenses):
         heading = SheetReport.REPORT_HEADING.replace(" ", "", 12).replace(
             "REPORT", " Packages licenses"
         )
@@ -205,7 +208,7 @@ class BasicReport(object):
         )
 
     @staticmethod
-    def render_licenses(vulns, licenses):
+    def render_licenses(packages, licenses):
         table = [
             "safety",
             "packages licenses",
@@ -224,9 +227,7 @@ class JsonReport(object):
     """Json report, for when the output is input for something else"""
 
     @staticmethod
-    def render(vulns, full, licenses):
-        if licenses:
-            return json.dumps(licenses, indent=4, sort_keys=True)
+    def render(vulns, full):
         return json.dumps(vulns, indent=4, sort_keys=True)
 
 
@@ -246,19 +247,54 @@ def get_used_db(key, db):
     return "local DB"
 
 
-def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, licenses=None, db=None, key=None):
+def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, db=None, key=None):
     if bare_report:
         return BareReport.render(vulns, full=full)
     if json_report:
-        return JsonReport.render(vulns, full=full, licenses=licenses)
+        return JsonReport.render(vulns, full=full)
     size = get_terminal_size()
     used_db = get_used_db(key=key, db=db)
     if size.columns >= 80:
-        if licenses is not None:
-            return SheetReport.render_licenses(vulns, licenses=licenses)
-        else:
-            return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
-    if licenses is not None:
-        return BasicReport.render_licenses(vulns, licenses=licenses)
-    else:
-        return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+        return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+    return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+
+
+def license_report(packages, licenses_db):
+    size = get_terminal_size()
+    packages_licenses = licenses_db.get('packages', {})
+    licenses = {}
+    import pdb; pdb.set_trace()
+    for pkg in packages:
+        # Ignore recursive files not resolved
+        if isinstance(pkg, RequirementFile):
+            continue
+        # normalize the package name
+        pkg_name = pkg.key.replace("_", "-").lower()
+        # packages may have different licenses depending their version.
+        pkg_licenses = packages_licenses.get(pkg_name, [])
+        version_requested = parse_version(pkg.version)
+        license_id = None
+        license_name = None
+        for pkg_version in pkg_licenses:
+            license_start_version = parse_version(pkg_version['start_version'])
+            # Stops and return the previous stored license when a new
+            # license starts on a version above the requested one.
+            if version_requested >= license_start_version:
+                license_id = pkg_version['license_id']
+            else:
+                # We found the license for the version requested
+                break
+        if license_id:
+            license_name = get_license_name_by_id(license_id, licenses_db)
+        if not license_id or not license_name:
+            license_name = "N/A"
+        
+        # TODO: Add pkg version to the report table
+        # licenses[pkg_name] = {
+        #     "version": pkg.version,
+        #     "license_name": license_name
+        # }
+        licenses[pkg_name] = license_name
+    if size.columns >= 80:
+        return SheetReport.render_licenses(packages, licenses)
+    return BasicReport.render_licenses(packages, licenses)

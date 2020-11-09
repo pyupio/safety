@@ -125,13 +125,12 @@ def get_vulnerabilities(pkg, spec, db):
                 yield entry
 
 
-def check(packages, key, db_mirror, cached, ignore_ids, proxy, licenses_only):
+def check(packages, key, db_mirror, cached, ignore_ids, proxy):
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy)
     db_full = None
     vulnerable_packages = frozenset(db.keys())
     vulnerable = []
-    licenses = {} if licenses_only else None
     for pkg in packages:
         # Ignore recursive files not resolved
         if isinstance(pkg, RequirementFile):
@@ -160,15 +159,7 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy, licenses_only):
                                     vuln_id=vuln_id
                                 )
                             )
-            if licenses_only and name not in licenses: # Currently only reporting for not secure packages.
-                if not db_full:
-                    db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
-                meta_licenses = db_full.get("$meta", {}).get("licenses", {})
-                if name in meta_licenses:
-                    licenses[name] = meta_licenses[name]
-                else:
-                    licenses[name] = "N/A"
-    return vulnerable, licenses
+    return vulnerable
 
 
 def review(vulnerabilities):
@@ -185,3 +176,26 @@ def review(vulnerabilities):
             Vulnerability(**current_vuln)
         )
     return vulnerable
+
+
+def get_licenses(key, db_mirror, cached, proxy):
+    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+
+    if not key:
+        raise DatabaseFetchError("API-KEY not provided.")
+    if db_mirror:
+        mirrors = [db_mirror]
+    else:
+        mirrors = API_MIRRORS
+
+    db_name = "licenses.json"
+
+    for mirror in mirrors:
+        # mirror can either be a local path or a URL
+        if mirror.startswith("http://") or mirror.startswith("https://"):
+            licenses = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached, proxy=proxy)
+        else:
+            licenses = fetch_database_file(mirror, db_name=db_name)
+        if licenses:
+            return licenses
+    raise DatabaseFetchError()

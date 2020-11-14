@@ -5,8 +5,7 @@ import json
 import os
 import textwrap
 
-from packaging.version import parse as parse_version
-from .util import RequirementFile, get_license_name_by_id
+from .util import get_packages_licenses
 
 # python 2.7 compat
 try:
@@ -73,9 +72,9 @@ class SheetReport(object):
     """.strip()
 
     TABLE_HEADING_LICENSES = r"""
-+=========================================================+====================+
-| package                                                 | license            |
-+=========================================================+====================+
++=============================================+===========+====================+
+| package                                     |  version  | license            |
++=============================================+===========+====================+
     """.strip()
 
     REPORT_HEADING = r"""
@@ -135,11 +134,11 @@ class SheetReport(object):
                 )
 
     @staticmethod
-    def render_licenses(packages, licenses):
+    def render_licenses(packages, packages_licenses):
         heading = SheetReport.REPORT_HEADING.replace(" ", "", 12).replace(
             "REPORT", " Packages licenses"
         )
-        if not licenses:
+        if not packages_licenses:
             content = "| {:76} |".format("No packages licenses found.")
             return "\n".join(
                     [SheetReport.REPORT_BANNER, heading, SheetReport.REPORT_SECTION,
@@ -148,27 +147,32 @@ class SheetReport(object):
 
         table = []
         iteration = 1
-        for package, license in licenses.items():
-            max_char = last_char = 55  # defines a limit for package name.
+        for pkg_license in packages_licenses:
+            max_char = last_char = 43  # defines a limit for package name.
             current_line = 1
+            package = pkg_license['package']
+            license = pkg_license['license']
+            version = pkg_license['version']
             license_line = int(int(len(package) / max_char) / 2) + 1  # Calc to get which line to add the license info.
 
-            table.append("| {:55} | {:18} |".format(
+            table.append("| {:43} | {:9} | {:18} |".format(
                 package[:max_char],
+                version[:9] if current_line == license_line else "",
                 license[:18] if current_line == license_line else "",
             ))
 
             long_name = True if len(package[max_char:]) > 0 else False
             while long_name:  # If the package has a long name, break it into multiple lines.
                 current_line += 1
-                table.append("| {:55} | {:18} |".format(
+                table.append("| {:43} | {:9} | {:18} |".format(
                     package[last_char:last_char+max_char],
+                    version[:9] if current_line == license_line else "",
                     license[:18] if current_line == license_line else "",
                 ))
                 last_char = last_char+max_char
                 long_name = True if len(package[last_char:]) > 0 else False
 
-            if iteration != len(licenses):  # Do not add dashes "----" for last package.
+            if iteration != len(packages_licenses):  # Do not add dashes "----" for last package.
                 table.append("|" + ("-" * 78) + "|")
             iteration += 1
         return "\n".join(
@@ -208,18 +212,21 @@ class BasicReport(object):
         )
 
     @staticmethod
-    def render_licenses(packages, licenses):
+    def render_licenses(packages, packages_licenses):
         table = [
             "safety",
             "packages licenses",
             "---"
         ]
-        if not licenses:
+        if not packages_licenses:
             table.append("No packages licenses found.")
             return "\n".join(table)
         
-        for package, license in licenses.items():
-            table.append(package + ": " + license + "\n")
+        for pkg_license in packages_licenses:
+            text = pkg_license['package'] + \
+                   ", version " + pkg_license['version'] + \
+                   ", license " + pkg_license['license'] + "\n"
+            table.append(text)
         
         return "\n".join(table)
 
@@ -259,42 +266,9 @@ def report(vulns, full=False, json_report=False, bare_report=False, checked_pack
     return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
 
 
-def license_report(packages, licenses_db):
+def license_report(packages, licenses):
     size = get_terminal_size()
-    packages_licenses = licenses_db.get('packages', {})
-    licenses = {}
-    import pdb; pdb.set_trace()
-    for pkg in packages:
-        # Ignore recursive files not resolved
-        if isinstance(pkg, RequirementFile):
-            continue
-        # normalize the package name
-        pkg_name = pkg.key.replace("_", "-").lower()
-        # packages may have different licenses depending their version.
-        pkg_licenses = packages_licenses.get(pkg_name, [])
-        version_requested = parse_version(pkg.version)
-        license_id = None
-        license_name = None
-        for pkg_version in pkg_licenses:
-            license_start_version = parse_version(pkg_version['start_version'])
-            # Stops and return the previous stored license when a new
-            # license starts on a version above the requested one.
-            if version_requested >= license_start_version:
-                license_id = pkg_version['license_id']
-            else:
-                # We found the license for the version requested
-                break
-        if license_id:
-            license_name = get_license_name_by_id(license_id, licenses_db)
-        if not license_id or not license_name:
-            license_name = "N/A"
-        
-        # TODO: Add pkg version to the report table
-        # licenses[pkg_name] = {
-        #     "version": pkg.version,
-        #     "license_name": license_name
-        # }
-        licenses[pkg_name] = license_name
+
     if size.columns >= 80:
         return SheetReport.render_licenses(packages, licenses)
     return BasicReport.render_licenses(packages, licenses)

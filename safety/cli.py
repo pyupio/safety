@@ -6,7 +6,7 @@ from safety import __version__
 from safety import safety
 from safety.formatter import report, license_report
 import itertools
-from safety.util import read_requirements, read_vulnerabilities, get_proxy_dict
+from safety.util import read_requirements, read_vulnerabilities, get_proxy_dict, get_packages_licenses
 from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
 
 try:
@@ -150,8 +150,9 @@ def license(key, db, cache, files, proxyprotocol, proxyhost, proxyport):
         ]  
    
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
-    licenses = safety.get_licenses(key, db, cache, proxy_dictionary)
-    output_report = license_report(packages=packages, licenses_db=licenses)
+    licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary)
+    filtered_packages_licenses = get_packages_licenses(packages, licenses_db)
+    output_report = license_report(packages=packages, licenses=filtered_packages_licenses)
     click.secho(output_report, nl=True)
 
 

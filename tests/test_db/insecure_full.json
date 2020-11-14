@@ -16,10 +16,5 @@
             "cve": "some other cve",
             "id": "some other id"
         }
-    ],
-    "$meta": {
-        "licenses": {
-            "django": "BSD-3-Clause"
-        }
-    }
+    ]
 }

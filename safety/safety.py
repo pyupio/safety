@@ -161,6 +161,7 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                         if cve_id:
                             cve_id = cve_id.split(",")[0].strip()
                         if vuln_id and vuln_id not in ignore_ids:
+                            cve_meta = db_full.get("$meta", {}).get("cve", {}).get(cve_id, {})
                             vulnerable.append(
                                 Vulnerability(
                                     name=name,
@@ -168,8 +169,8 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     version=pkg.version,
                                     advisory=data.get("advisory"),
                                     vuln_id=vuln_id,
-                                    cvssv2=db_full.get("$meta", {}).get("cve", {}).get(cve_id, {}).get("cvssv2", None),
-                                    cvssv3=db_full.get("$meta", {}).get("cve", {}).get(cve_id, {}).get("cvssv3", None)
+                                    cvssv2=cve_meta.get("cvssv2", None),
+                                    cvssv3=cve_meta.get("cvssv3", None)
                                 )
                             )
     return vulnerable

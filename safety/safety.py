@@ -170,7 +170,7 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     advisory=data.get("advisory"),
                                     vuln_id=vuln_id,
                                     cvssv2=cve_meta.get("cvssv2", None),
-                                    cvssv3=cve_meta.get("cvssv3", None)
+                                    cvssv3=cve_meta.get("cvssv3", None),
                                 )
                             )
     return vulnerable

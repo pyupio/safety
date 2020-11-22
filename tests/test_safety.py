@@ -121,6 +121,8 @@ class TestFormatter(unittest.TestCase):
                          + ' blah' * 15 + '.\r\n\r\n'
                          + 'All users are urged to upgrade please.\r\n',
                 vuln_id=1234,
+                cvssv2=None,
+                cvssv3=None,
             ),
         ]
         full_report = formatter.SheetReport.render(

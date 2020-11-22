@@ -107,7 +107,7 @@ def fetch_database_file(path, db_name):
         return json.loads(f.read())
 
 
-def fetch_database(full=False, premium=False, key=False, db=False, cached=False, proxy={}):
+def fetch_database(full=False, key=False, db=False, cached=False, proxy={}):
 
     if db:
         mirrors = [db]
@@ -115,7 +115,6 @@ def fetch_database(full=False, premium=False, key=False, db=False, cached=False,
         mirrors = API_MIRRORS if key else OPEN_MIRRORS
 
     db_name = "insecure_full.json" if full else "insecure.json"
-    db_name = "insecure_premium.json" if premium else db_name
     for mirror in mirrors:
         # mirror can either be a local path or a URL
         if mirror.startswith("http://") or mirror.startswith("https://"):
@@ -155,10 +154,7 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                 spec_set = SpecifierSet(specifiers=specifier)
                 if spec_set.contains(pkg.version):
                     if not db_full:
-                        try:
-                            db_full = fetch_database(full=True, premium=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
-                        except:
-                            db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
+                        db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
                     for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
                         vuln_id = data.get("id").replace("pyup.io-", "")
                         cve_id = data.get("cve")

@@ -114,7 +114,10 @@ class SheetReport(object):
                         impact_score = vuln.cvssv2.get("impact_score", "None")
 
                         table.append("| {:76} |".format(
-                            f"CVSS v2 | BASE SCORE: {base_score} | IMPACT SCORE: {impact_score}"
+                            "CVSS v2 | BASE SCORE: {} | IMPACT SCORE: {}".format(
+                                base_score,
+                                impact_score,
+                            )
                         ))
                         table.append(SheetReport.REPORT_SECTION)
 
@@ -124,7 +127,11 @@ class SheetReport(object):
                         base_severity = vuln.cvssv3.get("base_severity", "None")
 
                         table.append("| {:76} |".format(
-                            f"CVSS v3 | BASE SCORE: {base_score} | IMPACT SCORE: {impact_score} | BASE SEVERITY: {base_severity}"
+                            "CVSS v3 | BASE SCORE: {} | IMPACT SCORE: {} | BASE SEVERITY: {}".format(
+                                base_score,
+                                impact_score,
+                                base_severity,
+                            )
                         ))
                         table.append(SheetReport.REPORT_SECTION)
 
@@ -226,18 +233,21 @@ class BasicReport(object):
                         base_score = vuln.cvssv2.get("base_score", "None")
                         impact_score = vuln.cvssv2.get("impact_score", "None")
 
-                        table.append(
-                            f"CVSS v2 -- BASE SCORE: {base_score}, IMPACT SCORE: {impact_score}"
-                        )
+                        table.append("CVSS v2 -- BASE SCORE: {}, IMPACT SCORE: {}".format(
+                            base_score,
+                            impact_score,
+                        ))
 
                     if vuln.cvssv3 is not None:
                         base_score = vuln.cvssv3.get("base_score", "None")
                         impact_score = vuln.cvssv3.get("impact_score", "None")
                         base_severity = vuln.cvssv3.get("base_severity", "None")
 
-                        table.append(
-                            f"CVSS v3 -- BASE SCORE: {base_score}, IMPACT SCORE: {impact_score}, BASE SEVERITY: {base_severity}"
-                        )
+                        table.append("CVSS v3 -- BASE SCORE: {}, IMPACT SCORE: {}, BASE SEVERITY: {}".format(
+                            base_score,
+                            impact_score,
+                            base_severity,
+                        ))
 
                     table.append(get_advisory(vuln))
                     table.append("--")

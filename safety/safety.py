@@ -176,3 +176,26 @@ def review(vulnerabilities):
             Vulnerability(**current_vuln)
         )
     return vulnerable
+
+
+def get_licenses(key, db_mirror, cached, proxy):
+    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+
+    if not key:
+        raise DatabaseFetchError("API-KEY not provided.")
+    if db_mirror:
+        mirrors = [db_mirror]
+    else:
+        mirrors = API_MIRRORS
+
+    db_name = "licenses.json"
+
+    for mirror in mirrors:
+        # mirror can either be a local path or a URL
+        if mirror.startswith("http://") or mirror.startswith("https://"):
+            licenses = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached, proxy=proxy)
+        else:
+            licenses = fetch_database_file(mirror, db_name=db_name)
+        if licenses:
+            return licenses
+    raise DatabaseFetchError()

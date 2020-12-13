@@ -46,7 +46,7 @@ class environment:
         MACOS: {
             # On macOS the binary is built using Python 3.7 (Homebrew), because
             # the shipped Python lacks libraries PyInstaller needs.
-            64: "/usr/local/bin/python3",
+            64: "/usr/local/bin/python",
         }
     }
 

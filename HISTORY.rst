@@ -2,11 +2,13 @@
 History
 =======
 
-1.9.1a (master)
----------------
+1.10.0-dev (master)
+-------------------
 
 * Current unstable version
 * Added README information about Python 2.7 workaround
+* Adjusted some pricing information
+* Fixed MacOS binary build through AppVeyor
 
 1.9.0 (2020-04-27)
 ------------------

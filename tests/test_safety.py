@@ -142,7 +142,7 @@ class TestSafety(unittest.TestCase):
             cached=False,
             key=False,
             ignore_ids=[],
-            proxy={}
+            proxy={},
         )
         self.assertEqual(len(vulns), 2)
 
@@ -160,7 +160,7 @@ class TestSafety(unittest.TestCase):
             cached=False,
             key=False,
             ignore_ids=[],
-            proxy={}
+            proxy={},
         )
         self.assertEqual(len(vulns), 2)
 
@@ -177,7 +177,7 @@ class TestSafety(unittest.TestCase):
             cached=False,
             key=False,
             ignore_ids=[],
-            proxy={}
+            proxy={},
         )
         self.assertEqual(len(vulns), 4)
 
@@ -191,7 +191,7 @@ class TestSafety(unittest.TestCase):
             cached=False,
             key=False,
             ignore_ids=[],
-            proxy={}
+            proxy={},
         )
         self.assertEqual(len(vulns), 1)
 
@@ -205,7 +205,7 @@ class TestSafety(unittest.TestCase):
             cached=True,
             key=False,
             ignore_ids=[],
-            proxy={}
+            proxy={},
         )
         self.assertEqual(len(vulns), 1)
 
@@ -218,9 +218,43 @@ class TestSafety(unittest.TestCase):
             cached=True,
             key=False,
             ignore_ids=[],
-            proxy={}
+            proxy={},
         )
         self.assertEqual(len(vulns), 1)
+
+    def test_get_packages_licenses(self):
+        reqs = StringIO("Django==1.8.1\n\rinvalid==1.0.0")
+        packages = util.read_requirements(reqs)
+        licenses_db = safety.get_licenses(
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key="foobarqux",
+            proxy={},
+        )
+        self.assertIn("licenses", licenses_db)
+        self.assertIn("packages", licenses_db)
+        self.assertIn("BSD-3-Clause", licenses_db['licenses'])
+        self.assertIn("django", licenses_db['packages'])
+
+        pkg_licenses = util.get_packages_licenses(packages, licenses_db)
+
+        self.assertIsInstance(pkg_licenses, list)
+        for pkg_license in pkg_licenses:
+            license = pkg_license['license']
+            version = pkg_license['version']
+            if pkg_license['package'] == 'django':
+                self.assertEqual(license, 'BSD-3-Clause')
+                self.assertEqual(version, '1.8.1')
+            elif pkg_license['package'] == 'invalid':
+                self.assertEqual(license, 'N/A')
+                self.assertEqual(version, '1.0.0')
+            else:
+                raise AssertionError(
+                    "unexpected package '" + pkg_license['package'] + "' was found"
+                )
 
 
 class ReadRequirementsTestCase(unittest.TestCase):

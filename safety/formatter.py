@@ -5,6 +5,8 @@ import json
 import os
 import textwrap
 
+from .util import get_packages_licenses
+
 # python 2.7 compat
 try:
     FileNotFoundError
@@ -69,6 +71,12 @@ class SheetReport(object):
 +============================+===========+==========================+==========+
     """.strip()
 
+    TABLE_HEADING_LICENSES = r"""
++=============================================+===========+====================+
+| package                                     |  version  | license            |
++=============================================+===========+====================+
+    """.strip()
+
     REPORT_HEADING = r"""
 | REPORT                                                                       |
     """.strip()
@@ -125,6 +133,52 @@ class SheetReport(object):
                      content, SheetReport.REPORT_FOOTER]
                 )
 
+    @staticmethod
+    def render_licenses(packages, packages_licenses):
+        heading = SheetReport.REPORT_HEADING.replace(" ", "", 12).replace(
+            "REPORT", " Packages licenses"
+        )
+        if not packages_licenses:
+            content = "| {:76} |".format("No packages licenses found.")
+            return "\n".join(
+                    [SheetReport.REPORT_BANNER, heading, SheetReport.REPORT_SECTION,
+                     content, SheetReport.REPORT_FOOTER]
+                )
+
+        table = []
+        iteration = 1
+        for pkg_license in packages_licenses:
+            max_char = last_char = 43  # defines a limit for package name.
+            current_line = 1
+            package = pkg_license['package']
+            license = pkg_license['license']
+            version = pkg_license['version']
+            license_line = int(int(len(package) / max_char) / 2) + 1  # Calc to get which line to add the license info.
+
+            table.append("| {:43} | {:9} | {:18} |".format(
+                package[:max_char],
+                version[:9] if current_line == license_line else "",
+                license[:18] if current_line == license_line else "",
+            ))
+
+            long_name = True if len(package[max_char:]) > 0 else False
+            while long_name:  # If the package has a long name, break it into multiple lines.
+                current_line += 1
+                table.append("| {:43} | {:9} | {:18} |".format(
+                    package[last_char:last_char+max_char],
+                    version[:9] if current_line == license_line else "",
+                    license[:18] if current_line == license_line else "",
+                ))
+                last_char = last_char+max_char
+                long_name = True if len(package[last_char:]) > 0 else False
+
+            if iteration != len(packages_licenses):  # Do not add dashes "----" for last package.
+                table.append("|" + ("-" * 78) + "|")
+            iteration += 1
+        return "\n".join(
+            [SheetReport.REPORT_BANNER, heading, SheetReport.TABLE_HEADING_LICENSES,
+                "\n".join(table), SheetReport.REPORT_FOOTER]
+        )
 
 class BasicReport(object):
     """Basic report, intented to be used for terminals with < 80 columns"""
@@ -157,6 +211,24 @@ class BasicReport(object):
             table
         )
 
+    @staticmethod
+    def render_licenses(packages, packages_licenses):
+        table = [
+            "safety",
+            "packages licenses",
+            "---"
+        ]
+        if not packages_licenses:
+            table.append("No packages licenses found.")
+            return "\n".join(table)
+        
+        for pkg_license in packages_licenses:
+            text = pkg_license['package'] + \
+                   ", version " + pkg_license['version'] + \
+                   ", license " + pkg_license['license'] + "\n"
+            table.append(text)
+        
+        return "\n".join(table)
 
 class JsonReport(object):
     """Json report, for when the output is input for something else"""
@@ -192,3 +264,11 @@ def report(vulns, full=False, json_report=False, bare_report=False, checked_pack
     if size.columns >= 80:
         return SheetReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
     return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
+
+
+def license_report(packages, licenses):
+    size = get_terminal_size()
+
+    if size.columns >= 80:
+        return SheetReport.render_licenses(packages, licenses)
+    return BasicReport.render_licenses(packages, licenses)

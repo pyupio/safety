@@ -8,8 +8,8 @@ from collections import namedtuple
 import requests
 from packaging.specifiers import SpecifierSet
 
-from .constants import (API_MIRRORS, CACHE_FILE, CACHE_VALID_SECONDS,
-                        OPEN_MIRRORS, REQUEST_TIMEOUT)
+from .constants import (API_MIRRORS, CACHE_FILE, CACHE_LICENSES_VALID_SECONDS,
+                        CACHE_VALID_SECONDS, OPEN_MIRRORS, REQUEST_TIMEOUT)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError)
 from .util import RequirementFile
@@ -27,7 +27,13 @@ def get_from_cache(db_name):
                 data = json.loads(f.read())
                 if db_name in data:
                     if "cached_at" in data[db_name]:
-                        if data[db_name]["cached_at"] + CACHE_VALID_SECONDS > time.time():
+                        if 'licenses.json' in db_name:
+                            # Getting the specific cache time for the licenses db.
+                            cache_valid_seconds = CACHE_LICENSES_VALID_SECONDS
+                        else:
+                            cache_valid_seconds = CACHE_VALID_SECONDS
+
+                        if data[db_name]["cached_at"] + cache_valid_seconds > time.time():
                             return data[db_name]["db"]
             except json.JSONDecodeError:
                 pass

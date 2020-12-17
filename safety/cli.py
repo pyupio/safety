@@ -123,7 +123,7 @@ def review(full_report, bare, file):
 
 
 @cli.command()
-@click.option("--key", default="", envvar="SAFETY_API_KEY",
+@click.option("--key", required=True, envvar="SAFETY_API_KEY",
               help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
                    "environment variable. Default: empty")
 @click.option("--db", default="",

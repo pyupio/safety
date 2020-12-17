@@ -11,7 +11,7 @@ from packaging.specifiers import SpecifierSet
 from .constants import (API_MIRRORS, CACHE_FILE, CACHE_LICENSES_VALID_SECONDS,
                         CACHE_VALID_SECONDS, OPEN_MIRRORS, REQUEST_TIMEOUT)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
-                     InvalidKeyError)
+                     InvalidKeyError, TooManyRequestsError)
 from .util import RequirementFile
 
 
@@ -95,6 +95,8 @@ def fetch_database_url(mirror, db_name, key, cached, proxy):
         return data
     elif r.status_code == 403:
         raise InvalidKeyError()
+    elif r.status_code == 429:
+        raise TooManyRequestsError()
 
 
 def fetch_database_file(path, db_name):

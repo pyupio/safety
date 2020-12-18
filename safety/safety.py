@@ -189,8 +189,8 @@ def review(vulnerabilities):
 def get_licenses(key, db_mirror, cached, proxy):
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
 
-    if not key:
-        raise DatabaseFetchError("API-KEY not provided.")
+    if not key and not db_mirror:
+        raise InvalidKeyError("API-KEY not provided.")
     if db_mirror:
         mirrors = [db_mirror]
     else:

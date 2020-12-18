@@ -12,6 +12,7 @@ Tests for `safety` module.
 import unittest
 import textwrap
 from click.testing import CliRunner
+from unittest.mock import Mock, patch
 
 from safety import safety
 from safety import cli
@@ -255,6 +256,136 @@ class TestSafety(unittest.TestCase):
                 raise AssertionError(
                     "unexpected package '" + pkg_license['package'] + "' was found"
                 )
+
+    def test_get_packages_licenses_without_api_key(self):
+        from safety.errors import InvalidKeyError
+
+        # without providing an API-KEY 
+        with self.assertRaises(InvalidKeyError) as error:
+            safety.get_licenses(
+                db_mirror=False,
+                cached=False,
+                proxy={},
+                key=None
+            )
+        db_generic_exception = error.exception
+        self.assertEqual(str(db_generic_exception), 'API-KEY not provided.')
+
+    @patch("safety.safety.requests")
+    def test_get_packages_licenses_with_invalid_api_key(self, requests):
+        from safety.errors import InvalidKeyError
+
+        mock = Mock()
+        mock.status_code = 403
+        requests.get.return_value = mock
+
+        # proving an invalid API-KEY
+        with self.assertRaises(InvalidKeyError):
+            safety.get_licenses(
+                db_mirror=False,
+                cached=False,
+                proxy={},
+                key="INVALID"
+            )
+
+    @patch("safety.safety.requests")
+    def test_get_packages_licenses_db_fetch_error(self, requests):
+        from safety.errors import DatabaseFetchError
+
+        mock = Mock()
+        mock.status_code = 500
+        requests.get.return_value = mock
+
+        with self.assertRaises(DatabaseFetchError):
+            safety.get_licenses(
+                db_mirror=False,
+                cached=False,
+                proxy={},
+                key="MY-VALID-KEY"
+            )
+    
+    def test_get_packages_licenses_with_invalid_db_file(self):
+        from safety.errors import DatabaseFileNotFoundError
+
+        with self.assertRaises(DatabaseFileNotFoundError):
+            safety.get_licenses(
+                db_mirror='/my/invalid/path',
+                cached=False,
+                proxy={},
+                key=None
+            )
+
+    @patch("safety.safety.requests")
+    def test_get_packages_licenses_very_often(self, requests):
+        from safety.errors import TooManyRequestsError
+
+        # if the request is made too often, an 429 error is raise by PyUp.io
+        mock = Mock()
+        mock.status_code = 429
+        requests.get.return_value = mock
+
+        with self.assertRaises(TooManyRequestsError):
+            safety.get_licenses(
+                db_mirror=False,
+                cached=False,
+                proxy={},
+                key="MY-VALID-KEY"
+            )
+
+    @patch("safety.safety.requests")
+    def test_get_cached_packages_licenses(self, requests):
+        import copy
+        from safety.constants import CACHE_FILE
+
+        licenses_db = {
+            "licenses": {
+                "BSD-3-Clause": 2
+            },
+            "packages": {
+                "django": [
+                    {
+                        "start_version": "0.0",
+                        "license_id": 2
+                    }
+                ]
+            }
+        }
+        original_db = copy.deepcopy(licenses_db)
+
+        mock = Mock()
+        mock.json.return_value = licenses_db
+        mock.status_code = 200
+        requests.get.return_value = mock
+
+        # lets clear the cache first
+        try:
+            with open(CACHE_FILE, 'w') as f:
+                f.write(json.dumps({}))
+        except Exception:
+            pass
+        
+        # In order to cache the db (and get), we must set cached as True
+        response = safety.get_licenses(
+            db_mirror=False,
+            cached=True,
+            proxy={},
+            key="MY-VALID-KEY"
+        )
+        self.assertEqual(response, licenses_db)
+
+        # now we should have the db in cache
+        # changing the "live" db to test if we are getting the cached db
+        licenses_db['licenses']['BSD-3-Clause'] = 123
+
+        resp = safety.get_licenses(
+            db_mirror=False,
+            cached=True,
+            proxy={},
+            key="MY-VALID-KEY"
+        )
+        
+        self.assertNotEqual(resp, licenses_db)
+        self.assertEqual(resp, original_db)
 
 
 class ReadRequirementsTestCase(unittest.TestCase):

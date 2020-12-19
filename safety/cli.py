@@ -102,7 +102,7 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
               help='Full reports include a security advisory (if available). Default: '
                    '--short-report')
 @click.option("--bare/--not-bare", default=False,
-              help='Output vulnerable packages only. Useful in combination with other tools.'
+              help='Output vulnerable packages only. Useful in combination with other tools. '
                    'Default: --not-bare')
 @click.option("file", "--file", "-f", type=click.File(), required=True,
               help="Read input from an insecure report file. Default: empty")

@@ -95,17 +95,17 @@ safety check -r requirements.txt
 Safety is also able to read from stdin with the `--stdin` flag set.
 
 To check a local requirements file, run:
-```
+```bash
 cat requirements.txt | safety check --stdin
 ```
 
 or the output of `pip freeze`:
-```
+```bash
 pip freeze | safety check --stdin
 ```
 
 or to check a single package:
-```
+```bash
 echo "insecure-package==0.1" | safety check --stdin
 ```
 
@@ -125,7 +125,7 @@ docker run -it --rm ${IMAGE_TAG} "/bin/bash -c \"pip install safety && safety ch
 Safety can be easily executed as Docker container. It can be used just as
 described in the [examples](#examples) section.
 
-```console
+```bash
 echo "insecure-package==0.1" | docker run -i --rm pyupio/safety safety check --stdin
 cat requirements.txt | docker run -i --rm pyupio/safety safety check --stdin
 ```

@@ -2,7 +2,7 @@
 History
 =======
 
-1.10.0-dev (master)
+1.10.0 (2020-12-20)
 -------------------
 
 * Current unstable version

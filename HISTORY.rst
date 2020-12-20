@@ -2,10 +2,14 @@
 History
 =======
 
-1.10.0 (2020-12-20)
+1.10.1-dev (master)
 -------------------
 
 * Current unstable version
+
+1.10.0 (2020-12-20)
+-------------------
+
 * Added README information about Python 2.7 workaround
 * Adjusted some pricing information
 * Fixed MacOS binary build through AppVeyor

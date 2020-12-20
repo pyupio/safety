@@ -7,7 +7,7 @@ from safety import safety
 from safety.formatter import report, license_report
 import itertools
 from safety.util import read_requirements, read_vulnerabilities, get_proxy_dict, get_packages_licenses
-from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError
+from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError, TooManyRequestsError
 
 try:
     from json.decoder import JSONDecodeError
@@ -123,7 +123,7 @@ def review(full_report, bare, file):
 
 
 @cli.command()
-@click.option("--key", default="", envvar="SAFETY_API_KEY",
+@click.option("--key", required=True, envvar="SAFETY_API_KEY",
               help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
                    "environment variable. Default: empty")
 @click.option("--db", default="",
@@ -151,7 +151,26 @@ def license(key, db, cache, files, proxyprotocol, proxyhost, proxyport):
         ]  
    
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
-    licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary)
+    try:
+        licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary)
+    except InvalidKeyError:
+        click.secho("Your API Key '{key}' is invalid. See {link}".format(
+            key=key, link='https://goo.gl/O7Y1rS'),
+            fg="red",
+            file=sys.stderr)
+        sys.exit(-1)
+    except DatabaseFileNotFoundError:
+        click.secho("Unable to load licenses database from {db}".format(db=db), fg="red", file=sys.stderr)
+        sys.exit(-1)
+    except TooManyRequestsError:
+        click.secho("Unable to load licenses database (Too many requests, please wait before another request)",
+            fg="red",
+            file=sys.stderr
+        )
+        sys.exit(-1)
+    except DatabaseFetchError:
+        click.secho("Unable to load licenses database", fg="red", file=sys.stderr)
+        sys.exit(-1)
     filtered_packages_licenses = get_packages_licenses(packages, licenses_db)
     output_report = license_report(packages=packages, licenses=filtered_packages_licenses)
     click.secho(output_report, nl=True)

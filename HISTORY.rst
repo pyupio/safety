@@ -9,6 +9,7 @@ History
 * Added README information about Python 2.7 workaround
 * Adjusted some pricing information
 * Fixed MacOS binary build through AppVeyor
+* Added the ability to check packages licenses
 
 1.9.0 (2020-04-27)
 ------------------

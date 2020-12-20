@@ -144,7 +144,7 @@ Safety works great in your CI pipeline. It returns a non-zero exit status if it 
 
 Run it before or after your tests. If Safety finds something, your tests will fail.
 
-**Travis**
+**Travis CI**
 ```yaml
 install:
   - pip install safety
@@ -153,7 +153,7 @@ script:
   - safety check
 ```
 
-**Gitlab CI**
+**GitLab CI**
 ```yaml
 safety:
   script:

@@ -236,6 +236,10 @@ class JsonReport(object):
     @staticmethod
     def render(vulns, full):
         return json.dumps(vulns, indent=4, sort_keys=True)
+    
+    @staticmethod
+    def render_licenses(packages_licenses):
+        return json.dumps(packages_licenses, indent=4, sort_keys=True)
 
 
 class BareReport(object):
@@ -243,6 +247,14 @@ class BareReport(object):
     @staticmethod
     def render(vulns, full):
         return " ".join(set([v.name for v in vulns]))
+
+    @staticmethod
+    def render_licenses(packages_licenses):
+        licenses = set([pkg_li.get('license') for pkg_li in packages_licenses])
+        if "N/A" in licenses:
+            licenses.remove("N/A")
+        sorted_licenses = sorted(licenses)
+        return " ".join(sorted_licenses)
 
 
 def get_used_db(key, db):
@@ -266,9 +278,13 @@ def report(vulns, full=False, json_report=False, bare_report=False, checked_pack
     return BasicReport.render(vulns, full=full, checked_packages=checked_packages, used_db=used_db)
 
 
-def license_report(packages, licenses):
-    size = get_terminal_size()
+def license_report(packages, licenses, json_report=False, bare_report=False):
+    if json_report:
+        return JsonReport.render_licenses(packages_licenses=licenses)
+    elif bare_report:
+        return BareReport.render_licenses(packages_licenses=licenses)
 
+    size = get_terminal_size()
     if size.columns >= 80:
         return SheetReport.render_licenses(packages, licenses)
     return BasicReport.render_licenses(packages, licenses)

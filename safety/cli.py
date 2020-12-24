@@ -128,6 +128,12 @@ def review(full_report, bare, file):
                    "environment variable. Default: empty")
 @click.option("--db", default="",
               help="Path to a local license database. Default: empty")
+@click.option("--json/--no-json", default=False,
+              help="Output packages licenses in JSON format. Default: --no-json")
+@click.option("--bare/--not-bare", default=False,
+              help='Output packages licenses names only. '
+                   'Useful in combination with other tools. '
+                   'Default: --not-bare')
 @click.option("--cache/--no-cache", default=True,
               help='Whether license database file should be cached.'
                    'Default: --cache')
@@ -139,7 +145,7 @@ def review(full_report, bare, file):
               help="Proxy port number --proxy-port")
 @click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
               help="Proxy protocol (https or http) --proxy-protocol")
-def license(key, db, cache, files, proxyprotocol, proxyhost, proxyport):
+def license(key, db, json, bare, cache, files, proxyprotocol, proxyhost, proxyport):
 
     if files:
         packages = list(itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files))
@@ -172,7 +178,12 @@ def license(key, db, cache, files, proxyprotocol, proxyhost, proxyport):
         click.secho("Unable to load licenses database", fg="red", file=sys.stderr)
         sys.exit(-1)
     filtered_packages_licenses = get_packages_licenses(packages, licenses_db)
-    output_report = license_report(packages=packages, licenses=filtered_packages_licenses)
+    output_report = license_report(
+        packages=packages,
+        licenses=filtered_packages_licenses,
+        json_report=json,
+        bare_report=bare
+    )
     click.secho(output_report, nl=True)
 
 

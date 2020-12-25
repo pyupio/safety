@@ -123,7 +123,7 @@ def review(full_report, bare, file):
 
 
 @cli.command()
-@click.option("--key", required=True, envvar="SAFETY_API_KEY",
+@click.option("--key", envvar="SAFETY_API_KEY",
               help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
                    "environment variable. Default: empty")
 @click.option("--db", default="",
@@ -159,11 +159,14 @@ def license(key, db, json, bare, cache, files, proxyprotocol, proxyhost, proxypo
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
     try:
         licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary)
-    except InvalidKeyError:
-        click.secho("Your API Key '{key}' is invalid. See {link}".format(
-            key=key, link='https://goo.gl/O7Y1rS'),
-            fg="red",
-            file=sys.stderr)
+    except InvalidKeyError as invalid_key_error:
+        if str(invalid_key_error):
+            message = str(invalid_key_error)
+        else: 
+            message = "Your API Key '{key}' is invalid. See {link}".format(
+                key=key, link='https://goo.gl/O7Y1rS'
+            )
+        click.secho(message, fg="red", file=sys.stderr)
         sys.exit(-1)
     except DatabaseFileNotFoundError:
         click.secho("Unable to load licenses database from {db}".format(db=db), fg="red", file=sys.stderr)

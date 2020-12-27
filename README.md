@@ -111,6 +111,15 @@ echo "insecure-package==0.1" | safety check --stdin
 
 *For more examples, take a look at the [options](#options) section.*
 
+
+### Scan a Python-based Docker image
+
+To scan a docker image `IMAGE_TAG`, you can run
+
+```console
+docker run -it --rm ${IMAGE_TAG} "/bin/bash -c \"pip install safety && safety check\"
+```
+
 ## Using Safety in Docker
 
 Safety can be easily executed as Docker container. It can be used just as

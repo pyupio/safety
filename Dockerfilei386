@@ -17,7 +17,7 @@ RUN python3 -m pip install pyinstaller pytest
 
 RUN mkdir /app
 WORKDIR /app
-ADD . ./
+COPY . ./
 
 # Install this project dependencies
 RUN python3 -m pip install -e .

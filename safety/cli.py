@@ -123,11 +123,17 @@ def review(full_report, bare, file):
 
 
 @cli.command()
-@click.option("--key", required=True, envvar="SAFETY_API_KEY",
+@click.option("--key", envvar="SAFETY_API_KEY",
               help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
                    "environment variable. Default: empty")
 @click.option("--db", default="",
               help="Path to a local license database. Default: empty")
+@click.option("--json/--no-json", default=False,
+              help="Output packages licenses in JSON format. Default: --no-json")
+@click.option("--bare/--not-bare", default=False,
+              help='Output packages licenses names only. '
+                   'Useful in combination with other tools. '
+                   'Default: --not-bare')
 @click.option("--cache/--no-cache", default=True,
               help='Whether license database file should be cached.'
                    'Default: --cache')
@@ -139,7 +145,7 @@ def review(full_report, bare, file):
               help="Proxy port number --proxy-port")
 @click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
               help="Proxy protocol (https or http) --proxy-protocol")
-def license(key, db, cache, files, proxyprotocol, proxyhost, proxyport):
+def license(key, db, json, bare, cache, files, proxyprotocol, proxyhost, proxyport):
 
     if files:
         packages = list(itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files))
@@ -153,11 +159,14 @@ def license(key, db, cache, files, proxyprotocol, proxyhost, proxyport):
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
     try:
         licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary)
-    except InvalidKeyError:
-        click.secho("Your API Key '{key}' is invalid. See {link}".format(
-            key=key, link='https://goo.gl/O7Y1rS'),
-            fg="red",
-            file=sys.stderr)
+    except InvalidKeyError as invalid_key_error:
+        if str(invalid_key_error):
+            message = str(invalid_key_error)
+        else: 
+            message = "Your API Key '{key}' is invalid. See {link}".format(
+                key=key, link='https://goo.gl/O7Y1rS'
+            )
+        click.secho(message, fg="red", file=sys.stderr)
         sys.exit(-1)
     except DatabaseFileNotFoundError:
         click.secho("Unable to load licenses database from {db}".format(db=db), fg="red", file=sys.stderr)
@@ -172,7 +181,12 @@ def license(key, db, cache, files, proxyprotocol, proxyhost, proxyport):
         click.secho("Unable to load licenses database", fg="red", file=sys.stderr)
         sys.exit(-1)
     filtered_packages_licenses = get_packages_licenses(packages, licenses_db)
-    output_report = license_report(packages=packages, licenses=filtered_packages_licenses)
+    output_report = license_report(
+        packages=packages,
+        licenses=filtered_packages_licenses,
+        json_report=json,
+        bare_report=bare
+    )
     click.secho(output_report, nl=True)
 
 

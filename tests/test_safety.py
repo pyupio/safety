@@ -54,6 +54,42 @@ class TestSafetyCLI(unittest.TestCase):
         result = runner.invoke(cli.cli, ['review', '--bare', '--file', path_to_report])
         assert result.exit_code == -1
 
+    @patch("safety.safety.get_licenses")
+    def test_license_bare(self, get_licenses):
+        runner = CliRunner()
+
+        dirname = os.path.dirname(__file__)
+        with open(os.path.join(dirname, "test_db", "licenses.json")) as f:
+            licenses_db = json.loads(f.read())
+        get_licenses.return_value = licenses_db
+        reqs_path = os.path.join(dirname, "reqs_4.txt")
+
+        result = runner.invoke(cli.cli, ['license', '--file', reqs_path, '--bare', '--db', 'licenses.json'])
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.output, 'BSD-3-Clause\n')
+
+    @patch("safety.safety.get_licenses")
+    def test_license_json(self, get_licenses):
+        runner = CliRunner()
+
+        dirname = os.path.dirname(__file__)
+        with open(os.path.join(dirname, "test_db", "licenses.json")) as f:
+            licenses_db = json.loads(f.read())
+        get_licenses.return_value = licenses_db
+        reqs_path = os.path.join(dirname, "reqs_4.txt")
+
+        result = runner.invoke(cli.cli, ['license', '--file', reqs_path, '--json', '--db', 'licenses.json'])
+        expected_result = json.dumps(
+            [{
+                "license": "BSD-3-Clause",
+                "package": "django",
+                "version": "1.11"
+            }],
+            indent=4, sort_keys=True
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertMultiLineEqual(result.output.rstrip(), expected_result)
+
 
 class TestFormatter(unittest.TestCase):
 
@@ -269,7 +305,7 @@ class TestSafety(unittest.TestCase):
                 key=None
             )
         db_generic_exception = error.exception
-        self.assertEqual(str(db_generic_exception), 'API-KEY not provided.')
+        self.assertEqual(str(db_generic_exception), 'The API-KEY was not provided.')
 
     @patch("safety.safety.requests")
     def test_get_packages_licenses_with_invalid_api_key(self, requests):
@@ -386,6 +422,73 @@ class TestSafety(unittest.TestCase):
         
         self.assertNotEqual(resp, licenses_db)
         self.assertEqual(resp, original_db)
+
+    def test_report_licenses_bare(self):
+        from safety.formatter import license_report
+
+        reqs = StringIO("Django==1.8.1\n\rinexistent==1.0.0")
+        packages = util.read_requirements(reqs)
+
+        # Using DB: test.test_db.licenses.json
+        licenses_db = safety.get_licenses(
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=None,
+            proxy={},
+        )
+
+        pkgs_licenses = util.get_packages_licenses(packages, licenses_db)
+        output_report = license_report(
+            packages=packages,
+            licenses=pkgs_licenses,
+            json_report=False,
+            bare_report=True
+        )
+        self.assertEqual(output_report, "BSD-3-Clause")
+
+    def test_report_licenses_json(self):
+        from safety.formatter import license_report
+
+        reqs = StringIO("Django==1.8.1\n\rinexistent==1.0.0")
+        packages = util.read_requirements(reqs)
+
+        # Using DB: test.test_db.licenses.json
+        licenses_db = safety.get_licenses(
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=None,
+            proxy={},
+        )
+
+        pkgs_licenses = util.get_packages_licenses(packages, licenses_db)
+        output_report = license_report(
+            packages=packages,
+            licenses=pkgs_licenses,
+            json_report=True,
+            bare_report=False
+        )
+
+        expected_result = json.dumps(
+            [{
+                "license": "BSD-3-Clause",
+                "package": "django",
+                "version": "1.8.1"
+            },
+            {
+                "license": "N/A",
+                "package": "inexistent",
+                "version": "1.0.0"
+            }],
+            indent=4, sort_keys=True
+        )
+        # Packages without license are reported as "N/A"
+        self.assertEqual(output_report.rstrip(), expected_result)
 
 
 class ReadRequirementsTestCase(unittest.TestCase):

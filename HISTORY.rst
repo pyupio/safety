@@ -6,6 +6,7 @@ History
 -------------------
 
 * Current unstable version
+* Reduced Docker image and Binary size
 
 1.10.0 (2020-12-20)
 -------------------

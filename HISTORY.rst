@@ -2,10 +2,9 @@
 History
 =======
 
-1.10.1-dev (master)
+1.10.1 (2020-12-03)
 -------------------
 
-* Current unstable version
 * Reduced Docker image and Binary size
 * Added bare and json outputs to license command
 

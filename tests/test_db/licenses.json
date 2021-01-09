@@ -1,0 +1,13 @@
+{
+    "licenses": {
+        "BSD-3-Clause": 1
+    },
+    "packages": {
+        "django": [
+            {
+                "start_version": "0.0",
+                "license_id": 1
+            }
+        ]
+    }
+}

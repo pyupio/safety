@@ -8,10 +8,10 @@ from collections import namedtuple
 import requests
 from packaging.specifiers import SpecifierSet
 
-from .constants import (API_MIRRORS, CACHE_FILE, CACHE_VALID_SECONDS,
-                        OPEN_MIRRORS, REQUEST_TIMEOUT)
+from .constants import (API_MIRRORS, CACHE_FILE, CACHE_LICENSES_VALID_SECONDS,
+                        CACHE_VALID_SECONDS, OPEN_MIRRORS, REQUEST_TIMEOUT)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
-                     InvalidKeyError)
+                     InvalidKeyError, TooManyRequestsError)
 from .util import RequirementFile
 
 
@@ -27,7 +27,13 @@ def get_from_cache(db_name):
                 data = json.loads(f.read())
                 if db_name in data:
                     if "cached_at" in data[db_name]:
-                        if data[db_name]["cached_at"] + CACHE_VALID_SECONDS > time.time():
+                        if 'licenses.json' in db_name:
+                            # Getting the specific cache time for the licenses db.
+                            cache_valid_seconds = CACHE_LICENSES_VALID_SECONDS
+                        else:
+                            cache_valid_seconds = CACHE_VALID_SECONDS
+
+                        if data[db_name]["cached_at"] + cache_valid_seconds > time.time():
                             return data[db_name]["db"]
             except json.JSONDecodeError:
                 pass
@@ -89,6 +95,8 @@ def fetch_database_url(mirror, db_name, key, cached, proxy):
         return data
     elif r.status_code == 403:
         raise InvalidKeyError()
+    elif r.status_code == 429:
+        raise TooManyRequestsError()
 
 
 def fetch_database_file(path, db_name):
@@ -176,3 +184,26 @@ def review(vulnerabilities):
             Vulnerability(**current_vuln)
         )
     return vulnerable
+
+
+def get_licenses(key, db_mirror, cached, proxy):
+    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+
+    if not key and not db_mirror:
+        raise InvalidKeyError("The API-KEY was not provided.")
+    if db_mirror:
+        mirrors = [db_mirror]
+    else:
+        mirrors = API_MIRRORS
+
+    db_name = "licenses.json"
+
+    for mirror in mirrors:
+        # mirror can either be a local path or a URL
+        if mirror.startswith("http://") or mirror.startswith("https://"):
+            licenses = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached, proxy=proxy)
+        else:
+            licenses = fetch_database_file(mirror, db_name=db_name)
+        if licenses:
+            return licenses
+    raise DatabaseFetchError()

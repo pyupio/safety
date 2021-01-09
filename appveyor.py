@@ -44,9 +44,9 @@ class environment:
         ]),
 
         MACOS: {
-            # On macOS the binary is built using Python 3.7 (Homebrew), because
-            # the shipped Python lacks libraries PyInstaller needs.
-            64: "/usr/local/bin/python3",
+            # Trying to use Python 3 compatible with PyInstaller according
+            # https://www.appveyor.com/docs/macos-images-software/#python
+            64: "~/venv3.8/bin/python",
         }
     }
 

@@ -2,11 +2,19 @@
 History
 =======
 
-1.9.1a (master)
----------------
+1.10.1 (2020-12-03)
+-------------------
 
-* Current unstable version
+* Reduced Docker image and Binary size
+* Added bare and json outputs to license command
+
+1.10.0 (2020-12-20)
+-------------------
+
 * Added README information about Python 2.7 workaround
+* Adjusted some pricing information
+* Fixed MacOS binary build through AppVeyor
+* Added the ability to check packages licenses
 
 1.9.0 (2020-04-27)
 ------------------

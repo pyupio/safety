@@ -1,4 +1,4 @@
-version: 1.9.1a+{build}
+version: 1.10.1+{build}
 image:
   - Visual Studio 2019
   - Ubuntu
@@ -9,6 +9,7 @@ skip_branch_with_pr: true
 branches:
   only:
     - master
+    - appveyor-fixes
     - /\d*\.\d*\.\d*/
 
 # note: on macOS the binary is built using Python 3.7 (installed via Homebrew), because

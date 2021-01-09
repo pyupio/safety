@@ -7,7 +7,7 @@ History
 
 * Reduced Docker image and Binary size
 * Added bare and json outputs to license command
-* Show when safety database was generated.
+* Displays when safety database was generated
 
 1.10.0 (2020-12-20)
 -------------------

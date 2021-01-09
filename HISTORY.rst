@@ -7,6 +7,7 @@ History
 
 * Reduced Docker image and Binary size
 * Added bare and json outputs to license command
+* Fixed used DB wrong info
 
 1.10.0 (2020-12-20)
 -------------------

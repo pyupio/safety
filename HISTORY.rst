@@ -7,6 +7,7 @@ History
 
 * Reduced Docker image and Binary size
 * Added bare and json outputs to license command
+* Provide CVSS scores on full report, when available
 
 1.10.0 (2020-12-20)
 -------------------

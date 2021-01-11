@@ -250,7 +250,7 @@ ___
 
 ### `--full-report`
 
-*Full reports include a security advisory (if available).*
+*Full reports include a security advisory and CVSS scores (if available).*
 
 **Example**
 ```bash
@@ -276,6 +276,8 @@ safety check --full-report
 | REPORT                                                                       |
 +============================+===========+==========================+==========+
 | package                    | installed | affected                 | ID       |
++============================+===========+==========================+==========+
+| CVSS v2 | BASE SCORE: 6.5 | IMPACT SCORE: 6.4                                |
 +============================+===========+==========================+==========+
 | django                     | 1.2       | <1.2.2                   | 25701    |
 +==============================================================================+

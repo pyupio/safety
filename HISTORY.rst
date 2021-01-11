@@ -2,7 +2,7 @@
 History
 =======
 
-1.10.2 (master)
+1.10.2 (2021-01-12)
 -------------------
 
 * Provide CVSS scores on full report, when available

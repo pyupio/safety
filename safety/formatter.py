@@ -109,6 +109,32 @@ class SheetReport(object):
                 if full:
                     table.append(SheetReport.REPORT_SECTION)
 
+                    if vuln.cvssv2 is not None:
+                        base_score = vuln.cvssv2.get("base_score", "None")
+                        impact_score = vuln.cvssv2.get("impact_score", "None")
+
+                        table.append("| {:76} |".format(
+                            "CVSS v2 | BASE SCORE: {} | IMPACT SCORE: {}".format(
+                                base_score,
+                                impact_score,
+                            )
+                        ))
+                        table.append(SheetReport.REPORT_SECTION)
+
+                    if vuln.cvssv3 is not None:
+                        base_score = vuln.cvssv3.get("base_score", "None")
+                        impact_score = vuln.cvssv3.get("impact_score", "None")
+                        base_severity = vuln.cvssv3.get("base_severity", "None")
+
+                        table.append("| {:76} |".format(
+                            "CVSS v3 | BASE SCORE: {} | IMPACT SCORE: {} | BASE SEVERITY: {}".format(
+                                base_score,
+                                impact_score,
+                                base_severity,
+                            )
+                        ))
+                        table.append(SheetReport.REPORT_SECTION)
+
                     advisory_lines = get_advisory(vuln).replace(
                         '\r', ''
                     ).splitlines()
@@ -209,6 +235,26 @@ class BasicReport(object):
                     vuln.vuln_id
                 ))
                 if full:
+                    if vuln.cvssv2 is not None:
+                        base_score = vuln.cvssv2.get("base_score", "None")
+                        impact_score = vuln.cvssv2.get("impact_score", "None")
+
+                        table.append("CVSS v2 -- BASE SCORE: {}, IMPACT SCORE: {}".format(
+                            base_score,
+                            impact_score,
+                        ))
+
+                    if vuln.cvssv3 is not None:
+                        base_score = vuln.cvssv3.get("base_score", "None")
+                        impact_score = vuln.cvssv3.get("impact_score", "None")
+                        base_severity = vuln.cvssv3.get("base_severity", "None")
+
+                        table.append("CVSS v3 -- BASE SCORE: {}, IMPACT SCORE: {}, BASE SEVERITY: {}".format(
+                            base_score,
+                            impact_score,
+                            base_severity,
+                        ))
+
                     table.append(get_advisory(vuln))
                     table.append("--")
         else:

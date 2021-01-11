@@ -6,13 +6,13 @@ History
 -------------------
 
 * Provide CVSS scores on full report, when available
+* Fixed used DB wrong info
 
 1.10.1 (2021-01-03)
 -------------------
 
 * Reduced Docker image and Binary size
 * Added bare and json outputs to license command
-* Fixed used DB wrong info
 
 1.10.0 (2020-12-20)
 -------------------

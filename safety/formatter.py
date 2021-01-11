@@ -305,11 +305,11 @@ class BareReport(object):
 
 def get_used_db(key, db):
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
+    if db:
+        return "local DB"
     if key:
         return "pyup.io's DB"
-    if db == '':
-        return 'default DB'
-    return "local DB"
+    return "free DB (updated once a month)"
 
 
 def report(vulns, full=False, json_report=False, bare_report=False, checked_packages=0, db=None, key=None):

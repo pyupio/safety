@@ -6,6 +6,7 @@ History
 -------------------
 
 * Provide CVSS scores on full report, when available
+* Fixed used DB wrong info
 
 1.10.1 (2021-01-03)
 -------------------

@@ -10,7 +10,7 @@ History
 1.10.2 (2021-01-12)
 -------------------
 
-* Provide CVSS scores on full report, when available
+* Provide CVSS values on full report for CVEs (requires a premium PyUp subscription)
 * Fixed used DB wrong info
 * Support line breaks on advisories
 
@@ -26,7 +26,7 @@ History
 * Added README information about Python 2.7 workaround
 * Adjusted some pricing information
 * Fixed MacOS binary build through AppVeyor
-* Added the ability to check packages licenses
+* Added the ability to check packages licenses (requires a premium PyUp subscription)
 
 1.9.0 (2020-04-27)
 ------------------

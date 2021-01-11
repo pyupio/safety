@@ -16,7 +16,7 @@ from .util import RequirementFile
 
 
 class Vulnerability(namedtuple("Vulnerability",
-                               ["name", "spec", "version", "advisory", "vuln_id"])):
+                               ["name", "spec", "version", "advisory", "vuln_id", "cvssv2", "cvssv3"])):
     pass
 
 
@@ -157,14 +157,20 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                         db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy)
                     for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
                         vuln_id = data.get("id").replace("pyup.io-", "")
+                        cve_id = data.get("cve")
+                        if cve_id:
+                            cve_id = cve_id.split(",")[0].strip()
                         if vuln_id and vuln_id not in ignore_ids:
+                            cve_meta = db_full.get("$meta", {}).get("cve", {}).get(cve_id, {})
                             vulnerable.append(
                                 Vulnerability(
                                     name=name,
                                     spec=specifier,
                                     version=pkg.version,
                                     advisory=data.get("advisory"),
-                                    vuln_id=vuln_id
+                                    vuln_id=vuln_id,
+                                    cvssv2=cve_meta.get("cvssv2", None),
+                                    cvssv3=cve_meta.get("cvssv3", None),
                                 )
                             )
     return vulnerable
@@ -179,6 +185,8 @@ def review(vulnerabilities):
             "version": vuln[2],
             "advisory": vuln[3],
             "vuln_id": vuln[4],
+            "cvssv2": None,
+            "cvssv3": None
         }
         vulnerable.append(
             Vulnerability(**current_vuln)

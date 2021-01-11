@@ -2,7 +2,12 @@
 History
 =======
 
-1.10.1 (2020-12-03)
+1.10.2 (master)
+-------------------
+
+* Provide CVSS scores on full report, when available
+
+1.10.1 (2021-01-03)
 -------------------
 
 * Reduced Docker image and Binary size

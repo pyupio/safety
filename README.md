@@ -250,7 +250,7 @@ ___
 
 ### `--full-report`
 
-*Full reports include a security advisory and CVSS scores (if available).*
+*Full reports includes a security advisory. It also shows CVSS values for CVEs (requires a premium PyUp subscription).*
 
 **Example**
 ```bash
@@ -384,10 +384,10 @@ If you save the report in JSON format you can review in the report format again.
 
 **Example**
 ```bash
-safety check -f insecure.json
+safety review -f insecure.json
 ```
 ```bash
-safety check --file=insecure.json
+safety review --file=insecure.json
 ```
 ___
 
@@ -446,7 +446,7 @@ ___
 
 # License
 
-Display packages licenses information (requires an api-key)
+Display packages licenses information (requires a premium PyUp subscription).
 
 ## Options
 

@@ -6,13 +6,13 @@ History
 -------------------
 
 * Provide CVSS scores on full report, when available
+* Support line breaks on advisories
 
 1.10.1 (2021-01-03)
 -------------------
 
 * Reduced Docker image and Binary size
 * Added bare and json outputs to license command
-* Support line breaks on advisories
 
 1.10.0 (2020-12-20)
 -------------------

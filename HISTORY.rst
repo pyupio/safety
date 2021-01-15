@@ -2,10 +2,10 @@
 History
 =======
 
-1.10.3-dev (master)
+1.10.3 (2021-01-15)
 -------------------
 
-* Current unstable version
+* Avoid 1.10.2post1 bug with pyup updates
 
 1.10.2 (2021-01-12)
 -------------------

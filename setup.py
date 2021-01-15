@@ -13,7 +13,7 @@ with open('HISTORY.rst', encoding='utf8') as history_file:
 
 setup(
     name='safety',
-    version='1.10.3-dev',
+    version='1.10.3',
     description="Checks installed dependencies for known vulnerabilities.",
     long_description=readme + '\n\n' + history,
     long_description_content_type="text/markdown",

@@ -7,7 +7,7 @@ from safety import safety
 from safety.formatter import report, license_report
 import itertools
 from safety.util import read_requirements, read_vulnerabilities, get_proxy_dict, get_packages_licenses
-from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError, TooManyRequestsError
+from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError, NetworkConnectionError, RequestTimeoutError, ServerError, TooManyRequestsError
 
 try:
     from json.decoder import JSONDecodeError
@@ -91,6 +91,18 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
         sys.exit(-1)
     except DatabaseFileNotFoundError:
         click.secho("Unable to load vulnerability database from {db}".format(db=db), fg="red", file=sys.stderr)
+        sys.exit(-1)
+    except NetworkConnectionError:
+        click.secho("Check your network connection, unable to reach the server", fg="red", file=sys.stderr)
+        sys.exit(-1)
+    except RequestTimeoutError:
+        click.secho("Check your network connection, the request timed out.", fg="red", file=sys.stderr)
+        sys.exit(-1)
+    except ServerError:
+        click.secho(
+            "Sorry, something went wrong.\n" + "Safety CLI can not connect to the server.\n" +
+            "Our engineers are working quickly to resolve the issue.",
+            fg="red", file=sys.stderr)
         sys.exit(-1)
     except DatabaseFetchError:
         click.secho("Unable to load vulnerability database", fg="red", file=sys.stderr)

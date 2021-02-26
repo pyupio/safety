@@ -12,3 +12,16 @@ class InvalidKeyError(DatabaseFetchError):
 
 class TooManyRequestsError(DatabaseFetchError):
     pass
+
+
+class NetworkConnectionError(DatabaseFetchError):
+    pass
+
+
+class RequestTimeoutError(DatabaseFetchError):
+    pass
+
+
+class ServerError(DatabaseFetchError):
+    pass
+

@@ -11,7 +11,8 @@ from packaging.specifiers import SpecifierSet
 from .constants import (API_MIRRORS, CACHE_FILE, CACHE_LICENSES_VALID_SECONDS,
                         CACHE_VALID_SECONDS, OPEN_MIRRORS, REQUEST_TIMEOUT)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
-                     InvalidKeyError, TooManyRequestsError)
+                     InvalidKeyError, NetworkConnectionError,
+                     RequestTimeoutError, ServerError, TooManyRequestsError)
 from .util import RequirementFile
 
 
@@ -87,16 +88,30 @@ def fetch_database_url(mirror, db_name, key, cached, proxy):
         if cached_data:
             return cached_data
     url = mirror + db_name
-    r = requests.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy)
+
+    try:
+        r = requests.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy)
+    except requests.exceptions.ConnectionError:
+        raise NetworkConnectionError()
+    except requests.exceptions.Timeout:
+        raise RequestTimeoutError()
+    except requests.exceptions.RequestException:
+        raise DatabaseFetchError()
+
     if r.status_code == 200:
         data = r.json()
         if cached:
             write_to_cache(db_name, data)
         return data
-    elif r.status_code == 403:
+
+    if r.status_code == 403:
         raise InvalidKeyError()
-    elif r.status_code == 429:
+
+    if r.status_code == 429:
         raise TooManyRequestsError()
+
+    if 500 <= r.status_code < 600:
+        raise ServerError()
 
 
 def fetch_database_file(path, db_name):

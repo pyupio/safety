@@ -123,6 +123,7 @@ class TestFormatter(unittest.TestCase):
                 vuln_id=1234,
                 cvssv2=None,
                 cvssv3=None,
+                cve=None,
             ),
         ]
         full_report = formatter.SheetReport.render(
@@ -157,8 +158,76 @@ class TestFormatter(unittest.TestCase):
             +==============================================================================+
             """.lstrip('\n')))
 
+    def test_full_report_with_cve(self):
+        vulns = [
+            safety.Vulnerability(
+                name='libfoo',
+                spec='<2.0.0',
+                version='1.9.3',
+                advisory='libfoo prior to version 2.0.0 had a vulnerability'
+                         + ' blah' * 15 + '.\r\n\r\n'
+                         + 'All users are urged to upgrade please.\r\n',
+                vuln_id=1234,
+                cvssv2=None,
+                cvssv3=None,
+                cve="CVE-2099-34455",
+            ),
+        ]
+        full_report = formatter.SheetReport.render(
+            vulns, full=True, checked_packages=5, used_db='test DB')
+        self.assertMultiLineEqual(full_report + "\n", textwrap.dedent(r"""
+            +==============================================================================+
+            |                                                                              |
+            |                               /$$$$$$            /$$                         |
+            |                              /$$__  $$          | $$                         |
+            |           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
+            |          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
+            |         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
+            |          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
+            |          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
+            |         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
+            |                                                          /$$  | $$           |
+            |                                                         |  $$$$$$/           |
+            |  by pyup.io                                              \______/            |
+            |                                                                              |
+            +==============================================================================+
+            | REPORT                                                                       |
+            | checked 5 packages, using test DB                                            |
+            +============================+===========+==========================+==========+
+            | package                    | installed | affected                 | ID       |
+            +============================+===========+==========================+==========+
+            | libfoo                     | 1.9.3     | <2.0.0                   |     1234 |
+            +==============================================================================+
+            | CVE: CVE-2099-34455                                                          |
+            +==============================================================================+
+            | libfoo prior to version 2.0.0 had a vulnerability blah blah blah blah blah   |
+            | blah blah blah blah blah blah blah blah blah blah.                           |
+            |                                                                              |
+            | All users are urged to upgrade please.                                       |
+            +==============================================================================+
+            """.lstrip('\n')))
 
 class TestSafety(unittest.TestCase):
+
+    def test_check_with_cve(self):
+        reqs = StringIO("Django==1.8.1")
+        packages = util.read_requirements(reqs)
+
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=False,
+            ignore_ids=[],
+            proxy={},
+        )
+        self.assertEqual(len(vulns), 2)
+        self.assertEqual("some cve", vulns[0].cve)
+        self.assertEqual("some other cve", vulns[1].cve)
+
     def test_review_from_file(self):
         dirname = os.path.dirname(__file__)
         path_to_report = os.path.join(dirname, "test_db", "example_report.json")

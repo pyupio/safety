@@ -109,6 +109,14 @@ class SheetReport(object):
                 if full:
                     table.append(SheetReport.REPORT_SECTION)
 
+                    if vuln.cve is not None:
+                        table.append("| {:76} |".format(
+                            "CVE: {}".format(
+                                vuln.cve,
+                            )
+                        ))
+                        table.append(SheetReport.REPORT_SECTION)
+
                     if vuln.cvssv2 is not None:
                         base_score = vuln.cvssv2.get("base_score", "None")
                         impact_score = vuln.cvssv2.get("impact_score", "None")

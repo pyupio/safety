@@ -16,7 +16,7 @@ from .util import RequirementFile
 
 
 class Vulnerability(namedtuple("Vulnerability",
-                               ["name", "spec", "version", "advisory", "vuln_id", "cvssv2", "cvssv3"])):
+                               ["name", "spec", "version", "advisory", "vuln_id", "cvssv2", "cvssv3", "cve"])):
     pass
 
 
@@ -171,6 +171,7 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     vuln_id=vuln_id,
                                     cvssv2=cve_meta.get("cvssv2", None),
                                     cvssv3=cve_meta.get("cvssv3", None),
+                                    cve=cve_id,
                                 )
                             )
     return vulnerable
@@ -186,7 +187,8 @@ def review(vulnerabilities):
             "advisory": vuln[3],
             "vuln_id": vuln[4],
             "cvssv2": None,
-            "cvssv3": None
+            "cvssv3": None,
+            "cve": None,
         }
         vulnerable.append(
             Vulnerability(**current_vuln)

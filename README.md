@@ -489,6 +489,10 @@ safety license --key=12345-ABCDEFGH
 +==============================================================================+
 ```
 
+### `--json` (Optional)
+
+This license command can also be used in conjuction with optional arguments `--bare` and `--json` for structured, parseable outputs that can be fed into other tools and pipelines.
+
 ___
 
 ### `--db`

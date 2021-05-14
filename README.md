@@ -4,10 +4,10 @@
 [![Travis](https://img.shields.io/travis/pyupio/safety.svg)](https://travis-ci.org/pyupio/safety)
 [![Updates](https://pyup.io/repos/github/pyupio/safety/shield.svg)](https://pyup.io/repos/github/pyupio/safety/)
 
-Safety checks your installed dependencies for known security vulnerabilities. 
+Safety checks your installed dependencies for known security vulnerabilities.
 
-By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db), 
-but can be upgraded to use pyup.io's [Safety API](https://github.com/pyupio/safety/blob/master/docs/api_key.md) using the `--key` option. 
+By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db),
+but can be upgraded to use pyup.io's [Safety API](https://github.com/pyupio/safety/blob/master/docs/api_key.md) using the `--key` option.
 
 # Installation
 
@@ -140,7 +140,7 @@ of Safety.
 
 ## Using Safety with a CI service
 
-Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability. 
+Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability.
 
 Run it before or after your tests. If Safety finds something, your tests will fail.
 
@@ -177,9 +177,9 @@ commands =
 
 **Deep GitHub Integration**
 
-If you are looking for a deep integration with your GitHub repositories: Safety is available as a 
-part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/ci/). Safety CI 
-checks your commits and pull requests for dependencies with known security vulnerabilities 
+If you are looking for a deep integration with your GitHub repositories: Safety is available as a
+part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/ci/). Safety CI
+checks your commits and pull requests for dependencies with known security vulnerabilities
 and displays a status on GitHub.
 
 ![Safety CI](https://github.com/pyupio/safety/raw/master/safety_ci.png)
@@ -356,7 +356,7 @@ safety check -i 1234
 safety check --ignore=1234
 ```
 ```bash
-safety check -i 1234 -i 4567 -i 89101
+safety check -i 1234,4567,89101
 ```
 
 ### `--output`, `-o`
@@ -537,7 +537,7 @@ ___
 
 *Proxy host IP or DNS*
 
-### `--proxy-port`, `-pp` 
+### `--proxy-port`, `-pp`
 
 *Proxy port number*
 

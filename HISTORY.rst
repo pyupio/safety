@@ -6,6 +6,7 @@ History
 -------------------
 
 * Current unstable version
+* Add support for coma separated ignore (--ignore=123,456) on top of existing --ignore=123 --ignore=456
 
 1.10.3 (2021-01-15)
 -------------------

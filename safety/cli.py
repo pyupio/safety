@@ -42,7 +42,7 @@ def cli():
 @click.option("files", "--file", "-r", multiple=True, type=click.File(),
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("ignore", "--ignore", "-i", multiple=True, type=str, default=[],
-              help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
+              help="Ignore one (or multiple) vulnerabilities by ID (coma separated). Default: empty")
 @click.option("--output", "-o", default="",
               help="Path to where output file will be placed. Default: empty")
 @click.option("proxyhost", "--proxy-host", "-ph", multiple=False, type=str, default=None,
@@ -65,16 +65,18 @@ def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output,
         packages = [
             d for d in pkg_resources.working_set
             if d.key not in {"python", "wsgiref", "argparse"}
-        ]    
+        ]
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
-        output_report = report(vulns=vulns, 
-                               full=full_report, 
-                               json_report=json, 
+        combined_ignore = ','.join(ignore)
+        ignore_ids = {vuln_id.strip() for vuln_id in combined_ignore.split(',')}
+        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore_ids, proxy=proxy_dictionary)
+        output_report = report(vulns=vulns,
+                               full=full_report,
+                               json_report=json,
                                bare_report=bare,
                                checked_packages=len(packages),
-                               db=db, 
+                               db=db,
                                key=key)
 
         if output:
@@ -154,15 +156,15 @@ def license(key, db, json, bare, cache, files, proxyprotocol, proxyhost, proxypo
         packages = [
             d for d in pkg_resources.working_set
             if d.key not in {"python", "wsgiref", "argparse"}
-        ]  
-   
+        ]
+
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
     try:
         licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary)
     except InvalidKeyError as invalid_key_error:
         if str(invalid_key_error):
             message = str(invalid_key_error)
-        else: 
+        else:
             message = "Your API Key '{key}' is invalid. See {link}".format(
                 key=key, link='https://goo.gl/O7Y1rS'
             )

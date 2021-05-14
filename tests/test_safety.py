@@ -20,6 +20,9 @@ from safety import formatter
 from safety import util
 import os
 import json
+
+from safety.safety import Vulnerability
+
 try:
     from StringIO import StringIO
 except ImportError:
@@ -89,6 +92,44 @@ class TestSafetyCLI(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0)
         self.assertMultiLineEqual(result.output.rstrip(), expected_result)
+
+    @patch("safety.safety.check")
+    def test_check_report_vulnerability(self, check):
+        runner = CliRunner()
+
+        check.return_value = [
+            Vulnerability(
+                name="django",
+                spec="<1.11.19,>=1.11.0",
+                version="1.11",
+                advisory="Django 1.11.x before 1.11.19 allows Uncontrolled Memory Consumption via a malicious attacker-supplied value to the django.utils.numberformat.format() function.",
+                vuln_id="36885",
+                cvssv2=None,
+                cvssv3=None,
+            )
+        ]
+
+        dirname = os.path.dirname(__file__)
+        reqs_path = os.path.join(dirname, "reqs_4.txt")
+
+        result = runner.invoke(cli.cli, ["check", "--file", reqs_path])
+        self.assertEqual(result.exit_code, -1)
+
+    @patch("safety.safety.check")
+    def test_check_ignore_format_backward_compatible(self, check):
+        runner = CliRunner()
+
+        check.return_value = []
+
+        dirname = os.path.dirname(__file__)
+        reqs_path = os.path.join(dirname, "reqs_4.txt")
+
+        _ = runner.invoke(cli.cli, ['check', '--file', reqs_path, '--ignore', "123,456", '--ignore', "789"])
+        try:
+            check_call_kwargs = check.call_args[1]  # Python < 3.8
+        except IndexError:
+            check_call_kwargs = check.call_args.kwargs
+        self.assertEqual(check_call_kwargs['ignore_ids'], {'123', '456', '789'})
 
 
 class TestFormatter(unittest.TestCase):
@@ -184,6 +225,42 @@ class TestSafety(unittest.TestCase):
             proxy={},
         )
         self.assertEqual(len(vulns), 2)
+
+    def test_check_ignore(self):
+        reqs = StringIO("Django==1.8.1")
+        packages = list(util.read_requirements(reqs))
+
+        expected_vuln_ids = ['some id', 'some other id']
+
+        # Verify without ignore
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=False,
+            ignore_ids=[],
+            proxy={},
+        )
+        vulns_ids = {v.vuln_id for v in vulns}
+        self.assertEqual(vulns_ids, set(expected_vuln_ids))
+
+        # Verify with ignore
+        vulns = safety.check(
+            packages=packages,
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=False,
+            key=False,
+            ignore_ids=["some id"],
+            proxy={},
+        )
+        vulns_ids = {v.vuln_id for v in vulns}
+        self.assertEqual(vulns_ids, {expected_vuln_ids[1]})
 
     def test_check_from_file_with_hash_pins(self):
         reqs = StringIO(("Django==1.8.1 "
@@ -298,7 +375,7 @@ class TestSafety(unittest.TestCase):
     def test_get_packages_licenses_without_api_key(self):
         from safety.errors import InvalidKeyError
 
-        # without providing an API-KEY 
+        # without providing an API-KEY
         with self.assertRaises(InvalidKeyError) as error:
             safety.get_licenses(
                 db_mirror=False,
@@ -341,7 +418,7 @@ class TestSafety(unittest.TestCase):
                 proxy={},
                 key="MY-VALID-KEY"
             )
-    
+
     def test_get_packages_licenses_with_invalid_db_file(self):
         from safety.errors import DatabaseFileNotFoundError
 
@@ -401,7 +478,7 @@ class TestSafety(unittest.TestCase):
                 f.write(json.dumps({}))
         except Exception:
             pass
-        
+
         # In order to cache the db (and get), we must set cached as True
         response = safety.get_licenses(
             db_mirror=False,
@@ -421,7 +498,7 @@ class TestSafety(unittest.TestCase):
             proxy={},
             key="MY-VALID-KEY"
         )
-        
+
         self.assertNotEqual(resp, licenses_db)
         self.assertEqual(resp, original_db)
 

@@ -130,16 +130,16 @@ class TestFormatter(unittest.TestCase):
         self.assertMultiLineEqual(full_report + "\n", textwrap.dedent(r"""
             +==============================================================================+
             |                                                                              |
-            |                               /$$$$$$            /$$                         |
-            |                              /$$__  $$          | $$                         |
-            |           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
-            |          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
-            |         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
-            |          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
-            |          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
-            |         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
-            |                                                          /$$  | $$           |
-            |                                                         |  $$$$$$/           |
+            |                               /██████            /██                         |
+            |                              /██__  ██          | ██                         |
+            |           /███████  /██████ | ██  \__//██████  /██████   /██   /██           |
+            |          /██_____/ |____  ██| ████   /██__  ██|_  ██_/  | ██  | ██           |
+            |         |  ██████   /███████| ██_/  | ████████  | ██    | ██  | ██           |
+            |          \____  ██ /██__  ██| ██    | ██_____/  | ██ /██| ██  | ██           |
+            |          /███████/|  ███████| ██    |  ███████  |  ████/|  ███████           |
+            |         |_______/  \_______/|__/     \_______/   \___/   \____  ██           |
+            |                                                          /██  | ██           |
+            |                                                         |  ██████/           |
             |  by pyup.io                                              \______/            |
             |                                                                              |
             +==============================================================================+
@@ -298,7 +298,7 @@ class TestSafety(unittest.TestCase):
     def test_get_packages_licenses_without_api_key(self):
         from safety.errors import InvalidKeyError
 
-        # without providing an API-KEY 
+        # without providing an API-KEY
         with self.assertRaises(InvalidKeyError) as error:
             safety.get_licenses(
                 db_mirror=False,
@@ -341,7 +341,7 @@ class TestSafety(unittest.TestCase):
                 proxy={},
                 key="MY-VALID-KEY"
             )
-    
+
     def test_get_packages_licenses_with_invalid_db_file(self):
         from safety.errors import DatabaseFileNotFoundError
 
@@ -401,7 +401,7 @@ class TestSafety(unittest.TestCase):
                 f.write(json.dumps({}))
         except Exception:
             pass
-        
+
         # In order to cache the db (and get), we must set cached as True
         response = safety.get_licenses(
             db_mirror=False,
@@ -421,7 +421,7 @@ class TestSafety(unittest.TestCase):
             proxy={},
             key="MY-VALID-KEY"
         )
-        
+
         self.assertNotEqual(resp, licenses_db)
         self.assertEqual(resp, original_db)
 

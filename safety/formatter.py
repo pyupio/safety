@@ -50,16 +50,16 @@ class SheetReport(object):
     REPORT_BANNER = r"""
 +==============================================================================+
 |                                                                              |
-|                               /$$$$$$            /$$                         |
-|                              /$$__  $$          | $$                         |
-|           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
-|          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
-|         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
-|          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
-|          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
-|         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
-|                                                          /$$  | $$           |
-|                                                         |  $$$$$$/           |
+|                               /██████            /██                         |
+|                              /██__  ██          | ██                         |
+|           /███████  /██████ | ██  \__//██████  /██████   /██   /██           |
+|          /██_____/ |____  ██| ████   /██__  ██|_  ██_/  | ██  | ██           |
+|         |  ██████   /███████| ██_/  | ████████  | ██    | ██  | ██           |
+|          \____  ██ /██__  ██| ██    | ██_____/  | ██ /██| ██  | ██           |
+|          /███████/|  ███████| ██    |  ███████  |  ████/|  ███████           |
+|         |_______/  \_______/|__/     \_______/   \___/   \____  ██           |
+|                                                          /██  | ██           |
+|                                                         |  ██████/           |
 |  by pyup.io                                              \______/            |
 |                                                                              |
 +==============================================================================+
@@ -273,13 +273,13 @@ class BasicReport(object):
         if not packages_licenses:
             table.append("No packages licenses found.")
             return "\n".join(table)
-        
+
         for pkg_license in packages_licenses:
             text = pkg_license['package'] + \
                    ", version " + pkg_license['version'] + \
                    ", license " + pkg_license['license'] + "\n"
             table.append(text)
-        
+
         return "\n".join(table)
 
 class JsonReport(object):
@@ -288,7 +288,7 @@ class JsonReport(object):
     @staticmethod
     def render(vulns, full):
         return json.dumps(vulns, indent=4, sort_keys=True)
-    
+
     @staticmethod
     def render_licenses(packages_licenses):
         return json.dumps(packages_licenses, indent=4, sort_keys=True)

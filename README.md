@@ -368,7 +368,7 @@ safety check -i 1234 -i 4567 -i 89101
 safety check -o insecure_report.txt
 ```
 ```bash
-safety check --output --json insecure_report.json
+safety check --json --output insecure_report.json
 ```
 ___
 

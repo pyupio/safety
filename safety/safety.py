@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+from datetime import datetime
 import errno
 import json
 import os
+import re
 import time
 from collections import namedtuple
 
@@ -133,7 +135,47 @@ def get_vulnerabilities(pkg, spec, db):
                 yield entry
 
 
-def check(packages, key, db_mirror, cached, ignore_ids, proxy):
+def parse_ignore_file_line(line):
+    """
+    Parses the ignore file
+
+    Function returns a tople with the (ID, optional expiration date, comment) for the line.
+    Comments lines or any line not matching the proper pattern will return None
+    good example line:
+      1234 2022-01-01  # comment
+    """
+
+    #    The Regex breaks down to: start of line,
+    #                           number,
+    #                           optional date in YYYY-MM-DD format,
+    #                           optional comment starting with # character
+
+    matches = re.match('^\s*([0-9]+)\s*(\d{4}-\d{2}-\d{2})?\s*(\#.*)?$', line)
+    return matches.groups() if matches else None
+
+def get_ignore_ids_from_file(ignore_file):
+    """
+    Reads the file provided by ignore_file and returns a tuple of all vulnerability IDs parsed from there
+    """
+
+    ignored_ids = []
+    today = datetime.today().strftime('%Y-%m-%d')
+
+    for line in ignore_file:
+        parsed_touple = parse_ignore_file_line(line)
+        if not parsed_touple:
+            continue
+        id, date, comment = parsed_touple
+        if (not date) or today < date: # append the id as long as the expiration date is in the future (or None)
+            ignored_ids.append(id)
+
+    return tuple(ignored_ids)
+
+
+def check(packages, key, db_mirror, cached, ignore_ids, proxy, ignore_file=None):
+    if ignore_file:
+        ignore_ids = ignore_ids + get_ignore_ids_from_file(ignore_file)
+
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy)
     db_full = None

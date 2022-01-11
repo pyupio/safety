@@ -4,10 +4,10 @@
 [![Travis](https://img.shields.io/travis/pyupio/safety.svg)](https://travis-ci.org/pyupio/safety)
 [![Updates](https://pyup.io/repos/github/pyupio/safety/shield.svg)](https://pyup.io/repos/github/pyupio/safety/)
 
-Safety checks your installed dependencies for known security vulnerabilities. 
+Safety checks your installed dependencies for known security vulnerabilities.
 
-By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db), 
-but can be upgraded to use pyup.io's [Safety API](https://github.com/pyupio/safety/blob/master/docs/api_key.md) using the `--key` option. 
+By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db),
+but can be upgraded to use pyup.io's [Safety API](https://github.com/pyupio/safety/blob/master/docs/api_key.md) using the `--key` option.
 
 # Installation
 
@@ -140,7 +140,7 @@ of Safety.
 
 ## Using Safety with a CI service
 
-Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability. 
+Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability.
 
 Run it before or after your tests. If Safety finds something, your tests will fail.
 
@@ -177,9 +177,9 @@ commands =
 
 **Deep GitHub Integration**
 
-If you are looking for a deep integration with your GitHub repositories: Safety is available as a 
-part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/ci/). Safety CI 
-checks your commits and pull requests for dependencies with known security vulnerabilities 
+If you are looking for a deep integration with your GitHub repositories: Safety is available as a
+part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/ci/). Safety CI
+checks your commits and pull requests for dependencies with known security vulnerabilities
 and displays a status on GitHub.
 
 ![Safety CI](https://github.com/pyupio/safety/raw/master/safety_ci.png)
@@ -357,6 +357,45 @@ safety check --ignore=1234
 ```
 ```bash
 safety check -i 1234 -i 4567 -i 89101
+```
+
+---
+
+### `--ignore-file`, `-f`
+
+*Read list from file of vulnerability IDs that will be ignored
+
+**Example**
+```bash
+safety check -f dependencies.ignore
+```
+```bash
+safety check --ignore-file dependencies.ignore
+```
+
+The ignore file should be in the format:
+```
+ID YYYY-MM-DD # comment
+```
+* The ID is the vulerability ID number
+* YYYY-MM-DD is an optional expiration date after which the vulerability will no longer be ignored
+* You can end each line with an optional comment
+
+You may also have lines that consisten only of comments.  Here is an example ignore file:
+```
+# Any  vulnerability ID numbers listed in this file will be ignored when
+# running the safety dependency check. Each line should have the ID number
+# and a date. The ID will be ignored by the CI pipeline check unitl the date
+# in YYYY-MM-DD format listed for that line.
+# If no date is listed, the exception will never expire. (NOT RECOMMENDED)
+#
+# test
+# Example:
+# 40104 2022-01-15
+#
+40105 2022-01-15  # gunicorn vulnerability
+40104
+1234 1999-10-15 # this entry is expired and will not be ignored
 ```
 
 ### `--output`, `-o`
@@ -537,7 +576,7 @@ ___
 
 *Proxy host IP or DNS*
 
-### `--proxy-port`, `-pp` 
+### `--proxy-port`, `-pp`
 
 *Proxy port number*
 

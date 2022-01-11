@@ -13,6 +13,7 @@ import unittest
 import textwrap
 from click.testing import CliRunner
 from unittest.mock import Mock, patch
+from datetime import datetime, timedelta
 
 from safety import safety
 from safety import cli
@@ -298,7 +299,7 @@ class TestSafety(unittest.TestCase):
     def test_get_packages_licenses_without_api_key(self):
         from safety.errors import InvalidKeyError
 
-        # without providing an API-KEY 
+        # without providing an API-KEY
         with self.assertRaises(InvalidKeyError) as error:
             safety.get_licenses(
                 db_mirror=False,
@@ -341,7 +342,7 @@ class TestSafety(unittest.TestCase):
                 proxy={},
                 key="MY-VALID-KEY"
             )
-    
+
     def test_get_packages_licenses_with_invalid_db_file(self):
         from safety.errors import DatabaseFileNotFoundError
 
@@ -401,7 +402,7 @@ class TestSafety(unittest.TestCase):
                 f.write(json.dumps({}))
         except Exception:
             pass
-        
+
         # In order to cache the db (and get), we must set cached as True
         response = safety.get_licenses(
             db_mirror=False,
@@ -421,7 +422,7 @@ class TestSafety(unittest.TestCase):
             proxy={},
             key="MY-VALID-KEY"
         )
-        
+
         self.assertNotEqual(resp, licenses_db)
         self.assertEqual(resp, original_db)
 
@@ -514,3 +515,33 @@ class ReadRequirementsTestCase(unittest.TestCase):
         with open(test_filename) as fh:
             result = list(read_requirements(fh, resolve=True))
         self.assertEqual(len(result), 2)
+
+class TestIgnoreFile(unittest.TestCase):
+    def test_ignore_file_pattern(self):
+        test_cases = [
+            ["123", ("123", None,None)],
+            [("  123 #comment"), ("123", None, "#comment")],
+            ["10001  2022-01-01", ("10001", "2022-01-01", None)],
+            ["6  2022-11-29", ("6", "2022-11-29", None)],
+            ["10001  2022-01-01    # spaced comment", ("10001", "2022-01-01", "# spaced comment")],
+            ["55  22-01-01", None]  # invalid date format, ignore the line
+        ]
+        self.assertFalse(safety.parse_ignore_file_line("# comment"), "Comments should be skipped")
+        self.assertFalse(safety.parse_ignore_file_line("fail string 123"), "lines not starting with a number or space should be skipped")
+
+        for input,output in test_cases:
+            print (output)
+            self.assertEqual(safety.parse_ignore_file_line(input), output)
+
+    def test_ignore_file_read(self):
+        tomorrow = (datetime.today() + timedelta(days=+1)).strftime('%Y-%m-%d')
+        yesterday = (datetime.today() + timedelta(days=-1)).strftime('%Y-%m-%d')
+
+        self.assertEqual(safety.get_ignore_ids_from_file(["123","456"]), ("123","456"))
+        self.assertEqual(safety.get_ignore_ids_from_file(["123","#comment line", "456"]), ("123","456"))
+        self.assertEqual(safety.get_ignore_ids_from_file(["123","#comment line", "456"]), ("123","456"))
+
+        self.assertEqual(safety.get_ignore_ids_from_file([f"123 {yesterday}", "456"]), ("456",))
+        self.assertEqual(safety.get_ignore_ids_from_file([f"123 {tomorrow}", "456"]), ("123", "456"))
+
+        self.assertEqual(safety.get_ignore_ids_from_file([f"# comment lines", "#only"]), ())

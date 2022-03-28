@@ -20,6 +20,7 @@ from safety import formatter
 from safety import util
 import os
 import json
+import requests
 try:
     from StringIO import StringIO
 except ImportError:
@@ -219,6 +220,50 @@ class TestSafety(unittest.TestCase):
             proxy={},
         )
         self.assertEqual(len(vulns), 4)
+
+    @patch.object(requests, 'get', side_effect=requests.exceptions.ConnectionError)
+    def test_check_fetch_database_url_connection_error(self, requests_mock):
+        from safety.errors import NetworkConnectionError
+
+        db_name = "insecure.json"
+        mirror = 'https://safety.test'
+
+        with self.assertRaises(NetworkConnectionError):
+            safety.fetch_database_url(mirror, db_name=db_name, key="INVALID", cached=False, proxy={})
+
+    @patch.object(requests, 'get', side_effect=requests.exceptions.Timeout)
+    def test_check_fetch_database_url_timeout_error(self, requests_mock):
+        from safety.errors import RequestTimeoutError
+
+        db_name = "insecure.json"
+        mirror = 'https://safety.test'
+
+        with self.assertRaises(RequestTimeoutError):
+            safety.fetch_database_url(mirror, db_name=db_name, key="INVALID", cached=False, proxy={})
+
+    @patch.object(requests, 'get', side_effect=requests.exceptions.RequestException)
+    def test_check_fetch_database_url_generic_exception_error(self, requests_mock):
+        from safety.errors import DatabaseFetchError
+
+        db_name = "insecure.json"
+        mirror = 'https://safety.test'
+
+        with self.assertRaises(DatabaseFetchError):
+            safety.fetch_database_url(mirror, db_name=db_name, key="INVALID", cached=False, proxy={})
+
+    @patch("safety.safety.requests")
+    def test_check_fetch_database_url_server_error(self, mocked_requests):
+        from safety.errors import ServerError
+
+        mock = Mock()
+        mock.status_code = 502
+        mocked_requests.get.return_value = mock
+
+        db_name = "insecure.json"
+        mirror = 'https://safety.test'
+
+        with self.assertRaises(ServerError):
+            safety.fetch_database_url(mirror, db_name=db_name, key="INVALID", cached=False, proxy={})
 
     def test_check_live(self):
         reqs = StringIO("insecure-package==0.1")

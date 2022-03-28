@@ -18,6 +18,6 @@ Choose the plan best suited to your team's need and start your 14-day free trial
 
 Once payment is complete, you'll be redirected to your account page. 
 
-## Step 7 - Copy your API key
+## Step 4 - Copy your API key
 
 Copy your API Key from your account homepage - and you're done!

@@ -4,6 +4,7 @@ import json
 import os
 import time
 from collections import namedtuple
+from datetime import datetime
 
 import requests
 from packaging.specifiers import SpecifierSet
@@ -173,7 +174,14 @@ def check(packages, key, db_mirror, cached, ignore_ids, proxy):
                                     cvssv3=cve_meta.get("cvssv3", None),
                                 )
                             )
-    return vulnerable
+    db_last_update = None
+    if db:
+        metadata = db.get("$meta", {})
+        timestamp = metadata.get('timestamp', None)
+        if timestamp:
+            db_last_update = str(datetime.fromtimestamp(timestamp)) + " UTC"
+
+    return vulnerable, db_last_update
 
 
 def review(vulnerabilities):

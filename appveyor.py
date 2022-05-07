@@ -59,7 +59,7 @@ class environment:
         try:
             print(f"RUNNING: {command}")
             print("-" * 80)
-            print(subprocess.check_output(command, shell=True).decode('utf-8'))
+            subprocess.run(command, shell=True, check=True)
         except subprocess.CalledProcessError as e:
             print(f"ERROR calling '{command}'")
             print("-" * 20)

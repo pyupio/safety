@@ -1,0 +1,88 @@
+{
+    "$meta": {
+        "advisory": "PyUp.io metadata",
+        "timestamp": 1644972297,
+        "packages": {
+            "numpy": {
+                "secure_versions": [
+                    "1.22.3"
+                ],
+                "insecure_versions": [
+                    "1.22.2",
+                    "1.22.1",
+                    "1.22.0",
+                    "1.22.0rc3",
+                    "1.21.5"
+                ],
+                "latest_version": null,
+                "latest_secure_version": ""
+            }
+        }
+    },
+    "numpy": [
+        {
+            "specs": [
+                ">=1.22.0rc3,<=1.22.0"
+            ],
+            "type": "cve",
+            "cve": "CVE-2000-20001",
+            "advisory": null,
+            "id": "28",
+            "transitive": false,
+            "published_date": "2022-Feb-16",
+            "fixed_versions": [
+                ""
+            ],
+            "affected_versions": [
+                "1.22.0rc3",
+                "1.22.0"
+            ],
+            "vulnerability_resources": [
+                "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2000-20001"
+            ]
+        },
+        {
+            "specs": [
+                ">=1.21.5,<=1.22.0"
+            ],
+            "type": "cve",
+            "cve": "CVE-2000-20001",
+            "advisory": null,
+            "id": "29",
+            "transitive": false,
+            "published_date": "2022-Feb-16",
+            "fixed_versions": [
+                ""
+            ],
+            "affected_versions": [
+                "1.21.5",
+                "1.22.0rc3",
+                "1.22.0"
+            ],
+            "vulnerability_resources": [
+                "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2000-20001"
+            ]
+        },
+        {
+            "specs": [
+                ">=1.22.1,<=1.22.2"
+            ],
+            "type": "cve",
+            "cve": "CVE-2000-20001",
+            "advisory": null,
+            "id": "30",
+            "transitive": false,
+            "published_date": "2022-Feb-16",
+            "fixed_versions": [
+                ""
+            ],
+            "affected_versions": [
+                "1.22.1",
+                "1.22.2"
+            ],
+            "vulnerability_resources": [
+                "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2000-20001"
+            ]
+        }
+    ]
+}

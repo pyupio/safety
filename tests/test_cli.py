@@ -2,7 +2,6 @@ import os
 import unittest
 from unittest.mock import patch
 
-import click
 from click.testing import CliRunner
 
 from safety import cli
@@ -115,10 +114,9 @@ class TestSafetyCLI(unittest.TestCase):
         announcement = {'type': 'error', 'message': 'Please upgrade now'}
         get_announcements_func.return_value = [announcement]
         message = f"* {announcement.get('message')}"
-        EXPECTED = click.style(f"{'+' + '=' * 78 + '+'}\n\nANNOUNCEMENTS\n\n  {message:76}\n\n{'+' + '=' * 78 + '+'}", fg="red") + '\n'
         result = self.runner.invoke(cli.cli, ['check'])
-
-        self.assertEqual(result.stderr, EXPECTED)
+        self.assertTrue('ANNOUNCEMENTS' in result.stderr)
+        self.assertTrue(message in result.stderr)
 
     @patch("safety.safety.get_announcements")
     def test_review_pass(self, mocked_announcements):

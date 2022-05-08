@@ -6,7 +6,7 @@ a = Analysis(
     ['safety/cli.py'],
     pathex=['.'],
     binaries=[],
-    datas=[],
+    datas=[('safety/VERSION', './safety')],
     hiddenimports=[
         'click',
         'pkg_resources.py2_warn',

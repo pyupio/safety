@@ -1,25 +1,26 @@
+dist: focal
+
+env:
+  global:
+    - TWINE_NON_INTERACTIVE: true
+    # TWINE_USERNAME
+    - secure: uLzl+gKc867pGfuFicfHHZ18VETx4dcNLtpEHwoU+mBAwIz7geu7EtwIpzs717XX0wviCizeEJ1f/fVhs/uKnd/uHSfjL+z1/VCY5pr++O5pz2nmAbAQFIehTryF74A2NZi0LlJ+5brJcIt3/bVBsi3nhcmhNDw1eKfqDZV/wIA92Z10jE//JGp1P9qErD7sp0GRbo1NWR6MPwl/6doNK12583avVSuyKptNCKAQd6avxpzQ5PUHoklGq5Uc384VKc5hqcRoZxD3MeygvCZoclcVa+DHcHKfepmqys7A1i+/Kj48/lrlHVwLSbqE+bME0E5H0Js+4ltkEslnPuKvYgUne9tQArwNKWzdnJ6RE3Jij164QmeEbbdkmiYeNlIgq/fEsv0TaLZFEsDTM/+81DGbDwEm196nlbReSMTQ4UKYw/5bVi9k3MVAfYC87eLv8kx3Of7/vc0U3BqbJBBJFNRELCnIpWSR7Q42ycOyPjxmTaZ6rIoTBpyhWqnlQO98zrgMwE9Zkahw9cdGhnkQzPhxWzcyt0ULurN7URxgcaGMxSpajc9uYToppmT/wTWMrLVqN/8tQ6wrMKMVQ9oJTkkZayAyvdFBNwR8bMY8+K0ts5U51F2DvC32WCjdUoUpIiaEGJO37Ca7vU8kN92fLxqdF14Rm8QdWs0fzYTlkLY=
+    # TWINE_PASSWORD
+    - secure: wMkT6y9WTicPLeRCCzVxd02WHAHfegO9yJMC9yyQOJM8FqOGQmNQJMd+rS5FcryxTLBnPQgMGWXxOpy1HEUFzjmjX0OPFO9zkheD5PuMPgQpdOKMVVEEhAfr8ndVdwUKGCOXrf5PVOMkDu/dyQx9OdS9TZMWP46HWYOSI0LJ6z/u4ak0QgJszkXANSBvTOGGDvMmsiHnDyqTEFIhepZxkB1v/p2mOif/wQWRwe9cq7NRkl092QkE8PlTKm1HMu5P69n8Uz8OTrqKlmOD3S6mNr94dkNgqrui/6iRq6ofN91LENIlg32ZvMDgRpr2dmPg8IhiJtC4wDtFpkxB7vsg8MIIFiECzBBfTrOXohq/GWqEvlN0bRYkXOiexLMNHHQ+Vylt4LhI8osrjElUCp7TuBf9NBcom5lttQQNsgDGCr1zRxiGH0iRBiW/JJUQ0UFUl90E00JH8z1Np36I7oyIUolB0y/C0UFotq321MqxFUwXv1r/lNHUOwrBElNicGwIAU148tt6iAeNpEvcbXl0NMTMmzFvWQAvIZF2cjw7JX5QgxD+2cLHCOaBPLFXfm4kY6Bo44PlIJD8kdE/RxDN+4KlyBu2N7txgUf7b7s1Qsaat0sSYJzvh4XNcIXLWilPpaRS53aCQ4AyXVGHyicblsO/CmnjyLUNBlGQHQJf0J4=
+
 branches:
   only:
-    - master
-    - /^\d+\.\d+(\.\d+)?(-\S*)?$/
-
-deploy:
-  user: __token__
-  true:
-    repo: pyupio/safety
-    tags: true
-    python: "3.6.10"
-  distributions: sdist bdist_wheel
-  provider: pypi
-  password:
-    secure: hLWwfIbFbeKGWDU5EZT+89IgVCDc9B8GwLb4YWrfW9bnkfpD3DNjlCXJ1Z2pkxlP+t7YUzNWgSGxxVBQXF1diU5wHMx/qDfQ3zFrWUtZdMu+ffD1sHSs0HoVciCFINse6kgy73WdDtOumrb36/S/QINx+8WuHRACtJmPRvpdfNyA8ttrtTkkEYHqkAAbCl0kSenrcmIsmD38GL99Ow/zZ4KvDmhMG7pShL8pxODEy3YBAEPysh7mNZ9YW6aDcY39Qbfohav/RSCSZpANnrOTcVKz3JPtOeUXzkrrJ2PLDY6UMIfLJGvMMvtHSO5wWK0Fl3kC6QH22Lognb2+iaNjpaIvXc2apl5rzB3dlCRQrvOEE6ZWBmY/zrZaAUeVxWzn45cKmVxQVf4n+lr/06spD6491OMs8jIWT0YXEDdeeZKoxRYK6DbgkQle+FZkFHKx4z0Qveh33gGwo2poU/5kJxiWKtirB/zaTypTkCnX8EWNm2SydpvyJZ+8FbOIUJrKXpuY+1s0pu1zMVibHq/o6/mIIX2ULt5k2crXtyIfy/44duTg3wmtN7q8oCFlBix21caR9eGwz/IFyKJD3iuLYEGzH/sy+cn3HwIyRblX7E05kNCDM0CcUm8JZ5WdE+nsNcSHul4due9DXXHPeKk6rW01kR+af672/xRz5ZnvGZA=
+  - master
+  - /^\d+\.\d+(\.\d+)?((a|b|rc)?\d+)?$/
 
 language: python
+
 python:
-  - "3.5.9"
-  - "3.6.10"
-  - "3.7.7"
-  - "3.8.2"
+  - '3.6'
+  - '3.7'
+  - '3.8'
+  - '3.9'
+  - '3.10'
 install:
   - pip install tox-travis
   - pip install codecov
@@ -27,3 +28,16 @@ script:
   - tox
 after_success:
   - codecov
+
+before_deploy:
+  - pip install --upgrade build
+  - pip install --upgrade twine
+
+deploy:
+  - provider: script
+    script: python3 -m build && twine upload dist/*
+    on:
+      repo: yeisonvargasf/yeison_todo
+      branch: master
+      python: 3.9
+      tags: true

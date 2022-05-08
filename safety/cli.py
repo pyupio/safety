@@ -1,23 +1,37 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
-import sys
-import click
-from safety import __version__
-from safety import safety
-from safety.formatter import report, license_report
-import itertools
-from safety.util import read_requirements, read_vulnerabilities, get_proxy_dict, get_packages_licenses
-from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, InvalidKeyError, TooManyRequestsError
 
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    JSONDecodeError = ValueError
+import logging
+import sys
+
+import click
+
+from safety import safety
+from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK
+from safety.errors import SafetyException, SafetyError
+from safety.formatter import SafetyFormatter
+from safety.output_utils import should_add_nl
+from safety.safety import get_packages, read_vulnerabilities
+from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
+    MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
+    get_processed_options, get_safety_version
+
+LOG = logging.getLogger(__name__)
 
 @click.group()
-@click.version_option(version=__version__)
-def cli():
-    pass
+@click.option('--debug/--no-debug', default=False)
+@click.option('--telemetry/--disable-telemetry', default=True)
+@click.version_option(version=get_safety_version())
+@click.pass_context
+def cli(ctx, debug, telemetry):
+    ctx.telemetry = telemetry
+    level = logging.CRITICAL
+    if debug:
+        level = logging.DEBUG
+
+    logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)
+
+    LOG.info(f'Telemetry enabled: {ctx.telemetry}')
 
 
 @cli.command()
@@ -26,100 +40,122 @@ def cli():
                    "environment variable. Default: empty")
 @click.option("--db", default="",
               help="Path to a local vulnerability database. Default: empty")
-@click.option("--json/--no-json", default=False,
-              help="Output vulnerabilities in JSON format. Default: --no-json")
-@click.option("--full-report/--short-report", default=False,
+@click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output"], with_values={"output": ['json', 'bare']},
               help='Full reports include a security advisory (if available). Default: '
                    '--short-report')
-@click.option("--bare/--not-bare", default=False,
-              help='Output vulnerable packages only. '
-                   'Useful in combination with other tools. '
-                   'Default: --not-bare')
 @click.option("--cache/--no-cache", default=False,
               help="Cache requests to the vulnerability database locally. Default: --no-cache")
-@click.option("--stdin/--no-stdin", default=False,
+@click.option("--stdin/--no-stdin", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["files"],
               help="Read input from stdin. Default: --no-stdin")
-@click.option("files", "--file", "-r", multiple=True, type=click.File(),
+@click.option("files", "--file", "-r", multiple=True, type=click.File(), cls=MutuallyExclusiveOption, mutually_exclusive=["stdin"],
               help="Read input from one (or multiple) requirement files. Default: empty")
-@click.option("ignore", "--ignore", "-i", multiple=True, type=str, default=[],
+@click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
-@click.option("--output", "-o", default="",
-              help="Path to where output file will be placed. Default: empty")
-@click.option("proxyhost", "--proxy-host", "-ph", multiple=False, type=str, default=None,
-              help="Proxy host IP or DNS --proxy-host")
-@click.option("proxyport", "--proxy-port", "-pp", multiple=False, type=int, default=80,
-              help="Proxy port number --proxy-port")
-@click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
+@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
+              default='screen', callback=active_color_if_needed)
+@click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption, required_options=['proxy_host'],
               help="Proxy protocol (https or http) --proxy-protocol")
-def check(key, db, json, full_report, bare, stdin, files, cache, ignore, output, proxyprotocol, proxyhost, proxyport):
-    if files and stdin:
-        click.secho("Can't read from --stdin and --file at the same time, exiting", fg="red", file=sys.stderr)
-        sys.exit(-1)
+@click.option("--proxy-host", "-ph", multiple=False, type=str, default=None,
+              help="Proxy host IP or DNS --proxy-host")
+@click.option("--proxy-port", "-pp", multiple=False, type=int, default=80, cls=DependentOption, required_options=['proxy_host'],
+              help="Proxy port number --proxy-port")
+@click.option("--exit-code/--continue-on-error", default=True,
+              help="Output standard exit codes. Default: --exit-code")
+@click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
+              help="Define the policy file to be used")
+@click.pass_context
+def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file):
+    LOG.info('Running check command')
 
-    if files:
-        packages = list(itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files))
-    elif stdin:
-        packages = list(read_requirements(sys.stdin))
-    else:
-        import pkg_resources
-        packages = [
-            d for d in pkg_resources.working_set
-            if d.key not in {"python", "wsgiref", "argparse"}
-        ]    
-    proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
     try:
-        vulns = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_ids=ignore, proxy=proxy_dictionary)
-        output_report = report(vulns=vulns, 
-                               full=full_report, 
-                               json_report=json, 
-                               bare_report=bare,
-                               checked_packages=len(packages),
-                               db=db, 
-                               key=key)
+        packages = get_packages(files, stdin)
+        ctx.obj = packages
+        proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
-        if output:
-            with open(output, 'w+') as output_file:
-                output_file.write(output_report)
-        else:
-            click.secho(output_report, nl=False if bare and not vulns else True)
-        sys.exit(-1 if vulns else 0)
-    except InvalidKeyError:
-        click.secho("Your API Key '{key}' is invalid. See {link}".format(
-            key=key, link='https://goo.gl/O7Y1rS'),
-            fg="red",
-            file=sys.stderr)
-        sys.exit(-1)
-    except DatabaseFileNotFoundError:
-        click.secho("Unable to load vulnerability database from {db}".format(db=db), fg="red", file=sys.stderr)
-        sys.exit(-1)
-    except DatabaseFetchError:
-        click.secho("Unable to load vulnerability database", fg="red", file=sys.stderr)
-        sys.exit(-1)
+        announcements = []
+        if not db:
+            LOG.info('Not local DB used, Getting announcements')
+            announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
+
+        ignore_severity_rules = None
+        ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
+                                                                         ignore_severity_rules, exit_code)
+        ctx.continue_on_error = not exit_code
+        ctx.ignore_severity_rules = ignore_severity_rules
+
+        is_env_scan = not stdin and not files
+        LOG.info('Calling the check function')
+        vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
+                                      ignore_severity_rules=ignore_severity_rules, proxy=proxy_dictionary,
+                                      include_ignored=True, is_env_scan=is_env_scan, telemetry=ctx.parent.telemetry)
+        LOG.debug('Vulnerabilities returned: %s', vulns)
+        LOG.debug('full database returned is None: %s', db_full is None)
+
+        LOG.info('Safety is going to calculate remediations')
+        remediations = safety.calculate_remediations(vulns, db_full)
+
+        LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
+        output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
+                                                                              full_report, packages)
+
+        # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
+        if announcements and not sys.stdout.isatty():
+            LOG.info('sys.stdout is not a tty, announcements are going to be send to stderr')
+            click.secho(SafetyFormatter(output='text').render_announcements(announcements), fg="red", file=sys.stderr)
+
+        found_vulns = list(filter(lambda v: not v.ignored, vulns))
+        LOG.info('Vulnerabilities found (Not ignored): %s', len(found_vulns))
+        LOG.info('All vulnerabilities found (ignored and Not ignored): %s', len(vulns))
+
+        click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
+
+        if exit_code and found_vulns:
+            LOG.info('Exiting with default code for vulnerabilities found')
+            sys.exit(EXIT_CODE_VULNERABILITIES_FOUND)
+
+        sys.exit(EXIT_CODE_OK)
+
+    except SafetyError as e:
+        LOG.exception('Expected SafetyError happened: %s', e)
+        output_exception(e, exit_code_output=exit_code)
+    except Exception as e:
+        LOG.exception('Unexpected Exception happened: %s', e)
+        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
+        output_exception(exception, exit_code_output=exit_code)
 
 
 @cli.command()
-@click.option("--full-report/--short-report", default=False,
+@click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output"], with_values={"output": ['json', 'bare']},
               help='Full reports include a security advisory (if available). Default: '
                    '--short-report')
-@click.option("--bare/--not-bare", default=False,
-              help='Output vulnerable packages only. Useful in combination with other tools. '
-                   'Default: --not-bare')
+@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
+              default='screen', callback=active_color_if_needed)
 @click.option("file", "--file", "-f", type=click.File(), required=True,
               help="Read input from an insecure report file. Default: empty")
-def review(full_report, bare, file):
-    if full_report and bare:
-        click.secho("Can't choose both --bare and --full-report/--short-report", fg="red")
-        sys.exit(-1)
+@click.pass_context
+def review(ctx, full_report, output, file):
+    LOG.info('Running check command')
+    announcements = safety.get_announcements(key=None, proxy=None, telemetry=ctx.parent.telemetry)
+    report = {}
 
     try:
-        input_vulns = read_vulnerabilities(file)
-    except JSONDecodeError:
-        click.secho("Not a valid JSON file", fg="red")
-        sys.exit(-1)
+        report = read_vulnerabilities(file)
+    except SafetyError as e:
+        LOG.exception('Expected SafetyError happened: %s', e)
+        output_exception(e, exit_code_output=True)
+    except Exception as e:
+        LOG.exception('Unexpected Exception happened: %s', e)
+        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
+        output_exception(exception, exit_code_output=True)
 
-    vulns = safety.review(input_vulns)
-    output_report = report(vulns=vulns, full=full_report, bare_report=bare)
-    click.secho(output_report, nl=False if bare and not vulns else True)
+    vulns, remediations, packages = safety.review(report)
+
+    output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
+                                                                          full_report, packages)
+
+    found_vulns = list(filter(lambda v: not v.ignored, vulns))
+    click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
+    sys.exit(EXIT_CODE_OK)
 
 
 @cli.command()
@@ -128,12 +164,8 @@ def review(full_report, bare, file):
                    "environment variable. Default: empty")
 @click.option("--db", default="",
               help="Path to a local license database. Default: empty")
-@click.option("--json/--no-json", default=False,
-              help="Output packages licenses in JSON format. Default: --no-json")
-@click.option("--bare/--not-bare", default=False,
-              help='Output packages licenses names only. '
-                   'Useful in combination with other tools. '
-                   'Default: --not-bare')
+@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
+              default='screen')
 @click.option("--cache/--no-cache", default=True,
               help='Whether license database file should be cached.'
                    'Default: --cache')
@@ -145,48 +177,33 @@ def review(full_report, bare, file):
               help="Proxy port number --proxy-port")
 @click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
               help="Proxy protocol (https or http) --proxy-protocol")
-def license(key, db, json, bare, cache, files, proxyprotocol, proxyhost, proxyport):
+@click.pass_context
+def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyport):
+    LOG.info('Running license command')
+    packages = get_packages(files, False)
+    ctx.obj = packages
 
-    if files:
-        packages = list(itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files))
-    else:
-        import pkg_resources
-        packages = [
-            d for d in pkg_resources.working_set
-            if d.key not in {"python", "wsgiref", "argparse"}
-        ]  
-   
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
+    announcements = []
+    if not db:
+        announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
+
+    licenses_db = {}
+
     try:
-        licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary)
-    except InvalidKeyError as invalid_key_error:
-        if str(invalid_key_error):
-            message = str(invalid_key_error)
-        else: 
-            message = "Your API Key '{key}' is invalid. See {link}".format(
-                key=key, link='https://goo.gl/O7Y1rS'
-            )
-        click.secho(message, fg="red", file=sys.stderr)
-        sys.exit(-1)
-    except DatabaseFileNotFoundError:
-        click.secho("Unable to load licenses database from {db}".format(db=db), fg="red", file=sys.stderr)
-        sys.exit(-1)
-    except TooManyRequestsError:
-        click.secho("Unable to load licenses database (Too many requests, please wait before another request)",
-            fg="red",
-            file=sys.stderr
-        )
-        sys.exit(-1)
-    except DatabaseFetchError:
-        click.secho("Unable to load licenses database", fg="red", file=sys.stderr)
-        sys.exit(-1)
+        licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary, telemetry=ctx.parent.telemetry)
+    except SafetyError as e:
+        LOG.exception('Expected SafetyError happened: %s', e)
+        output_exception(e, exit_code_output=False)
+    except Exception as e:
+        LOG.exception('Unexpected Exception happened: %s', e)
+        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
+        output_exception(exception, exit_code_output=False)
+
     filtered_packages_licenses = get_packages_licenses(packages, licenses_db)
-    output_report = license_report(
-        packages=packages,
-        licenses=filtered_packages_licenses,
-        json_report=json,
-        bare_report=bare
-    )
+
+    output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
+
     click.secho(output_report, nl=True)
 
 

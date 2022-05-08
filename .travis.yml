@@ -37,7 +37,7 @@ deploy:
   - provider: script
     script: python3 -m build && twine upload dist/*
     on:
-      repo: yeisonvargasf/yeison_todo
+      repo: pyupio/safety
       branch: master
       python: 3.9
       tags: true

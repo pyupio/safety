@@ -4,21 +4,25 @@
 [![Travis](https://img.shields.io/travis/pyupio/safety.svg)](https://travis-ci.org/pyupio/safety)
 [![Updates](https://pyup.io/repos/github/pyupio/safety/shield.svg)](https://pyup.io/repos/github/pyupio/safety/)
 
-Safety checks your installed dependencies for known security vulnerabilities. 
+Safety checks your installed Python dependencies for known security vulnerabilities and suggests the proper remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and on production systems. 
 
-By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db), 
-but can be upgraded to use pyup.io's [Safety API](https://github.com/pyupio/safety/blob/master/docs/api_key.md) using the `--key` option. 
+By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db), which is **licensed for non-commercial use only**.
+
+For all commercial projects, Safely must be upgraded to use a [PyUp API](https://pyup.io) using the `--key` option.
 
 # Installation
 
-Install `safety` with pip. Keep in mind that we support only Python 3.5 and up.
-Look at *Python 2.7* section at the end of this document.
+Install `safety` with pip. Keep in mind that we support only Python 3.6 and up.
 
 ```bash
 pip install safety
 ```
 
-# Usage
+# Documentation
+
+For detailed documentation, please see [Safety's documentation portal](https://docs.pyup.io/docs/getting-started-with-safety-cli).
+
+# Basic Usage
 
 To check your currently selected virtual environment for dependencies with known security
  vulnerabilites, run:
@@ -29,26 +33,39 @@ safety check
 
 You should get a report similar to this:
 ```bash
-+==============================================================================+
-|                                                                              |
-|                               /$$$$$$            /$$                         |
-|                              /$$__  $$          | $$                         |
-|           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
-|          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
-|         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
-|          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
-|          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
-|         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
-|                                                          /$$  | $$           |
-|                                                         |  $$$$$$/           |
-|  by pyup.io                                              \______/            |
-|                                                                              |
-+==============================================================================+
-| REPORT                                                                       |
-+==============================================================================+
-| No known security vulnerabilities found.                                     |
-+==============================================================================+
++=================================================================================+
+
+                               /$$$$$$            /$$
+                              /$$__  $$          | $$
+           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$
+          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$
+         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$
+          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$
+          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$
+         |_______/  \_______/|__/     \_______/   \___/   \____  $$
+                                                          /$$  | $$
+                                                         |  $$$$$$/
+  by pyup.io                                              \______/
+
++=================================================================================+
+
+ REPORT
+
+  Safety v2.0.0 is scanning for Vulnerabilities...
+  Scanning dependencies in your files:
+
+  -> requirements.txt
+
+  Using an API KEY and the PyUp Commercial database
+  Found and scanned 3 packages
+  Timestamp 2022-05-04 16:33:50
++=================================================================================+
+
+ No known security vulnerabilities found.
+
++=================================================================================+
 ```
+
 
 Now, let's install something insecure:
 
@@ -58,43 +75,59 @@ pip install insecure-package
 *Yeah, you can really install that.*
 
 Run `safety check` again:
+
 ```bash
-+==============================================================================+
-|                                                                              |
-|                               /$$$$$$            /$$                         |
-|                              /$$__  $$          | $$                         |
-|           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
-|          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
-|         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
-|          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
-|          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
-|         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
-|                                                          /$$  | $$           |
-|                                                         |  $$$$$$/           |
-|  by pyup.io                                              \______/            |
-|                                                                              |
-+==============================================================================+
-| REPORT                                                                       |
-+==========================+===============+===================+===============+
-| package                  | installed     | affected          | source        |
-+==========================+===============+===================+===============+
-| insecure-package         | 0.1.0         | <0.2.0            | changelog     |
-+==========================+===============+===================+===============+
+ +=================================================================================+
+
+  Safety v2.0.0.dev6 is scanning for Vulnerabilities...
+  Scanning dependencies in your files:
+
+  -> requirements.txt
+
+  Using an API KEY and the PyUp Commercial database
+  Found and scanned 4 packages
+  Timestamp 2022-05-04 16:37:11
+
++=================================================================================+
+ VULNERABILITIES FOUND
++=================================================================================+
+
+-> Vulnerability found in insecure-package version 0.1.0
+    Vulnerability ID: 25853
+    Affected spec: <0.2.0
+    ADVISORY: This is an insecure package with lots of exploitable
+    security vulnerabilities.
+    Fixed versions:
+    PVE-2021-25853
+
+    For more information, please visit
+    https://pyup.io/vulnerabilities/PVE-2021-25853/25853/
+
+
+ Scan was completed.
+
++=================================================================================+
 ```
 
-## Examples
 
-### Read requirement files
-Just like pip, Safety is able to read local requirement files:
+## Starter documentation
+
+### Configuring the target of the scan
+Safety can scan requirements.txt files, the local environemnt as well as direct input piped into Safety.
+
+To scan a requirements file:
 
 ```bash
 safety check -r requirements.txt
 ```
 
-### Read from stdin
-Safety is also able to read from stdin with the `--stdin` flag set.
+To scan the local enviroment:
 
-To check a local requirements file, run:
+```bash
+safety check
+```
+
+Safety is also able to read from stdin with the `--stdin` flag set.
 ```
 cat requirements.txt | safety check --stdin
 ```
@@ -112,12 +145,24 @@ echo "insecure-package==0.1" | safety check --stdin
 *For more examples, take a look at the [options](#options) section.*
 
 
+### Specifying the output format of the scan
+
+Safety can output the scan results in a variety of formats and outputs. This includes: screen, text, JSON, and bare outputs. Using the ```--output``` flag to configure this output. The default output is to the screen.
+
+```--output json``` will output JSON for further processing and analysis.
+```--output text``` can be used to save the scan to file to later auditing.
+```--output bare``` simply prints out the packages that have known vulnerabilities
+
+### Exit codes
+
+Safety by default emits exit codes based on the result of the code, allowing you to run safety inside of CI/CD processes. If no vulnerabilities were found the exit code will be 0. In cases of a vulnerability being found, non-zero exit codes will be returned.
+
 ### Scan a Python-based Docker image
 
 To scan a docker image `IMAGE_TAG`, you can run
 
 ```console
-docker run -it --rm ${IMAGE_TAG} "/bin/bash -c \"pip install safety && safety check\"
+docker run -it --rm ${IMAGE_TAG} /bin/bash -c "pip install safety && safety check"
 ```
 
 ## Using Safety in Docker
@@ -140,11 +185,25 @@ of Safety.
 
 ## Using Safety with a CI service
 
-Safety works great in your CI pipeline. It returns a non-zero exit status if it finds a vulnerability. 
+Safety works great in your CI pipeline. It returns by default meaningful non-zero exit codes:
+
+
+| CODE NAME      | MEANING     | VALUE  |
+| ------------- |:-------------:| -----:|
+| EXIT_CODE_OK                    | Successful scan  | 0 |
+| EXIT_CODE_FAILURE               | An unexpected issue happened, please run the debug mode and write to us      |   1 |
+| EXIT_CODE_VULNERABILITIES_FOUND | Safety found vulnerabilities      |    64 |
+| EXIT_CODE_INVALID_API_KEY       | The API KEY used is invalid | 65 |
+| EXIT_CODE_TOO_MANY_REQUESTS     | You are making too many request, please wait around 40 seconds | 66 |
+| EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB | The local vulnerability database is malformed | 67 |
+| EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB | Client network or server issues trying to fetch the database | 68 |
+| EXIT_CODE_MALFORMED_DB | The fetched vulnerability database is malformed or in the review command case, the report to review is malformed | 69 |
+
+if you want Safety continues on error (always return zero exit code), you can use `--continue-on-error` flag
 
 Run it before or after your tests. If Safety finds something, your tests will fail.
 
-**Travis**
+**Travis CI**
 ```yaml
 install:
   - pip install safety
@@ -177,25 +236,24 @@ commands =
 
 **Deep GitHub Integration**
 
-If you are looking for a deep integration with your GitHub repositories: Safety is available as a 
-part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/ci/). Safety CI 
-checks your commits and pull requests for dependencies with known security vulnerabilities 
+If you are looking for a deep integration with your GitHub repositories: Safety is available as a
+part of [pyup.io](https://pyup.io/), called [Safety CI](https://pyup.io/safety/ci/). Safety CI
+checks your commits and pull requests for dependencies with known security vulnerabilities
 and displays a status on GitHub.
 
 ![Safety CI](https://github.com/pyupio/safety/raw/master/safety_ci.png)
 
-
 # Using Safety in production
 
-Safety is free and open source (MIT Licensed). The underlying open vulnerability database is updated once per month.
+Safety is free and open source (MIT Licensed). The data it relies on from the free Safety-db database is license for non-commercial use only, is limited and only updated once per month. 
 
-To get access to all vulnerabilites as soon as they are added, you need a [Safety API key](https://github.com/pyupio/safety/blob/master/docs/api_key.md) that comes with a paid [pyup.io](https://pyup.io) account, starting at $99.
+**All commercial projects and teams must sign up for a paid plan at [PyUp.io](https://pyup.io)**
 
 ## Options
 
 ### `--key`
 
-*API Key for pyup.io's vulnerability database. Can be set as `SAFETY_API_KEY` environment variable.*
+*API Key for pyup.io's vulnerability database. This can also be set as `SAFETY_API_KEY` environment variable.*
 
 **Example**
 ```bash
@@ -227,24 +285,88 @@ safety check --db=/home/safety-db/data
 
 ___
 
-### `--json`
 
-*Output vulnerabilities in JSON format.*
+### `--output json`
+
+*Output a complete report with the vulnerabilities in JSON format.*
+The report may be used too with the review command.
+
+if you are using the PyUp commercial database, Safety will use the same JSON structure but with all the full data for commercial users.
 
 **Example**
 ```bash
-safety check --json
+safety check --output json
 ```
-```javascript
-[
-    [
-        "django",
-        "<1.2.2",
-        "1.2",
-        "Cross-site scripting (XSS) vulnerability in Django 1.2.x before 1.2.2 allows remote attackers to inject arbitrary web script or HTML via a csrfmiddlewaretoken (aka csrf_token) cookie.",
-        "25701"
-    ]
-]
+```json
+{
+    "generated_at": "2022-03-23 01:41:25.377184",
+    "report": {
+        "scan_target": "environment",
+        "scanned": [
+            "/usr/local/lib/python3.9/site-packages"
+        ],
+        "api_key_used": false,
+        "packages_found": 1,
+        "timestamp": "2022-03-23 01:41:25",
+        "safety_version": "2.0.0.dev6"
+    },
+    "scanned_packages": {
+        "insecure-package": {
+            "name": "insecure-package",
+            "version": "0.1.0"
+        }
+    },
+    "affected_packages": {
+        "insecure-package": {
+            "name": "insecure-package",
+            "version": "0.1.0",
+            "found": "/usr/local/lib/python3.9/site-packages",
+            "insecure_versions": [],
+            "secure_versions": [],
+            "latest_version_without_known_vulnerabilities": null,
+            "latest_version": null,
+            "more_info_url": "None"
+        }
+    },
+    "announcements": [],
+    "vulnerabilities": [
+        {
+            "name": "insecure-package",
+            "ignored": false,
+            "reason": "",
+            "expires": "",
+            "vulnerable_spec": "<0.2.0",
+            "all_vulnerable_specs": [
+                "<0.2.0"
+            ],
+            "analyzed_version": "0.1.0",
+            "advisory": "This is an insecure package with lots of exploitable security vulnerabilities.",
+            "vulnerability_id": "25853",
+            "is_transitive": false,
+            "published_date": null,
+            "fixed_versions": [],
+            "closest_versions_without_known_vulnerabilities": [],
+            "resources": [],
+            "CVE": {
+                "name": "PVE-2021-25853",
+                "cvssv2": null,
+                "cvssv3": null
+            },
+            "affected_versions": [],
+            "more_info_url": "None"
+        }
+    ],
+    "ignored_vulnerabilities": [],
+    "remediations": {
+        "insecure-package": {
+            "vulns_found": 1,
+            "version": "0.1.0",
+            "recommended": null,
+            "other_recommended_versions": [],
+            "more_info_url": "None"
+        }
+    }
+}
 ```
 ___
 
@@ -257,50 +379,20 @@ ___
 safety check --full-report
 ```
 
-```
-+==============================================================================+
-|                                                                              |
-|                               /$$$$$$            /$$                         |
-|                              /$$__  $$          | $$                         |
-|           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
-|          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
-|         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
-|          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
-|          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
-|         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
-|                                                          /$$  | $$           |
-|                                                         |  $$$$$$/           |
-|  by pyup.io                                              \______/            |
-|                                                                              |
-+==============================================================================+
-| REPORT                                                                       |
-+============================+===========+==========================+==========+
-| package                    | installed | affected                 | ID       |
-+============================+===========+==========================+==========+
-| CVSS v2 | BASE SCORE: 6.5 | IMPACT SCORE: 6.4                                |
-+============================+===========+==========================+==========+
-| django                     | 1.2       | <1.2.2                   | 25701    |
-+==============================================================================+
-| Cross-site scripting (XSS) vulnerability in Django 1.2.x before 1.2.2 allows |
-|  remote attackers to inject arbitrary web script or HTML via a csrfmiddlewar |
-| etoken (aka csrf_token) cookie.                                              |
-+==============================================================================+
-```
-___
-
-### `--bare`
+### `--output bare`
 
 *Output vulnerable packages only. Useful in combination with other tools.*
 
 **Example**
 ```bash
-safety check --bare
+safety check --output bare
 ```
 
 ```
 cryptography django
 ```
 ___
+
 
 ### `--cache`
 
@@ -365,10 +457,10 @@ safety check -i 1234 -i 4567 -i 89101
 
 **Example**
 ```bash
-safety check -o insecure_report.txt
+safety check --output text > insecure_report.txt
 ```
 ```bash
-safety check --output --json insecure_report.json
+safety check --output json > insecure_report.json
 ```
 ___
 
@@ -400,33 +492,6 @@ ___
 safety review -r insecure.json --full-report
 ```
 
-```
-+==============================================================================+
-|                                                                              |
-|                               /$$$$$$            /$$                         |
-|                              /$$__  $$          | $$                         |
-|           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
-|          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
-|         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
-|          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
-|          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
-|         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
-|                                                          /$$  | $$           |
-|                                                         |  $$$$$$/           |
-|  by pyup.io                                              \______/            |
-|                                                                              |
-+==============================================================================+
-| REPORT                                                                       |
-+============================+===========+==========================+==========+
-| package                    | installed | affected                 | ID       |
-+============================+===========+==========================+==========+
-| django                     | 1.2       | <1.2.2                   | 25701    |
-+==============================================================================+
-| Cross-site scripting (XSS) vulnerability in Django 1.2.x before 1.2.2 allows |
-|  remote attackers to inject arbitrary web script or HTML via a csrfmiddlewar |
-| etoken (aka csrf_token) cookie.                                              |
-+==============================================================================+
-```
 ___
 
 ### `--bare`
@@ -435,12 +500,13 @@ ___
 
 **Example**
 ```bash
-safety review --file report.json --bare
+safety review --file report.json --output bare
 ```
 
 ```
 django
 ```
+
 
 ___
 
@@ -461,37 +527,9 @@ safety license --key=12345-ABCDEFGH
 *Shows the license of each package in the current environment*
 
 
-```
-+==============================================================================+
-|                                                                              |
-|                               /$$$$$$            /$$                         |
-|                              /$$__  $$          | $$                         |
-|           /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$           |
-|          /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$           |
-|         |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$           |
-|          \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$           |
-|          /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$           |
-|         |_______/  \_______/|__/     \_______/   \___/   \____  $$           |
-|                                                          /$$  | $$           |
-|                                                         |  $$$$$$/           |
-|  by pyup.io                                              \______/            |
-|                                                                              |
-+==============================================================================+
-| Packages licenses                                                            |
-+=============================================+===========+====================+
-| package                                     |  version  | license            |
-+=============================================+===========+====================+
-| requests                                    | 2.25.0    | Apache-2.0         |
-|------------------------------------------------------------------------------|
-| click                                       | 7.1.2     | BSD-3-Clause       |
-|------------------------------------------------------------------------------|
-| safety                                      | 1.10.0    | MIT                |
-+==============================================================================+
-```
+### `--output json` (Optional)
 
-### `--json` (Optional)
-
-This license command can also be used in conjuction with optional arguments `--bare` and `--json` for structured, parsable outputs that can be fed into other tools and pipelines.
+This license command can also be used in conjuction with optional arguments `--output bare` and `--output json` for structured, parsable outputs that can be fed into other tools and pipelines.
 
 ___
 
@@ -501,7 +539,7 @@ ___
 
 **Example**
 ```bash
-safety license --key=12345-ABCDEFGH --db=/home/safety-db/data
+safety license --key=12345-ABCDEFGH --db /home/safety-db/data
 ```
 ___
 
@@ -537,7 +575,7 @@ ___
 
 *Proxy host IP or DNS*
 
-### `--proxy-port`, `-pp` 
+### `--proxy-port`, `-pp`
 
 *Proxy port number*
 
@@ -554,11 +592,11 @@ ___
 
 # Python 2.7
 
-This tool requires latest Python patch versions starting with version 3.5. We
+This tool requires latest Python patch versions starting with version 3.6. We
 did support Python 2.7 in the past but, as for other Python 3.x minor versions,
 it reached its End-Of-Life and as such we are not able to support it anymore.
 
-We understand you might still have Python 2.7 projects running. At the same
+We understand you might still have Python < 3.6 projects running. At the same
 time, Safety itself has a commitment to encourage developers to keep their
 software up-to-date, and it would not make sense for us to work with officially
 unsupported Python versions, or even those that reached their end of life.

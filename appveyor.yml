@@ -1,4 +1,4 @@
-version: 1.10.4-dev+{build}
+version: 2.0b1.dev{build}
 image:
   - Visual Studio 2019
   - Ubuntu
@@ -10,7 +10,7 @@ branches:
   only:
     - master
     - appveyor-fixes
-    - /\d*\.\d*\.\d*/
+    - /^\d+\.\d+(\.\d+)?((a|b|rc)?\d+)?$/
 
 # note: on macOS the binary is built using Python 3.7 (installed via Homebrew), because
 # the shipped Python lacks libraries PyInstaller needs.

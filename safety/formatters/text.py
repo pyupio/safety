@@ -63,7 +63,7 @@ class TextReport(FormatterAPI):
         ]
 
         if vulnerabilities:
-            table += [" VULNERABILITIES FOUND", self.SMALL_DIVIDER_SECTIONS, add_empty_line()]
+            table += [" VULNERABILITIES FOUND", self.SMALL_DIVIDER_SECTIONS]
             ignored = {}
             total_ignored = 0
 
@@ -71,9 +71,10 @@ class TextReport(FormatterAPI):
                 if vuln.ignored:
                     total_ignored += 1
                     ignored[vuln.name] = ignored.get(vuln.name, 0) + 1
-                table.append(format_vulnerability(vuln, full, only_text=True, columns=80))
+                table.append('\n' + format_vulnerability(vuln, full, only_text=True, columns=80))
 
-            final_brief = click.unstyle(get_final_brief(ignored, total_ignored, kwargs={'columns': 80}))
+            final_brief = click.unstyle(get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored,
+                                                        kwargs={'columns': 80}))
 
             table += [final_brief, add_empty_line(), self.SMALL_DIVIDER_SECTIONS] + remediation_section + end_content
 
@@ -106,7 +107,7 @@ class TextReport(FormatterAPI):
 
         if not packages_licenses:
             table.append("  No packages licenses found.")
-            table += [final_brief, '\n', self.SMALL_DIVIDER_SECTIONS]
+            table += [final_brief, add_empty_line(), self.SMALL_DIVIDER_SECTIONS]
 
             return "\n".join(table)
 
@@ -115,7 +116,7 @@ class TextReport(FormatterAPI):
                                                               pkg_license['license'])
             table.append(text)
 
-        table += [final_brief, '\n', self.SMALL_DIVIDER_SECTIONS]
+        table += [final_brief, add_empty_line(), self.SMALL_DIVIDER_SECTIONS]
 
         return "\n".join(table)
 

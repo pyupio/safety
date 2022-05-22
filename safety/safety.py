@@ -187,7 +187,7 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
         vulnerability_id=vuln_id,
         is_transitive=data.get("transitive", False),
         published_date=data.get("published_date"),
-        fixed_versions=data.get("fixed_versions"),
+        fixed_versions=[ver for ver in data.get("fixed_versions", []) if ver],
         closest_versions_without_known_vulnerabilities=data.get("closest_secure_versions", []),
         resources=data.get("vulnerability_resources"),
         CVE=cve,

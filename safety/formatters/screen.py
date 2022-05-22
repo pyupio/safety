@@ -65,7 +65,7 @@ class ScreenReport(FormatterAPI):
                     ignored[vuln.name] = ignored.get(vuln.name, 0) + 1
                 table.append(format_vulnerability(vuln, full))
 
-            final_brief = get_final_brief(ignored, total_ignored)
+            final_brief = get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored)
 
             return "\n".join(
                 [ScreenReport.REPORT_BANNER] + announcements_section + [report_brief_section,
@@ -76,7 +76,7 @@ class ScreenReport(FormatterAPI):
                                                                                         bold=True, fg='red')),
                                                                         self.DIVIDER_SECTIONS,
                                                                         add_empty_line(),
-                                                                        "\n\n\n".join(table),
+                                                                        "\n\n".join(table),
                                                                         final_brief,
                                                                         add_empty_line(),
                                                                         self.DIVIDER_SECTIONS] +

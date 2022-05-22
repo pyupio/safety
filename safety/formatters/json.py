@@ -23,7 +23,7 @@ class JsonReport(FormatterAPI):
         remed = {}
         for k, v in remediations.items():
             if k not in remed:
-                remed[k] = {}
+                remed[k] = {} # TODO: Add minor if possible
 
             closest = v.get('closest_secure_version', {})
             upgrade = closest.get('major', None)

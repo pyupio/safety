@@ -43,8 +43,8 @@ def cli(ctx, debug, telemetry):
 @click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output"], with_values={"output": ['json', 'bare']},
               help='Full reports include a security advisory (if available). Default: '
                    '--short-report')
-@click.option("--cache/--no-cache", default=False,
-              help="Cache requests to the vulnerability database locally. Default: --no-cache")
+@click.option("--cache", default=0,
+              help="Cache requests to the vulnerability database locally. Default: 0 seconds")
 @click.option("--stdin/--no-stdin", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["files"],
               help="Read input from stdin. Default: --no-stdin")
 @click.option("files", "--file", "-r", multiple=True, type=click.File(), cls=MutuallyExclusiveOption, mutually_exclusive=["stdin"],
@@ -166,9 +166,9 @@ def review(ctx, full_report, output, file):
               help="Path to a local license database. Default: empty")
 @click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
               default='screen')
-@click.option("--cache/--no-cache", default=True,
+@click.option("--cache", default=0,
               help='Whether license database file should be cached.'
-                   'Default: --cache')
+                   'Default: 0 seconds')
 @click.option("files", "--file", "-r", multiple=True, type=click.File(),
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("proxyhost", "--proxy-host", "-ph", multiple=False, type=str, default=None,

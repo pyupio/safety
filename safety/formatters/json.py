@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 
 import json as json_parser
 
@@ -14,32 +13,41 @@ class JsonReport(FormatterAPI):
     """Json report, for when the output is input for something else"""
 
     def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+        remediations_recommended = len(remediations.keys())
         LOG.debug('Rendering %s vulnerabilities, %s remediations with full_report: %s', len(vulnerabilities),
-                  len(remediations.keys()), full)
+                  remediations_recommended, full)
         vulns_ignored = [vuln.to_dict() for vuln in vulnerabilities if vuln.ignored]
         vulns = [vuln.to_dict() for vuln in vulnerabilities if not vuln.ignored]
-        report = get_report_brief_info(as_dict=True)
+
+        report = get_report_brief_info(as_dict=True, report_type=1, vulnerabilities_found=len(vulns),
+                                       vulnerabilities_ignored=len(vulns_ignored),
+                                       remediations_suggested=remediations_recommended)
 
         remed = {}
         for k, v in remediations.items():
             if k not in remed:
-                remed[k] = {} # TODO: Add minor if possible
+                remed[k] = {}
 
             closest = v.get('closest_secure_version', {})
             upgrade = closest.get('major', None)
-            if upgrade:
-                upgrade = str(upgrade)
+            downgrade = closest.get('minor', None)
 
-            remed[k]['vulns_found'] = v.get('vulns_found', 0)
-            remed[k]['version'] = v.get('version', None)
-            remed[k]['recommended'] = upgrade if upgrade else None
+            recommended_version = None
+
+            if upgrade:
+                recommended_version = str(upgrade)
+            elif downgrade:
+                recommended_version = str(downgrade)
+
+            remed[k]['current_version'] = v.get('version', None)
+            remed[k]['vulnerabilities_found'] = v.get('vulns_found', 0)
+            remed[k]['recommended_version'] = recommended_version
             remed[k]['other_recommended_versions'] = [other_v for other_v in v.get('secure_versions', []) if
-                                                      other_v != upgrade]
+                                                      other_v != recommended_version]
             remed[k]['more_info_url'] = v.get('more_info_url', '')
 
         template = {
-            "generated_at": str(datetime.now()),
-            "report": report,
+            "report_meta": report,
             "scanned_packages": {p.name: p.to_dict(short_version=True) for p in packages},
             "affected_packages": {v.pkg.name: v.pkg.to_dict() for v in vulnerabilities},
             "announcements": [{'type': item.get('type'), 'message': item.get('message')} for item in
@@ -52,9 +60,10 @@ class JsonReport(FormatterAPI):
         return json_parser.dumps(template, indent=4)
 
     def render_licenses(self, announcements, licenses):
+        report = get_report_brief_info(as_dict=True, report_type=2)
 
         template = {
-            "generated_at": str(datetime.now()),
+            "report_meta": report,
             "announcements": get_basic_announcements(announcements),
             "licenses": licenses,
         }

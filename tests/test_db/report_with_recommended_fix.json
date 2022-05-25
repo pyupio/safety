@@ -1,14 +1,18 @@
 {
-    "generated_at": "2022-04-30 15:27:39.033185",
-    "report": {
+    "report_meta": {
         "scan_target": "environment",
         "scanned": [
             "/usr/local/lib/python3.9/site-packages"
         ],
-        "api_key_used": true,
+        "policy_file": null,
+        "api_key": true,
+        "local_database_path": null,
         "packages_found": 50,
         "timestamp": "2022-04-30 15:27:39",
-        "safety_version": "2.0.0.dev6"
+        "safety_version": "2.0.0.dev6",
+        "vulnerabilities_found": 4,
+        "vulnerabilities_ignored": 0,
+        "remediations_suggested": 1
     },
     "scanned_packages": {
         "safety": {
@@ -5572,10 +5576,11 @@
     "announcements": [],
     "vulnerabilities": [
         {
-            "name": "django",
+            "vulnerability_id": "44742",
+            "package_name": "django",
             "ignored": false,
-            "reason": "",
-            "expires": "",
+            "ignored_reason": "",
+            "ignored_expires": "",
             "vulnerable_spec": ">=4.0a1,<4.0.2",
             "all_vulnerable_specs": [
                 "<2.2.27",
@@ -5584,7 +5589,6 @@
             ],
             "analyzed_version": "4.0.1",
             "advisory": "The {% debug %} template tag in Django 2.2 before 2.2.27, 3.2 before 3.2.12, and 4.0 before 4.0.2 does not properly encode the current context. This may lead to XSS.",
-            "vulnerability_id": "44742",
             "is_transitive": false,
             "published_date": "2022-Feb-03",
             "fixed_versions": [
@@ -5596,8 +5600,9 @@
             "resources": [
                 "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-22818"
             ],
-            "CVE": {
-                "name": "CVE-2022-22818",
+            "CVE": "CVE-2022-22818",
+            "severity": {
+                "source": "CVE-2022-22818",
                 "cvssv2": {
                     "base_score": 4.3,
                     "impact_score": 2.9,
@@ -5906,10 +5911,11 @@
             "more_info_url": "https://pyup.io/vulnerabilities/CVE-2022-22818/44742/"
         },
         {
-            "name": "django",
+            "vulnerability_id": "44741",
+            "package_name": "django",
             "ignored": false,
-            "reason": "",
-            "expires": "",
+            "ignored_reason": "",
+            "ignored_expires": "",
             "vulnerable_spec": ">=4.0a1,<4.0.2",
             "all_vulnerable_specs": [
                 "<2.2.27",
@@ -5918,7 +5924,6 @@
             ],
             "analyzed_version": "4.0.1",
             "advisory": "An issue was discovered in MultiPartParser in Django 2.2 before 2.2.27, 3.2 before 3.2.12, and 4.0 before 4.0.2. Passing certain inputs to multipart forms could result in an infinite loop when parsing files.",
-            "vulnerability_id": "44741",
             "is_transitive": false,
             "published_date": "2022-Feb-03",
             "fixed_versions": [
@@ -6240,10 +6245,11 @@
             "more_info_url": "https://pyup.io/vulnerabilities/CVE-2022-23833/44741/"
         },
         {
-            "name": "django",
+            "vulnerability_id": "48041",
+            "package_name": "django",
             "ignored": false,
-            "reason": "",
-            "expires": "",
+            "ignored_reason": "",
+            "ignored_expires": "",
             "vulnerable_spec": ">=4.0a1,<4.0.4",
             "all_vulnerable_specs": [
                 "<2.2.28",
@@ -6252,7 +6258,6 @@
             ],
             "analyzed_version": "4.0.1",
             "advisory": "Django 2.2.28, 3.2.13 and 4.0.4 include a fix for CVE-2022-28346: An issue was discovered in Django 2.2 before 2.2.28, 3.2 before 3.2.13, and 4.0 before 4.0.4. QuerySet.annotate(), aggregate(), and extra() methods are subject to SQL injection in column aliases via a crafted dictionary (with dictionary expansion) as the passed **kwargs.\r\nhttps://www.djangoproject.com/weblog/2022/apr/11/security-releases/",
-            "vulnerability_id": "48041",
             "is_transitive": false,
             "published_date": "2022-Apr-12",
             "fixed_versions": [
@@ -6578,10 +6583,11 @@
             "more_info_url": "https://pyup.io/vulnerabilities/CVE-2022-28346/48041/"
         },
         {
-            "name": "django",
+            "vulnerability_id": "48040",
+            "package_name": "django",
             "ignored": false,
-            "reason": "",
-            "expires": "",
+            "ignored_reason": "",
+            "ignored_expires": "",
             "vulnerable_spec": ">=4.0a1,<4.0.4",
             "all_vulnerable_specs": [
                 "<2.2.28",
@@ -6590,7 +6596,6 @@
             ],
             "analyzed_version": "4.0.1",
             "advisory": "Django 2.2.28, 3.2.13 and 4.0.4 include a fix for CVE-2022-28347: A SQL injection issue was discovered in QuerySet.explain() in Django 2.2 before 2.2.28, 3.2 before 3.2.13, and 4.0 before 4.0.4. This occurs by passing a crafted dictionary (with dictionary expansion) as the **options argument, and placing the injection payload in an option name.\r\nhttps://www.djangoproject.com/weblog/2022/apr/11/security-releases/",
-            "vulnerability_id": "48040",
             "is_transitive": false,
             "published_date": "2022-Apr-12",
             "fixed_versions": [
@@ -6919,9 +6924,9 @@
     "ignored_vulnerabilities": [],
     "remediations": {
         "django": {
-            "vulns_found": 4,
-            "version": "4.0.1",
-            "recommended": "4.0.4",
+            "current_version": "4.0.1",
+            "vulnerabilities_found": 4,
+            "recommended_version": "4.0.4",
             "other_recommended_versions": [
                 "2.2.28",
                 "3.2.13"

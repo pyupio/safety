@@ -19,7 +19,7 @@ from .constants import (API_MIRRORS, CACHE_FILE, CACHE_LICENSES_VALID_SECONDS, C
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
-from .models import Vulnerability, CVE
+from .models import Vulnerability, CVE, Severity
 from .util import RequirementFile, read_requirements, Package, build_telemetry_data
 
 session = requests.session()
@@ -27,23 +27,32 @@ session = requests.session()
 LOG = logging.getLogger(__name__)
 
 
-def get_from_cache(db_name):
+def get_from_cache(db_name, cache_valid_seconds=0):
+    LOG.debug('Trying to get from cache...')
     if os.path.exists(CACHE_FILE):
+        LOG.info('Cache file path: %s', CACHE_FILE)
         with open(CACHE_FILE) as f:
             try:
                 data = json.loads(f.read())
+                LOG.debug('Trying to get the %s from the cache file', db_name)
+                LOG.debug('Databases in CACHE file: %s', ', '.join(data))
                 if db_name in data:
-                    if "cached_at" in data[db_name]:
-                        if 'licenses.json' in db_name:
-                            # Getting the specific cache time for the licenses db.
-                            cache_valid_seconds = CACHE_LICENSES_VALID_SECONDS
-                        else:
-                            cache_valid_seconds = CACHE_VALID_SECONDS
+                    LOG.debug('db_name %s', db_name)
 
+                    if "cached_at" in data[db_name]:
                         if data[db_name]["cached_at"] + cache_valid_seconds > time.time():
+                            LOG.debug('Getting the database from cache at %s, cache setting: %s',
+                                      data[db_name]["cached_at"], cache_valid_seconds)
                             return data[db_name]["db"]
+
+                        LOG.debug('Cached file is too old, it was cached at %s', data[db_name]["cached_at"])
+                    else:
+                        LOG.debug('There is not the cached_at key in %s database', data[db_name])
+
             except json.JSONDecodeError:
-                pass
+                LOG.debug('JSONDecodeError trying to get the cached database.')
+    else:
+        LOG.debug("Cache file doesn't exist...")
     return False
 
 
@@ -65,14 +74,17 @@ def write_to_cache(db_name, data):
             os.makedirs(os.path.dirname(CACHE_FILE))
             with open(CACHE_FILE, "w") as _:
                 _.write(json.dumps({}))
+                LOG.debug('Cache file created')
         except OSError as exc:  # Guard against race condition
+            LOG.debug('Unable to create the cache file because: %s', exc.errno)
             if exc.errno != errno.EEXIST:
                 raise
 
-    with open(CACHE_FILE, "w+") as f:
+    with open(CACHE_FILE, "r") as f:
         try:
             cache = json.loads(f.read())
         except json.JSONDecodeError:
+            LOG.debug('JSONDecodeError in the local cache, dumping the full cache file.')
             cache = {}
 
     with open(CACHE_FILE, "w") as f:
@@ -81,6 +93,7 @@ def write_to_cache(db_name, data):
             "db": data
         }
         f.write(json.dumps(cache))
+        LOG.debug('Safety updated the cache file for %s database.', db_name)
 
 
 def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
@@ -89,8 +102,9 @@ def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
         headers["X-Api-Key"] = key
 
     if cached:
-        cached_data = get_from_cache(db_name=db_name)
+        cached_data = get_from_cache(db_name=db_name, cache_valid_seconds=cached)
         if cached_data:
+            LOG.info('Database %s returned from cache.', db_name)
             return cached_data
     url = mirror + db_name
 
@@ -173,24 +187,29 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
 
     ignored = (vuln_id in ignore_vulns and (not ignore_vulns[vuln_id]['expires'] or ignore_vulns[vuln_id]['expires'] > datetime.utcnow()))
     more_info_url = f"{base_domain}{data.get('more_info_path', '')}"
+    severity = None
+
+    if cve and cve.cvssv2 or cve.cvssv3:
+        severity = Severity(source=cve.name, cvssv2=cve.cvssv2, cvssv3=cve.cvssv3)
 
     return Vulnerability(
-        name=name,
+        vulnerability_id=vuln_id,
+        package_name=name,
         pkg=pkg_refreshed,
         ignored=ignored,
-        reason=ignore_vulns.get(vuln_id, {}).get('reason', ''),
-        expires=ignore_vulns.get(vuln_id, {}).get('expires', ''),
+        ignored_reason=ignore_vulns.get(vuln_id, {}).get('reason', None),
+        ignored_expires=ignore_vulns.get(vuln_id, {}).get('expires', None),
         vulnerable_spec=specifier,
         all_vulnerable_specs=data.get("specs", []),
         analyzed_version=pkg_refreshed.version,
         advisory=data.get("advisory"),
-        vulnerability_id=vuln_id,
         is_transitive=data.get("transitive", False),
         published_date=data.get("published_date"),
         fixed_versions=[ver for ver in data.get("fixed_versions", []) if ver],
         closest_versions_without_known_vulnerabilities=data.get("closest_secure_versions", []),
         resources=data.get("vulnerability_resources"),
         CVE=cve,
+        severity=severity,
         affected_versions=data.get("affected_versions", []),
         more_info_url=more_info_url
     )
@@ -277,14 +296,14 @@ def precompute_remediations(remediations, package_metadata, vulns,
             ignored_vulns.add(vuln.vulnerability_id)
             continue
 
-        if vuln.name in remediations.keys():
-            remediations[vuln.name]['vulns_found'] = remediations[vuln.name].get('vulns_found', 0) + 1
+        if vuln.package_name in remediations.keys():
+            remediations[vuln.package_name]['vulns_found'] = remediations[vuln.package_name].get('vulns_found', 0) + 1
         else:
             vulns_count = 1
-            package_metadata[vuln.name] = {'insecure_versions': vuln.pkg.insecure_versions,
+            package_metadata[vuln.package_name] = {'insecure_versions': vuln.pkg.insecure_versions,
                                            'secure_versions': vuln.pkg.secure_versions, 'version': vuln.pkg.version}
-            remediations[vuln.name] = {'vulns_found': vulns_count, 'version': vuln.pkg.version,
-                                       'more_info_url': vuln.pkg.more_info_url}
+            remediations[vuln.package_name] = {'vulns_found': vulns_count, 'version': vuln.pkg.version,
+                                               'more_info_url': vuln.pkg.more_info_url}
 
 
 def get_closest_ver(versions, version):
@@ -362,15 +381,15 @@ def review(report):
     remediations = {}
 
     for key, value in report.get('remediations', {}).items():
-        recommended = value.get('recommended', None)
+        recommended = value.get('recommended_version', None)
         secure_v = value.get('other_recommended_versions', [])
         major = None
         if recommended:
             secure_v.append(recommended)
             major = parse(recommended)
 
-        remediations[key] = {'vulns_found': value.get('vulns_found', 0),
-                             'version': value.get('version'),
+        remediations[key] = {'vulns_found': value.get('vulnerabilities_found', 0),
+                             'version': value.get('current_version'),
                              'secure_versions': secure_v,
                              'closest_secure_version': {'major': major, 'minor': None},
                              # minor isn't supported in review
@@ -379,13 +398,25 @@ def review(report):
     packages = report.get('scanned_packages', [])
     pkgs = {pkg_name: Package(**pkg_values) for pkg_name, pkg_values in packages.items()}
     click.get_current_context().obj = pkgs.values()
-    click.get_current_context().review = report.get('report', [])
+    click.get_current_context().review = report.get('report_meta', [])
+    cvssv2 = None
+    cvssv3 = None
 
     for vuln in vulnerabilities:
-        vuln['pkg'] = pkgs.get(vuln.get('name', None))
-        CVE_ID = vuln.get('CVE', {}).get('name', None)
-        vuln['CVE'] = CVE(name=CVE_ID, cvssv2=vuln.get('cvssv2', None),
-                          cvssv3=vuln.get('cvssv3', None)) if CVE_ID else None
+        vuln['pkg'] = pkgs.get(vuln.get('package_name', None))
+        XVE_ID = vuln.get('CVE', None)  # Trying to get first the CVE ID
+
+        severity = vuln.get('severity', None)
+        if severity and severity.get('source', False):
+            cvssv2 = severity.get('cvssv2', None)
+            cvssv3 = severity.get('cvssv3', None)
+            # Trying to get the PVE ID if it exists, otherwise it will be the same CVE ID of above
+            XVE_ID = severity.get('source', False)
+            vuln['severity'] = Severity(source=XVE_ID, cvssv2=cvssv2, cvssv3=cvssv3)
+        else:
+            vuln['severity'] = None
+
+        vuln['CVE'] = CVE(name=XVE_ID, cvssv2=cvssv2, cvssv3=cvssv3) if XVE_ID else None
 
         vulnerable.append(Vulnerability(**vuln))
 

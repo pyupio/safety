@@ -5,7 +5,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from safety import cli
-from safety.models import Vulnerability, CVE
+from safety.models import Vulnerability, CVE, Severity
 from safety.util import Package
 
 
@@ -23,9 +23,12 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
     c_kwargs.update(cve_kwargs)
 
     cve = CVE(**c_kwargs)
+    severity = None
+    if cve and cve.cvssv2 or cve.cvssv3:
+        severity = Severity(source=cve.name, cvssv2=cve.cvssv2, cvssv3=cve.cvssv3)
     pkg = Package(**p_kwargs)
 
-    v_kwargs = {'name': pkg.name, 'pkg': pkg, 'ignored': False, 'reason': '', 'expires': '',
+    v_kwargs = {'package_name': pkg.name, 'pkg': pkg, 'ignored': False, 'ignored_reason': '', 'ignored_expires': '',
                 'vulnerable_spec': ">0",
                 'all_vulnerable_specs': ['2.2'],
                 'analyzed_version': pkg.version,
@@ -37,6 +40,7 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
                 'closest_versions_without_known_vulnerabilities': '',
                 'resources': ["pyup.io/vuln-id"],
                 'CVE': cve,
+                'severity': severity,
                 'affected_versions': [],
                 'more_info_url': 'https://pyup.io/PVE/2323'}
 

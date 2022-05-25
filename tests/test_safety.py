@@ -53,7 +53,7 @@ class TestSafety(unittest.TestCase):
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
-            cached=False,
+            cached=0,
             ignore_vulns={},
             ignore_severity_rules=None,
             proxy={},
@@ -73,7 +73,7 @@ class TestSafety(unittest.TestCase):
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
-            cached=False,
+            cached=0,
             ignore_vulns={},
             ignore_severity_rules=None,
             proxy={},
@@ -93,7 +93,7 @@ class TestSafety(unittest.TestCase):
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
-            cached=False,
+            cached=0,
             ignore_vulns={},
             ignore_severity_rules=None,
             proxy={},
@@ -109,7 +109,7 @@ class TestSafety(unittest.TestCase):
             packages=packages,
             key=None,
             db_mirror=False,
-            cached=False,
+            cached=0,
             ignore_vulns={},
             ignore_severity_rules=None,
             proxy={},
@@ -119,6 +119,15 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(len(vulns), 1)
 
     def test_check_live_cached(self):
+        from safety.constants import CACHE_FILE
+
+        # lets clear the cache first
+        try:
+            with open(CACHE_FILE, 'w') as f:
+                f.write(json.dumps({}))
+        except Exception:
+            pass
+
         reqs = StringIO("insecure-package==0.1")
         packages = util.read_requirements(reqs)
 
@@ -126,7 +135,7 @@ class TestSafety(unittest.TestCase):
             packages=packages,
             key=None,
             db_mirror=False,
-            cached=True,
+            cached=60 * 60,
             ignore_vulns={},
             ignore_severity_rules=None,
             proxy={},
@@ -141,7 +150,7 @@ class TestSafety(unittest.TestCase):
             packages=packages,
             key=None,
             db_mirror=False,
-            cached=True,
+            cached=60 * 60,
             ignore_vulns={},
             ignore_severity_rules=None,
             proxy={},
@@ -157,7 +166,7 @@ class TestSafety(unittest.TestCase):
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
-            cached=False,
+            cached=0,
             key="foobarqux",
             proxy={},
             telemetry=False
@@ -191,7 +200,7 @@ class TestSafety(unittest.TestCase):
         with self.assertRaises(InvalidKeyError) as error:
             safety.get_licenses(
                 db_mirror=False,
-                cached=False,
+                cached=0,
                 proxy={},
                 key=None,
                 telemetry=False
@@ -211,7 +220,7 @@ class TestSafety(unittest.TestCase):
         with self.assertRaises(InvalidKeyError):
             safety.get_licenses(
                 db_mirror=False,
-                cached=False,
+                cached=0,
                 proxy={},
                 key="INVALID",
                 telemetry=False
@@ -228,7 +237,7 @@ class TestSafety(unittest.TestCase):
         with self.assertRaises(DatabaseFetchError):
             safety.get_licenses(
                 db_mirror=False,
-                cached=False,
+                cached=0,
                 proxy={},
                 key="MY-VALID-KEY",
                 telemetry=False
@@ -240,7 +249,7 @@ class TestSafety(unittest.TestCase):
         with self.assertRaises(DatabaseFileNotFoundError):
             safety.get_licenses(
                 db_mirror='/my/invalid/path',
-                cached=False,
+                cached=0,
                 proxy={},
                 key=None,
                 telemetry=False
@@ -258,7 +267,7 @@ class TestSafety(unittest.TestCase):
         with self.assertRaises(TooManyRequestsError):
             safety.get_licenses(
                 db_mirror=False,
-                cached=False,
+                cached=0,
                 proxy={},
                 key="MY-VALID-KEY",
                 telemetry=False
@@ -299,7 +308,7 @@ class TestSafety(unittest.TestCase):
         # In order to cache the db (and get), we must set cached as True
         response = safety.get_licenses(
             db_mirror=False,
-            cached=True,
+            cached=60 * 60,  # Cached for one hour
             proxy={},
             key="MY-VALID-KEY",
             telemetry=False
@@ -312,7 +321,7 @@ class TestSafety(unittest.TestCase):
 
         resp = safety.get_licenses(
             db_mirror=False,
-            cached=True,
+            cached=60 * 60,  # Cached for one hour
             proxy={},
             key="MY-VALID-KEY",
             telemetry=False
@@ -331,7 +340,7 @@ class TestSafety(unittest.TestCase):
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
-            cached=False,
+            cached=0,
             key=None,
             proxy={},
             telemetry=False
@@ -342,9 +351,15 @@ class TestSafety(unittest.TestCase):
 
         self.assertEqual(output_report, "BSD-3-Clause unknown")
 
-    @patch('safety.formatters.json.datetime', Mock(
-        now=Mock(return_value=datetime(2022, month=3, day=3, hour=16, minute=31, second=30, microsecond=46504))))
-    def test_report_licenses_json(self):
+    @patch('safety.formatters.json.get_report_brief_info')
+    def test_report_licenses_json(self, get_report_brief_info):
+        get_report_brief_info.return_value = {'scan_target': 'environment',
+                                              'scanned': ['/usr/local/lib/python3.9/site-packages'],
+                                              'api_key': True,
+                                              'packages_found': 2,
+                                              'timestamp': '2022-03-03 16:31:30',
+                                              'safety_version': '2.0.0.dev6'}
+
         reqs = StringIO("Django==1.8.1\n\rinexistent==1.0.0")
         packages = util.read_requirements(reqs)
 
@@ -354,7 +369,7 @@ class TestSafety(unittest.TestCase):
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
-            cached=False,
+            cached=0,
             key=None,
             proxy={},
             telemetry=False
@@ -365,7 +380,13 @@ class TestSafety(unittest.TestCase):
 
         expected_result = json.dumps(
             {
-                "generated_at": "2022-03-03 16:31:30.046504",
+                "report_meta": {
+                    "scan_target": "environment",
+                    "scanned": ["/usr/local/lib/python3.9/site-packages"],
+                    "api_key": True,
+                    "packages_found": 2,
+                    "timestamp": "2022-03-03 16:31:30",
+                    "safety_version": "2.0.0.dev6"},
                 "announcements": [],
                 "licenses": [
                     {
@@ -631,7 +652,7 @@ class TestSafety(unittest.TestCase):
 
     @patch.object(click, 'get_current_context', Mock())
     def test_report_with_recommended_fix(self):
-        REMEDIATIONS_WITH_FIX = {'django': {'vulns_found': 4, 'version': '4.0.1', 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
+        REMEDIATIONS_WITH_FIX = {'django': {'version': '4.0.1', 'vulns_found': 4, 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
                                             'closest_secure_version': {'major': parse('4.0.4'),
                                                                        'minor': None},
                                             'more_info_url': 'https://pyup.io/packages/pypi/django/'}}

@@ -46,7 +46,7 @@ class ScreenReport(FormatterAPI):
     def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
         announcements_section = self.__build_announcements_section(announcements)
         primary_announcement = get_primary_announcement(announcements)
-        report_brief_section = build_report_brief_section(primary_announcement=primary_announcement)
+        report_brief_section = build_report_brief_section(primary_announcement=primary_announcement, report_type=1)
         remediation_section = build_remediation_section(remediations)
         end_content = []
 
@@ -62,7 +62,7 @@ class ScreenReport(FormatterAPI):
             for n, vuln in enumerate(vulnerabilities):
                 if vuln.ignored:
                     total_ignored += 1
-                    ignored[vuln.name] = ignored.get(vuln.name, 0) + 1
+                    ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
                 table.append(format_vulnerability(vuln, full))
 
             final_brief = get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored)
@@ -95,7 +95,8 @@ class ScreenReport(FormatterAPI):
             )
 
     def render_licenses(self, announcements, licenses):
-        report_brief_section = build_report_brief_section(primary_announcement=get_primary_announcement(announcements))
+        report_brief_section = build_report_brief_section(primary_announcement=get_primary_announcement(announcements),
+                                                          report_type=2)
         announcements_section = self.__build_announcements_section(announcements)
 
         if not licenses:

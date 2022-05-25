@@ -13,11 +13,12 @@ announcement_nmt = namedtuple('Announcement', ['type', 'message'])
 remediation_nmt = namedtuple('Remediation', ['Package', 'closest_secure_version', 'secure_versions',
                                              'latest_package_version'])
 cve_nmt = namedtuple('Cve', ['name', 'cvssv2', 'cvssv3'])
+severity_nmt = namedtuple('Severity', ['source', 'cvssv2', 'cvssv3'])
 vulnerability_nmt = namedtuple('Vulnerability',
-                               ['name', 'pkg', 'ignored', 'reason', 'expires', 'vulnerable_spec',
-                                'all_vulnerable_specs', 'analyzed_version', 'advisory',
-                                'vulnerability_id', 'is_transitive', 'published_date', 'fixed_versions',
-                                'closest_versions_without_known_vulnerabilities', 'resources', 'CVE',
+                               ['vulnerability_id', 'package_name', 'pkg', 'ignored', 'ignored_reason', 'ignored_expires',
+                                'vulnerable_spec', 'all_vulnerable_specs', 'analyzed_version', 'advisory',
+                                'is_transitive', 'published_date', 'fixed_versions',
+                                'closest_versions_without_known_vulnerabilities', 'resources', 'CVE', 'severity',
                                 'affected_versions', 'more_info_url'])
 package_nmt = namedtuple('Package', ['name', 'version', 'found', 'insecure_versions', 'secure_versions',
                                      'latest_version_without_known_vulnerabilities', 'latest_version', 'more_info_url'])
@@ -65,6 +66,16 @@ class CVE(cve_nmt, DictConverter):
         return {'name': self.name, 'cvssv2': self.cvssv2, 'cvssv3': self.cvssv3}
 
 
+class Severity(severity_nmt, DictConverter):
+    def to_dict(self):
+        result = {'severity': {'source': self.source}}
+
+        result['severity']['cvssv2'] = self.cvssv2
+        result['severity']['cvssv3'] = self.cvssv3
+
+        return result
+
+
 class Vulnerability(vulnerability_nmt):
 
     def to_dict(self):
@@ -82,7 +93,10 @@ class Vulnerability(vulnerability_nmt):
                 value = []
 
             if isinstance(value, CVE):
-                result[field] = value.to_dict()
+                val = None
+                if value.name.startswith("CVE"):
+                    val = value.name
+                result[field] = val
             elif isinstance(value, DictConverter):
                 result.update(value.to_dict())
             elif isinstance(value, datetime):

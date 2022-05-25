@@ -4,7 +4,7 @@
 [![Travis](https://img.shields.io/travis/pyupio/safety.svg)](https://travis-ci.org/pyupio/safety)
 [![Updates](https://pyup.io/repos/github/pyupio/safety/shield.svg)](https://pyup.io/repos/github/pyupio/safety/)
 
-Safety checks your installed Python dependencies for known security vulnerabilities and suggests the proper remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and on production systems. 
+Safety checks your installed Python dependencies for known security vulnerabilities and suggests the proper remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and on production systems.
 
 By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db), which is **licensed for non-commercial use only**.
 
@@ -245,7 +245,7 @@ and displays a status on GitHub.
 
 # Using Safety in production
 
-Safety is free and open source (MIT Licensed). The data it relies on from the free Safety-db database is license for non-commercial use only, is limited and only updated once per month. 
+Safety is free and open source (MIT Licensed). The data it relies on from the free Safety-db database is license for non-commercial use only, is limited and only updated once per month.
 
 **All commercial projects and teams must sign up for a paid plan at [PyUp.io](https://pyup.io)**
 
@@ -299,13 +299,12 @@ safety check --output json
 ```
 ```json
 {
-    "generated_at": "2022-03-23 01:41:25.377184",
-    "report": {
+    "report_meta": {
         "scan_target": "environment",
         "scanned": [
             "/usr/local/lib/python3.9/site-packages"
         ],
-        "api_key_used": false,
+        "api_key": false,
         "packages_found": 1,
         "timestamp": "2022-03-23 01:41:25",
         "safety_version": "2.0.0.dev6"
@@ -393,16 +392,6 @@ cryptography django
 ```
 ___
 
-
-### `--cache`
-
-*Cache requests to the vulnerability database locally for 2 hours.*
-
-**Example**
-```bash
-safety check --cache
-```
-___
 
 ### `--stdin`
 
@@ -540,16 +529,6 @@ ___
 **Example**
 ```bash
 safety license --key=12345-ABCDEFGH --db /home/safety-db/data
-```
-___
-
-### `--no-cache`
-
-*Since PyUp.io licenses DB is updated once a week, the licenses database is cached locally for 7 days. You can use `--no-cache` to download it once again.*
-
-**Example**
-```bash
-safety license --key=12345-ABCDEFGH --no-cache
 ```
 ___
 

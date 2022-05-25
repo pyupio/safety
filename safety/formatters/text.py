@@ -70,7 +70,7 @@ class TextReport(FormatterAPI):
             for n, vuln in enumerate(vulnerabilities):
                 if vuln.ignored:
                     total_ignored += 1
-                    ignored[vuln.name] = ignored.get(vuln.name, 0) + 1
+                    ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
                 table.append('\n' + format_vulnerability(vuln, full, only_text=True, columns=80))
 
             final_brief = click.unstyle(get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored,

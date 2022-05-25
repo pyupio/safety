@@ -79,7 +79,10 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     cve = vulnerability.CVE
 
     cvssv2_line = None
-    if full_mode and cve.cvssv2:
+    cve_lines = []
+
+    if cve:
+        if full_mode and cve.cvssv2:
             b = cve.cvssv2.get("base_score", "-")
             s = cve.cvssv2.get("impact_score", "-")
             v = cve.cvssv2.get("vector_string", "-")
@@ -88,39 +91,39 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
                 {'value': f'CVSS v2, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'},
             ]}
 
-    if cve.cvssv3 and "base_severity" in cve.cvssv3.keys():
-        cvss_base_severity_style = {'bold': True}
-        base_severity = cve.cvssv3.get("base_severity", "-")
+        if cve.cvssv3 and "base_severity" in cve.cvssv3.keys():
+            cvss_base_severity_style = {'bold': True}
+            base_severity = cve.cvssv3.get("base_severity", "-")
 
-        if base_severity.upper() in ['HIGH', 'CRITICAL']:
-            cvss_base_severity_style['fg'] = 'red'
+            if base_severity.upper() in ['HIGH', 'CRITICAL']:
+                cvss_base_severity_style['fg'] = 'red'
 
-        b = cve.cvssv3.get("base_score", "-")
+            b = cve.cvssv3.get("base_score", "-")
 
-        if full_mode:
-            s = cve.cvssv3.get("impact_score", "-")
-            v = cve.cvssv3.get("vector_string", "-")
+            if full_mode:
+                s = cve.cvssv3.get("impact_score", "-")
+                v = cve.cvssv3.get("vector_string", "-")
 
-            cvssv3_text = f'CVSS v3, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'
+                cvssv3_text = f'CVSS v3, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'
 
-        else:
-            cvssv3_text = f'CVSS v3, BASE SCORE {b} '
+            else:
+                cvssv3_text = f'CVSS v3, BASE SCORE {b} '
 
-        cve_lines = [
-            {'words': [{'style': {'bold': True}, 'value': '{0} is '.format(cve.name)},
-                       {'style': cvss_base_severity_style,
-                        'value': f'{base_severity} SEVERITY => '},
-                       {'value': cvssv3_text},
-                       ]},
-        ]
+            cve_lines = [
+                {'words': [{'style': {'bold': True}, 'value': '{0} is '.format(cve.name)},
+                           {'style': cvss_base_severity_style,
+                            'value': f'{base_severity} SEVERITY => '},
+                           {'value': cvssv3_text},
+                           ]},
+            ]
 
-        if cvssv2_line:
-            cve_lines.append(cvssv2_line)
+            if cvssv2_line:
+                cve_lines.append(cvssv2_line)
 
-    elif cve.name:
-        cve_lines = [
-            {'words': [{'style': {'bold': True}, 'value': cve.name}]}
-        ]
+        elif cve.name:
+            cve_lines = [
+                {'words': [{'style': {'bold': True}, 'value': cve.name}]}
+            ]
 
     advisory_format = {'max_lines': None} if full_mode else {'max_lines': 2}
 
@@ -141,7 +144,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     more_info_line = [{'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
                        {'value': click.style(vulnerability.more_info_url)}]}]
 
-    vuln_title = '-> Vulnerability found in {0} version {1}\n'.format(vulnerability.name,
+    vuln_title = '-> Vulnerability found in {0} version {1}\n'.format(vulnerability.package_name,
                                                                       vulnerability.analyzed_version)
 
     styled_text = click.style(vuln_title, fg='red')
@@ -152,14 +155,15 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
         to_print += vulnerability_spec + basic_vuln_data_lines + cve_lines
     else:
         generic_reason = 'This vulnerability is being ignored'
-        if vulnerability.expires:
+        if vulnerability.ignored_expires:
             expires = ' until {0}. See your configurations'.format(
-                vulnerability.expires.strftime('%Y-%m-%d %H:%M:%S UTC'))
+                vulnerability.ignored_expires.strftime('%Y-%m-%d %H:%M:%S UTC'))
             generic_reason += expires
 
         specific_reason = None
-        if vulnerability.reason:
-            specific_reason = [{'words': [{'style': {'bold': True}, 'value': 'Reason: '}, {'value': vulnerability.reason}]}]
+        if vulnerability.ignored_reason:
+            specific_reason = [
+                {'words': [{'style': {'bold': True}, 'value': 'Reason: '}, {'value': vulnerability.ignored_reason}]}]
 
         expire_section = [{'words': [
             {'style': {'bold': True, 'fg': 'green'}, 'value': '{0}.'.format(generic_reason)}, ]}]
@@ -392,7 +396,7 @@ def get_printable_list_of_scanned_items(scanning_target):
 REPORT_HEADING = format_long_text(click.style('REPORT', bold=True))
 
 
-def build_report_brief_section(columns=None, primary_announcement=None):
+def build_report_brief_section(columns=None, primary_announcement=None, report_type=1):
     if not columns:
         columns = shutil.get_terminal_size().columns
 
@@ -402,7 +406,7 @@ def build_report_brief_section(columns=None, primary_announcement=None):
         styled_brief_lines.append(
             build_primary_announcement(columns=columns, primary_announcement=primary_announcement))
 
-    for line in get_report_brief_info():
+    for line in get_report_brief_info(report_type=1):
         ln = ''
         for words in line:
             processed_words = words.get('value', '')
@@ -424,7 +428,7 @@ def build_report_for_review_vuln_report(as_dict=False):
     if as_dict:
         return report_from_file
 
-    policy_f_name = report_from_file.get('policy_file_use', None)
+    policy_f_name = report_from_file.get('policy_file', None)
     safety_policy_used = []
     if policy_f_name:
         safety_policy_used = [
@@ -444,7 +448,7 @@ def build_report_for_review_vuln_report(as_dict=False):
         scanned_items.append([{'styled': False, 'value': '-> ' + name}])
 
     nl = [{'style': False, 'value': ''}]
-    using_sentence = build_using_sentence(report_from_file.get('api_key_used', None),
+    using_sentence = build_using_sentence(report_from_file.get('api_key', None),
                                           report_from_file.get('local_database_path_used', None))
     scanned_count_sentence = build_scanned_count_sentence(packages)
     old_timestamp = report_from_file.get('timestamp', None)
@@ -508,7 +512,7 @@ def add_warnings_if_needed(brief_info):
         brief_info += [[{'style': False, 'value': ''}]] + warnings
 
 
-def get_report_brief_info(as_dict=False):
+def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     context = click.get_current_context()
 
     packages = [pkg for pkg in context.obj if isinstance(pkg, Package)]
@@ -545,28 +549,35 @@ def get_report_brief_info(as_dict=False):
         {'style': True, 'value': scanning_target + ':'},
         ]
 
-    policy_file = context.params.get('policy_file', False)
+    policy_file = context.params.get('policy_file', None)
     safety_policy_used = []
+
+    brief_data['policy_file'] = policy_file.get('filename', '-') if policy_file else None
+
     if policy_file and policy_file.get('filename', False):
-        brief_data['policy_file_use'] = policy_file.get('filename', '-')
         safety_policy_used = [
             {'style': False, 'value': '\nScanning using a security policy file'},
             {'style': True, 'value': ' {0}'.format(policy_file.get('filename', '-'))},
         ]
 
-    brief_data['api_key_used'] = bool(key)
+    current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+    brief_data['api_key'] = bool(key)
+    brief_data['local_database_path'] = db if db else None
+    brief_data['safety_version'] = get_safety_version()
+    brief_data['timestamp'] = current_time
     brief_data['packages_found'] = len(packages)
+    # Vuln report
+    if report_type == 1:
+        brief_data['vulnerabilities_found'] = kwargs.get('vulnerabilities_found', 0)
+        brief_data['vulnerabilities_ignored'] = kwargs.get('vulnerabilities_ignored', 0)
+        brief_data['remediations_suggested'] = kwargs.get('remediations_suggested', 0)
 
     using_sentence = build_using_sentence(key, db)
-    brief_data['local_database_path_used'] = db if db else None
-    current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    brief_data['timestamp'] = current_time
-
     scanned_count_sentence = build_scanned_count_sentence(packages)
 
     timestamp = [{'style': False, 'value': 'Timestamp '}, {'style': True, 'value': current_time}]
 
-    brief_data['safety_version'] = get_safety_version()
     brief_info = [[{'style': False, 'value': 'Safety '},
      {'style': True, 'value': 'v' + get_safety_version()},
      {'style': False, 'value': ' is scanning for '},
@@ -589,7 +600,7 @@ def build_primary_announcement(primary_announcement, columns=None, only_text=Fal
 
 def is_using_api_key():
     context = click.get_current_context()
-    review_used_api_key = context.review.get('api_key_used', False) if hasattr(context,
+    review_used_api_key = context.review.get('api_key', False) if hasattr(context,
                                                                                'review') and context.review else False
     return bool(context.params.get('key', None)) or review_used_api_key
 

@@ -144,8 +144,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     more_info_line = [{'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
                        {'value': click.style(vulnerability.more_info_url)}]}]
 
-    vuln_title = '-> Vulnerability found in {0} version {1}\n'.format(vulnerability.package_name,
-                                                                      vulnerability.analyzed_version)
+    vuln_title = f'-> Vulnerability found in {vulnerability.package_name} version {vulnerability.analyzed_version}\n'
 
     styled_text = click.style(vuln_title, fg='red')
 
@@ -156,9 +155,8 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     else:
         generic_reason = 'This vulnerability is being ignored'
         if vulnerability.ignored_expires:
-            expires = ' until {0}. See your configurations'.format(
-                vulnerability.ignored_expires.strftime('%Y-%m-%d %H:%M:%S UTC'))
-            generic_reason += expires
+            generic_reason += f" until {vulnerability.ignored_expires.strftime('%Y-%m-%d %H:%M:%S UTC')}. " \
+                              f"See your configurations"
 
         specific_reason = None
         if vulnerability.ignored_reason:
@@ -166,7 +164,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
                 {'words': [{'style': {'bold': True}, 'value': 'Reason: '}, {'value': vulnerability.ignored_reason}]}]
 
         expire_section = [{'words': [
-            {'style': {'bold': True, 'fg': 'green'}, 'value': '{0}.'.format(generic_reason)}, ]}]
+            {'style': {'bold': True, 'fg': 'green'}, 'value': f'{generic_reason}.'}, ]}]
 
         if specific_reason:
             expire_section += specific_reason
@@ -175,7 +173,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
     to_print += more_info_line
 
-    content = style_lines(to_print, columns, styled_text, start_line=' ' * 3)
+    content = style_lines(to_print, columns, styled_text, start_line=' ' * 3, end_line='')
 
     return click.unstyle(content) if only_text else content
 
@@ -336,17 +334,14 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
         wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, placeholder='...')
         for wrapped_line in wrapped_lines:
             try:
-                new_line = base_format.format(left_padding + wrapped_line.encode('utf-8'))
+                new_line = left_padding + wrapped_line.encode('utf-8')
             except TypeError:
-                new_line = base_format.format(left_padding + wrapped_line)
+                new_line = left_padding + wrapped_line
 
             if styling:
                 new_line = click.style(new_line, **styling)
 
-            inner_content = base_format.format(new_line)
-
-            formatted_lines.append(
-                "{0}{1}{2}".format(start_line_decorator, inner_content, end_line_decorator))
+            formatted_lines.append(f"{start_line_decorator}{new_line}{end_line_decorator}")
 
     return "\n".join(formatted_lines)
 
@@ -382,12 +377,12 @@ def get_printable_list_of_scanned_items(scanning_target):
 
     elif scanning_target == 'files':
         for file in context.params.get('files', []):
-            result.append([{'styled': False, 'value': '-> ' + file.name}])
+            result.append([{'styled': False, 'value': f'-> {file.name}'}])
             scanned_items_data.append(file.name)
     elif scanning_target == 'file':
         file = context.params.get('file', None)
         name = file.name if file else ''
-        result.append([{'styled': False, 'value': '-> ' + name}])
+        result.append([{'styled': False, 'value': f'-> {name}'}])
         scanned_items_data.append(name)
 
     return result, scanned_items_data

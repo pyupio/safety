@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
+import json
 import logging
+import os
 import sys
 
 import click
 
 from safety import safety
-from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK
+from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
 from safety.errors import SafetyException, SafetyError
 from safety.formatter import SafetyFormatter
 from safety.output_utils import should_add_nl
@@ -205,6 +207,74 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
     output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
 
     click.secho(output_report, nl=True)
+
+
+@cli.command()
+@click.option("--path", default=".", help="Path where the generated file will be saved. Default: current directory")
+@click.argument('name')
+@click.pass_context
+def generate(ctx, name, path):
+    """create a basic supported file type.
+
+    NAME is the name of the file type to generate. Valid values are: policy_file
+    """
+    if name != 'policy_file':
+        click.secho(f'This Safety version only supports "policy_file" generation. "{name}" is not supported.', fg='red',
+                    file=sys.stderr)
+        sys.exit(EXIT_CODE_FAILURE)
+
+    LOG.info('Running generate %s', name)
+
+    if not os.path.exists(path):
+        click.secho(f'The path "{path}" does not exist.', fg='red',
+                    file=sys.stderr)
+        sys.exit(EXIT_CODE_FAILURE)
+
+    policy = os.path.join(path, '.safety-policy.yml')
+    ROOT = os.path.dirname(os.path.abspath(__file__))
+
+    try:
+        with open(policy, "w") as f:
+            f.write(open(os.path.join(ROOT, 'safety-policy-template.yml')).read())
+            LOG.debug('Safety created the policy file.')
+            msg = f'A default Safety policy file has been generated! Review the file contents in the path {path} in the ' \
+                  'file: .safety_policy.yml'
+            click.secho(msg, fg='green')
+    except OSError as exc:
+        LOG.debug('Unable to generate %s because: %s', name, exc.errno)
+        click.secho(f'Unable to generate {name}, because: {str(exc)} error.', fg='red',
+                    file=sys.stderr)
+        sys.exit(EXIT_CODE_FAILURE)
+
+
+@cli.command()
+@click.option("--path", default=".", help="Path where the generated file will be saved. Default: current directory")
+@click.argument('name')
+@click.pass_context
+def validate(ctx, name, path):
+    """verify a supported file type.
+
+    NAME is the name of the file type to validate. Valid values are: policy_file
+    """
+    if name != 'policy_file':
+        click.secho(f'This Safety version only supports "policy_file" validation. "{name}" is not supported.', fg='red',
+                    file=sys.stderr)
+        sys.exit(EXIT_CODE_FAILURE)
+
+    LOG.info('Running validate %s', name)
+
+    if not os.path.exists(path):
+        click.secho(f'The path "{path}" does not exist.', fg='red', file=sys.stderr)
+        sys.exit(EXIT_CODE_FAILURE)
+
+    try:
+        values = SafetyPolicyFile().convert(path, None, None)
+    except Exception as e:
+        click.secho(str(e).lstrip(), fg='red', file=sys.stderr)
+        sys.exit(EXIT_CODE_FAILURE)
+
+    click.secho(f'The Safety policy file was successfully parsed with the following values:', fg='green')
+    click.secho(json.dumps(values, indent=4, default=str))
 
 
 if __name__ == "__main__":

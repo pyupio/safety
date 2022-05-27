@@ -4,9 +4,11 @@ from datetime import datetime
 from unittest.mock import Mock, patch
 
 import click
+from packaging.version import parse
 
 from safety.models import Package
-from safety.output_utils import format_vulnerability, get_printable_list_of_scanned_items
+from safety.output_utils import format_vulnerability, get_printable_list_of_scanned_items, build_remediation_section, \
+    get_final_brief_license
 from tests.test_cli import get_vulnerability
 
 
@@ -189,4 +191,59 @@ class TestOutputUtils(unittest.TestCase):
             [report.name])
 
         self.assertTupleEqual(output, EXPECTED)
+
+    @patch("safety.output_utils.is_using_api_key")
+    def test_build_remediation_section_with_api_key(self, is_using_api_key):
+        is_using_api_key.return_value = True
+
+        remediations = {
+            'django': {'vulns_found': 1, 'version': '4.0.1', 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
+                       'closest_secure_version': {'major': parse('4.0.4'),
+                                                  'minor': None},
+                       'more_info_url': 'https://pyup.io/packages/pypi/django/'}}
+
+        EXPECTED = ['   REMEDIATIONS ',
+                    '\n-> django version 4.0.1 was found, which has 1 vulnerability '
+                    '\n   The closest version with no known vulnerabilities is 4.0.4 '
+                    '\n                                                                              '
+                    '\n   We recommend upgrading to version 4.0.4 of django. Other versions '
+                    '\n   without known vulnerabilities are: 2.2.28, 3.2.13 '
+                    '\n   For more information, please visit https://pyup.io/packages/pypi/django/ '
+                    '\n   Always check for breaking changes when upgrading packages. '
+                    '\n                                                                              ',
+                    '+==============================================================================+']
+
+        rem_text_section = build_remediation_section(remediations=remediations, only_text=True, columns=80)
+        self.assertEqual(rem_text_section, EXPECTED)
+
+    @patch("safety.output_utils.is_using_api_key")
+    def test_build_remediation_section_without_api_key(self, is_using_api_key):
+        is_using_api_key.return_value = False
+
+        remediations = {
+            'django': {'vulns_found': 1, 'version': '4.0.1', 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
+                       'closest_secure_version': {'major': parse('4.0.4'),
+                                                  'minor': None},
+                       'more_info_url': 'https://pyup.io/packages/pypi/django/'}}
+
+        # Start & End line decorator in format_long_text affects this output
+        EXPECTED = ['   REMEDIATIONS ',
+                    '\n  1 vulnerability was found in 1 package. For detailed remediation & fix \n'
+                    '  recommendations, upgrade to a commercial license. \n',
+                    '+==============================================================================+']
+
+        rem_text_section = build_remediation_section(remediations=remediations, only_text=True, columns=80)
+
+        self.assertEqual(rem_text_section, EXPECTED)
+
+    def test_get_final_brief_license(self):
+        licenses = set(["MIT"])
+        EXPECTED = f' The following software licenses were present in your system: {", ".join(licenses)} '
+        brief = get_final_brief_license(licenses)
+        self.assertEqual(EXPECTED, brief)
+
+        licenses = set([])
+        EXPECTED = '  Scan was completed. '
+        brief = get_final_brief_license(licenses)
+        self.assertEqual(EXPECTED, brief)
 

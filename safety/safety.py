@@ -14,7 +14,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version, LegacyVersion, parse
 
-from .constants import (API_MIRRORS, CACHE_FILE, CACHE_LICENSES_VALID_SECONDS, CACHE_VALID_SECONDS, OPEN_MIRRORS,
+from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS,
                         REQUEST_TIMEOUT, API_BASE_URL)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
@@ -185,7 +185,8 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
                                  latest_version=latest_version,
                                  more_info_url=f"{base_domain}{pkg_meta.get('more_info_path', '')}")
 
-    ignored = (vuln_id in ignore_vulns and (not ignore_vulns[vuln_id]['expires'] or ignore_vulns[vuln_id]['expires'] > datetime.utcnow()))
+    ignored = (ignore_vulns and vuln_id in ignore_vulns and (
+            not ignore_vulns[vuln_id]['expires'] or ignore_vulns[vuln_id]['expires'] > datetime.utcnow()))
     more_info_url = f"{base_domain}{data.get('more_info_path', '')}"
     severity = None
 
@@ -197,8 +198,8 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
         package_name=name,
         pkg=pkg_refreshed,
         ignored=ignored,
-        ignored_reason=ignore_vulns.get(vuln_id, {}).get('reason', None),
-        ignored_expires=ignore_vulns.get(vuln_id, {}).get('expires', None),
+        ignored_reason=ignore_vulns.get(vuln_id, {}).get('reason', None) if ignore_vulns else None,
+        ignored_expires=ignore_vulns.get(vuln_id, {}).get('expires', None) if ignore_vulns else None,
         vulnerable_spec=specifier,
         all_vulnerable_specs=data.get("specs", []),
         analyzed_version=pkg_refreshed.version,
@@ -458,7 +459,7 @@ def get_announcements(key, proxy, telemetry=True):
     if key:
         headers["X-Api-Key"] = key
 
-    url = "{API_BASE_URL}{endpoint}".format(API_BASE_URL=API_BASE_URL, endpoint='announcements/')
+    url = f"{API_BASE_URL}announcements/"
 
     LOG.debug(f'Telemetry body sent: {body}')
 

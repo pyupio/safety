@@ -6,7 +6,16 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
-## [Unreleased] 2.0b2.dev
+## [2.0b2] - 2022-05-27
+
+### Summary:
+- This version of Safety is not stable; it is only a beta, pre-release version.
+- Compared to previous versions, Safety 2.0 will be a significant update that includes new features and refactors, resulting in breaking changes to some inputs and outputs.
+- Improved grammar and formatting in the whole code
+- Improved the exception handling in the .yml policy file parsing
+- Improved the JSON output following the customers/users feedback - (This is a breaking change between beta releases)
+- Added the generate command
+- Added the validate command
 
 ## [2.0b1] - 2022-05-08
 

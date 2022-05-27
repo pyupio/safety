@@ -226,7 +226,10 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
 
         if other_options:
             raw_other_options = ', '.join(other_options)
-            raw_recommendation = f"{raw_recommendation} Other versions without known vulnerabilities are: " \
+            raw_pre_other_options = 'Other versions without known vulnerabilities are:'
+            if len(other_options) == 1:
+                raw_pre_other_options = 'Other version without known vulnerabilities is'
+            raw_recommendation = f"{raw_recommendation} {raw_pre_other_options} " \
                                  f"{raw_other_options}"
 
         remediation_content = [
@@ -264,10 +267,10 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     body = [content]
 
     if not is_using_api_key():
-        vuln_text = 'vulnerabilities were' if total_vulns > 1 else 'vulnerability was'
+        vuln_text = 'vulnerabilities were' if total_vulns != 1 else 'vulnerability was'
         pkg_text = 'packages' if total_packages > 1 else 'package'
         msg = "{0} {1} found in {2} {3}. " \
-              "For detailed remediation & fix suggestions, upgrade to a commercial license."\
+              "For detailed remediation & fix recommendations, upgrade to a commercial license."\
             .format(total_vulns, vuln_text, total_packages, pkg_text)
         content = '\n' + format_long_text(msg, left_padding=' ', columns=columns) + '\n'
         body = [content]
@@ -296,7 +299,7 @@ def get_final_brief(total_vulns_found, total_remediations, ignored, total_ignore
     vuln_brief = f" {total_vulns} vulnerabilit{'y was' if total_vulns == 1 else 'ies were'} found."
     ignored_text = f' {total_ignored} {vuln_text} from {len(ignored.keys())} {pkg_text} ignored.' if ignored else ''
     remediation_text = f" {total_remediations} remediation{' was' if total_remediations == 1 else 's were'} " \
-                       f"suggested." if is_using_api_key() else ''
+                       f"recommended." if is_using_api_key() else ''
 
     raw_brief = f"Scan was completed{policy_file_text}.{vuln_brief}{ignored_text}{remediation_text}"
 
@@ -391,7 +394,7 @@ def get_printable_list_of_scanned_items(scanning_target):
 REPORT_HEADING = format_long_text(click.style('REPORT', bold=True))
 
 
-def build_report_brief_section(columns=None, primary_announcement=None, report_type=1):
+def build_report_brief_section(columns=None, primary_announcement=None, report_type=1, **kwargs):
     if not columns:
         columns = shutil.get_terminal_size().columns
 
@@ -401,7 +404,7 @@ def build_report_brief_section(columns=None, primary_announcement=None, report_t
         styled_brief_lines.append(
             build_primary_announcement(columns=columns, primary_announcement=primary_announcement))
 
-    for line in get_report_brief_info(report_type=1):
+    for line in get_report_brief_info(report_type=report_type, **kwargs):
         ln = ''
         for words in line:
             processed_words = words.get('value', '')
@@ -563,10 +566,32 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['timestamp'] = current_time
     brief_data['packages_found'] = len(packages)
     # Vuln report
+    additional_data = []
     if report_type == 1:
         brief_data['vulnerabilities_found'] = kwargs.get('vulnerabilities_found', 0)
         brief_data['vulnerabilities_ignored'] = kwargs.get('vulnerabilities_ignored', 0)
-        brief_data['remediations_suggested'] = kwargs.get('remediations_suggested', 0)
+        brief_data['remediations_recommended'] = 0
+
+        additional_data = [
+            [{'style': True, 'value': str(brief_data['vulnerabilities_found'])},
+             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_found"] == 1 else "ies"} found'}],
+            [{'style': True, 'value': str(brief_data['vulnerabilities_ignored'])},
+             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_ignored"] == 1 else "ies"} ignored'}],
+        ]
+
+        if is_using_api_key():
+            brief_data['remediations_recommended'] = kwargs.get('remediations_recommended', 0)
+            additional_data.extend(
+                [{'style': True, 'value': str(brief_data['remediations_recommended'])},
+                 {'style': True, 'value':
+                     f' remediation{"" if brief_data["remediations_recommended"] == 1 else "s"} recommended'}])
+
+    elif report_type == 2:
+        brief_data['licenses_found'] = kwargs.get('licenses_found', 0)
+        additional_data = [
+            [{'style': True, 'value': str(brief_data['licenses_found'])},
+             {'style': True, 'value': f' license {"type" if brief_data["licenses_found"] == 1 else "types"} found'}],
+        ]
 
     using_sentence = build_using_sentence(key, db)
     scanned_count_sentence = build_scanned_count_sentence(packages)
@@ -580,6 +605,8 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
      {'style': True, 'value': '...'}] + safety_policy_used, action_executed
      ] + [nl] + scanned_items + [nl] + [using_sentence] + [scanned_count_sentence] + [timestamp]
 
+    brief_info.extend(additional_data)
+
     add_warnings_if_needed(brief_info)
 
     return brief_data if as_dict else brief_info
@@ -587,6 +614,15 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
 
 def build_primary_announcement(primary_announcement, columns=None, only_text=False):
     lines = json.loads(primary_announcement.get('message'))
+
+    for line in lines:
+        if 'words' not in line:
+            raise ValueError('Missing words keyword')
+        if len(line['words']) <= 0:
+            raise ValueError('No words in this line')
+        for word in line['words']:
+            if 'value' not in word or not word['value']:
+                raise ValueError('Empty word or without value')
 
     message = style_lines(lines, columns - 2, start_line=' ' * 2)
 
@@ -596,7 +632,7 @@ def build_primary_announcement(primary_announcement, columns=None, only_text=Fal
 def is_using_api_key():
     context = click.get_current_context()
     review_used_api_key = context.review.get('api_key', False) if hasattr(context,
-                                                                               'review') and context.review else False
+                                                                          'review') and context.review else False
     return bool(context.params.get('key', None)) or review_used_api_key
 
 

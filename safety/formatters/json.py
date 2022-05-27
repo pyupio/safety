@@ -21,7 +21,7 @@ class JsonReport(FormatterAPI):
 
         report = get_report_brief_info(as_dict=True, report_type=1, vulnerabilities_found=len(vulns),
                                        vulnerabilities_ignored=len(vulns_ignored),
-                                       remediations_suggested=remediations_recommended)
+                                       remediations_recommended=remediations_recommended)
 
         remed = {}
         for k, v in remediations.items():
@@ -60,7 +60,8 @@ class JsonReport(FormatterAPI):
         return json_parser.dumps(template, indent=4)
 
     def render_licenses(self, announcements, licenses):
-        report = get_report_brief_info(as_dict=True, report_type=2)
+        unique_license_types = set([lic['license'] for lic in licenses])
+        report = get_report_brief_info(as_dict=True, report_type=2, licenses_found=len(unique_license_types))
 
         template = {
             "report_meta": report,

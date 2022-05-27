@@ -15,10 +15,6 @@ API_MIRRORS = [
 
 REQUEST_TIMEOUT = 5
 
-CACHE_VALID_SECONDS = 0
-
-CACHE_LICENSES_VALID_SECONDS = 0
-
 CACHE_FILE = os.path.join(
     os.path.expanduser("~"),
     ".safety",

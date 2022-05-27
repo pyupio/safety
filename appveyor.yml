@@ -9,6 +9,7 @@ skip_branch_with_pr: true
 branches:
   only:
     - master
+    - develop
     - appveyor-fixes
     - /^\d+\.\d+(\.\d+)?((a|b|rc)?\d+)?$/
 
@@ -61,4 +62,5 @@ deploy:
     auth_token:
       secure: FQDI6RodnfAg03naBo+mYvDjtNmLhDSH5d11mQPrAns7Cj83JZWpQc36GsOcW+JM
     on:
+      branch: master
       APPVEYOR_REPO_TAG: true

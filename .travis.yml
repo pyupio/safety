@@ -11,6 +11,7 @@ env:
 branches:
   only:
   - master
+  - develop
   - /^\d+\.\d+(\.\d+)?((a|b|rc)?\d+)?$/
 
 language: python

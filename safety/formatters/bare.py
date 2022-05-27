@@ -17,7 +17,7 @@ class BareReport(FormatterAPI):
             parsed_announcements.append(Announcement(name=normalized_message))
 
         announcements_to_render = [announcement.name for announcement in parsed_announcements]
-        affected_packages = list(set([v.name for v in vulnerabilities if not v.ignored]))
+        affected_packages = list(set([v.package_name for v in vulnerabilities if not v.ignored]))
 
         return " ".join(announcements_to_render + affected_packages)
 

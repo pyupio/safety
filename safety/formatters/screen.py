@@ -46,7 +46,6 @@ class ScreenReport(FormatterAPI):
     def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
         announcements_section = self.__build_announcements_section(announcements)
         primary_announcement = get_primary_announcement(announcements)
-        report_brief_section = build_report_brief_section(primary_announcement=primary_announcement)
         remediation_section = build_remediation_section(remediations)
         end_content = []
 
@@ -55,17 +54,24 @@ class ScreenReport(FormatterAPI):
                            build_primary_announcement(primary_announcement, columns=shutil.get_terminal_size().columns),
                            self.DIVIDER_SECTIONS]
 
-        if vulnerabilities:
-            table = []
-            ignored = {}
-            total_ignored = 0
-            for n, vuln in enumerate(vulnerabilities):
-                if vuln.ignored:
-                    total_ignored += 1
-                    ignored[vuln.name] = ignored.get(vuln.name, 0) + 1
-                table.append(format_vulnerability(vuln, full))
+        table = []
+        ignored = {}
+        total_ignored = 0
 
-            final_brief = get_final_brief(ignored, total_ignored)
+        for n, vuln in enumerate(vulnerabilities):
+            if vuln.ignored:
+                total_ignored += 1
+                ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
+            table.append(format_vulnerability(vuln, full))
+
+        report_brief_section = build_report_brief_section(primary_announcement=primary_announcement, report_type=1,
+                                                          vulnerabilities_found=max(0, len(vulnerabilities)-total_ignored),
+                                                          vulnerabilities_ignored=total_ignored,
+                                                          remediations_recommended=len(remediations))
+
+        if vulnerabilities:
+
+            final_brief = get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored)
 
             return "\n".join(
                 [ScreenReport.REPORT_BANNER] + announcements_section + [report_brief_section,
@@ -76,7 +82,7 @@ class ScreenReport(FormatterAPI):
                                                                                         bold=True, fg='red')),
                                                                         self.DIVIDER_SECTIONS,
                                                                         add_empty_line(),
-                                                                        "\n\n\n".join(table),
+                                                                        "\n\n".join(table),
                                                                         final_brief,
                                                                         add_empty_line(),
                                                                         self.DIVIDER_SECTIONS] +
@@ -95,7 +101,10 @@ class ScreenReport(FormatterAPI):
             )
 
     def render_licenses(self, announcements, licenses):
-        report_brief_section = build_report_brief_section(primary_announcement=get_primary_announcement(announcements))
+        unique_license_types = set([lic['license'] for lic in licenses])
+
+        report_brief_section = build_report_brief_section(primary_announcement=get_primary_announcement(announcements),
+                                                          report_type=2, licenses_found=len(unique_license_types))
         announcements_section = self.__build_announcements_section(announcements)
 
         if not licenses:
@@ -113,7 +122,7 @@ class ScreenReport(FormatterAPI):
         for license in licenses:
             table.append(format_license(license))
 
-        final_brief = get_final_brief_license(set([lic['license'] for lic in licenses]))
+        final_brief = get_final_brief_license(unique_license_types)
 
         return "\n".join(
             [ScreenReport.REPORT_BANNER] + announcements_section + [report_brief_section,

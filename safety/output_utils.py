@@ -78,8 +78,11 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
     cve = vulnerability.CVE
 
-    cvssv2_line = {}
-    if full_mode and cve.cvssv2:
+    cvssv2_line = None
+    cve_lines = []
+
+    if cve:
+        if full_mode and cve.cvssv2:
             b = cve.cvssv2.get("base_score", "-")
             s = cve.cvssv2.get("impact_score", "-")
             v = cve.cvssv2.get("vector_string", "-")
@@ -88,55 +91,60 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
                 {'value': f'CVSS v2, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'},
             ]}
 
-    if cve.cvssv3 and "base_severity" in cve.cvssv3.keys():
-        cvss_base_severity_style = {'bold': True}
-        base_severity = cve.cvssv3.get("base_severity", "-")
+        if cve.cvssv3 and "base_severity" in cve.cvssv3.keys():
+            cvss_base_severity_style = {'bold': True}
+            base_severity = cve.cvssv3.get("base_severity", "-")
 
-        if base_severity.upper() in ['HIGH', 'CRITICAL']:
-            cvss_base_severity_style['fg'] = 'red'
+            if base_severity.upper() in ['HIGH', 'CRITICAL']:
+                cvss_base_severity_style['fg'] = 'red'
 
-        b = cve.cvssv3.get("base_score", "-")
+            b = cve.cvssv3.get("base_score", "-")
 
-        if full_mode:
-            s = cve.cvssv3.get("impact_score", "-")
-            v = cve.cvssv3.get("vector_string", "-")
+            if full_mode:
+                s = cve.cvssv3.get("impact_score", "-")
+                v = cve.cvssv3.get("vector_string", "-")
 
-            cvssv3_text = f'CVSS v3, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'
+                cvssv3_text = f'CVSS v3, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'
 
-        else:
-            cvssv3_text = f'CVSS v3, BASE SCORE {b} '
+            else:
+                cvssv3_text = f'CVSS v3, BASE SCORE {b} '
 
-        cve_lines = [
-            {'words': [{'style': {'bold': True}, 'value': '{0} is '.format(cve.name)},
-                       {'style': cvss_base_severity_style,
-                        'value': f'{base_severity} SEVERITY => '},
-                       {'value': cvssv3_text},
-                       ]},
-            cvssv2_line
-        ]
+            cve_lines = [
+                {'words': [{'style': {'bold': True}, 'value': '{0} is '.format(cve.name)},
+                           {'style': cvss_base_severity_style,
+                            'value': f'{base_severity} SEVERITY => '},
+                           {'value': cvssv3_text},
+                           ]},
+            ]
 
-    elif cve.name:
-        cve_lines = [
-            {'words': [{'style': {'bold': True}, 'value': cve.name + '\n'}]}
-        ]
+            if cvssv2_line:
+                cve_lines.append(cvssv2_line)
+
+        elif cve.name:
+            cve_lines = [
+                {'words': [{'style': {'bold': True}, 'value': cve.name}]}
+            ]
 
     advisory_format = {'max_lines': None} if full_mode else {'max_lines': 2}
 
     basic_vuln_data_lines = [
         {'format': advisory_format, 'words': [
             {'style': {'bold': True}, 'value': 'ADVISORY: '},
-            {'value': vulnerability.advisory.replace('\n', '')}]},
-        {'words': [
-            {'style': {'bold': True}, 'value': 'Fixed versions: '},
-            {'value': ', '.join(vulnerability.fixed_versions) if vulnerability.fixed_versions else 'None'}
-        ]},
+            {'value': vulnerability.advisory.replace('\n', '')}]}
     ]
+
+    if click.get_current_context().params.get('key', False):
+        fixed_version_line = {'words': [
+            {'style': {'bold': True}, 'value': 'Fixed versions: '},
+            {'value': ', '.join(vulnerability.fixed_versions) if vulnerability.fixed_versions else 'No known fix'}
+        ]}
+
+        basic_vuln_data_lines.append(fixed_version_line)
 
     more_info_line = [{'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
                        {'value': click.style(vulnerability.more_info_url)}]}]
 
-    vuln_title = '-> Vulnerability found in {0} version {1}\n'.format(vulnerability.name,
-                                                                      vulnerability.analyzed_version)
+    vuln_title = f'-> Vulnerability found in {vulnerability.package_name} version {vulnerability.analyzed_version}\n'
 
     styled_text = click.style(vuln_title, fg='red')
 
@@ -146,22 +154,26 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
         to_print += vulnerability_spec + basic_vuln_data_lines + cve_lines
     else:
         generic_reason = 'This vulnerability is being ignored'
-        if vulnerability.expires:
-            expires = ' until {0}. See your configurations'.format(
-                vulnerability.expires.strftime('%Y-%m-%d %H:%M:%S UTC'))
-            generic_reason += expires
+        if vulnerability.ignored_expires:
+            generic_reason += f" until {vulnerability.ignored_expires.strftime('%Y-%m-%d %H:%M:%S UTC')}. " \
+                              f"See your configurations"
 
-        specific_reason = [{}]
-        if vulnerability.reason:
-            specific_reason = [{'words': [{'style': {'bold': True}, 'value': 'Reason: '}, {'value': vulnerability.reason}]}]
+        specific_reason = None
+        if vulnerability.ignored_reason:
+            specific_reason = [
+                {'words': [{'style': {'bold': True}, 'value': 'Reason: '}, {'value': vulnerability.ignored_reason}]}]
 
         expire_section = [{'words': [
-            {'style': {'bold': True, 'fg': 'green'}, 'value': '{0}.'.format(generic_reason)}, ]}] + specific_reason
+            {'style': {'bold': True, 'fg': 'green'}, 'value': f'{generic_reason}.'}, ]}]
+
+        if specific_reason:
+            expire_section += specific_reason
+
         to_print += expire_section
 
     to_print += more_info_line
 
-    content = style_lines(to_print, columns, styled_text)
+    content = style_lines(to_print, columns, styled_text, start_line=' ' * 3, end_line='')
 
     return click.unstyle(content) if only_text else content
 
@@ -175,16 +187,17 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
          },
     ]
 
-    content = style_lines(to_print, columns, '-> ', start_line='', end_line='\n')
+    content = style_lines(to_print, columns, '-> ', start_line='', end_line='')
 
     return click.unstyle(content) if only_text else content
 
 
 def build_remediation_section(remediations, only_text=False, columns=get_terminal_size().columns, kwards=None):
     columns -= 2
+    body_left_margin = 3
 
     if not kwards:
-        kwards = {}
+        kwards = {'start_line_decorator': ' ' * body_left_margin, 'columns': columns}
 
     END_SECTION = '+' + '=' * columns + '+'
 
@@ -206,36 +219,45 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
         elif downgrade_to:
             fix_version = str(downgrade_to)
 
-        new_line = ('\n', 0)
+        new_line = '\n'
+
+        other_options = [str(fix) for fix in remediations[pkg].get('secure_versions', []) if str(fix) != fix_version]
+        raw_recommendation = f"We recommend upgrading to version {upgrade_to} of {pkg}."
+
+        if other_options:
+            raw_other_options = ', '.join(other_options)
+            raw_pre_other_options = 'Other versions without known vulnerabilities are:'
+            if len(other_options) == 1:
+                raw_pre_other_options = 'Other version without known vulnerabilities is'
+            raw_recommendation = f"{raw_recommendation} {raw_pre_other_options} " \
+                                 f"{raw_other_options}"
 
         remediation_content = [
-            ('The closest version with no known vulnerabilities is ' + click.style(upgrade_to, bold=True), 4),
+            'The closest version with no known vulnerabilities is ' + click.style(upgrade_to, bold=True),
             new_line,
-            (
-            click.style('We recommend upgrading to version {0} of {1}.'.format(upgrade_to, pkg), bold=True, fg='green'),4)
+            click.style(raw_recommendation, bold=True, fg='green')
         ]
 
         if not fix_version:
-            remediation_content = [
-                (click.style('There is no known fix for this vulnerability.', bold=True, fg='yellow'), 4)]
+            remediation_content = [new_line,
+                click.style('There is no known fix for this vulnerability.', bold=True, fg='yellow')]
 
         text = 'vulnerabilities' if remediations[pkg]['vulns_found'] > 1 else 'vulnerability'
 
-        pre_content = [new_line,
-                       (click.style(
-                           '-> {0} version {1} was found, which has {2} {3}'
-                           .format(pkg, remediations[pkg]['version'], remediations[pkg]['vulns_found'], text),
-                           fg=RED,
-                           bold=True),
-                        0),
-                       new_line] + remediation_content + [
-                          (f"For more information, please visit {remediations[pkg]['more_info_url']}", 4),
-                          ('Always check for breaking changes when upgrading packages.', 4),
+        raw_rem_title = f"-> {pkg} version {remediations[pkg]['version']} was found, " \
+                        f"which has {remediations[pkg]['vulns_found']} {text}"
+
+        remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
+
+        content += new_line + format_long_text(remediation_title, start_line_decorator='') + new_line
+
+        pre_content = remediation_content + [
+                          f"For more information, please visit {remediations[pkg]['more_info_url']}",
+                          'Always check for breaking changes when upgrading packages.',
                           new_line]
 
         for i, element in enumerate(pre_content):
-            left_margin = ' ' * element[1]
-            content += format_long_text(left_margin + element[0], **kwards)
+            content += format_long_text(element, **kwards)
 
             if i + 1 < len(pre_content):
                 content += '\n'
@@ -245,10 +267,10 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     body = [content]
 
     if not is_using_api_key():
-        vuln_text = 'vulnerabilities were' if total_vulns > 1 else 'vulnerability was'
+        vuln_text = 'vulnerabilities were' if total_vulns != 1 else 'vulnerability was'
         pkg_text = 'packages' if total_packages > 1 else 'package'
         msg = "{0} {1} found in {2} {3}. " \
-              "For detailed remediation & fix suggestions, upgrade to our commercial license."\
+              "For detailed remediation & fix recommendations, upgrade to a commercial license."\
             .format(total_vulns, vuln_text, total_packages, pkg_text)
         content = '\n' + format_long_text(msg, left_padding=' ', columns=columns) + '\n'
         body = [content]
@@ -263,30 +285,37 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     return content
 
 
-def get_final_brief(ignored, total_ignored, kwargs=None):
+def get_final_brief(total_vulns_found, total_remediations, ignored, total_ignored, kwargs=None):
     if not kwargs:
         kwargs = {}
+
+    total_vulns = max(0, total_vulns_found - total_ignored)
 
     vuln_text = 'vulnerabilities' if total_ignored > 1 else 'vulnerability'
     pkg_text = 'packages were' if len(ignored.keys()) > 1 else 'package was'
 
-    p_file_text = ' using a safety policy file' if is_using_a_safety_policy_file() else ''
-    ignored_text = ' {0} {1} from {2} {3} ignored.'.format(
-        total_ignored, vuln_text, len(ignored.keys()), pkg_text) if ignored else ''
-    return format_long_text("\nScan was completed{0}.{1}".format(p_file_text, ignored_text), start_line_decorator=' ',
-                            **kwargs)
+    policy_file_text = ' using a safety policy file' if is_using_a_safety_policy_file() else ''
+
+    vuln_brief = f" {total_vulns} vulnerabilit{'y was' if total_vulns == 1 else 'ies were'} found."
+    ignored_text = f' {total_ignored} {vuln_text} from {len(ignored.keys())} {pkg_text} ignored.' if ignored else ''
+    remediation_text = f" {total_remediations} remediation{' was' if total_remediations == 1 else 's were'} " \
+                       f"recommended." if is_using_api_key() else ''
+
+    raw_brief = f"Scan was completed{policy_file_text}.{vuln_brief}{ignored_text}{remediation_text}"
+
+    return format_long_text(raw_brief, start_line_decorator=' ', **kwargs)
 
 
 def get_final_brief_license(licenses, kwargs=None):
     if not kwargs:
         kwargs = {}
 
-    licenses_text = '\n Scan was completed.'
+    licenses_text = ' Scan was completed.'
 
     if licenses:
         licenses_text = 'The following software licenses were present in your system: {0}'.format(', '.join(licenses))
 
-    return format_long_text("\n{0}".format(licenses_text), start_line_decorator=' ', **kwargs)
+    return format_long_text("{0}".format(licenses_text), start_line_decorator=' ', **kwargs)
 
 
 def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', left_padding='', max_lines=None, styling=None):
@@ -308,17 +337,14 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
         wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, placeholder='...')
         for wrapped_line in wrapped_lines:
             try:
-                new_line = base_format.format(left_padding + wrapped_line.encode('utf-8'))
+                new_line = left_padding + wrapped_line.encode('utf-8')
             except TypeError:
-                new_line = base_format.format(left_padding + wrapped_line)
+                new_line = left_padding + wrapped_line
 
             if styling:
                 new_line = click.style(new_line, **styling)
 
-            inner_content = base_format.format(new_line)
-
-            formatted_lines.append(
-                "{0}{1}{2}".format(start_line_decorator, inner_content, end_line_decorator))
+            formatted_lines.append(f"{start_line_decorator}{new_line}{end_line_decorator}")
 
     return "\n".join(formatted_lines)
 
@@ -354,12 +380,12 @@ def get_printable_list_of_scanned_items(scanning_target):
 
     elif scanning_target == 'files':
         for file in context.params.get('files', []):
-            result.append([{'styled': False, 'value': '-> ' + file.name}])
+            result.append([{'styled': False, 'value': f'-> {file.name}'}])
             scanned_items_data.append(file.name)
     elif scanning_target == 'file':
         file = context.params.get('file', None)
         name = file.name if file else ''
-        result.append([{'styled': False, 'value': '-> ' + name}])
+        result.append([{'styled': False, 'value': f'-> {name}'}])
         scanned_items_data.append(name)
 
     return result, scanned_items_data
@@ -368,7 +394,7 @@ def get_printable_list_of_scanned_items(scanning_target):
 REPORT_HEADING = format_long_text(click.style('REPORT', bold=True))
 
 
-def build_report_brief_section(columns=None, primary_announcement=None):
+def build_report_brief_section(columns=None, primary_announcement=None, report_type=1, **kwargs):
     if not columns:
         columns = shutil.get_terminal_size().columns
 
@@ -378,7 +404,7 @@ def build_report_brief_section(columns=None, primary_announcement=None):
         styled_brief_lines.append(
             build_primary_announcement(columns=columns, primary_announcement=primary_announcement))
 
-    for line in get_report_brief_info():
+    for line in get_report_brief_info(report_type=report_type, **kwargs):
         ln = ''
         for words in line:
             processed_words = words.get('value', '')
@@ -400,7 +426,7 @@ def build_report_for_review_vuln_report(as_dict=False):
     if as_dict:
         return report_from_file
 
-    policy_f_name = report_from_file.get('policy_file_use', None)
+    policy_f_name = report_from_file.get('policy_file', None)
     safety_policy_used = []
     if policy_f_name:
         safety_policy_used = [
@@ -420,7 +446,7 @@ def build_report_for_review_vuln_report(as_dict=False):
         scanned_items.append([{'styled': False, 'value': '-> ' + name}])
 
     nl = [{'style': False, 'value': ''}]
-    using_sentence = build_using_sentence(report_from_file.get('api_key_used', None),
+    using_sentence = build_using_sentence(report_from_file.get('api_key', None),
                                           report_from_file.get('local_database_path_used', None))
     scanned_count_sentence = build_scanned_count_sentence(packages)
     old_timestamp = report_from_file.get('timestamp', None)
@@ -448,7 +474,7 @@ def build_using_sentence(key, db):
                         {'style': False, 'value': ' and the '}]
         db_name = 'PyUp Commercial'
     else:
-        db_name = 'free'
+        db_name = 'non-commercial'
 
     if db:
         db_name = "local file {0}".format(db)
@@ -474,17 +500,17 @@ def add_warnings_if_needed(brief_info):
     if ctx.obj:
         if hasattr(ctx, 'continue_on_error') and ctx.continue_on_error:
             warnings += [[{'style': True,
-                           'value': '* Continue-on-error is enabled, so returning successful (0) exit code in all cases!'}]]
+                           'value': '* Continue-on-error is enabled, so returning successful (0) exit code in all cases.'}]]
 
         if hasattr(ctx, 'ignore_severity_rules') and ctx.ignore_severity_rules and not is_using_api_key():
             warnings += [[{'style': True,
-                           'value': '* Could not filter by severity, please upgrade your account to include severity data!'}]]
+                           'value': '* Could not filter by severity, please upgrade your account to include severity data.'}]]
 
     if warnings:
         brief_info += [[{'style': False, 'value': ''}]] + warnings
 
 
-def get_report_brief_info(as_dict=False):
+def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     context = click.get_current_context()
 
     packages = [pkg for pkg in context.obj if isinstance(pkg, Package)]
@@ -521,34 +547,65 @@ def get_report_brief_info(as_dict=False):
         {'style': True, 'value': scanning_target + ':'},
         ]
 
-    policy_file = context.params.get('policy_file', False)
+    policy_file = context.params.get('policy_file', None)
     safety_policy_used = []
+
+    brief_data['policy_file'] = policy_file.get('filename', '-') if policy_file else None
+
     if policy_file and policy_file.get('filename', False):
-        brief_data['policy_file_use'] = policy_file.get('filename', '-')
         safety_policy_used = [
             {'style': False, 'value': '\nScanning using a security policy file'},
             {'style': True, 'value': ' {0}'.format(policy_file.get('filename', '-'))},
         ]
 
-    brief_data['api_key_used'] = bool(key)
+    current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+    brief_data['api_key'] = bool(key)
+    brief_data['local_database_path'] = db if db else None
+    brief_data['safety_version'] = get_safety_version()
+    brief_data['timestamp'] = current_time
     brief_data['packages_found'] = len(packages)
+    # Vuln report
+    additional_data = []
+    if report_type == 1:
+        brief_data['vulnerabilities_found'] = kwargs.get('vulnerabilities_found', 0)
+        brief_data['vulnerabilities_ignored'] = kwargs.get('vulnerabilities_ignored', 0)
+        brief_data['remediations_recommended'] = 0
+
+        additional_data = [
+            [{'style': True, 'value': str(brief_data['vulnerabilities_found'])},
+             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_found"] == 1 else "ies"} found'}],
+            [{'style': True, 'value': str(brief_data['vulnerabilities_ignored'])},
+             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_ignored"] == 1 else "ies"} ignored'}],
+        ]
+
+        if is_using_api_key():
+            brief_data['remediations_recommended'] = kwargs.get('remediations_recommended', 0)
+            additional_data.extend(
+                [{'style': True, 'value': str(brief_data['remediations_recommended'])},
+                 {'style': True, 'value':
+                     f' remediation{"" if brief_data["remediations_recommended"] == 1 else "s"} recommended'}])
+
+    elif report_type == 2:
+        brief_data['licenses_found'] = kwargs.get('licenses_found', 0)
+        additional_data = [
+            [{'style': True, 'value': str(brief_data['licenses_found'])},
+             {'style': True, 'value': f' license {"type" if brief_data["licenses_found"] == 1 else "types"} found'}],
+        ]
 
     using_sentence = build_using_sentence(key, db)
-    brief_data['local_database_path_used'] = db if db else None
-    current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    brief_data['timestamp'] = current_time
-
     scanned_count_sentence = build_scanned_count_sentence(packages)
 
     timestamp = [{'style': False, 'value': 'Timestamp '}, {'style': True, 'value': current_time}]
 
-    brief_data['safety_version'] = get_safety_version()
     brief_info = [[{'style': False, 'value': 'Safety '},
      {'style': True, 'value': 'v' + get_safety_version()},
      {'style': False, 'value': ' is scanning for '},
      {'style': True, 'value': scanning_types.get(context.command.name, {}).get('name', '')},
      {'style': True, 'value': '...'}] + safety_policy_used, action_executed
      ] + [nl] + scanned_items + [nl] + [using_sentence] + [scanned_count_sentence] + [timestamp]
+
+    brief_info.extend(additional_data)
 
     add_warnings_if_needed(brief_info)
 
@@ -558,6 +615,15 @@ def get_report_brief_info(as_dict=False):
 def build_primary_announcement(primary_announcement, columns=None, only_text=False):
     lines = json.loads(primary_announcement.get('message'))
 
+    for line in lines:
+        if 'words' not in line:
+            raise ValueError('Missing words keyword')
+        if len(line['words']) <= 0:
+            raise ValueError('No words in this line')
+        for word in line['words']:
+            if 'value' not in word or not word['value']:
+                raise ValueError('Empty word or without value')
+
     message = style_lines(lines, columns - 2, start_line=' ' * 2)
 
     return click.unstyle(message) if only_text else message
@@ -565,8 +631,8 @@ def build_primary_announcement(primary_announcement, columns=None, only_text=Fal
 
 def is_using_api_key():
     context = click.get_current_context()
-    review_used_api_key = context.review.get('api_key_used', False) if hasattr(context,
-                                                                               'review') and context.review else False
+    review_used_api_key = context.review.get('api_key', False) if hasattr(context,
+                                                                          'review') and context.review else False
     return bool(context.params.get('key', None)) or review_used_api_key
 
 

@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 import click
 from click.testing import CliRunner
@@ -135,6 +135,33 @@ class TestSafetyCLI(unittest.TestCase):
         result = runner.invoke(cli.cli, ['review', '--output', 'bare', '--file', path_to_report])
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.output, u'insecure-package\n')
+
+    @patch("safety.safety.session")
+    def test_license_with_file(self, requests_session):
+        licenses_db = {
+            "licenses": {
+                "BSD-3-Clause": 2
+            },
+            "packages": {
+                "django": [
+                    {
+                        "start_version": "0.0",
+                        "license_id": 2
+                    }
+                ]
+            }
+        }
+
+        mock = Mock()
+        mock.json.return_value = licenses_db
+        mock.status_code = 200
+        requests_session.get.return_value = mock
+
+        dirname = os.path.dirname(__file__)
+        test_filename = os.path.join(dirname, "reqs_4.txt")
+        result = self.runner.invoke(cli.cli, ['license', '--key', 'foo', '--file', test_filename])
+        # TODO: Add test for the screen formatter, this only test that the command doesn't crash
+        self.assertEqual(result.exit_code, 0)
 
     def test_validate_with_unsupported_argument(self):
         result = self.runner.invoke(cli.cli, ['validate', 'safety_ci'])

@@ -3,14 +3,16 @@ import os
 import platform
 import sys
 from datetime import datetime
+from difflib import SequenceMatcher
 from typing import List
 
 import click
-from _ruamel_yaml import ScannerError
+from click import BadParameter
 from dparse.parser import setuptools_parse_requirements_backport as _parse_requirements
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 from ruamel.yaml import YAML
+from ruamel.yaml.error import MarkedYAMLError
 
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
 from safety.models import Package, RequirementFile
@@ -211,6 +213,13 @@ def get_safety_version():
 def get_primary_announcement(announcements):
     for announcement in announcements:
         if announcement.get('type', '').lower() == 'primary_announcement':
+            try:
+                from safety.output_utils import build_primary_announcement
+                build_primary_announcement(announcement, columns=80)
+            except Exception as e:
+                LOG.debug(f'Failed to build primary announcement: {str(e)}')
+                return None
+
             return announcement
 
     return None
@@ -361,30 +370,8 @@ def active_color_if_needed(ctx, param, value):
 
 
 class SafetyPolicyFile(click.ParamType):
-    """Declares a parameter to be a file for reading or writing.  The file
-    is automatically closed once the context tears down (after the command
-    finished working).
-
-    Files can be opened for reading or writing.  The special value ``-``
-    indicates stdin or stdout depending on the mode.
-
-    By default, the file is opened for reading text data, but it can also be
-    opened in binary mode or for writing.  The encoding parameter can be used
-    to force a specific encoding.
-
-    The `lazy` flag controls if the file should be opened immediately or upon
-    first IO. The default is to be non-lazy for standard input and output
-    streams as well as files opened for reading, `lazy` otherwise. When opening a
-    file lazily for reading, it is still opened temporarily for validation, but
-    will not be held open until first IO. lazy is mainly useful when opening
-    for writing to avoid creating the file until it is needed.
-
-    Starting with Click 2.0, files can also be opened atomically in which
-    case all writes go into a separate file in the same folder and upon
-    completion the file will be moved over to the original location.  This
-    is useful if a file regularly read by other users is modified.
-
-    See :ref:`file-args` for more information.
+    """
+       Custom Safety Policy file to hold validations
     """
 
     name = "filename"
@@ -399,19 +386,42 @@ class SafetyPolicyFile(click.ParamType):
         self.mode = mode
         self.encoding = encoding
         self.errors = errors
+        self.basic_msg = '\n' + click.style('Unable to load the Safety Policy file "{name}".', fg='red')
 
     def to_info_dict(self):
         info_dict = super().to_info_dict()
         info_dict.update(mode=self.mode, encoding=self.encoding)
         return info_dict
 
+    def fail_if_unrecognized_keys(self, used_keys, valid_keys, param=None, ctx=None, msg='{hint}', context_hint=''):
+        for keyword in used_keys:
+            if keyword not in valid_keys:
+                match = None
+                max_ratio = 0.0
+                if isinstance(keyword, str):
+                    for option in valid_keys:
+                        ratio = SequenceMatcher(None, keyword, option).ratio()
+                        if ratio > max_ratio:
+                            match = option
+                            max_ratio = ratio
+
+                maybe_msg = f' Maybe you meant: {match}' if max_ratio > 0.7 else \
+                            f' Valid keywords in this level are: {", ".join(valid_keys)}'
+
+                self.fail(msg.format(hint=f'{context_hint}"{keyword}" is not a valid keyword.{maybe_msg}'), param, ctx)
+
+    def fail_if_wrong_bool_value(self, keyword, value, msg='{hint}'):
+        if value is not None and not isinstance(value, bool):
+            self.fail(msg.format(hint=f"'{keyword}' value needs to be a boolean. "
+                                      "You can use True, False, TRUE, FALSE, true or false"))
+
     def convert(self, value, param, ctx):
         try:
+
             if hasattr(value, "read") or hasattr(value, "write"):
                 return value
 
-            basic_msg = 'Unable to load the Safety Policy file "{name}".'.format(name=value)
-            msg = basic_msg + '\nHINT: {hint}'
+            msg = self.basic_msg.format(name=value) + '\n' + click.style('HINT:', fg='yellow') + ' {hint}'
 
             f, should_close = click.types.open_stream(
                 value, self.mode, self.encoding, self.errors, atomic=False
@@ -422,16 +432,27 @@ class SafetyPolicyFile(click.ParamType):
                 yaml = YAML(typ='safe', pure=False)
                 safety_policy = yaml.load(f)
                 filename = f.name
-            except ScannerError as e:
-                hint = '{0} {1}; {2} {3}'.format(str(e.context).strip(), str(e.context_mark).strip(), str(e.problem).strip(),
-                                                 str(e.problem_mark).strip())
+            except Exception as e:
+                show_parsed_hint = isinstance(e, MarkedYAMLError)
+                hint = str(e)
+                if show_parsed_hint:
+                    hint = f'{str(e.problem).strip()} {str(e.context).strip()} {str(e.context_mark).strip()}'
+
                 self.fail(msg.format(name=value, hint=hint), param, ctx)
 
             if not safety_policy or not isinstance(safety_policy, dict) or not safety_policy.get('security', None):
                 self.fail(
                     msg.format(hint='you are missing the security root tag'), param, ctx)
 
-            ignore_cvss_security_below = safety_policy.get('security', {}).get('ignore-cvss-severity-below', None)
+            security_config = safety_policy.get('security', {})
+            security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
+                             'continue-on-vulnerability-error']
+            used_keys = security_config.keys()
+
+            self.fail_if_unrecognized_keys(used_keys, security_keys, param=param, ctx=ctx, msg=msg,
+                                           context_hint='"security" -> ')
+
+            ignore_cvss_security_below = security_config.get('ignore-cvss-severity-below', None)
 
             if ignore_cvss_security_below:
                 limit = 0.0
@@ -444,28 +465,48 @@ class SafetyPolicyFile(click.ParamType):
                 if limit < 0 or limit > 10:
                     self.fail(msg.format(hint="'ignore-cvss-severity-below' needs to be a value between 0 and 10"))
 
-            continue_on_vulnerability_error = safety_policy.get('security', {}).get('continue-on-vulnerability-error', None)
+            continue_on_vulnerability_error = security_config.get('continue-on-vulnerability-error', None)
+            self.fail_if_wrong_bool_value('continue-on-vulnerability-error', continue_on_vulnerability_error, msg)
 
-            if continue_on_vulnerability_error and not isinstance(continue_on_vulnerability_error, bool):
-                self.fail(msg.format(hint="'continue-on-vulnerability-error' value needs to be a boolean."))
+            ignore_cvss_unknown_severity = security_config.get('ignore-cvss-unknown-severity', None)
+            self.fail_if_wrong_bool_value('ignore-cvss-unknown-severity', ignore_cvss_unknown_severity, msg)
 
             ignore_vulns = safety_policy.get('security', {}).get('ignore-vulnerabilities', {})
 
             if ignore_vulns:
-                normalized = {
-                    str(key): {'reason': str((value if value else {}).get('reason', '')), 'expires': str((value if value else {}).get('expires', ''))} for
-                    key, value in ignore_vulns.items()}
+                if not isinstance(ignore_vulns, dict):
+                    self.fail(msg.format(hint="Vulnerability IDs under the 'ignore-vulnerabilities' key, need to "
+                                              "follow the convention 'ID_NUMBER:', probably you are missing a colon."))
 
-                for key, value in ignore_vulns.items():
+                normalized = {}
+
+                for ignored_vuln_id, config in ignore_vulns.items():
+                    ignored_vuln_config = config if config else {}
+
+                    if not isinstance(ignored_vuln_config, dict):
+                        self.fail(
+                            msg.format(hint=f"Wrong configuration under the vulnerability with ID: {ignored_vuln_id}"))
+
+                    context_msg = f'"security" -> "ignore-vulnerabilities" -> "{ignored_vuln_id}" -> '
+
+                    self.fail_if_unrecognized_keys(ignored_vuln_config.keys(), ['reason', 'expires'], param=param,
+                                                   ctx=ctx, msg=msg, context_hint=context_msg)
+
+                    reason = ignored_vuln_config.get('reason', '')
+                    reason = str(reason) if reason else None
+                    expires = ignored_vuln_config.get('expires', '')
+                    expires = str(expires) if expires else None
+
                     try:
-                        k = str(key)
+                        if int(ignored_vuln_id) < 0:
+                            raise ValueError('Negative Vulnerability ID')
                     except ValueError as e:
                         self.fail(msg.format(
-                            hint="vulnerability id under the 'ignore-vulnerabilities' root needs to be a string or int")
+                            hint=f"vulnerability id {ignored_vuln_id} under the 'ignore-vulnerabilities' root needs to "
+                                 f"be a positive integer")
                         )
 
                     # Validate expires
-                    expires = str((value if value else {}).get('expires', ''))
                     d = None
                     if expires:
                         try:
@@ -479,25 +520,32 @@ class SafetyPolicyFile(click.ParamType):
                             pass
 
                         if not d:
-                            self.fail(msg.format(hint="{0} isn't a valid format for the expires keyword, "
+                            self.fail(msg.format(hint=f"{context_msg}expires: \"{expires}\" isn't a valid format "
+                                                      f"for the expires keyword, "
                                                       "valid options are: YYYY-MM-DD or "
-                                                      "YYYY-MM-DD HH:MM:SS".format(expires))
+                                                      "YYYY-MM-DD HH:MM:SS")
                                       )
 
-                    normalized[k] = {'reason': str((value if value else {}).get('reason', '')),
-                                     'expires': d}
+                    normalized[str(ignored_vuln_id)] = {'reason': reason, 'expires': d}
 
                 safety_policy['security']['ignore-vulnerabilities'] = normalized
                 safety_policy['filename'] = filename
+            else:
+                safety_policy['security']['ignore-vulnerabilities'] = {}
 
             return safety_policy
-        except OSError as e:
+        except BadParameter as expected_e:
+            raise expected_e
+        except Exception as e:
             # Don't fail in the default case
-            source = ctx.get_parameter_source("policy_file")
-            if e.errno == 2 and source == click.core.ParameterSource.DEFAULT and value == '.safety-policy.yml':
-                return None
+            if ctx and isinstance(e, OSError):
+                source = ctx.get_parameter_source("policy_file")
+                if e.errno == 2 and source == click.core.ParameterSource.DEFAULT and value == '.safety-policy.yml':
+                    return None
 
-            self.fail(f"{os.fsdecode(value)!r}: {e.strerror}", param, ctx)
+            problem = click.style("Policy file YAML is not valid.")
+            hint = click.style("HINT: ", fg='yellow') + str(e)
+            self.fail(f"{problem}\n{hint}", param, ctx)
 
     def shell_complete(
         self, ctx: "Context", param: "Parameter", incomplete: str

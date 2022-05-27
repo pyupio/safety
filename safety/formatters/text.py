@@ -44,8 +44,6 @@ class TextReport(FormatterAPI):
 
     def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
         primary_announcement = get_primary_announcement(announcements)
-        report_brief_section = click.unstyle(
-            build_report_brief_section(columns=80, primary_announcement=primary_announcement))
         remediation_section = [click.unstyle(rem) for rem in build_remediation_section(remediations, columns=80)]
         end_content = []
 
@@ -56,6 +54,20 @@ class TextReport(FormatterAPI):
 
         announcement_section = self.__build_announcements_section(announcements)
 
+        ignored = {}
+        total_ignored = 0
+
+        for n, vuln in enumerate(vulnerabilities):
+            if vuln.ignored:
+                total_ignored += 1
+                ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
+
+        report_brief_section = click.unstyle(
+            build_report_brief_section(columns=80, primary_announcement=primary_announcement,
+                                       vulnerabilities_found=max(0, len(vulnerabilities)-total_ignored),
+                                       vulnerabilities_ignored=total_ignored,
+                                       remediations_recommended=len(remediations)))
+
         table = [self.TEXT_REPORT_BANNER] + announcement_section + [
             report_brief_section,
             '',
@@ -64,18 +76,12 @@ class TextReport(FormatterAPI):
 
         if vulnerabilities:
             table += [" VULNERABILITIES FOUND", self.SMALL_DIVIDER_SECTIONS]
-            ignored = {}
-            total_ignored = 0
 
-            for n, vuln in enumerate(vulnerabilities):
-                if vuln.ignored:
-                    total_ignored += 1
-                    ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
+            for vuln in vulnerabilities:
                 table.append('\n' + format_vulnerability(vuln, full, only_text=True, columns=80))
 
             final_brief = click.unstyle(get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored,
                                                         kwargs={'columns': 80}))
-
             table += [final_brief, add_empty_line(), self.SMALL_DIVIDER_SECTIONS] + remediation_section + end_content
 
         else:
@@ -87,15 +93,17 @@ class TextReport(FormatterAPI):
         )
 
     def render_licenses(self, announcements, licenses):
+        unique_license_types = set([lic['license'] for lic in licenses])
+
         report_brief_section = click.unstyle(
-            build_report_brief_section(columns=80, primary_announcement=get_primary_announcement(announcements)))
+            build_report_brief_section(columns=80, primary_announcement=get_primary_announcement(announcements),
+                                       licenses_found=len(unique_license_types)))
 
         packages_licenses = licenses
         announcements_table = self.__build_announcements_section(announcements)
 
         final_brief = click.unstyle(
-            get_final_brief_license(set([lic['license'] for lic in licenses]),
-                                    kwargs={'columns': 80}))
+            get_final_brief_license(unique_license_types, kwargs={'columns': 80}))
 
         table = [self.TEXT_REPORT_BANNER] + announcements_table + [
             report_brief_section,

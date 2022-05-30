@@ -238,10 +238,12 @@ def generate(ctx, name, path):
             f.write(open(os.path.join(ROOT, 'safety-policy-template.yml')).read())
             LOG.debug('Safety created the policy file.')
             msg = f'A default Safety policy file has been generated! Review the file contents in the path {path} in the ' \
-                  'file: .safety_policy.yml'
+                  'file: .safety-policy.yml'
             click.secho(msg, fg='green')
-    except OSError as exc:
-        LOG.debug('Unable to generate %s because: %s', name, exc.errno)
+    except Exception as exc:
+        if isinstance(exc, OSError):
+            LOG.debug('Unable to generate %s because: %s', name, exc.errno)
+
         click.secho(f'Unable to generate {name}, because: {str(exc)} error.', fg='red',
                     file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)

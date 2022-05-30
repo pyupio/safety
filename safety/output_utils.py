@@ -582,9 +582,9 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
         if is_using_api_key():
             brief_data['remediations_recommended'] = kwargs.get('remediations_recommended', 0)
             additional_data.extend(
-                [{'style': True, 'value': str(brief_data['remediations_recommended'])},
+                [[{'style': True, 'value': str(brief_data['remediations_recommended'])},
                  {'style': True, 'value':
-                     f' remediation{"" if brief_data["remediations_recommended"] == 1 else "s"} recommended'}])
+                     f' remediation{"" if brief_data["remediations_recommended"] == 1 else "s"} recommended'}]])
 
     elif report_type == 2:
         brief_data['licenses_found'] = kwargs.get('licenses_found', 0)

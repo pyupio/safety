@@ -234,7 +234,7 @@ class TestSafetyCLI(unittest.TestCase):
             result = self.runner.invoke(cli.cli, ['generate', 'policy_file', '--path', tempdir])
             cleaned_stdout = click.unstyle(result.stdout)
             msg = f'A default Safety policy file has been generated! Review the file contents in the path {tempdir} ' \
-                  f'in the file: .safety_policy.yml\n'
+                  f'in the file: .safety-policy.yml\n'
             self.assertEqual(msg, cleaned_stdout)
 
     def test_generate_with_unsupported_argument(self):

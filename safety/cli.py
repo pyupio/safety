@@ -250,7 +250,7 @@ def generate(ctx, name, path):
 
 
 @cli.command()
-@click.option("--path", default=".", help="Path where the generated file will be saved. Default: current directory")
+@click.option("--path", default=".safety-policy.yml", help="Path where the generated file will be saved. Default: current directory")
 @click.argument('name')
 @click.pass_context
 def validate(ctx, name, path):

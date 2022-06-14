@@ -1,6 +1,3 @@
-import shutil
-from shutil import get_terminal_size
-
 import click
 
 from safety.formatter import FormatterAPI
@@ -8,7 +5,7 @@ from safety.output_utils import build_announcements_section_content, format_long
     add_empty_line, format_vulnerability, get_final_brief, \
     build_report_brief_section, format_license, get_final_brief_license, build_remediation_section, \
     build_primary_announcement
-from safety.util import get_primary_announcement, get_basic_announcements
+from safety.util import get_primary_announcement, get_basic_announcements, get_terminal_size
 
 
 class ScreenReport(FormatterAPI):
@@ -51,7 +48,7 @@ class ScreenReport(FormatterAPI):
 
         if primary_announcement:
             end_content = [add_empty_line(),
-                           build_primary_announcement(primary_announcement, columns=shutil.get_terminal_size().columns),
+                           build_primary_announcement(primary_announcement, columns=get_terminal_size().columns),
                            self.DIVIDER_SECTIONS]
 
         table = []

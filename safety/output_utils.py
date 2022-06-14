@@ -603,6 +603,9 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
 
     add_warnings_if_needed(brief_info)
 
+    LOG.info('Brief info data: %s', brief_data)
+    LOG.info('Brief info, styled output: %s', '\n\n LINE ---->\n ' + '\n\n LINE ---->\n '.join(map(str, brief_info)))
+
     return brief_data if as_dict else brief_info
 
 

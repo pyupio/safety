@@ -1,18 +1,12 @@
 import json
 import logging
-import os
-import platform
-import shutil
-import sys
 import textwrap
-from collections import namedtuple
 from datetime import datetime
-from shutil import get_terminal_size
 
 import click
 
 from safety.constants import RED, YELLOW
-from safety.util import get_safety_version, read_requirements, Package
+from safety.util import get_safety_version, Package, get_terminal_size
 
 LOG = logging.getLogger(__name__)
 
@@ -396,7 +390,7 @@ REPORT_HEADING = format_long_text(click.style('REPORT', bold=True))
 
 def build_report_brief_section(columns=None, primary_announcement=None, report_type=1, **kwargs):
     if not columns:
-        columns = shutil.get_terminal_size().columns
+        columns = get_terminal_size().columns
 
     styled_brief_lines = []
 

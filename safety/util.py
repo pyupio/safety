@@ -232,15 +232,13 @@ def get_basic_announcements(announcements):
 
 def build_telemetry_data(telemetry=True):
     body = {
-        'os_type': platform.system(),
-        'os_release': platform.release(),
-        'os_description': platform.platform(),
+        'os_type': os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
+        'os_release': os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
+        'os_description': os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
         'python_version': platform.python_version(),
         'safety_command': click.get_current_context().command.name,
         'safety_options': get_used_options()
     } if telemetry else {}
-
-    body['safety_version'] = get_safety_version()
 
     LOG.debug(f'Telemetry body built: {body}')
 
@@ -367,6 +365,16 @@ def active_color_if_needed(ctx, param, value):
         ctx.color = bool(color)
 
     return value
+
+
+def get_terminal_size():
+    from shutil import get_terminal_size as t_size
+    # get_terminal_size can report 0, 0 if run from pseudo-terminal prior Python 3.11 versions
+
+    columns = t_size().columns or 80
+    lines = t_size().lines or 24
+
+    return os.terminal_size((columns, lines))
 
 
 class SafetyPolicyFile(click.ParamType):

@@ -11,7 +11,7 @@ from safety.util import get_safety_version, Package, get_terminal_size
 LOG = logging.getLogger(__name__)
 
 
-def build_announcements_section_content(announcements, columns=get_terminal_size().columns - 4,
+def build_announcements_section_content(announcements, columns=get_terminal_size().columns,
                                         start_line_decorator=' ', end_line_decorator=' '):
     section = ''
 
@@ -67,9 +67,8 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 
 
 def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_terminal_size().columns):
-    columns -= 8
 
-    common_format = {'left_padding': 3, 'format': {'sub_indent': ' ' * 3}}
+    common_format = {'left_padding': 3, 'format': {'sub_indent': ' ' * 3, 'max_lines': None}}
 
     styled_vulnerability = [
         {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
@@ -89,7 +88,8 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
             s = cve.cvssv2.get("impact_score", "-")
             v = cve.cvssv2.get("vector_string", "-")
 
-            cvssv2_line = {'words': [
+            # Reset sub_indent as the left_margin is going to be applied in this case
+            cvssv2_line = {'format': {'sub_indent': ''}, 'words': [
                 {'value': f'CVSS v2, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'},
             ]}
 
@@ -127,7 +127,8 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
                 {'words': [{'style': {'bold': True}, 'value': cve.name}]}
             ]
 
-    advisory_format = {'max_lines': None} if full_mode else {'max_lines': 2}
+    advisory_format = {'sub_indent': ' ' * 3, 'max_lines': None} if full_mode else {'sub_indent': ' ' * 3,
+                                                                                    'max_lines': 2}
 
     basic_vuln_data_lines = [
         {'format': advisory_format, 'words': [
@@ -175,14 +176,14 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
     to_print += more_info_line
 
-    to_print = [{**line, **common_format} for line in to_print]
+    to_print = [{**common_format, **line} for line in to_print]
 
     content = style_lines(to_print, columns, styled_text, start_line='', end_line='', )
 
     return click.unstyle(content) if only_text else content
 
 
-def format_license(license, only_text=False, columns=get_terminal_size().columns - 8):
+def format_license(license, only_text=False, columns=get_terminal_size().columns):
     to_print = [
         {'words': [{'style': {'bold': True}, 'value': license['package']},
                    {'value': ' version {0} found using license '.format(license['version'])},
@@ -268,7 +269,7 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
             if i + 1 < len(pre_content):
                 content += '\n'
 
-    title = format_long_text(click.style('REMEDIATIONS', fg='green', bold=True), **kwargs)
+    title = format_long_text(click.style(f'{left_padding}REMEDIATIONS', fg='green', bold=True), **kwargs)
 
     body = [content]
 
@@ -331,7 +332,7 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
     if color:
         styling.update({'fg': color})
 
-    columns -= 4
+    columns -= len(start_line_decorator) + len(end_line_decorator)
     formatted_lines = []
     lines = text.replace('\r', '').splitlines()
 

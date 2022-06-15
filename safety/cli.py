@@ -101,7 +101,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, proxy_
                                                                               full_report, packages)
 
         # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
-        if announcements and not sys.stdout.isatty():
+        if announcements and (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run'):
             LOG.info('sys.stdout is not a tty, announcements are going to be send to stderr')
             click.secho(SafetyFormatter(output='text').render_announcements(announcements), fg="red", file=sys.stderr)
 

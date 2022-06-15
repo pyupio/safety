@@ -644,7 +644,7 @@ def build_primary_announcement(primary_announcement, columns=None, only_text=Fal
             if 'value' not in word or not word['value']:
                 raise ValueError('Empty word or without value')
 
-    message = style_lines(lines, columns - 2, start_line=' ' * 2)
+    message = style_lines(lines, columns, start_line='', end_line='')
 
     return click.unstyle(message) if only_text else message
 

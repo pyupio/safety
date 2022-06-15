@@ -69,7 +69,7 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_terminal_size().columns):
     columns -= 8
 
-    common_format = {'left_padding': 3}
+    common_format = {'left_padding': 3, 'format': {'sub_indent': ' ' * 3}}
 
     styled_vulnerability = [
         {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
@@ -130,7 +130,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     advisory_format = {'max_lines': None} if full_mode else {'max_lines': 2}
 
     basic_vuln_data_lines = [
-        {'format': {**advisory_format, **{'sub_indent': ' ' * 3}}, 'words': [
+        {'format': advisory_format, 'words': [
             {'style': {'bold': True}, 'value': 'ADVISORY: '},
             {'value': vulnerability.advisory.replace('\n', '')}]}
     ]

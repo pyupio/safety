@@ -407,8 +407,8 @@ def build_report_brief_section(columns=None, primary_announcement=None, report_t
 
             ln += processed_words
 
-        styled_brief_lines.append(
-            format_long_text(ln, color='', columns=columns, start_line_decorator=' ' * 2, end_line_decorator=''))
+        styled_brief_lines.append(format_long_text(ln, color='', columns=columns, start_line_decorator='',
+                                                   left_padding=' ' * 2, end_line_decorator=''))
 
     return "\n".join([add_empty_line(), REPORT_HEADING, add_empty_line(), '\n'.join(styled_brief_lines)])
 
@@ -505,6 +505,8 @@ def add_warnings_if_needed(brief_info):
 
 
 def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
+    LOG.info('get_report_brief_info: %s, %s, %s', as_dict, report_type, kwargs)
+
     context = click.get_current_context()
 
     packages = [pkg for pkg in context.obj if isinstance(pkg, Package)]

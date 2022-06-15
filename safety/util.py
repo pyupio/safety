@@ -240,6 +240,8 @@ def build_telemetry_data(telemetry=True):
         'safety_options': get_used_options()
     } if telemetry else {}
 
+    body['safety_version'] = get_safety_version()
+
     LOG.debug(f'Telemetry body built: {body}')
 
     return body

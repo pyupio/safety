@@ -43,15 +43,21 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 
     for line in lines:
         styled_line = ''
-        left_padding = ''
+        left_padding = ' ' * line.get('left_padding', 0)
 
-        for word in line.get('words', []):
+        for i, word in enumerate(line.get('words', [])):
             if word.get('style', {}):
-                styled_line += click.style(text=word.get('value', ''), **word.get('style', {}))
+                text = ''
+
+                if i == 0:
+                    text = left_padding  # Include the line padding in the word to avoid Github issues
+                    left_padding = ''  # Clean left padding to avoid be added two times
+
+                text += word.get('value', '')
+
+                styled_line += click.style(text=text, **word.get('style', {}))
             else:
                 styled_line += word.get('value', '')
-
-            left_padding = ' ' * word.get('left_padding', 0)
 
         styled_text += format_long_text(styled_line, columns=columns, start_line_decorator=start_line,
                                         end_line_decorator=end_line,
@@ -62,6 +68,8 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 
 def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_terminal_size().columns):
     columns -= 8
+
+    common_format = {'left_padding': 3, 'format': {'sub_indent': ' ' * 3}}
 
     styled_vulnerability = [
         {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
@@ -167,7 +175,9 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
     to_print += more_info_line
 
-    content = style_lines(to_print, columns, styled_text, start_line=' ' * 3, end_line='')
+    to_print = [{**line, **common_format} for line in to_print]
+
+    content = style_lines(to_print, columns, styled_text, start_line='', end_line='', )
 
     return click.unstyle(content) if only_text else content
 
@@ -186,12 +196,14 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
     return click.unstyle(content) if only_text else content
 
 
-def build_remediation_section(remediations, only_text=False, columns=get_terminal_size().columns, kwards=None):
+def build_remediation_section(remediations, only_text=False, columns=get_terminal_size().columns, kwargs=None):
     columns -= 2
-    body_left_margin = 3
+    left_padding = ' ' * 3
 
-    if not kwards:
-        kwards = {'start_line_decorator': ' ' * body_left_margin, 'columns': columns}
+    if not kwargs:
+        # Reset default params in the format_long_text func
+        kwargs = {'left_padding': '', 'columns': columns, 'start_line_decorator': '', 'end_line_decorator': '',
+                  'sub_indent': left_padding}
 
     END_SECTION = '+' + '=' * columns + '+'
 
@@ -227,14 +239,14 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
                                  f"{raw_other_options}"
 
         remediation_content = [
-            'The closest version with no known vulnerabilities is ' + click.style(upgrade_to, bold=True),
+            f'{left_padding}The closest version with no known vulnerabilities is ' + click.style(upgrade_to, bold=True),
             new_line,
-            click.style(raw_recommendation, bold=True, fg='green')
+            click.style(f'{left_padding}{raw_recommendation}', bold=True, fg='green')
         ]
 
         if not fix_version:
             remediation_content = [new_line,
-                click.style('There is no known fix for this vulnerability.', bold=True, fg='yellow')]
+                click.style(f'{left_padding}There is no known fix for this vulnerability.', bold=True, fg='yellow')]
 
         text = 'vulnerabilities' if remediations[pkg]['vulns_found'] > 1 else 'vulnerability'
 
@@ -243,20 +255,20 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
 
         remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
 
-        content += new_line + format_long_text(remediation_title, start_line_decorator='') + new_line
+        content += new_line + format_long_text(remediation_title, **kwargs) + new_line
 
         pre_content = remediation_content + [
-                          f"For more information, please visit {remediations[pkg]['more_info_url']}",
-                          'Always check for breaking changes when upgrading packages.',
+                          f"{left_padding}For more information, please visit {remediations[pkg]['more_info_url']}",
+                          f'{left_padding}Always check for breaking changes when upgrading packages.',
                           new_line]
 
         for i, element in enumerate(pre_content):
-            content += format_long_text(element, **kwards)
+            content += format_long_text(element, **kwargs)
 
             if i + 1 < len(pre_content):
                 content += '\n'
 
-    title = format_long_text(click.style('REMEDIATIONS', fg='green', bold=True), **kwards)
+    title = format_long_text(click.style('REMEDIATIONS', fg='green', bold=True), **kwargs)
 
     body = [content]
 
@@ -312,7 +324,7 @@ def get_final_brief_license(licenses, kwargs=None):
     return format_long_text("{0}".format(licenses_text), start_line_decorator=' ', **kwargs)
 
 
-def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', left_padding='', max_lines=None, styling=None):
+def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', left_padding='', max_lines=None, styling=None, indent='', sub_indent=''):
     if not styling:
         styling = {}
 
@@ -328,7 +340,7 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
         if line == '':
             empty_line = base_format.format(" ")
             formatted_lines.append("{0}{1}{2}".format(start_line_decorator, empty_line, end_line_decorator))
-        wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, placeholder='...')
+        wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, initial_indent=indent, subsequent_indent=sub_indent, placeholder='...')
         for wrapped_line in wrapped_lines:
             try:
                 new_line = left_padding + wrapped_line.encode('utf-8')
@@ -400,15 +412,23 @@ def build_report_brief_section(columns=None, primary_announcement=None, report_t
 
     for line in get_report_brief_info(report_type=report_type, **kwargs):
         ln = ''
-        for words in line:
+        padding = ' ' * 2
+
+        for i, words in enumerate(line):
             processed_words = words.get('value', '')
             if words.get('style', False):
-                processed_words = click.style(processed_words, bold=True)
+                text = ''
+                if i == 0:
+                    text = padding
+                    padding = ''
+                text += processed_words
+
+                processed_words = click.style(text, bold=True)
 
             ln += processed_words
 
-        styled_brief_lines.append(
-            format_long_text(ln, color='', columns=columns, start_line_decorator=' ' * 2, end_line_decorator=''))
+        styled_brief_lines.append(format_long_text(ln, color='', columns=columns, start_line_decorator='',
+                                                   left_padding=padding, end_line_decorator='', sub_indent=' ' * 2))
 
     return "\n".join([add_empty_line(), REPORT_HEADING, add_empty_line(), '\n'.join(styled_brief_lines)])
 
@@ -505,6 +525,8 @@ def add_warnings_if_needed(brief_info):
 
 
 def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
+    LOG.info('get_report_brief_info: %s, %s, %s', as_dict, report_type, kwargs)
+
     context = click.get_current_context()
 
     packages = [pkg for pkg in context.obj if isinstance(pkg, Package)]

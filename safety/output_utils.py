@@ -196,12 +196,14 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
     return click.unstyle(content) if only_text else content
 
 
-def build_remediation_section(remediations, only_text=False, columns=get_terminal_size().columns, kwards=None):
+def build_remediation_section(remediations, only_text=False, columns=get_terminal_size().columns, kwargs=None):
     columns -= 2
-    body_left_margin = 3
+    left_padding = ' ' * 3
 
-    if not kwards:
-        kwards = {'start_line_decorator': ' ' * body_left_margin, 'columns': columns}
+    if not kwargs:
+        # Reset default params in the format_long_text func
+        kwargs = {'left_padding': '', 'columns': columns, 'start_line_decorator': '', 'end_line_decorator': '',
+                  'sub_indent': left_padding}
 
     END_SECTION = '+' + '=' * columns + '+'
 
@@ -237,14 +239,14 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
                                  f"{raw_other_options}"
 
         remediation_content = [
-            'The closest version with no known vulnerabilities is ' + click.style(upgrade_to, bold=True),
+            f'{left_padding}The closest version with no known vulnerabilities is ' + click.style(upgrade_to, bold=True),
             new_line,
-            click.style(raw_recommendation, bold=True, fg='green')
+            click.style(f'{left_padding}{raw_recommendation}', bold=True, fg='green')
         ]
 
         if not fix_version:
             remediation_content = [new_line,
-                click.style('There is no known fix for this vulnerability.', bold=True, fg='yellow')]
+                click.style(f'{left_padding}There is no known fix for this vulnerability.', bold=True, fg='yellow')]
 
         text = 'vulnerabilities' if remediations[pkg]['vulns_found'] > 1 else 'vulnerability'
 
@@ -253,20 +255,20 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
 
         remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
 
-        content += new_line + format_long_text(remediation_title, start_line_decorator='') + new_line
+        content += new_line + format_long_text(remediation_title, **kwargs) + new_line
 
         pre_content = remediation_content + [
-                          f"For more information, please visit {remediations[pkg]['more_info_url']}",
-                          'Always check for breaking changes when upgrading packages.',
+                          f"{left_padding}For more information, please visit {remediations[pkg]['more_info_url']}",
+                          f'{left_padding}Always check for breaking changes when upgrading packages.',
                           new_line]
 
         for i, element in enumerate(pre_content):
-            content += format_long_text(element, **kwards)
+            content += format_long_text(element, **kwargs)
 
             if i + 1 < len(pre_content):
                 content += '\n'
 
-    title = format_long_text(click.style('REMEDIATIONS', fg='green', bold=True), **kwards)
+    title = format_long_text(click.style('REMEDIATIONS', fg='green', bold=True), **kwargs)
 
     body = [content]
 

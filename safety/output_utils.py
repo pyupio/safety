@@ -43,7 +43,7 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 
     for line in lines:
         styled_line = ''
-        left_padding = ''
+        # left_padding = ''
 
         for word in line.get('words', []):
             if word.get('style', {}):
@@ -51,7 +51,7 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
             else:
                 styled_line += word.get('value', '')
 
-            left_padding = ' ' * word.get('left_padding', 0)
+        left_padding = ' ' * line.get('left_padding', 0)
 
         styled_text += format_long_text(styled_line, columns=columns, start_line_decorator=start_line,
                                         end_line_decorator=end_line,
@@ -63,17 +63,14 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_terminal_size().columns):
     columns -= 8
 
-    l_p = ' ' * 3  # Left padding
-    ident = {'indent': l_p, 'sub_indent': l_p}
+    padding = {'left_padding': 3}
 
     styled_vulnerability = [
-        {
-         'words': [{'style': {'bold': True}, 'value': f'{l_p}Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
+        {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
     ]
 
     vulnerability_spec = [
-        {
-         'words': [{'style': {'bold': True}, 'value': f'{l_p}Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
+        {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
 
     cve = vulnerability.CVE
 
@@ -127,7 +124,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     advisory_format = {'max_lines': None} if full_mode else {'max_lines': 2}
 
     basic_vuln_data_lines = [
-        {'format': {**advisory_format, **ident}, 'words': [
+        {'format': advisory_format, 'words': [
             {'style': {'bold': True}, 'value': 'ADVISORY: '},
             {'value': vulnerability.advisory.replace('\n', '')}]}
     ]
@@ -171,6 +168,8 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
         to_print += expire_section
 
     to_print += more_info_line
+
+    to_print = [{**line, **padding} for line in to_print]
 
     content = style_lines(to_print, columns, styled_text, start_line='', end_line='', )
 
@@ -340,8 +339,8 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
             except TypeError:
                 new_line = left_padding + wrapped_line
 
-            if styling:
-                new_line = click.style(new_line, **styling)
+            #if styling:
+            new_line = click.style(new_line, **styling)
 
             formatted_lines.append(f"{start_line_decorator}{new_line}{end_line_decorator}")
 

@@ -67,13 +67,13 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     ident = {'indent': l_p, 'sub_indent': l_p}
 
     styled_vulnerability = [
-        {'format': ident,
-         'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
+        {
+         'words': [{'style': {'bold': True}, 'value': f'{l_p}Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
     ]
 
     vulnerability_spec = [
-        {'format': ident,
-         'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
+        {
+         'words': [{'style': {'bold': True}, 'value': f'{l_p}Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
 
     cve = vulnerability.CVE
 

@@ -47,13 +47,11 @@ class TestOutputUtils(unittest.TestCase):
             '   Affected spec: >0',
             '   ADVISORY: ',
             '   Fixed versions: No known fix',
-            '   bla is MEDIUM SEVERITY => CVSS v3, BASE SCORE 6.1,',
-            '   IMPACT SCORE 2.7, VECTOR STRING',
-            '   CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N',
+            '   bla is MEDIUM SEVERITY => CVSS v3, BASE SCORE 6.1, IMPACT',
+            '   SCORE 2.7, VECTOR STRING CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N',
             '   CVSS v2, BASE SCORE 4.3, IMPACT SCORE 2.9, VECTOR STRING',
             '   AV:N/AC:M/Au:N/C:N/I:P/A:N',
-            '   For more information, please visit',
-            '   https://pyup.io/PVE/2323\n'
+            '   For more information, please visit https://pyup.io/PVE/2323\n',
         ]
 
         EXPECTED = '\n'.join(lines)
@@ -74,8 +72,7 @@ class TestOutputUtils(unittest.TestCase):
             '-> Vulnerability found in numpy version 1.22.0',
             '   Vulnerability ID: PYUP-1234',
             '   This vulnerability is being ignored.',
-            '   For more information, please visit',
-            '   https://pyup.io/PVE/2323\n'
+            '   For more information, please visit https://pyup.io/PVE/2323\n',
         ]
 
         EXPECTED = '\n'.join(lines)
@@ -93,8 +90,7 @@ class TestOutputUtils(unittest.TestCase):
             '   Vulnerability ID: PYUP-1234',
             '   This vulnerability is being ignored.',
            f'   Reason: {reason}',
-            '   For more information, please visit',
-            '   https://pyup.io/PVE/2323\n'
+            '   For more information, please visit https://pyup.io/PVE/2323\n',
         ]
 
         EXPECTED = '\n'.join(lines)
@@ -202,14 +198,14 @@ class TestOutputUtils(unittest.TestCase):
                                                   'minor': None},
                        'more_info_url': 'https://pyup.io/packages/pypi/django/'}}
 
-        EXPECTED = ['   REMEDIATIONS ',
-                    '\n-> django version 4.0.1 was found, which has 1 vulnerability '
-                    '\n   The closest version with no known vulnerabilities is 4.0.4 '
+        EXPECTED = ['   REMEDIATIONS',
+                    '\n-> django version 4.0.1 was found, which has 1 vulnerability'
+                    '\n   The closest version with no known vulnerabilities is 4.0.4'
                     '\n                                                                              '
-                    '\n   We recommend upgrading to version 4.0.4 of django. Other versions '
-                    '\n   without known vulnerabilities are: 2.2.28, 3.2.13 '
-                    '\n   For more information, please visit https://pyup.io/packages/pypi/django/ '
-                    '\n   Always check for breaking changes when upgrading packages. '
+                    '\n   We recommend upgrading to version 4.0.4 of django. Other versions'
+                    '\n   without known vulnerabilities are: 2.2.28, 3.2.13'
+                    '\n   For more information, please visit https://pyup.io/packages/pypi/django/'
+                    '\n   Always check for breaking changes when upgrading packages.'
                     '\n                                                                              ',
                     '+==============================================================================+']
 
@@ -227,7 +223,7 @@ class TestOutputUtils(unittest.TestCase):
                        'more_info_url': 'https://pyup.io/packages/pypi/django/'}}
 
         # Start & End line decorator in format_long_text affects this output
-        EXPECTED = ['   REMEDIATIONS ',
+        EXPECTED = ['   REMEDIATIONS',
                     '\n  1 vulnerability was found in 1 package. For detailed remediation & fix \n'
                     '  recommendations, upgrade to a commercial license. \n',
                     '+==============================================================================+']

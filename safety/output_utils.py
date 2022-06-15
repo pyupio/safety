@@ -410,15 +410,23 @@ def build_report_brief_section(columns=None, primary_announcement=None, report_t
 
     for line in get_report_brief_info(report_type=report_type, **kwargs):
         ln = ''
-        for words in line:
+        padding = ' ' * 2
+
+        for i, words in enumerate(line):
             processed_words = words.get('value', '')
             if words.get('style', False):
-                processed_words = click.style(processed_words, bold=True)
+                text = ''
+                if i == 0:
+                    text = padding
+                    padding = ''
+                text += processed_words
+
+                processed_words = click.style(text, bold=True)
 
             ln += processed_words
 
         styled_brief_lines.append(format_long_text(ln, color='', columns=columns, start_line_decorator='',
-                                                   left_padding=' ' * 2, end_line_decorator=''))
+                                                   left_padding=padding, end_line_decorator='', sub_indent=' ' * 2))
 
     return "\n".join([add_empty_line(), REPORT_HEADING, add_empty_line(), '\n'.join(styled_brief_lines)])
 

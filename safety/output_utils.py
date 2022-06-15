@@ -63,12 +63,17 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_terminal_size().columns):
     columns -= 8
 
+    l_p = ' ' * 3  # Left padding
+    ident = {'indent': l_p, 'sub_indent': l_p}
+
     styled_vulnerability = [
-        {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
+        {'format': ident,
+         'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
     ]
 
     vulnerability_spec = [
-        {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
+        {'format': ident,
+         'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
 
     cve = vulnerability.CVE
 
@@ -122,7 +127,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     advisory_format = {'max_lines': None} if full_mode else {'max_lines': 2}
 
     basic_vuln_data_lines = [
-        {'format': advisory_format, 'words': [
+        {'format': {**advisory_format, **ident}, 'words': [
             {'style': {'bold': True}, 'value': 'ADVISORY: '},
             {'value': vulnerability.advisory.replace('\n', '')}]}
     ]
@@ -167,7 +172,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
     to_print += more_info_line
 
-    content = style_lines(to_print, columns, styled_text, start_line=' ' * 3, end_line='')
+    content = style_lines(to_print, columns, styled_text, start_line='', end_line='', )
 
     return click.unstyle(content) if only_text else content
 
@@ -312,7 +317,7 @@ def get_final_brief_license(licenses, kwargs=None):
     return format_long_text("{0}".format(licenses_text), start_line_decorator=' ', **kwargs)
 
 
-def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', left_padding='', max_lines=None, styling=None):
+def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', left_padding='', max_lines=None, styling=None, indent='', sub_indent=''):
     if not styling:
         styling = {}
 
@@ -328,7 +333,7 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
         if line == '':
             empty_line = base_format.format(" ")
             formatted_lines.append("{0}{1}{2}".format(start_line_decorator, empty_line, end_line_decorator))
-        wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, placeholder='...')
+        wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, initial_indent=indent, subsequent_indent=sub_indent, placeholder='...')
         for wrapped_line in wrapped_lines:
             try:
                 new_line = left_padding + wrapped_line.encode('utf-8')

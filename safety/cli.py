@@ -16,7 +16,7 @@ from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version
+    get_processed_options, get_safety_version, json_alias, bare_alias
 
 LOG = logging.getLogger(__name__)
 
@@ -42,10 +42,11 @@ def cli(ctx, debug, telemetry):
                    "environment variable. Default: empty")
 @click.option("--db", default="",
               help="Path to a local vulnerability database. Default: empty")
-@click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output"], with_values={"output": ['json', 'bare']},
-              help='Full reports include a security advisory (if available). Default: '
-                   '--short-report')
-@click.option("--cache", default=0,
+@click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption,
+              mutually_exclusive=["output", "json", "bare"],
+              with_values={"output": ['json', 'bare'], "json": [True, False], "bare": [True, False]},
+              help='Full reports include a security advisory (if available). Default: --short-report')
+@click.option("--cache", is_flag=False, flag_value=60, default=0,
               help="Cache requests to the vulnerability database locally. Default: 0 seconds")
 @click.option("--stdin/--no-stdin", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["files"],
               help="Read input from stdin. Default: --no-stdin")
@@ -53,8 +54,12 @@ def cli(ctx, debug, telemetry):
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
+@click.option('--json/--no-json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
+              with_values={"output": ['screen', 'text', 'bare', 'json'], "bare": [True, False]}, callback=json_alias)
+@click.option('--bare/--not-bare', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "json"],
+              with_values={"output": ['screen', 'text', 'bare', 'json'], "json": [True, False]}, callback=bare_alias)
 @click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
-              default='screen', callback=active_color_if_needed)
+              default='screen', callback=active_color_if_needed, envvar='SAFETY_OUTPUT')
 @click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption, required_options=['proxy_host'],
               help="Proxy protocol (https or http) --proxy-protocol")
 @click.option("--proxy-host", "-ph", multiple=False, type=str, default=None,
@@ -65,8 +70,10 @@ def cli(ctx, debug, telemetry):
               help="Output standard exit codes. Default: --exit-code")
 @click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
               help="Define the policy file to be used")
+@click.option("--save-json", default="", help="Path to where output file will be placed. Default: empty")
 @click.pass_context
-def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file):
+def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host, proxy_port,
+          exit_code, policy_file, save_json):
     LOG.info('Running check command')
 
     try:
@@ -108,6 +115,15 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, proxy_
         found_vulns = list(filter(lambda v: not v.ignored, vulns))
         LOG.info('Vulnerabilities found (Not ignored): %s', len(found_vulns))
         LOG.info('All vulnerabilities found (ignored and Not ignored): %s', len(vulns))
+
+        if save_json:
+            json_report = output_report
+
+            if output != 'json':
+                json_report = SafetyFormatter(output='json').render_vulnerabilities(announcements, vulns, remediations,
+                                                                                    full_report, packages)
+            with open(save_json, 'w+') as output_json_file:
+                output_json_file.write(json_report)
 
         click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
 

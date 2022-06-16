@@ -1,7 +1,7 @@
 import click
 
 from safety.formatter import FormatterAPI
-from safety.output_utils import build_announcements_section_content, get_terminal_size, format_vulnerability, \
+from safety.output_utils import build_announcements_section_content, format_vulnerability, \
     build_report_brief_section, get_final_brief_license, add_empty_line, get_final_brief, build_remediation_section, \
     build_primary_announcement
 from safety.util import get_primary_announcement, get_basic_announcements

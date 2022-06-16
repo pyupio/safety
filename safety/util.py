@@ -232,9 +232,9 @@ def get_basic_announcements(announcements):
 
 def build_telemetry_data(telemetry=True):
     body = {
-        'os_type': platform.system(),
-        'os_release': platform.release(),
-        'os_description': platform.platform(),
+        'os_type': os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
+        'os_release': os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
+        'os_description': os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
         'python_version': platform.python_version(),
         'safety_command': click.get_current_context().command.name,
         'safety_options': get_used_options()
@@ -303,13 +303,12 @@ class MutuallyExclusiveOption(click.Option):
                 exclusive_value_used = True
 
         if option_used and (not self.with_values or exclusive_value_used):
-            raise click.UsageError(
-                "Illegal usage: `{}` is mutually exclusive with "
-                "arguments `{}`.".format(
-                    self.name,
-                    ', '.join(["{0} with values {1}".format(item, self.with_values.get(
+            options = ', '.join(self.opts)
+            prohibited = ''.join(["\n * --{0} with {1}".format(item, self.with_values.get(
                         item)) if item in self.with_values else item for item in self.mutually_exclusive])
-                )
+
+            raise click.UsageError(
+                f"Illegal usage: `{options}` is mutually exclusive with: {prohibited}"
             )
 
         return super(MutuallyExclusiveOption, self).handle_parse_result(
@@ -367,6 +366,28 @@ def active_color_if_needed(ctx, param, value):
         ctx.color = bool(color)
 
     return value
+
+
+def json_alias(ctx, param, value):
+    if value:
+        os.environ['SAFETY_OUTPUT'] = 'json'
+        return value
+
+
+def bare_alias(ctx, param, value):
+    if value:
+        os.environ['SAFETY_OUTPUT'] = 'bare'
+        return value
+
+
+def get_terminal_size():
+    from shutil import get_terminal_size as t_size
+    # get_terminal_size can report 0, 0 if run from pseudo-terminal prior Python 3.11 versions
+
+    columns = t_size().columns or 80
+    lines = t_size().lines or 24
+
+    return os.terminal_size((columns, lines))
 
 
 class SafetyPolicyFile(click.ParamType):

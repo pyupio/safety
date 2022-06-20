@@ -1,0 +1,113 @@
+######## Insecure test cases. All of these use insecure packages, and should fail - so they have `continue-on-error`
+######## set on the action step, and a further step to ensure the previous step failed (and actually fail if it _didn't_)
+name: Safety Action Insecure Tests
+
+on: [push]
+
+jobs:
+  ##### Auto mode tests
+  ### File scanning
+  # Scans a requirements.txt in the repo; the simplest case. We contort one into existing for this test
+  # case, to avoid confusion
+  test-auto-requirements-txt-insecure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: cp tests/action/requirements.txt-insecure requirements.txt
+
+      - uses: ./
+        id: scan-1
+        continue-on-error: true
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+      - if: steps.scan-1.outcome != 'failure' || steps.scan-1.outputs.exit-code != '64'
+        run: exit 1
+
+  # Same as above, but for a poetry lock file
+  test-auto-poetry-insecure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: cp tests/action/poetry.lock-insecure poetry.lock && cp tests/action/pyproject.toml-insecure pyproject.toml
+
+      - uses: ./
+        id: scan-2
+        continue-on-error: true
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+      - if: steps.scan-2.outcome != 'failure' || steps.scan-2.outputs.exit-code != '64'
+        run: exit 1
+
+  # Same as above, but for a Pipfile.lock
+  test-auto-pipfile-insecure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: cp tests/action/Pipfile.lock-insecure Pipfile.lock
+
+      - uses: ./
+        id: scan-3
+        continue-on-error: true
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+      - if: steps.scan-3.outcome != 'failure' || steps.scan-3.outputs.exit-code != '64'
+        run: exit 1
+
+  ### Env scanning:
+  ### Scans the runner environment. Here, the Github action `actions/setup-python@v3` actually
+  ### installs things in the root VM that the action runs on; this is what gets scanned.
+  test-auto-environment-insecure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+          architecture: 'x64'
+
+      - run: python -m pip install -r tests/action/requirements.txt-insecure
+
+      - uses: ./
+        id: scan-4
+        continue-on-error: true
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+      - if: steps.scan-4.outcome != 'failure' || steps.scan-4.outputs.exit-code != '64'
+        run: exit 1
+
+  ### Docker scanning:
+  ### Scans a recently built Docker container. This uses a few heuristics, defined in entrypoint.sh
+  test-auto-docker-insecure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build image
+        run: DOCKER_BUILDKIT=1 docker build -t my-insecure-image tests/action/docker-insecure
+
+      - uses: ./
+        id: scan-5
+        continue-on-error: true
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+      - if: steps.scan-5.outcome != 'failure' || steps.scan-5.outputs.exit-code != '64'
+        run: exit 1

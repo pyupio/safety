@@ -6,7 +6,7 @@ RUN mkdir /app
 RUN apt-get update && apt-get -y install docker.io jq && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install poetry and pipenv; used for converting their respective lockfile formats to generic requirements.txt
-RUN cd /app && python3 -m pip install poetry==1.1.13 pipenv==2022.5.2
+RUN cd /app && python3 -m pip install poetry==1.1.13 pipenv==2022.6.7
 
 # Install this project dependencies
 COPY . /app

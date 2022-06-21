@@ -139,7 +139,7 @@ elif [ "${SAFETY_ACTION_SCAN}" = "file" ]; then
         SAFETY_ACTION_REQUIREMENTS="/tmp/requirements.txt"
     fi
 
-    if [[ "${SAFETY_ACTION_CONTINUE_ON_ERROR}" != "" ]]; then
+    if [[ "${SAFETY_ACTION_CONTINUE_ON_ERROR,,}" == "yes" || "${SAFETY_ACTION_CONTINUE_ON_ERROR,,}" == "true" ]]; then
         SAFETY_ACTION_CONTINUE_ON_ERROR="--continue-on-error"
     fi
 fi

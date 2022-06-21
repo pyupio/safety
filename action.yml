@@ -19,7 +19,7 @@ inputs:
     required: false
     default: ''
   continue-on-error:
-    description: 'By default, Safety will exit with a non-zero exit code if it detects any vulnerabilities. Set this to non-empty value to not error out.'
+    description: 'By default, Safety will exit with a non-zero exit code if it detects any vulnerabilities. Set this to yes / true to not error out.'
     required: false
     default: ''
   output-format:

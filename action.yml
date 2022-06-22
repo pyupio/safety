@@ -51,3 +51,7 @@ runs:
     SAFETY_ACTION_ARGS: ${{ inputs.args }}
     SAFETY_ACTION_FORMAT: true
     COLUMNS: 120
+
+branding:
+  icon: 'lock'
+  color: 'purple'

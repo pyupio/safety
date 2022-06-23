@@ -6,7 +6,16 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
-## [Unreleased] 2.0b4.dev
+## [Unreleased] 2.0b5.dev
+
+## [2.0b4] - 2022-06-16
+
+### Summary:
+- Fixed issue with paddings and margins at specific console outputs like Github actions console
+- Added the --save-json flag and other aliases
+- Added a fallback size for the terminal size function, related to https://bugs.python.org/issue42174
+- Suppressed the announcements sent to stderr when it is running via 'run' environments
+
 
 ## [2.0b3] - 2022-05-30
 

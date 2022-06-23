@@ -17,7 +17,6 @@ class TestOutputUtils(unittest.TestCase):
     def setUp(self) -> None:
         self.maxDiff = None
 
-    @patch.object(click, 'get_current_context', Mock(params=Mock(key=Mock(return_value='foobar'))))
     def test_format_vulnerability(self):
         numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'secure_versions': ['1.22.3'],
                      'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5']}
@@ -57,7 +56,6 @@ class TestOutputUtils(unittest.TestCase):
         EXPECTED = '\n'.join(lines)
         self.assertEqual(output, EXPECTED)
 
-    @patch.object(click, 'get_current_context', Mock(params=Mock(key=Mock(return_value='foobar'))))
     def test_format_vulnerability_with_ignored_vulnerability(self):
         numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'secure_versions': ['1.22.3'],
                      'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5']}
@@ -117,9 +115,9 @@ class TestOutputUtils(unittest.TestCase):
         EXPECTED = '\n'.join(lines)
         self.assertEqual(output, EXPECTED)
 
-    @patch("safety.output_utils.click.get_current_context")
+    @patch("safety.output_utils.SafetyContext")
     def test_get_printable_list_of_scanned_items_stdin(self, ctx):
-        ctx.return_value = Mock(obj=[])
+        ctx.return_value = Mock(packages=[])
         output = get_printable_list_of_scanned_items('stdin')
 
         EXPECTED = (
@@ -131,7 +129,7 @@ class TestOutputUtils(unittest.TestCase):
         p_kwargs = {'name': 'django', 'version': '2.2', 'found': '/site-packages/django', 'insecure_versions': [],
                     'secure_versions': ['2.2'], 'latest_version_without_known_vulnerabilities': '2.2',
                     'latest_version': '2.2', 'more_info_url': 'https://pyup.io/package/foo'}
-        ctx.return_value = Mock(obj=[Package(**p_kwargs)])
+        ctx.return_value = Mock(packages=[Package(**p_kwargs)])
         output = get_printable_list_of_scanned_items('stdin')
 
         EXPECTED = (
@@ -140,9 +138,9 @@ class TestOutputUtils(unittest.TestCase):
 
         self.assertTupleEqual(output, EXPECTED)
 
-    @patch("safety.output_utils.click.get_current_context")
+    @patch("safety.output_utils.SafetyContext")
     def test_get_printable_list_of_scanned_items_environment(self, ctx):
-        ctx.return_value = Mock(obj=[])
+        ctx.return_value = Mock(packages=[])
         output = get_printable_list_of_scanned_items('environment')
 
         no_locations = 'No locations found in the environment'
@@ -153,7 +151,7 @@ class TestOutputUtils(unittest.TestCase):
 
         self.assertTupleEqual(output, EXPECTED)
 
-    @patch("safety.output_utils.click.get_current_context")
+    @patch("safety.output_utils.SafetyContext")
     def test_get_printable_list_of_scanned_items_files(self, ctx):
         dirname = os.path.dirname(__file__)
         file_a = open(os.path.join(dirname, "reqs_1.txt"), mode='r')
@@ -170,7 +168,7 @@ class TestOutputUtils(unittest.TestCase):
 
         self.assertTupleEqual(output, EXPECTED)
 
-    @patch("safety.output_utils.click.get_current_context")
+    @patch("safety.output_utils.SafetyContext")
     def test_get_printable_list_of_scanned_items_file(self, ctx):
         # Used by the review command
         report = open(os.path.join(

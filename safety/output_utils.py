@@ -6,7 +6,7 @@ from datetime import datetime
 import click
 
 from safety.constants import RED, YELLOW
-from safety.util import get_safety_version, Package, get_terminal_size
+from safety.util import get_safety_version, Package, get_terminal_size, SafetyContext
 
 LOG = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
             {'value': vulnerability.advisory.replace('\n', '')}]}
     ]
 
-    if click.get_current_context().params.get('key', False):
+    if SafetyContext().key:
         fixed_version_line = {'words': [
             {'style': {'bold': True}, 'value': 'Fixed versions: '},
             {'value': ', '.join(vulnerability.fixed_versions) if vulnerability.fixed_versions else 'No known fix'}
@@ -357,12 +357,13 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
 
 
 def get_printable_list_of_scanned_items(scanning_target):
-    context = click.get_current_context()
+    context = SafetyContext()
+
     result = []
     scanned_items_data = []
 
     if scanning_target == 'environment':
-        locations = set([pkg.found for pkg in context.obj if isinstance(pkg, Package)])
+        locations = set([pkg.found for pkg in context.packages if isinstance(pkg, Package)])
 
         for path in locations:
             result.append([{'styled': False, 'value': '-> ' + path}])
@@ -374,7 +375,7 @@ def get_printable_list_of_scanned_items(scanning_target):
             scanned_items_data.append(msg)
 
     elif scanning_target == 'stdin':
-        scanned_stdin = [pkg.name for pkg in context.obj if isinstance(pkg, Package)]
+        scanned_stdin = [pkg.name for pkg in context.packages if isinstance(pkg, Package)]
         value = 'No found packages in stdin'
         scanned_items_data = [value]
 
@@ -435,8 +436,9 @@ def build_report_brief_section(columns=None, primary_announcement=None, report_t
 
 
 def build_report_for_review_vuln_report(as_dict=False):
-    report_from_file = click.get_current_context().review
-    packages = click.get_current_context().obj
+    ctx = SafetyContext()
+    report_from_file = ctx.review
+    packages = ctx.packages
 
     if as_dict:
         return report_from_file
@@ -509,15 +511,15 @@ def build_scanned_count_sentence(packages):
 
 
 def add_warnings_if_needed(brief_info):
-    ctx = click.get_current_context()
+    ctx = SafetyContext()
     warnings = []
 
-    if ctx.obj:
-        if hasattr(ctx, 'continue_on_error') and ctx.continue_on_error:
+    if ctx.packages:
+        if ctx.params.get('continue_on_error', False):
             warnings += [[{'style': True,
                            'value': '* Continue-on-error is enabled, so returning successful (0) exit code in all cases.'}]]
 
-        if hasattr(ctx, 'ignore_severity_rules') and ctx.ignore_severity_rules and not is_using_api_key():
+        if ctx.params.get('ignore_severity_rules', False) and not is_using_api_key():
             warnings += [[{'style': True,
                            'value': '* Could not filter by severity, please upgrade your account to include severity data.'}]]
 
@@ -528,18 +530,18 @@ def add_warnings_if_needed(brief_info):
 def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     LOG.info('get_report_brief_info: %s, %s, %s', as_dict, report_type, kwargs)
 
-    context = click.get_current_context()
+    context = SafetyContext()
 
-    packages = [pkg for pkg in context.obj if isinstance(pkg, Package)]
+    packages = [pkg for pkg in context.packages if isinstance(pkg, Package)]
     brief_data = {}
-    command = context.command.name
+    command = context.command
 
     if command == 'review':
         review = build_report_for_review_vuln_report(as_dict)
         return review
 
-    key = context.params.get('key', False)
-    db = context.params.get('db', False)
+    key = context.key
+    db = context.db_mirror
 
     scanning_types = {'check': {'name': 'Vulnerabilities', 'action': 'Scanning dependencies', 'scanning_target': 'environment'}, # Files, Env or Stdin
                       'license': {'name': 'Licenses', 'action': 'Scanning licenses', 'scanning_target': 'environment'}, # Files or Env
@@ -552,14 +554,14 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
             scanning_types[command]['scanning_target'] = target
             break
 
-    scanning_target = scanning_types.get(context.command.name, {}).get('scanning_target', '')
+    scanning_target = scanning_types.get(context.command, {}).get('scanning_target', '')
     brief_data['scan_target'] = scanning_target
     scanned_items, data = get_printable_list_of_scanned_items(scanning_target)
     brief_data['scanned'] = data
     nl = [{'style': False, 'value': ''}]
 
     action_executed = [
-        {'style': True, 'value': scanning_types.get(context.command.name, {}).get('action', '')},
+        {'style': True, 'value': scanning_types.get(context.command, {}).get('action', '')},
         {'style': False, 'value': ' in your '},
         {'style': True, 'value': scanning_target + ':'},
         ]
@@ -618,7 +620,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_info = [[{'style': False, 'value': 'Safety '},
      {'style': True, 'value': 'v' + get_safety_version()},
      {'style': False, 'value': ' is scanning for '},
-     {'style': True, 'value': scanning_types.get(context.command.name, {}).get('name', '')},
+     {'style': True, 'value': scanning_types.get(context.command, {}).get('name', '')},
      {'style': True, 'value': '...'}] + safety_policy_used, action_executed
      ] + [nl] + scanned_items + [nl] + [using_sentence] + [scanned_count_sentence] + [timestamp]
 
@@ -650,15 +652,11 @@ def build_primary_announcement(primary_announcement, columns=None, only_text=Fal
 
 
 def is_using_api_key():
-    context = click.get_current_context()
-    review_used_api_key = context.review.get('api_key', False) if hasattr(context,
-                                                                          'review') and context.review else False
-    return bool(context.params.get('key', None)) or review_used_api_key
+    return bool(SafetyContext().key)
 
 
 def is_using_a_safety_policy_file():
-    context = click.get_current_context()
-    return bool(context.params.get('policy_file', None))
+    return bool(SafetyContext().params.get('policy_file', None))
 
 
 def should_add_nl(output, found_vulns):

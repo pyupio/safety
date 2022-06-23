@@ -4,6 +4,7 @@ import platform
 import sys
 from datetime import datetime
 from difflib import SequenceMatcher
+from threading import Lock
 from typing import List
 
 import click
@@ -178,12 +179,13 @@ def get_packages_licenses(packages, licenses_db):
 
 def get_flags_from_context():
     flags = {}
-    context = click.get_current_context()
+    context = click.get_current_context(silent=True)
 
-    for option in context.command.params:
-        flags_per_opt = option.opts + option.secondary_opts
-        for flag in flags_per_opt:
-            flags[flag] = option.name
+    if context:
+        for option in context.command.params:
+            flags_per_opt = option.opts + option.secondary_opts
+            for flag in flags_per_opt:
+                flags[flag] = option.name
 
     return flags
 
@@ -231,12 +233,14 @@ def get_basic_announcements(announcements):
 
 
 def build_telemetry_data(telemetry=True):
+    context = SafetyContext()
+
     body = {
         'os_type': os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
         'os_release': os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
         'os_description': os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
         'python_version': platform.python_version(),
-        'safety_command': click.get_current_context().command.name,
+        'safety_command': context.command,
         'safety_options': get_used_options()
     } if telemetry else {}
 
@@ -390,6 +394,23 @@ def get_terminal_size():
     return os.terminal_size((columns, lines))
 
 
+def validate_expiration_date(expiration_date):
+    d = None
+
+    if expiration_date:
+        try:
+            d = datetime.strptime(expiration_date, '%Y-%m-%d')
+        except ValueError as e:
+            pass
+
+        try:
+            d = datetime.strptime(expiration_date, '%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            pass
+
+    return d
+
+
 class SafetyPolicyFile(click.ParamType):
     """
        Custom Safety Policy file to hold validations
@@ -528,24 +549,14 @@ class SafetyPolicyFile(click.ParamType):
                         )
 
                     # Validate expires
-                    d = None
-                    if expires:
-                        try:
-                            d = datetime.strptime(expires, '%Y-%m-%d')
-                        except ValueError as e:
-                            pass
+                    d = validate_expiration_date(expires)
 
-                        try:
-                            d = datetime.strptime(expires, '%Y-%m-%d %H:%M:%S')
-                        except ValueError as e:
-                            pass
-
-                        if not d:
-                            self.fail(msg.format(hint=f"{context_msg}expires: \"{expires}\" isn't a valid format "
-                                                      f"for the expires keyword, "
-                                                      "valid options are: YYYY-MM-DD or "
-                                                      "YYYY-MM-DD HH:MM:SS")
-                                      )
+                    if expires and not d:
+                        self.fail(msg.format(hint=f"{context_msg}expires: \"{expires}\" isn't a valid format "
+                                                  f"for the expires keyword, "
+                                                  "valid options are: YYYY-MM-DD or "
+                                                  "YYYY-MM-DD HH:MM:SS")
+                                  )
 
                     normalized[str(ignored_vuln_id)] = {'reason': reason, 'expires': d}
 
@@ -583,3 +594,48 @@ class SafetyPolicyFile(click.ParamType):
         from click.shell_completion import CompletionItem
 
         return [CompletionItem(incomplete, type="file")]
+
+
+class SingletonMeta(type):
+
+    _instances = {}
+
+    _lock = Lock()
+
+    def __call__(cls, *args, **kwargs):
+        with cls._lock:
+            if cls not in cls._instances:
+                instance = super().__call__(*args, **kwargs)
+                cls._instances[cls] = instance
+        return cls._instances[cls]
+
+
+class SafetyContext(metaclass=SingletonMeta):
+    packages = None
+    key = False
+    db_mirror = False
+    cached = None
+    ignore_vulns = None
+    ignore_severity_rules = None
+    proxy = None
+    include_ignored = False
+    telemetry = None
+    files = None
+    stdin = None
+    is_env_scan = None
+    command = None
+    review = None
+    params = {}
+
+
+def sync_safety_context(f):
+    def new_func(*args, **kwargs):
+        ctx = SafetyContext()
+
+        for attr in dir(ctx):
+            if attr in kwargs:
+                setattr(ctx, attr, kwargs.get(attr))
+
+        return f(*args, **kwargs)
+
+    return new_func

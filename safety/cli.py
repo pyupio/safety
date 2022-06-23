@@ -20,12 +20,18 @@ from safety.util import get_proxy_dict, get_packages_licenses, output_exception,
 
 LOG = logging.getLogger(__name__)
 
+
 @click.group()
 @click.option('--debug/--no-debug', default=False)
 @click.option('--telemetry/--disable-telemetry', default=True)
 @click.version_option(version=get_safety_version())
 @click.pass_context
 def cli(ctx, debug, telemetry):
+    """
+    Safety checks Python dependencies for known security vulnerabilities and suggests the proper
+    remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and
+    on production systems.
+    """
     ctx.telemetry = telemetry
     level = logging.CRITICAL
     if debug:
@@ -47,7 +53,8 @@ def cli(ctx, debug, telemetry):
               with_values={"output": ['json', 'bare'], "json": [True, False], "bare": [True, False]},
               help='Full reports include a security advisory (if available). Default: --short-report')
 @click.option("--cache", is_flag=False, flag_value=60, default=0,
-              help="Cache requests to the vulnerability database locally. Default: 0 seconds")
+              help="Cache requests to the vulnerability database locally. Default: 0 seconds",
+              hidden=True)
 @click.option("--stdin/--no-stdin", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["files"],
               help="Read input from stdin. Default: --no-stdin")
 @click.option("files", "--file", "-r", multiple=True, type=click.File(), cls=MutuallyExclusiveOption, mutually_exclusive=["stdin"],
@@ -55,9 +62,11 @@ def cli(ctx, debug, telemetry):
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
 @click.option('--json/--no-json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
-              with_values={"output": ['screen', 'text', 'bare', 'json'], "bare": [True, False]}, callback=json_alias)
+              with_values={"output": ['screen', 'text', 'bare', 'json'], "bare": [True, False]}, callback=json_alias,
+              hidden=True)
 @click.option('--bare/--not-bare', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "json"],
-              with_values={"output": ['screen', 'text', 'bare', 'json'], "json": [True, False]}, callback=bare_alias)
+              with_values={"output": ['screen', 'text', 'bare', 'json'], "json": [True, False]}, callback=bare_alias,
+              hidden=True)
 @click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
               default='screen', callback=active_color_if_needed, envvar='SAFETY_OUTPUT')
 @click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption, required_options=['proxy_host'],
@@ -70,15 +79,19 @@ def cli(ctx, debug, telemetry):
               help="Output standard exit codes. Default: --exit-code")
 @click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
               help="Define the policy file to be used")
-@click.option("--save-json", default="", help="Path to where output file will be placed. Default: empty")
+@click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
+                                              "Safety will use safety-report.json as filename. Default: empty")
 @click.pass_context
 def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host, proxy_port,
           exit_code, policy_file, save_json):
+    """
+    Find vulnerabilities in Python dependencies at the target provided.
+
+    """
     LOG.info('Running check command')
 
     try:
         packages = get_packages(files, stdin)
-        ctx.obj = packages
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
         announcements = []
@@ -89,14 +102,15 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         ignore_severity_rules = None
         ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
                                                                          ignore_severity_rules, exit_code)
-        ctx.continue_on_error = not exit_code
-        ctx.ignore_severity_rules = ignore_severity_rules
 
         is_env_scan = not stdin and not files
+        params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
+                  'ignore_severity_rules': ignore_severity_rules}
         LOG.info('Calling the check function')
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
                                       ignore_severity_rules=ignore_severity_rules, proxy=proxy_dictionary,
-                                      include_ignored=True, is_env_scan=is_env_scan, telemetry=ctx.parent.telemetry)
+                                      include_ignored=True, is_env_scan=is_env_scan, telemetry=ctx.parent.telemetry,
+                                      params=params)
         LOG.debug('Vulnerabilities returned: %s', vulns)
         LOG.debug('full database returned is None: %s', db_full is None)
 
@@ -117,11 +131,15 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         LOG.info('All vulnerabilities found (ignored and Not ignored): %s', len(vulns))
 
         if save_json:
+            default_name = 'safety-report.json'
             json_report = output_report
 
             if output != 'json':
                 json_report = SafetyFormatter(output='json').render_vulnerabilities(announcements, vulns, remediations,
                                                                                     full_report, packages)
+            if os.path.isdir(save_json):
+                save_json = os.path.join(save_json, default_name)
+
             with open(save_json, 'w+') as output_json_file:
                 output_json_file.write(json_report)
 
@@ -152,6 +170,9 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
               help="Read input from an insecure report file. Default: empty")
 @click.pass_context
 def review(ctx, full_report, output, file):
+    """
+    Show an output from a previous exported JSON report.
+    """
     LOG.info('Running check command')
     announcements = safety.get_announcements(key=None, proxy=None, telemetry=ctx.parent.telemetry)
     report = {}
@@ -166,7 +187,8 @@ def review(ctx, full_report, output, file):
         exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
         output_exception(exception, exit_code_output=True)
 
-    vulns, remediations, packages = safety.review(report)
+    params = {'file': file}
+    vulns, remediations, packages = safety.review(report, params=params)
 
     output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
                                                                           full_report, packages)
@@ -197,6 +219,9 @@ def review(ctx, full_report, output, file):
               help="Proxy protocol (https or http) --proxy-protocol")
 @click.pass_context
 def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyport):
+    """
+    Find the open source licenses used by your Python dependencies.
+    """
     LOG.info('Running license command')
     packages = get_packages(files, False)
     ctx.obj = packages
@@ -230,7 +255,7 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
 @click.argument('name')
 @click.pass_context
 def generate(ctx, name, path):
-    """create a basic supported file type.
+    """Create a boilerplate supported file type.
 
     NAME is the name of the file type to generate. Valid values are: policy_file
     """
@@ -270,7 +295,7 @@ def generate(ctx, name, path):
 @click.argument('name')
 @click.pass_context
 def validate(ctx, name, path):
-    """verify a supported file type.
+    """Verify the validity of a supported file type.
 
     NAME is the name of the file type to validate. Valid values are: policy_file
     """

@@ -28,6 +28,7 @@ from safety.formatter import SafetyFormatter
 from safety.models import CVE
 from safety.safety import ignore_vuln_if_needed, get_closest_ver, precompute_remediations, compute_sec_ver, \
     calculate_remediations, read_vulnerabilities
+from safety.util import SafetyContext
 from tests.resources import VALID_REPORT, VULNS, SCANNED_PACKAGES, REMEDIATIONS
 from tests.test_cli import get_vulnerability
 
@@ -643,14 +644,12 @@ class TestSafety(unittest.TestCase):
         with open(os.path.join(self.dirname, "test_db", "report.json")) as f:
             self.assertDictEqual(self.report, read_vulnerabilities(f))
 
-    @patch.object(click, 'get_current_context', Mock())
     def test_review_without_recommended_fix(self):
         vulns, remediations, packages = safety.review(self.report)
-        self.assertDictEqual(packages, self.report_packages)
+        self.assertListEqual(packages, list(self.report_packages.values()))
         self.assertDictEqual(remediations, self.report_remediations)
         self.assertListEqual(vulns, self.report_vulns)
 
-    @patch.object(click, 'get_current_context', Mock())
     def test_report_with_recommended_fix(self):
         REMEDIATIONS_WITH_FIX = {'django': {'version': '4.0.1', 'vulns_found': 4, 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
                                             'closest_secure_version': {'major': parse('4.0.4'),

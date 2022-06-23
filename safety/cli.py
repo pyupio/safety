@@ -55,18 +55,19 @@ def cli(ctx, debug, telemetry):
 @click.option("--cache", is_flag=False, flag_value=60, default=0,
               help="Cache requests to the vulnerability database locally. Default: 0 seconds",
               hidden=True)
-@click.option("--stdin/--no-stdin", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["files"],
-              help="Read input from stdin. Default: --no-stdin")
-@click.option("files", "--file", "-r", multiple=True, type=click.File(), cls=MutuallyExclusiveOption, mutually_exclusive=["stdin"],
+@click.option("--stdin", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["files"],
+              help="Read input from stdin.", is_flag=True, show_default=True)
+@click.option("files", "--file", "-r", multiple=True, type=click.File(), cls=MutuallyExclusiveOption,
+              mutually_exclusive=["stdin"],
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
-@click.option('--json/--no-json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
+@click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
               with_values={"output": ['screen', 'text', 'bare', 'json'], "bare": [True, False]}, callback=json_alias,
-              hidden=True)
-@click.option('--bare/--not-bare', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "json"],
+              hidden=True, is_flag=True, show_default=True)
+@click.option('--bare', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "json"],
               with_values={"output": ['screen', 'text', 'bare', 'json'], "json": [True, False]}, callback=bare_alias,
-              hidden=True)
+              hidden=True, is_flag=True, show_default=True)
 @click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
               default='screen', callback=active_color_if_needed, envvar='SAFETY_OUTPUT')
 @click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption, required_options=['proxy_host'],

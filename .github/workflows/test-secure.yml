@@ -1,0 +1,94 @@
+######## Secure test cases. All of these use secure packages, and shouldn't fail. Easier than our insecure
+######## case, as we don't need anything else. We test against Safety and its deps here; if these tests
+######## fail, the pinned version might need to be updated.
+name: Safety Action Secure Tests
+
+on: [push]
+
+jobs:
+  ##### Auto mode tests
+  ### File scanning
+  # Scans a requirements.txt in the repo; the simplest case. We contort one into existing for this test
+  # case, to avoid confusion
+  test-auto-requirements-txt-secure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: cp tests/action/requirements.txt-secure requirements.txt
+
+      - uses: ./
+        id: scan-1
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  # Same as above, but for a poetry lock file
+  test-auto-poetry-secure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: cp tests/action/poetry.lock-secure poetry.lock && cp tests/action/pyproject.toml-secure pyproject.toml
+
+      - uses: ./
+        id: scan-2
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  # Same as above, but for a Pipfile.lock
+  test-auto-pipfile-secure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: cp tests/action/Pipfile.lock-secure Pipfile.lock
+
+      - uses: ./
+        id: scan-3
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  ### Env scanning:
+  ### Scans the runner environment. Here, the Github action `actions/setup-python@v3` actually
+  ### installs things in the root VM that the action runs on; this is what gets scanned.
+  test-auto-environment-secure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+          architecture: 'x64'
+
+      - run: python -m pip install -r tests/action/requirements.txt-secure
+
+      - uses: ./
+        id: scan-4
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  ### Docker scanning:
+  ### Scans a recently built Docker container. This uses a few heuristics, defined in entrypoint.sh
+  test-auto-docker-secure:
+    runs-on: ubuntu-latest
+    environment: main
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build image
+        run: DOCKER_BUILDKIT=1 docker build -t my-secure-image tests/action/docker-secure
+
+      - uses: ./
+        id: scan-5
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}

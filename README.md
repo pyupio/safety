@@ -4,11 +4,27 @@
 [![Travis](https://img.shields.io/travis/pyupio/safety.svg)](https://travis-ci.org/pyupio/safety)
 [![Updates](https://pyup.io/repos/github/pyupio/safety/shield.svg)](https://pyup.io/repos/github/pyupio/safety/)
 
-Safety checks your installed Python dependencies for known security vulnerabilities and suggests the proper remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and on production systems.
+Safety checks Python dependencies for known security vulnerabilities and suggests the proper remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and on production systems.
 
 By default it uses the open Python vulnerability database [Safety DB](https://github.com/pyupio/safety-db), which is **licensed for non-commercial use only**.
 
 For all commercial projects, Safely must be upgraded to use a [PyUp API](https://pyup.io) using the `--key` option.
+
+# Using Safety as a GitHub Action
+
+Safety can be integrated into your existing GitHub CI pipeline as an action. Just add the following as a step in your workflow YAML file after setting your `SAFETY_API_KEY` secret on GitHub under Settings -> Secrets -> Actions:
+
+```yaml
+      - uses: pyupio/safety@v1
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+```
+
+(Don't have an API Key? You can sign up for one with [PyUp](https://pyup.io).)
+
+This will run Safety in auto-detect mode which figures out your project's structure and the best configuration to run in automatically. It'll fail your CI pipeline if any vulnerable packages are found.
+
+If you have something more complicated such as a monorepo; or once you're finished testing, read the [Action Documentation](https://docs.pyup.io/docs/github-actions-safety) for more details on configuring Safety as an action.
 
 # Installation
 

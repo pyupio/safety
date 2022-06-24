@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from unittest.mock import patch, Mock
 
 import click
@@ -9,7 +10,7 @@ from click.testing import CliRunner
 
 from safety import cli
 from safety.models import Vulnerability, CVE, Severity
-from safety.util import Package
+from safety.util import Package, SafetyContext
 
 
 def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
@@ -135,6 +136,38 @@ class TestSafetyCLI(unittest.TestCase):
         result = runner.invoke(cli.cli, ['review', '--output', 'bare', '--file', path_to_report])
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.output, u'insecure-package\n')
+
+    @patch("safety.util.SafetyContext")
+    @patch("safety.safety.check")
+    @patch("safety.cli.get_packages")
+    def test_chained_review_pass(self, get_packages, check_func, ctx):
+        expires = datetime.strptime('2022-10-21', '%Y-%m-%d')
+        vulns = [get_vulnerability(), get_vulnerability(vuln_kwargs={'vulnerability_id': '25853', 'ignored': True,
+                                                                     'ignored_reason': 'A basic reason',
+                                                                     'ignored_expires': expires})]
+        packages = [pkg for pkg in {vuln.pkg.name: vuln.pkg for vuln in vulns}.values()]
+        get_packages.return_value = packages
+        provided_context = SafetyContext()
+        provided_context.command = 'check'
+        provided_context.packages = packages
+        ctx.return_value = provided_context
+        check_func.return_value = vulns, None
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            for output in self.output_options:
+                path_to_report = os.path.join(tempdir, f'report_{output}.json')
+
+                pre_result = self.runner.invoke(cli.cli, [
+                    'check', '--key', 'foo', '-o', output,
+                    '--save-json', path_to_report])
+
+                self.assertEqual(pre_result.exit_code, 64)
+
+            for output in self.output_options:
+                filename = f'report_{output}.json'
+                path_to_report = os.path.join(tempdir, filename)
+                result = self.runner.invoke(cli.cli, ['review', '--output', output, '--file', path_to_report])
+                self.assertEqual(result.exit_code, 0, f'Unable to load the previous saved report: {filename}')
 
     @patch("safety.safety.session")
     def test_license_with_file(self, requests_session):

@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "secure"
+version = "0.1.0"
+description = ""
+authors = []
+
+[tool.poetry.dependencies]
+python = "^3.10"
+safety = "^1.10.3"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"

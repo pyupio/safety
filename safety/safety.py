@@ -8,7 +8,6 @@ import sys
 import time
 from datetime import datetime
 
-import click
 import requests
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
@@ -20,7 +19,8 @@ from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
 from .models import Vulnerability, CVE, Severity
-from .util import RequirementFile, read_requirements, Package, build_telemetry_data
+from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context, SafetyContext, \
+    validate_expiration_date
 
 session = requests.session()
 
@@ -101,6 +101,9 @@ def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
     if key:
         headers["X-Api-Key"] = key
 
+    if not proxy:
+        proxy = {}
+
     if cached:
         cached_data = get_from_cache(db_name=db_name, cache_valid_seconds=cached)
         if cached_data:
@@ -148,7 +151,7 @@ def fetch_database_file(path, db_name):
         return json.loads(f.read())
 
 
-def fetch_database(full=False, key=False, db=False, cached=False, proxy={}, telemetry=True):
+def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, telemetry=True):
     if db:
         mirrors = [db]
     else:
@@ -224,7 +227,7 @@ def get_cve_from(data, db_full):
 
 def ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules):
 
-    if not ignore_severity_rules:
+    if not ignore_severity_rules or not isinstance(ignore_vulns, dict):
         return
 
     severity = None
@@ -248,9 +251,10 @@ def ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules):
         ignore_vulns[vuln_id] = {'reason': reason, 'expires': None}
 
 
-def check(packages, key, db_mirror, cached, ignore_vulns, ignore_severity_rules, proxy, include_ignored=False,
-          is_env_scan=True, telemetry=True):
-    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+@sync_safety_context
+def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
+          include_ignored=False, is_env_scan=True, telemetry=True, params=None):
+    SafetyContext().command = 'check'
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy, telemetry=telemetry)
     db_full = None
     vulnerable_packages = frozenset(db.keys())
@@ -376,7 +380,9 @@ def calculate_remediations(vulns, db_full):
     return remediations
 
 
-def review(report):
+@sync_safety_context
+def review(report=None, params=None):
+    SafetyContext().command = 'review'
     vulnerable = []
     vulnerabilities = report.get('vulnerabilities', []) + report.get('ignored_vulnerabilities', [])
     remediations = {}
@@ -398,8 +404,11 @@ def review(report):
 
     packages = report.get('scanned_packages', [])
     pkgs = {pkg_name: Package(**pkg_values) for pkg_name, pkg_values in packages.items()}
-    click.get_current_context().obj = pkgs.values()
-    click.get_current_context().review = report.get('report_meta', [])
+    ctx = SafetyContext()
+    found_packages = list(pkgs.values())
+    ctx.packages = found_packages
+    ctx.review = report.get('report_meta', [])
+    ctx.key = ctx.review.get('api_key', False)
     cvssv2 = None
     cvssv3 = None
 
@@ -417,14 +426,20 @@ def review(report):
         else:
             vuln['severity'] = None
 
+        ignored_expires = vuln.get('ignored_expires', None)
+
+        if ignored_expires:
+            vuln['ignored_expires'] = validate_expiration_date(ignored_expires)
+
         vuln['CVE'] = CVE(name=XVE_ID, cvssv2=cvssv2, cvssv3=cvssv3) if XVE_ID else None
 
         vulnerable.append(Vulnerability(**vuln))
 
-    return vulnerable, remediations, pkgs
+    return vulnerable, remediations, found_packages
 
 
-def get_licenses(key, db_mirror, cached, proxy, telemetry=True):
+@sync_safety_context
+def get_licenses(key=False, db_mirror=False, cached=0, proxy=None, telemetry=True):
     key = key if key else os.environ.get("SAFETY_API_KEY", False)
 
     if not key and not db_mirror:

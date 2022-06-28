@@ -68,13 +68,15 @@ You should get a report similar to this:
  REPORT
 
   Safety v2.0.0 is scanning for Vulnerabilities...
-  Scanning dependencies in your files:
+  Scanning dependencies in your environment:
 
-  -> requirements.txt
+  -> /scanned-path/
 
-  Using an API KEY and the PyUp Commercial database
-  Found and scanned 3 packages
-  Timestamp 2022-05-04 16:33:50
+  Using non-commercial database
+  Found and scanned 295 packages
+  Timestamp 2022-06-28 15:42:04
+  0 vulnerabilities found
+  0 vulnerabilities ignored
 +=================================================================================+
 
  No known security vulnerabilities found.
@@ -96,13 +98,15 @@ Run `safety check` again:
  +=================================================================================+
 
   Safety v2.0.0.dev6 is scanning for Vulnerabilities...
-  Scanning dependencies in your files:
+  Scanning dependencies in your environment:
 
-  -> requirements.txt
+    -> /scanned-path/
 
-  Using an API KEY and the PyUp Commercial database
-  Found and scanned 4 packages
-  Timestamp 2022-05-04 16:37:11
+  Using non-commercial database
+  Found and scanned 295 packages
+  Timestamp 2022-06-28 15:42:04
+  1 vulnerabilities found
+  0 vulnerabilities ignored
 
 +=================================================================================+
  VULNERABILITIES FOUND

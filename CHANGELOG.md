@@ -6,6 +6,42 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## [2.0.0] - 2022-06-28
+
+### Summary:
+- Compared to previous versions, Safety 2.0 will be a significant update that includes new features and refactors, resulting in breaking changes to some inputs and outputs.
+
+### Updated outputs:
+- Text & screen output: Upgraded the text and screen outputs, removing the old table style and adding new data and formats to vulnerabilities.
+- JSON output: New and updated JSON output (breaking change). Safety adds all the possible information in the JSON report. The structure of this JSON file has been improved.
+- Improved the support for exit codes. There are now custom exit codes with detailed information about the result. Examples include: VULNERABILITIES_FOUND and INVALID_API_KEY.
+- Added remediations (fix recommendations) sections to outputs. Now, Safety will suggest the steps to fix a detected vulnerability when an API key is used.
+- Added new summary meta-data data to the reports showing the Safety version used, the dependencies found, the timestamp, the target scanned, and more. These data are included in the text, screen, and JSON output for improved audit capabilities.
+- Added more info per vulnerability, including URLs to read more about a vulnerability and/or a package.
+
+###New command line flags:
+- New command line flags
+    - The `--output` flag replaces `--bare`, `--text`, `--screen`, and `--json` flags. In this new release, examples would be: `--output json` or `--output bare`.
+    - The `--continue-on-error` flag suppresses non-zero exit codes to force pass CI/CD checks, if required.
+    - The `--debug` flag allows for a more detailed output.
+    - The `--disable-telemetry` flag has been added to disable telemetry data
+    - The `--policy-file` flag to include a local security policy file. This file (called `.safety-policy.yml`, found in either the root directory where Safety is being run or in a custom location) is based on YAML 1.2 and allows for:
+        - Ignoring individual vulnerabilities with optionally a note and an expiry date.
+        - Filtering vulnerabilities by their CVSS severity. (CVSS data is only available for some paid accounts.)
+
+### Other
+- Dropped support for Python < 3.6
+- The free version of the Safety vulnerability database is downloaded from a public S3 bucket (via PyUp.io) and no longer from GitHub. This free database is only updated once a month and is not licensed for commercial use.
+- Telemetry data will be sent with every Safety call. These data are anonymous and not sensitive. This includes the Python version, the Safety command used (`check`/`license`/`review`), and the Safety options used (without their values). Users can disable this functionality by adding the `--disable-telemetry` flag.
+- Added validations to avoid the use of exclusive options.
+- Added announcements feature to receive informative or critical messages from the PyUp Safety team.
+- Increased test coverage.
+- Now Safety can be used as a dependency in your code
+- Added Safety as a Github Action
+- Improved the help text in the CLI
+- Added the --save-json flag
+
+
 ## [2.0b5] - 2022-06-24
 
 ### Summary:

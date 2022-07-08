@@ -13,8 +13,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version, LegacyVersion, parse
 
-from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS,
-                        REQUEST_TIMEOUT, API_BASE_URL)
+from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
@@ -123,10 +122,10 @@ def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
         raise DatabaseFetchError()
 
     if r.status_code == 403:
-        raise InvalidKeyError(key=key)
+        raise InvalidKeyError(key=key, reason=r.text)
 
     if r.status_code == 429:
-        raise TooManyRequestsError()
+        raise TooManyRequestsError(reason=r.text)
 
     if r.status_code != 200:
         raise ServerError(reason=r.reason)

@@ -28,7 +28,7 @@ class MalformedDatabase(SafetyError):
                  message="Sorry, something went wrong.\n" +
                          "Safety CLI can not read the data fetched from {fetched_from} because is malformed.\n"):
         info = "Reason, {reason}".format(reason=reason)
-        self.message = message.format(fetched_from=fetched_from) + info if reason else ""
+        self.message = message.format(fetched_from=fetched_from) + (info if reason else "")
         super().__init__(self.message)
 
     def get_exit_code(self):
@@ -58,10 +58,12 @@ class DatabaseFileNotFoundError(DatabaseFetchError):
 
 class InvalidKeyError(DatabaseFetchError):
 
-    def __init__(self, key=None, message="Your API Key '{key}' is invalid. See {link}"):
+    def __init__(self, key=None, message="Your API Key '{key}' is invalid. See {link}.", reason=None):
         self.key = key
         self.link = 'https://bit.ly/3OY2wEI'
         self.message = message.format(key=key, link=self.link) if key else message
+        info = f" Reason: {reason}"
+        self.message = self.message + (info if reason else "")
         super().__init__(self.message)
 
     def get_exit_code(self):
@@ -70,9 +72,10 @@ class InvalidKeyError(DatabaseFetchError):
 
 class TooManyRequestsError(DatabaseFetchError):
 
-    def __init__(self,
-                 message="Unable to load database (Too many requests, please wait a while before to make another request)"):
-        self.message = message
+    def __init__(self, reason=None,
+                 message="Too many requests."):
+        info = f" Reason: {reason}"
+        self.message = message + (info if reason else "")
         super().__init__(self.message)
 
     def get_exit_code(self):
@@ -81,7 +84,7 @@ class TooManyRequestsError(DatabaseFetchError):
 
 class NetworkConnectionError(DatabaseFetchError):
 
-    def __init__(self, message="Check your network connection, unable to reach the server"):
+    def __init__(self, message="Check your network connection, unable to reach the server."):
         self.message = message
         super().__init__(self.message)
 
@@ -98,6 +101,6 @@ class ServerError(DatabaseFetchError):
     def __init__(self, reason=None,
                  message="Sorry, something went wrong.\n" + "Safety CLI can not connect to the server.\n" +
                          "Our engineers are working quickly to resolve the issue."):
-        info = " Reason: {reason}".format(reason=reason)
-        self.message = message + info if reason else ""
+        info = f" Reason: {reason}"
+        self.message = message + (info if reason else "")
         super().__init__(self.message)

@@ -16,23 +16,26 @@ from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version, json_alias, bare_alias
+    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext
 
 LOG = logging.getLogger(__name__)
 
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
-@click.option('--telemetry/--disable-telemetry', default=True)
+@click.option('--telemetry/--disable-telemetry', default=True, hidden=True)
+@click.option('--disable-optional-telemetry-data', default=False, cls=MutuallyExclusiveOption,
+              mutually_exclusive=["telemetry", "disable-telemetry"], is_flag=True, show_default=True)
 @click.version_option(version=get_safety_version())
 @click.pass_context
-def cli(ctx, debug, telemetry):
+def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
     """
     Safety checks Python dependencies for known security vulnerabilities and suggests the proper
     remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and
     on production systems.
     """
-    ctx.telemetry = telemetry
+    SafetyContext().safety_source = 'cli'
+    ctx.telemetry = telemetry and not disable_optional_telemetry_data
     level = logging.CRITICAL
     if debug:
         level = logging.DEBUG
@@ -225,7 +228,6 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
     """
     LOG.info('Running license command')
     packages = get_packages(files, False)
-    ctx.obj = packages
 
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
     announcements = []
@@ -244,7 +246,7 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
         exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
         output_exception(exception, exit_code_output=False)
 
-    filtered_packages_licenses = get_packages_licenses(packages, licenses_db)
+    filtered_packages_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
 
     output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
 

@@ -6,7 +6,7 @@ from datetime import datetime
 import click
 
 from safety.constants import RED, YELLOW
-from safety.util import get_safety_version, Package, get_terminal_size, SafetyContext
+from safety.util import get_safety_version, Package, get_terminal_size, SafetyContext, build_telemetry_data, build_git_data
 
 LOG = logging.getLogger(__name__)
 
@@ -570,11 +570,20 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     safety_policy_used = []
 
     brief_data['policy_file'] = policy_file.get('filename', '-') if policy_file else None
+    brief_data['policy_file_source'] = 'server' if brief_data['policy_file'] and 'server-safety-policy' in brief_data['policy_file'] else 'local'
 
     if policy_file and policy_file.get('filename', False):
         safety_policy_used = [
             {'style': False, 'value': '\nScanning using a security policy file'},
             {'style': True, 'value': ' {0}'.format(policy_file.get('filename', '-'))},
+        ]
+
+    audit_and_monitor = []
+    if context.params.get('audit_and_monitor'):
+        logged_url = context.params.get('audit_and_monitor_url') if context.params.get('audit_and_monitor_url') else "https://pyup.io"
+        audit_and_monitor = [
+            {'style': False, 'value': '\nLogging scan results to'},
+            {'style': True, 'value': ' {0}'.format(logged_url)},
         ]
 
     current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -612,6 +621,13 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
              {'style': True, 'value': f' license {"type" if brief_data["licenses_found"] == 1 else "types"} found'}],
         ]
 
+    brief_data['telemetry'] = build_telemetry_data()
+
+    brief_data['git'] = build_git_data()
+    brief_data['project'] = context.params.get('project', None)
+
+    brief_data['json_version'] = 1
+
     using_sentence = build_using_sentence(key, db)
     scanned_count_sentence = build_scanned_count_sentence(packages)
 
@@ -621,7 +637,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
      {'style': True, 'value': 'v' + get_safety_version()},
      {'style': False, 'value': ' is scanning for '},
      {'style': True, 'value': scanning_types.get(context.command, {}).get('name', '')},
-     {'style': True, 'value': '...'}] + safety_policy_used, action_executed
+     {'style': True, 'value': '...'}] + safety_policy_used + audit_and_monitor, action_executed
      ] + [nl] + scanned_items + [nl] + [using_sentence] + [scanned_count_sentence] + [timestamp]
 
     brief_info.extend(additional_data)

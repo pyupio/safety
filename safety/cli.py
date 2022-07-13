@@ -359,6 +359,8 @@ def validate(ctx, name, path):
         click.secho(str(e).lstrip(), fg='red', file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
 
+    del values['raw']
+
     click.secho(f'The Safety policy file was successfully parsed with the following values:', fg='green')
     click.secho(json.dumps(values, indent=4, default=str))
 

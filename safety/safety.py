@@ -142,6 +142,63 @@ def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
     return data
 
 
+def fetch_policy(key, proxy):
+    url = f"{API_BASE_URL}policy/"
+    headers = {"X-Api-Key": key}
+
+    if not proxy:
+        proxy = {}
+
+    try:
+        LOG.debug(f'Getting policy')
+        r = session.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy)
+        LOG.debug(r.text)
+        return r.json()
+    except:
+        import click
+
+        LOG.exception("Error fetching policy")
+        click.secho(
+            "Warning: couldn't fetch policy from pyup.io.",
+            fg="yellow",
+            file=sys.stderr
+        )
+
+        return {"safety_policy": "", "audit_and_monitor": False}
+
+
+def post_results(key, proxy, safety_json, policy_file):
+    url = f"{API_BASE_URL}result/"
+    headers = {"X-Api-Key": key}
+
+    if not proxy:
+        proxy = {}
+
+    # safety_json is in text form already. policy_file is a text YAML
+    audit_report = {
+        "safety_json": json.loads(safety_json),
+        "policy_file": policy_file
+    }
+
+    try:
+        LOG.debug(f'Posting results: {audit_report}')
+        r = session.post(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy, json=audit_report)
+        LOG.debug(r.text)
+
+        return r.json()
+    except:
+        import click
+
+        LOG.exception("Error posting results")
+        click.secho(
+            "Warning: couldn't upload results to pyup.io.",
+            fg="yellow",
+            file=sys.stderr
+        )
+
+        return {}
+
+
 def fetch_database_file(path, db_name):
     full_path = os.path.join(path, db_name)
     if not os.path.exists(full_path):
@@ -252,7 +309,7 @@ def ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules):
 
 @sync_safety_context
 def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
-          include_ignored=False, is_env_scan=True, telemetry=True, params=None):
+          include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None):
     SafetyContext().command = 'check'
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy, telemetry=telemetry)
     db_full = None

@@ -84,7 +84,7 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
               help="Output standard exit codes. Default: --exit-code")
 @click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
               help="Define the policy file to be used")
-@click.option("--audit-and-monitor/--no-audit-and-monitor", default=True,
+@click.option("--audit-and-monitor/--disable-audit-and-monitor", default=True,
               help="Send results back to pyup.io for viewing on your dashboard. Requires an API key.")
 @click.option("--project", default=None,
               help="Project to associate this scan with on pyup.io. Defaults to a canonicalized github style name if available, otherwise unknown")

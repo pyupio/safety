@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+
 import sys
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -14,6 +15,7 @@ from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
+import safety
 
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
 from safety.models import Package, RequirementFile
@@ -120,7 +122,8 @@ def read_requirements(fh, resolve=False):
 
 def get_proxy_dict(proxy_protocol, proxy_host, proxy_port):
     if proxy_protocol and proxy_host and proxy_port:
-        return {proxy_protocol: f"{proxy_protocol}://{proxy_host}:{str(proxy_port)}"}
+        # Safety only uses https request, so only https dict will be passed to requests
+        return {'https': f"{proxy_protocol}://{proxy_host}:{str(proxy_port)}"}
     return None
 
 
@@ -130,51 +133,6 @@ def get_license_name_by_id(license_id, db):
         if id == license_id:
             return name
     return None
-
-
-def get_packages_licenses(packages, licenses_db):
-    """Get the licenses for the specified packages based on their version.
-
-    :param packages: packages list
-    :param licenses_db: the licenses db in the raw form.
-    :return: list of objects with the packages and their respectives licenses.
-    """
-    packages_licenses_db = licenses_db.get('packages', {})
-    filtered_packages_licenses = []
-
-    for pkg in packages:
-        # Ignore recursive files not resolved
-        if isinstance(pkg, RequirementFile):
-            continue
-        # normalize the package name
-        pkg_name = canonicalize_name(pkg.name)
-        # packages may have different licenses depending their version.
-        pkg_licenses = packages_licenses_db.get(pkg_name, [])
-        version_requested = parse_version(pkg.version)
-        license_id = None
-        license_name = None
-        for pkg_version in pkg_licenses:
-            license_start_version = parse_version(pkg_version['start_version'])
-            # Stops and return the previous stored license when a new
-            # license starts on a version above the requested one.
-            if version_requested >= license_start_version:
-                license_id = pkg_version['license_id']
-            else:
-                # We found the license for the version requested
-                break
-
-        if license_id:
-            license_name = get_license_name_by_id(license_id, licenses_db)
-        if not license_id or not license_name:
-            license_name = "unknown"
-
-        filtered_packages_licenses.append({
-            "package": pkg_name,
-            "version": pkg.version,
-            "license": license_name
-        })
-
-    return filtered_packages_licenses
 
 
 def get_flags_from_context():
@@ -245,10 +203,44 @@ def build_telemetry_data(telemetry=True):
     } if telemetry else {}
 
     body['safety_version'] = get_safety_version()
+    body['safety_source'] = os.environ.get("SAFETY_SOURCE", None) or context.safety_source
 
     LOG.debug(f'Telemetry body built: {body}')
 
     return body
+
+
+def build_git_data():
+    import subprocess
+
+    is_git = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+
+    if is_git == "true":
+        result = {
+            "branch": "",
+            "tag": "",
+            "commit": "",
+            "dirty": "",
+            "origin": ""
+        }
+
+        try:
+            result['branch'] = subprocess.run(["git", "symbolic-ref", "--short", "-q", "HEAD"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+            result['tag'] = subprocess.run(["git", "describe", "--tags", "--exact-match"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8').strip()
+
+            commit = subprocess.run(["git", "describe", '--match=""', '--always', '--abbrev=40', '--dirty'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+            result['dirty'] = commit.endswith('-dirty')
+            result['commit'] = commit.split("-dirty")[0]
+
+            result['origin'] = subprocess.run(["git", "remote", "get-url", "origin"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+        except Exception:
+            pass
+
+        return result
+    else:
+        return {
+            "error": "not-git-repo"
+        }
 
 
 def output_exception(exception, exit_code_output=True):
@@ -309,8 +301,7 @@ class MutuallyExclusiveOption(click.Option):
         if option_used and (not self.with_values or exclusive_value_used):
             options = ', '.join(self.opts)
             prohibited = ''.join(["\n * --{0} with {1}".format(item, self.with_values.get(
-                        item)) if item in self.with_values else item for item in self.mutually_exclusive])
-
+                        item)) if item in self.with_values else f"\n * {item}" for item in self.mutually_exclusive])
             raise click.UsageError(
                 f"Illegal usage: `{options}` is mutually exclusive with: {prohibited}"
             )
@@ -471,8 +462,9 @@ class SafetyPolicyFile(click.ParamType):
             filename = ''
 
             try:
+                raw = f.read()
                 yaml = YAML(typ='safe', pure=False)
-                safety_policy = yaml.load(f)
+                safety_policy = yaml.load(raw)
                 filename = f.name
             except Exception as e:
                 show_parsed_hint = isinstance(e, MarkedYAMLError)
@@ -562,6 +554,7 @@ class SafetyPolicyFile(click.ParamType):
 
                 safety_policy['security']['ignore-vulnerabilities'] = normalized
                 safety_policy['filename'] = filename
+                safety_policy['raw'] = raw
             else:
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 
@@ -626,6 +619,7 @@ class SafetyContext(metaclass=SingletonMeta):
     command = None
     review = None
     params = {}
+    safety_source = 'code'
 
 
 def sync_safety_context(f):
@@ -639,3 +633,56 @@ def sync_safety_context(f):
         return f(*args, **kwargs)
 
     return new_func
+
+
+@sync_safety_context
+def get_packages_licenses(packages=None, licenses_db=None):
+    """Get the licenses for the specified packages based on their version.
+
+    :param packages: packages list
+    :param licenses_db: the licenses db in the raw form.
+    :return: list of objects with the packages and their respectives licenses.
+    """
+    SafetyContext().command = 'license'
+
+    if not packages:
+        packages = []
+    if not licenses_db:
+        licenses_db = {}
+
+    packages_licenses_db = licenses_db.get('packages', {})
+    filtered_packages_licenses = []
+
+    for pkg in packages:
+        # Ignore recursive files not resolved
+        if isinstance(pkg, RequirementFile):
+            continue
+        # normalize the package name
+        pkg_name = canonicalize_name(pkg.name)
+        # packages may have different licenses depending their version.
+        pkg_licenses = packages_licenses_db.get(pkg_name, [])
+        version_requested = parse_version(pkg.version)
+        license_id = None
+        license_name = None
+        for pkg_version in pkg_licenses:
+            license_start_version = parse_version(pkg_version['start_version'])
+            # Stops and return the previous stored license when a new
+            # license starts on a version above the requested one.
+            if version_requested >= license_start_version:
+                license_id = pkg_version['license_id']
+            else:
+                # We found the license for the version requested
+                break
+
+        if license_id:
+            license_name = get_license_name_by_id(license_id, licenses_db)
+        if not license_id or not license_name:
+            license_name = "unknown"
+
+        filtered_packages_licenses.append({
+            "package": pkg_name,
+            "version": pkg.version,
+            "license": license_name
+        })
+
+    return filtered_packages_licenses

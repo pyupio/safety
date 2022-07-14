@@ -1,9 +1,9 @@
 # action.yml
 name: 'pyupio/safety'
-description: 'Runs the Safety CLI against your project'
+description: 'Runs the Safety CLI dependency scanner against your project'
 inputs:
   api-key:
-    description: 'PyUp API key'
+    description: 'PyUp.io API key'
     required: false
     default: ''
   scan:

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 
 import click
 
@@ -13,26 +14,29 @@ from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT
 from safety.errors import SafetyException, SafetyError
 from safety.formatter import SafetyFormatter
 from safety.output_utils import should_add_nl
-from safety.safety import get_packages, read_vulnerabilities
+from safety.safety import get_packages, read_vulnerabilities, fetch_policy, post_results
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version, json_alias, bare_alias
+    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext
 
 LOG = logging.getLogger(__name__)
 
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
-@click.option('--telemetry/--disable-telemetry', default=True)
+@click.option('--telemetry/--disable-telemetry', default=True, hidden=True)
+@click.option('--disable-optional-telemetry-data', default=False, cls=MutuallyExclusiveOption,
+              mutually_exclusive=["telemetry", "disable-telemetry"], is_flag=True, show_default=True)
 @click.version_option(version=get_safety_version())
 @click.pass_context
-def cli(ctx, debug, telemetry):
+def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
     """
     Safety checks Python dependencies for known security vulnerabilities and suggests the proper
     remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and
     on production systems.
     """
-    ctx.telemetry = telemetry
+    SafetyContext().safety_source = 'cli'
+    ctx.telemetry = telemetry and not disable_optional_telemetry_data
     level = logging.CRITICAL
     if debug:
         level = logging.DEBUG
@@ -80,11 +84,16 @@ def cli(ctx, debug, telemetry):
               help="Output standard exit codes. Default: --exit-code")
 @click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
               help="Define the policy file to be used")
+@click.option("--audit-and-monitor/--disable-audit-and-monitor", default=True,
+              help="Send results back to pyup.io for viewing on your dashboard. Requires an API key.")
+@click.option("--project", default=None,
+              help="Project to associate this scan with on pyup.io. Defaults to a canonicalized github style name if available, otherwise unknown")
+
 @click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
                                               "Safety will use safety-report.json as filename. Default: empty")
 @click.pass_context
 def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host, proxy_port,
-          exit_code, policy_file, save_json):
+          exit_code, policy_file, save_json, audit_and_monitor, project):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
@@ -100,13 +109,36 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
             LOG.info('Not local DB used, Getting announcements')
             announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
 
+        if key:
+            server_policies = fetch_policy(key=key, proxy=proxy_dictionary)
+            server_audit_and_monitor = server_policies["audit_and_monitor"]
+            server_safety_policy = server_policies["safety_policy"]
+        else:
+            server_audit_and_monitor = False
+            server_safety_policy = ""
+
+        if server_safety_policy and policy_file:
+            click.secho(
+                "Warning: both a local policy file '{policy_filename}' and a server sent policy are present. "
+                "Continuing with the local policy file.".format(policy_filename=policy_file['filename']),
+                fg="yellow",
+                file=sys.stderr
+            )
+        elif server_safety_policy:
+            with tempfile.NamedTemporaryFile(prefix='server-safety-policy-') as tmp:
+                tmp.write(server_safety_policy.encode('utf-8'))
+                tmp.seek(0)
+
+                policy_file = SafetyPolicyFile().convert(tmp.name, param=None, ctx=None)
+                LOG.info('Using server side policy file')
+
         ignore_severity_rules = None
         ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
                                                                          ignore_severity_rules, exit_code)
 
         is_env_scan = not stdin and not files
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
-                  'ignore_severity_rules': ignore_severity_rules}
+                  'ignore_severity_rules': ignore_severity_rules, 'project': project, 'audit_and_monitor': server_audit_and_monitor and audit_and_monitor}
         LOG.info('Calling the check function')
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
                                       ignore_severity_rules=ignore_severity_rules, proxy=proxy_dictionary,
@@ -118,8 +150,32 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         LOG.info('Safety is going to calculate remediations')
         remediations = safety.calculate_remediations(vulns, db_full)
 
+        json_report = None
+        if save_json or (server_audit_and_monitor and audit_and_monitor):
+            default_name = 'safety-report.json'
+            json_report = SafetyFormatter(output='json').render_vulnerabilities(announcements, vulns, remediations,
+                                                                                full_report, packages)
+
+            if server_audit_and_monitor and audit_and_monitor:
+                policy_contents = ''
+                if policy_file:
+                    policy_contents = policy_file.get('raw', '')
+
+                r = post_results(key=key, proxy=proxy_dictionary, safety_json=json_report, policy_file=policy_contents)
+                SafetyContext().params['audit_and_monitor_url'] = r.get('url')
+
+            if save_json:
+                if os.path.isdir(save_json):
+                    save_json = os.path.join(save_json, default_name)
+
+                with open(save_json, 'w+') as output_json_file:
+                    output_json_file.write(json_report)
+
         LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
-        output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
+        if json_report and output == 'json':
+            output_report = json_report
+        else:
+            output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
                                                                               full_report, packages)
 
         # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
@@ -130,19 +186,6 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         found_vulns = list(filter(lambda v: not v.ignored, vulns))
         LOG.info('Vulnerabilities found (Not ignored): %s', len(found_vulns))
         LOG.info('All vulnerabilities found (ignored and Not ignored): %s', len(vulns))
-
-        if save_json:
-            default_name = 'safety-report.json'
-            json_report = output_report
-
-            if output != 'json':
-                json_report = SafetyFormatter(output='json').render_vulnerabilities(announcements, vulns, remediations,
-                                                                                    full_report, packages)
-            if os.path.isdir(save_json):
-                save_json = os.path.join(save_json, default_name)
-
-            with open(save_json, 'w+') as output_json_file:
-                output_json_file.write(json_report)
 
         click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
 
@@ -225,7 +268,6 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
     """
     LOG.info('Running license command')
     packages = get_packages(files, False)
-    ctx.obj = packages
 
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
     announcements = []
@@ -244,7 +286,7 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
         exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
         output_exception(exception, exit_code_output=False)
 
-    filtered_packages_licenses = get_packages_licenses(packages, licenses_db)
+    filtered_packages_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
 
     output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
 
@@ -316,6 +358,8 @@ def validate(ctx, name, path):
     except Exception as e:
         click.secho(str(e).lstrip(), fg='red', file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
+
+    del values['raw']
 
     click.secho(f'The Safety policy file was successfully parsed with the following values:', fg='green')
     click.secho(json.dumps(values, indent=4, default=str))

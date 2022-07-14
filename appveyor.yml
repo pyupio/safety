@@ -1,4 +1,4 @@
-version: 2.0.0-{build}
+version: 2.1.0.dev-{build}
 image:
   - Visual Studio 2019
   - Ubuntu

@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+
 import sys
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -14,6 +15,7 @@ from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
+import safety
 
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
 from safety.models import Package, RequirementFile
@@ -206,6 +208,39 @@ def build_telemetry_data(telemetry=True):
     LOG.debug(f'Telemetry body built: {body}')
 
     return body
+
+
+def build_git_data():
+    import subprocess
+
+    is_git = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+
+    if is_git == "true":
+        result = {
+            "branch": "",
+            "tag": "",
+            "commit": "",
+            "dirty": "",
+            "origin": ""
+        }
+
+        try:
+            result['branch'] = subprocess.run(["git", "symbolic-ref", "--short", "-q", "HEAD"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+            result['tag'] = subprocess.run(["git", "describe", "--tags", "--exact-match"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8').strip()
+
+            commit = subprocess.run(["git", "describe", '--match=""', '--always', '--abbrev=40', '--dirty'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+            result['dirty'] = commit.endswith('-dirty')
+            result['commit'] = commit.split("-dirty")[0]
+
+            result['origin'] = subprocess.run(["git", "remote", "get-url", "origin"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+        except Exception:
+            pass
+
+        return result
+    else:
+        return {
+            "error": "not-git-repo"
+        }
 
 
 def output_exception(exception, exit_code_output=True):
@@ -427,8 +462,9 @@ class SafetyPolicyFile(click.ParamType):
             filename = ''
 
             try:
+                raw = f.read()
                 yaml = YAML(typ='safe', pure=False)
-                safety_policy = yaml.load(f)
+                safety_policy = yaml.load(raw)
                 filename = f.name
             except Exception as e:
                 show_parsed_hint = isinstance(e, MarkedYAMLError)
@@ -518,6 +554,7 @@ class SafetyPolicyFile(click.ParamType):
 
                 safety_policy['security']['ignore-vulnerabilities'] = normalized
                 safety_policy['filename'] = filename
+                safety_policy['raw'] = raw
             else:
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 

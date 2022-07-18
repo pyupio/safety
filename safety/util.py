@@ -213,7 +213,10 @@ def build_telemetry_data(telemetry=True):
 def build_git_data():
     import subprocess
 
-    is_git = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+    try:
+        is_git = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+    except Exception:
+        is_git = False
 
     if is_git == "true":
         result = {

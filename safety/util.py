@@ -213,8 +213,11 @@ def build_telemetry_data(telemetry=True):
 def build_git_data():
     import subprocess
 
+    def git_command(commandline):
+        return subprocess.run(commandline, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8').strip()
+
     try:
-        is_git = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+        is_git = git_command(["git", "rev-parse", "--is-inside-work-tree"])
     except Exception:
         is_git = False
 
@@ -228,14 +231,14 @@ def build_git_data():
         }
 
         try:
-            result['branch'] = subprocess.run(["git", "symbolic-ref", "--short", "-q", "HEAD"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
-            result['tag'] = subprocess.run(["git", "describe", "--tags", "--exact-match"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8').strip()
+            result['branch'] = git_command(["git", "symbolic-ref", "--short", "-q", "HEAD"])
+            result['tag'] = git_command(["git", "describe", "--tags", "--exact-match"])
 
-            commit = subprocess.run(["git", "describe", '--match=""', '--always', '--abbrev=40', '--dirty'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+            commit = git_command(["git", "describe", '--match=""', '--always', '--abbrev=40', '--dirty'])
             result['dirty'] = commit.endswith('-dirty')
             result['commit'] = commit.split("-dirty")[0]
 
-            result['origin'] = subprocess.run(["git", "remote", "get-url", "origin"], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+            result['origin'] = git_command(["git", "remote", "get-url", "origin"])
         except Exception:
             pass
 

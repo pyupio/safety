@@ -15,7 +15,6 @@ from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
-import safety
 
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
 from safety.models import Package, RequirementFile

@@ -45,11 +45,14 @@ class SafetyFormatter(FormatterAPI):
         from safety.formatters.text import TextReport
         from safety.formatters.json import JsonReport
         from safety.formatters.bare import BareReport
+        from safety.formatters.html import HTMLReport
 
         self.format = ScreenReport()
 
         if output == 'json':
             self.format = JsonReport()
+        elif output == 'html':
+            self.format = HTMLReport()
         elif output == 'bare':
             self.format = BareReport()
         elif output == 'text':

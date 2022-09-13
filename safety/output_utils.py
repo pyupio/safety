@@ -8,6 +8,9 @@ import click
 from safety.constants import RED, YELLOW
 from safety.util import get_safety_version, Package, get_terminal_size, SafetyContext, build_telemetry_data, build_git_data
 
+from jinja2 import Environment, PackageLoader
+
+
 LOG = logging.getLogger(__name__)
 
 
@@ -681,3 +684,8 @@ def should_add_nl(output, found_vulns):
 
     return True
 
+def parse_html(json_data):
+    file_loader = PackageLoader('safety', 'templates')
+    env = Environment(loader=file_loader)
+    template = env.get_template("index.html")
+    return template.render(json_data = json_data)

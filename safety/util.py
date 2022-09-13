@@ -371,6 +371,11 @@ def json_alias(ctx, param, value):
         os.environ['SAFETY_OUTPUT'] = 'json'
         return value
 
+def html_alias(ctx, param, value):
+    if value:
+        os.environ['SAFETY_OUTPUT'] = 'html'
+        return value
+
 
 def bare_alias(ctx, param, value):
     if value:

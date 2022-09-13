@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
+from cgitb import html
 
 import json
 import logging
@@ -17,7 +18,7 @@ from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities, fetch_policy, post_results
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext
+    get_processed_options, get_safety_version, json_alias, bare_alias, html_alias, SafetyContext
 
 LOG = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
               help="Path to a local vulnerability database. Default: empty")
 @click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption,
               mutually_exclusive=["output", "json", "bare"],
-              with_values={"output": ['json', 'bare'], "json": [True, False], "bare": [True, False]},
+              with_values={"output": ['json', 'bare'], "json": [True, False], "html": [True, False], "bare": [True, False]},
               help='Full reports include a security advisory (if available). Default: --short-report')
 @click.option("--cache", is_flag=False, flag_value=60, default=0,
               help="Cache requests to the vulnerability database locally. Default: 0 seconds",
@@ -67,12 +68,15 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
-              with_values={"output": ['screen', 'text', 'bare', 'json'], "bare": [True, False]}, callback=json_alias,
+              with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=json_alias,
+              hidden=True, is_flag=True, show_default=True)
+@click.option('--html', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
+              with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=html_alias,
               hidden=True, is_flag=True, show_default=True)
 @click.option('--bare', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "json"],
               with_values={"output": ['screen', 'text', 'bare', 'json'], "json": [True, False]}, callback=bare_alias,
               hidden=True, is_flag=True, show_default=True)
-@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
+@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare', 'html'], case_sensitive=False),
               default='screen', callback=active_color_if_needed, envvar='SAFETY_OUTPUT')
 @click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption, required_options=['proxy_host'],
               help="Proxy protocol (https or http) --proxy-protocol")
@@ -91,9 +95,11 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
 
 @click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
                                               "Safety will use safety-report.json as filename. Default: empty")
+@click.option("--save-html", default="", help="Path to where output file will be placed, if the path is a directory, "
+                                              "Safety will use html/index.html as main file. Default: empty")
 @click.pass_context
-def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host, proxy_port,
-          exit_code, policy_file, save_json, audit_and_monitor, project):
+def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, html, proxy_protocol, proxy_host, proxy_port,
+          exit_code, policy_file, save_json, save_html, audit_and_monitor, project):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
@@ -171,9 +177,32 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
                 with open(save_json, 'w+') as output_json_file:
                     output_json_file.write(json_report)
 
+        html_report = None
+        if save_html or (server_audit_and_monitor and audit_and_monitor):
+            default_name = 'html/index.html'
+            html_report = SafetyFormatter(output='html').render_vulnerabilities(announcements, vulns, remediations,
+                                                                                full_report, packages)
+
+            if server_audit_and_monitor and audit_and_monitor:
+                policy_contents = ''
+                if policy_file:
+                    policy_contents = policy_file.get('raw', '')
+
+                r = post_results(key=key, proxy=proxy_dictionary, safety_json=json_report, policy_file=policy_contents)
+                SafetyContext().params['audit_and_monitor_url'] = r.get('url')
+
+            if save_html:
+                if os.path.isdir(save_html):
+                    save_html = os.path.join(save_html, default_name)
+
+                with open(save_html, 'w+') as output_json_file:
+                    output_json_file.write(html_report)
+
         LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
         if json_report and output == 'json':
             output_report = json_report
+        elif html_report and output == 'html':
+            output_report = html_report
         else:
             output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
                                                                               full_report, packages)

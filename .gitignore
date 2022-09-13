@@ -1,3 +1,8 @@
+# Other
+.vscode/
+.direnv/
+.envrc
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -61,3 +66,12 @@ target/
 # pyenv python configuration file
 .python-version
 sandbox.py
+<<<<<<< HEAD
+
+# PyCharm
+.idea
+*.idea/*
+
+# Virtual Env
+venv/
+.venv/

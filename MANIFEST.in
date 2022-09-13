@@ -1,13 +1,11 @@
 
-include AUTHORS.rst
-
-include CONTRIBUTING.rst
-include HISTORY.rst
+include CHANGELOG.md
 include LICENSE
 include README.md
+include README.old
+include safety/VERSION
+include safety/safety-policy-template.yml
 
 recursive-include tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
-
-recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif

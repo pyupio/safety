@@ -1,0 +1,8 @@
+pytest
+pytest-cov
+setuptools>=19.3
+Click>=8.0.2
+requests
+packaging>=21.0
+dparse>=0.6.0
+ruamel.yaml>=0.17.21

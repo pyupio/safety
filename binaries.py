@@ -1,7 +1,7 @@
-"""AppVeyor Build
+"""Github Action Build
 
-This file is used to build and distribute the safety binary on appveyor. Take
-a look at the corresponding appveyor.yml as well.
+This file is used to build and distribute the safety binary on Github actions.
+Take a look at the corresponding main.yml as well.
 
 """
 import os
@@ -18,11 +18,11 @@ class environment:
 
     def __init__(self):
         os_mapping = {
-            "Visual Studio 2019": self.WIN,
-            "Ubuntu": self.LINUX,
-            "macOS": self.MACOS
+            "windows-latest": self.WIN,
+            "ubuntu-latest": self.LINUX,
+            "macos-latest": self.MACOS
         }
-        self.os = os_mapping[os.getenv("APPVEYOR_BUILD_WORKER_IMAGE")]
+        self.os = os_mapping[os.getenv("BINARY_OS")]
 
     @property
     def python(self):
@@ -31,22 +31,23 @@ class environment:
 
     PYTHON_BINARIES = {
         WIN: {
-            64: "C:\\Python38-x64\\python.exe",
-            32: "C:\\Python38\\python.exe",
+            64: "C:\\Python39-x64\\python.exe",
+            32: "C:\\Python39\\python.exe",
         },
 
         # Order is important. If the 32 bit release gets built first,
         # you'll run into permission problems due to docker clobbering
         # up the current working directory.
         LINUX: OrderedDict([
-            (64, "python"),
-            (32, f"docker run -t -v {os.getcwd()}:/app 32-bit-linux python3"),
+            (64, "python3"),
+            (32,
+             f"docker run --platform linux/386 -t "
+             f"-v {os.getcwd()}:/app 32-bit-linux "
+             f"python3"),
         ]),
 
         MACOS: {
-            # Trying to use Python 3 compatible with PyInstaller according
-            # https://www.appveyor.com/docs/macos-images-software/#python
-            64: "~/venv3.8/bin/python",
+            64: "python3",
         }
     }
 
@@ -59,7 +60,10 @@ class environment:
         try:
             print(f"RUNNING: {command}")
             print("-" * 80)
-            subprocess.run(command, shell=True, check=True)
+            result = subprocess.run(command, shell=True, check=True,
+                                    stdout=subprocess.PIPE)
+            if result:
+                print(result.stdout.decode('utf-8').strip())
         except subprocess.CalledProcessError as e:
             print(f"ERROR calling '{command}'")
             print("-" * 20)
@@ -74,13 +78,12 @@ class environment:
         # - build the 32 bit binary for linux on docker
         # - create dist/ path to circumvent permission errors
         if self.os == self.LINUX:
-            self.run("docker build -t 32-bit-linux -f Dockerfilei386 .")
+            self.run("docker build --platform linux/386 "
+                     "-t 32-bit-linux -f Dockerfilei386 .")
 
         for arch, python in self.python:
-            self.run(f"{python} -m pip install setuptools")
             self.run(f"{python} -m pip install pyinstaller")
-            self.run(f"{python} -m pip install pytest")
-            self.run(f"{python} -m pip install -e .")
+            self.run(f"{python} -m pip install -r test_requirements.txt")
 
     def dist(self):
         """Runs Pyinstaller producing a binary for every platform arch."""
@@ -92,7 +95,7 @@ class environment:
                      f" --distpath {build_path}")
 
             # There seems to be no way to tell pyinstaller the binary name.
-            # This leads to problems with appveyors artifact collector because
+            # This leads to problems with artifact collector because
             # every binary is named the same.
             #
             # Move them around so they can be picked up correctly
@@ -119,7 +122,7 @@ class environment:
 if __name__ == "__main__":
 
     if len(sys.argv) <= 1 or sys.argv[1] not in ['install', 'test', 'dist']:
-        print("usage: appveyor.py [install|test|dist]")
+        print("usage: binaries.py [install|test|dist]")
         sys.exit(-1)
 
     env = environment()

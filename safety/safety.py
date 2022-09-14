@@ -19,7 +19,7 @@ from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
 from .models import Vulnerability, CVE, Severity
 from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context, SafetyContext, \
-    validate_expiration_date
+    validate_expiration_date, is_a_remote_mirror
 
 session = requests.session()
 
@@ -216,7 +216,7 @@ def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, teleme
     db_name = "insecure_full.json" if full else "insecure.json"
     for mirror in mirrors:
         # mirror can either be a local path or a URL
-        if mirror.startswith("http://") or mirror.startswith("https://"):
+        if is_a_remote_mirror(mirror):
             data = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached, proxy=proxy, telemetry=telemetry)
         else:
             data = fetch_database_file(mirror, db_name=db_name)
@@ -509,7 +509,7 @@ def get_licenses(key=False, db_mirror=False, cached=0, proxy=None, telemetry=Tru
 
     for mirror in mirrors:
         # mirror can either be a local path or a URL
-        if mirror.startswith("http://") or mirror.startswith("https://"):
+        if is_a_remote_mirror(mirror):
             licenses = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached, proxy=proxy,
                                           telemetry=telemetry)
         else:
@@ -522,8 +522,6 @@ def get_licenses(key=False, db_mirror=False, cached=0, proxy=None, telemetry=Tru
 def get_announcements(key, proxy, telemetry=True):
     LOG.info('Getting announcements')
 
-    body = build_telemetry_data(telemetry=telemetry)
-
     announcements = []
     headers = {}
 
@@ -531,11 +529,29 @@ def get_announcements(key, proxy, telemetry=True):
         headers["X-Api-Key"] = key
 
     url = f"{API_BASE_URL}announcements/"
+    method = 'post'
+    data = build_telemetry_data(telemetry=telemetry)
+    request_kwargs = {'headers': headers, 'proxies': proxy, 'timeout': 3}
+    data_keyword = 'json'
 
-    LOG.debug(f'Telemetry body sent: {body}')
+    source = os.environ.get('SAFETY_ANNOUNCEMENTS_URL', None)
+
+    if source:
+        LOG.debug(f'Getting the announcement from a different source: {source}')
+        url = source
+        method = 'get'
+        data = {
+            'telemetry': json.dumps(build_telemetry_data(telemetry=telemetry))}
+        data_keyword = 'params'
+
+    request_kwargs[data_keyword] = data
+    request_kwargs['url'] = url
+
+    LOG.debug(f'Telemetry data sent: {data}')
 
     try:
-        r = session.post(url=url, json=body, headers=headers, timeout=2, proxies=proxy)
+        request_func = getattr(session, method)
+        r = request_func(**request_kwargs)
         LOG.debug(r.text)
     except Exception as e:
         LOG.info('Unexpected but HANDLED Exception happened getting the announcements: %s', e)

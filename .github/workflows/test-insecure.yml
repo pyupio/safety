@@ -2,7 +2,9 @@
 ######## set on the action step, and a further step to ensure the previous step failed (and actually fail if it _didn't_)
 name: Safety Action Insecure Tests
 
-on: [push]
+on:
+  push:
+    branches: [master, develop]
 
 jobs:
   ##### Auto mode tests

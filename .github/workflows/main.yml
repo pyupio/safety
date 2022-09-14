@@ -1,0 +1,107 @@
+name: Python package
+
+on: [ push ]
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                python-version: [ "3.6", "3.7", "3.8", "3.9", "3.10" ]
+        steps:
+            -   uses: actions/checkout@v3
+            -   name: Set up Python
+                uses: actions/setup-python@v4
+                with:
+                    python-version: ${{ matrix.python-version }}
+            -   name: Display Python version
+                run: python -c "import sys; print(sys.version)"
+            -   name: Install dependencies
+                run: |
+                    python -m pip install --upgrade pip
+                    pip install -r test_requirements.txt
+            -   name: Test with pytest
+                run: |
+                    pytest -rP tests/ --cov=dparse/ --cov-report=xml --cov-report=html
+
+    build-binaries:
+        needs: test
+        runs-on: ${{ matrix.os }}
+
+        if: contains(fromJson('["refs/heads/master", "refs/heads/develop", "refs/heads/binaries-fixes"]'), github.ref) || startsWith(github.ref, 'refs/tags')
+
+        strategy:
+            matrix:
+                os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
+        env:
+            BINARY_OS: '${{ matrix.os }}'
+        steps:
+            -   uses: actions/checkout@v3
+            -   name: Set up Python
+                uses: actions/setup-python@v4
+                with:
+                    python-version: '3.10'
+            - name: Install Dependencies
+              run: python binaries.py install
+            - name: Test Safety
+              run: python binaries.py test
+            - name: Producing Binaries
+              run: python binaries.py dist
+            - uses: actions/upload-artifact@v3
+              with:
+                  name: safety-win-i686.exe
+                  path: dist/safety-win-i686.exe
+            - uses: actions/upload-artifact@v3
+              with:
+                  name: safety-win-x86_64.exe
+                  path: dist/safety-win-x86_64.exe
+            - uses: actions/upload-artifact@v3
+              with:
+                  name: safety-linux-i686
+                  path: dist/safety-linux-i686
+            - uses: actions/upload-artifact@v3
+              with:
+                  name: safety-linux-x86_64
+                  path: dist/safety-linux-x86_64
+            - uses: actions/upload-artifact@v3
+              with:
+                  name: safety-macos-x86_64
+                  path: dist/safety-macos-x86_64
+
+
+    deploy-pypi:
+        needs: build-binaries
+        runs-on: ubuntu-latest
+
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+
+        steps:
+            -   uses: actions/checkout@v3
+            -   name: Set up Python
+                uses: actions/setup-python@v4
+                with:
+                    python-version: '3.10'
+            -   name: Install dependencies
+                run: |
+                    python -m pip install --upgrade pip
+                    pip install build
+            -   name: Build package
+                run: python -m build
+            -   name: Publish package
+                uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+                with:
+                    user: __token__
+                    password: ${{ secrets.SAFETY_PYPI_API_TOKEN }}
+
+    create-gh-release:
+        needs: deploy-pypi
+        runs-on: ubuntu-latest
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        permissions:
+            contents: write
+        steps:
+            -   uses: actions/checkout@v2
+            -   uses: ncipollo/release-action@v1
+                with:
+                    artifacts: "dist/safety-win-i686.exe,dist/safety-win-x86_64.exe,dist/safety-linux-i686,dist/safety-linux-x86_64,dist/safety-macos-x86_64"
+                    token: ${{ secrets.SAFETY_GITHUB_TOKEN }}

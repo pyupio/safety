@@ -5,8 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [2.1.1] - 2022-07-18
+- Fix crash when running on systems without git present (Thanks @andyjones)
 
-## [Unreleased] 2.1.0.dev
+## [2.1.0] - 2022-07-14
+
+### Summary:
+- Improved error messages & fixed issues with proxies
+- Fixed license command
+- Added the ability for scan outputs to be sent to pyup.io. This will only take effect if using an API key, the feature is enabled on your profile, and the `--disable-audit-and-monitor` is not set
+- Added the ability to have a Safety policy file set centrally on your pyup.io profile. This remote policy file will be used if there's no local policy file present, otherwise a warning will be issued.
+
+### Updated outputs:
+- Text & screen output: If a scan has been logged, this is now mentioned in the output.
+- JSON output: The JSON output now includes git metadata about the folder Safety was run in. It also includes a version field, and telemetry information that would be sent separately. There are no breaking changes in the output.
+
+### New inputs:
+- New command line flags
+    - The `--disable-audit-and-monitor` flag can be set to disable sending a scan's result to pyup.io
+    - The `--project` flag can be set to manually specify a project to associate these scans with. By default, it'll autodetect based on the current folder and git.
 
 ## [2.0.0] - 2022-06-28
 

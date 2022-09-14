@@ -1,6 +1,8 @@
 name: Safety Action Build And Publish
 
-on: [push]
+on:
+  push:
+    branches: [master]
 
 env:
     DOCKER_BUILDKIT: 1

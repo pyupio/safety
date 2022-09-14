@@ -29,10 +29,12 @@ class environment:
         for arch, python in self.PYTHON_BINARIES[self.os].items():
             yield arch, python
 
+    WIN_BASE_PATH = "C:\\hostedtoolcache\\windows\\Python\\3.10.7"
+
     PYTHON_BINARIES = {
         WIN: {
-            64: "C:\\Python39-x64\\python.exe",
-            32: "C:\\Python39\\python.exe",
+            64: f"{WIN_BASE_PATH}\\x64\\python.exe",  # setup-python default
+            32: f"{WIN_BASE_PATH}\\x86\\python.exe"
         },
 
         # Order is important. If the 32 bit release gets built first,

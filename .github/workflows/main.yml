@@ -48,25 +48,35 @@ jobs:
             - name: Producing Binaries
               run: python binaries.py dist
             - uses: actions/upload-artifact@v3
+              if: ${{ matrix.os == 'windows-latest' }}
               with:
                   name: safety-win-i686.exe
                   path: dist/safety-win-i686.exe
+                  if-no-files-found: error
             - uses: actions/upload-artifact@v3
+              if: ${{ matrix.os == 'windows-latest' }}
               with:
                   name: safety-win-x86_64.exe
                   path: dist/safety-win-x86_64.exe
+                  if-no-files-found: error
             - uses: actions/upload-artifact@v3
+              if: ${{ matrix.os == 'ubuntu-latest' }}
               with:
                   name: safety-linux-i686
                   path: dist/safety-linux-i686
+                  if-no-files-found: error
             - uses: actions/upload-artifact@v3
+              if: ${{ matrix.os == 'ubuntu-latest' }}
               with:
                   name: safety-linux-x86_64
                   path: dist/safety-linux-x86_64
+                  if-no-files-found: error
             - uses: actions/upload-artifact@v3
+              if: ${{ matrix.os == 'macos-latest' }}
               with:
                   name: safety-macos-x86_64
                   path: dist/safety-macos-x86_64
+                  if-no-files-found: error
 
 
     deploy-pypi:

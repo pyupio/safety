@@ -118,7 +118,7 @@ class environment:
         Runs tests for every available arch on the current platform.
         """
         for arch, python in self.python:
-            self.run(f"{python} -m pytest")
+            self.run(f"{python} -m pytest --log-level=DEBUG")
 
 
 if __name__ == "__main__":

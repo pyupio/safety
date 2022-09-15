@@ -10,9 +10,7 @@ from threading import Lock
 from typing import List
 
 import click
-import dparse.parser
 from click import BadParameter
-from dparse.parser import setuptools_parse_requirements_backport as _parse_requirements
 from dparse import parse, filetypes
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
@@ -48,12 +46,17 @@ def read_requirements(fh, resolve=True):
     file_type = filetypes.requirements_txt
 
     if not is_temp_file and is_supported_by_parser(fh.name):
+        LOG.debug('temp or not a compatible file')
         path = fh.name
         found = path
         file_type = None
 
+    LOG.debug(f'Path: {path}')
+    LOG.debug(f'File Type: {file_type}')
+    LOG.debug('Trying to parse file using dparse...')
     dependency_file = parse(fh.read(), path=path, resolve=resolve,
                             file_type=file_type)
+    LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
     for dep in dependency_file.resolved_dependencies:
         try:
             spec = next(iter(dep.specs))._spec

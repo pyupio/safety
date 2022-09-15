@@ -29,6 +29,12 @@ def is_a_remote_mirror(mirror):
     return mirror.startswith("http://") or mirror.startswith("https://")
 
 
+def is_supported_by_parser(path):
+    supported_types = (".txt", ".in", ".yml", ".ini", "Pipfile",
+                       "Pipfile.lock", "setup.cfg", "poetry.lock")
+    return path.endswith(supported_types)
+
+
 def read_requirements(fh, resolve=True):
     """
     Reads requirements from a file like object and (optionally) from referenced files.
@@ -41,7 +47,7 @@ def read_requirements(fh, resolve=True):
     found = 'temp_file'
     file_type = filetypes.requirements_txt
 
-    if not is_temp_file:
+    if not is_temp_file and is_supported_by_parser(fh.name):
         path = fh.name
         found = path
         file_type = None
@@ -49,7 +55,17 @@ def read_requirements(fh, resolve=True):
     dependency_file = parse(fh.read(), path=path, resolve=resolve,
                             file_type=file_type)
     for dep in dependency_file.resolved_dependencies:
-        spec = next(iter(dep.specs))._spec
+        try:
+            spec = next(iter(dep.specs))._spec
+        except StopIteration:
+            click.secho(
+                f"Warning: unpinned requirement '{dep.name}' found in {path}, "
+                "unable to check.",
+                fg="yellow",
+                file=sys.stderr
+            )
+            return
+
         version = spec[1]
         if spec[0] == '==':
             yield Package(name=dep.name, version=version,

@@ -17,7 +17,7 @@ from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities, fetch_policy, post_results
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext
+    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext, is_a_remote_mirror
 
 LOG = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
               help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
                    "environment variable. Default: empty")
 @click.option("--db", default="",
-              help="Path to a local vulnerability database. Default: empty")
+              help="Path to a local or remote vulnerability database. Default: empty")
 @click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption,
               mutually_exclusive=["output", "json", "bare"],
               with_values={"output": ['json', 'bare'], "json": [True, False], "bare": [True, False]},
@@ -105,7 +105,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
         announcements = []
-        if not db:
+        if not db or is_a_remote_mirror(db):
             LOG.info('Not local DB used, Getting announcements')
             announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
 

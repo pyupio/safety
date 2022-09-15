@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import platform
@@ -9,8 +10,10 @@ from threading import Lock
 from typing import List
 
 import click
+import dparse.parser
 from click import BadParameter
 from dparse.parser import setuptools_parse_requirements_backport as _parse_requirements
+from dparse import parse, filetypes
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 from ruamel.yaml import YAML
@@ -21,21 +24,18 @@ from safety.models import Package, RequirementFile
 
 LOG = logging.getLogger(__name__)
 
-def iter_lines(fh, lineno=0):
-    for line in fh.readlines()[lineno:]:
-        yield line
+
+def is_a_remote_mirror(mirror):
+    return mirror.startswith("http://") or mirror.startswith("https://")
 
 
-def parse_line(line):
-    if line.startswith('-e') or line.startswith('http://') or line.startswith('https://'):
-        if "#egg=" in line:
-            line = line.split("#egg=")[-1]
-    if ' --hash' in line:
-        line = line.split(" --hash")[0]
-    return _parse_requirements(line)
+def is_supported_by_parser(path):
+    supported_types = (".txt", ".in", ".yml", ".ini", "Pipfile",
+                       "Pipfile.lock", "setup.cfg", "poetry.lock")
+    return path.endswith(supported_types)
 
 
-def read_requirements(fh, resolve=False):
+def read_requirements(fh, resolve=True):
     """
     Reads requirements from a file like object and (optionally) from referenced files.
     :param fh: file like object to read from
@@ -43,80 +43,37 @@ def read_requirements(fh, resolve=False):
     :return: generator
     """
     is_temp_file = not hasattr(fh, 'name')
-    for num, line in enumerate(iter_lines(fh)):
-        line = line.strip()
-        if not line:
-            # skip empty lines
-            continue
-        if line.startswith('#') or \
-            line.startswith('-i') or \
-            line.startswith('--index-url') or \
-            line.startswith('--extra-index-url') or \
-            line.startswith('-f') or line.startswith('--find-links') or \
-            line.startswith('--no-index') or line.startswith('--allow-external') or \
-            line.startswith('--allow-unverified') or line.startswith('-Z') or \
-            line.startswith('--always-unzip'):
-            # skip unsupported lines
-            continue
-        elif line.startswith('-r') or line.startswith('--requirement'):
-            # got a referenced file here, try to resolve the path
-            # if this is a tempfile, skip
-            if is_temp_file:
-                continue
+    path = None
+    found = 'temp_file'
+    file_type = filetypes.requirements_txt
 
-            # strip away the recursive flag
-            prefixes = ["-r", "--requirement"]
-            filename = line.strip()
-            for prefix in prefixes:
-                if filename.startswith(prefix):
-                    filename = filename[len(prefix):].strip()
+    if not is_temp_file and is_supported_by_parser(fh.name):
+        path = fh.name
+        found = path
+        file_type = None
 
-            # if there is a comment, remove it
-            if " #" in filename:
-                filename = filename.split(" #")[0].strip()
-            req_file_path = os.path.join(os.path.dirname(fh.name), filename)
-            if resolve:
-                # recursively yield the resolved requirements
-                if os.path.exists(req_file_path):
-                    with open(req_file_path) as _fh:
-                        for req in read_requirements(_fh, resolve=True):
-                            yield req
-            else:
-                yield RequirementFile(path=req_file_path)
-        else:
-            try:
-                parseable_line = line
-                # multiline requirements are not parseable
-                if "\\" in line:
-                    parseable_line = line.replace("\\", "")
-                    for next_line in iter_lines(fh, num + 1):
-                        parseable_line += next_line.strip().replace("\\", "")
-                        line += "\n" + next_line
-                        if "\\" in next_line:
-                            continue
-                        break
-                req, = parse_line(parseable_line)
-                if len(req.specifier._specs) == 1 and \
-                        next(iter(req.specifier._specs))._spec[0] == "==":
-                    yield Package(name=req.name, version=next(iter(req.specifier._specs))._spec[1],
-                                  found='temp_file' if is_temp_file else fh.name, insecure_versions=[],
-                                  secure_versions=[], latest_version=None,
-                                  latest_version_without_known_vulnerabilities=None, more_info_url=None)
-                else:
-                    try:
-                        fname = fh.name
-                    except AttributeError:
-                        fname = line
+    dependency_file = parse(fh.read(), path=path, resolve=resolve,
+                            file_type=file_type)
+    for dep in dependency_file.resolved_dependencies:
+        try:
+            spec = next(iter(dep.specs))._spec
+        except StopIteration:
+            click.secho(
+                f"Warning: unpinned requirement '{dep.name}' found in {path}, "
+                "unable to check.",
+                fg="yellow",
+                file=sys.stderr
+            )
+            return
 
-                    click.secho(
-                        "Warning: unpinned requirement '{req}' found in {fname}, "
-                        "unable to check.".format(req=req.name,
-                                                  fname=fname),
-                        fg="yellow",
-                        file=sys.stderr
-                    )
-            except ValueError:
-                continue
+        version = spec[1]
+        if spec[0] == '==':
+            yield Package(name=dep.name, version=version,
+                          found=found,
+                          insecure_versions=[],
+                          secure_versions=[], latest_version=None,
+                          latest_version_without_known_vulnerabilities=None,
+                          more_info_url=None)
 
 
 def get_proxy_dict(proxy_protocol, proxy_host, proxy_port):

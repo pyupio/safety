@@ -58,6 +58,7 @@ def read_requirements(fh, resolve=True):
     LOG.debug(f'Content: {content}')
     dependency_file = parse(content, path=path, resolve=resolve,
                             file_type=file_type)
+    LOG.debug(f'Dependency file: {dependency_file.serialize()}')
     LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
     for dep in dependency_file.resolved_dependencies:
         try:

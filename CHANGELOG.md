@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The --db flag is compatible remote sources too.
 - Added more logging
 - Upgrade dparse dependency to avoid a possible ReDos security issue
+- Removed Travis and Appveyor, the CI/CD was migrated to GitHub Actions
 
 ## [2.1.1] - 2022-07-18
 - Fix crash when running on systems without git present (Thanks @andyjones)

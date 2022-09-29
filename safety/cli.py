@@ -10,6 +10,7 @@ import tempfile
 import click
 
 from safety import safety
+from safety.alerts import alert
 from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
 from safety.errors import SafetyException, SafetyError
 from safety.formatter import SafetyFormatter
@@ -364,6 +365,7 @@ def validate(ctx, name, path):
     click.secho(f'The Safety policy file was successfully parsed with the following values:', fg='green')
     click.secho(json.dumps(values, indent=4, default=str))
 
+cli.add_command(alert)
 
 if __name__ == "__main__":
     cli()

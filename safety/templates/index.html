@@ -4,57 +4,158 @@
 <head>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 </head>
-<h1>Safety Check Report</h1>
+<center><h1>Safety Check Report</h1></center>
 
 
 
-<div class="row">
-    <div class="col-md-12">
-        Scanned Paths: {{json_data.report_meta.scanned}} </br></br>
-        Scan Target: {{json_data.report_meta.scan_target}}
-    </div>
-    <div class="col-md-12">
-        <table class="table">
-            <tr>
-                <td>Package Name</td><td>Version</td>  
-            </tr>
-        {% for key, value in json_data.scanned_packages.items() %}
-            <tr>
-                    <td>{{value.name}}</td><td>{{value.version}}</td>  
-            </tr>
+<div style="border: 1px solid black;border-radius: 5px; padding: 20px;margin:20px;">
+        <div class="col-md-12">
+            <h3> <span class="badge badge-secondary">Scanned Paths</span></h3> {{json_data.report_meta.scanned}} </br></br>
+            <h3> <span class="badge badge-secondary">Scanned Target</span></h3> {{json_data.report_meta.scan_target}} </br></br>
+        </div>
+        <div class="col-md-12">
+            <h3> <span class="badge badge-secondary">Affected Packages</span></h3></br></br>
+            <table class="table">
+                <tr>
+                    <th>Package Name</th><th>Version</th>  <th>Location</th><th>Insecure Versions</th><th>Secure Versions</th>
+                    <th>Latest Version Without known Vulnerablities</th><th>Latest Version</th><th>More Info</th>
+                </tr>
+            {% for key, value in json_data.affected_packages.items() %}
+                <tr>
+                    <td>{{value.name}}</td><td>{{value.version}}</td>  <td>{{value.found}}</td><td>{{value.insecure_versions}}</td>
+                    <td>{{value.secure_versions}}</td><td>{{value.latest_version_without_known_vulnerabilities}}</td><td>{{value.latest_version}}</td><td><a href="{{value.more_info_url}}">More Info</a></td> 
+                </tr>
+            
+            {% endfor %}
+            </table>
+        </div>
+
+        <div class="col-md-12">
+            <h3> <span class="badge badge-secondary">Scanned Packages</span></h3></br></br>
+            <table class="table">
+                <tr>
+                    <th>Package Name</th><th>Version</th>  
+                </tr>
+            {% for key, value in json_data.scanned_packages.items() %}
+                <tr>
+                        <td>{{value.name}}</td><td>{{value.version}}</td>  
+                </tr>
+            
+            {% endfor %}
+            </table>
+        </div>
+
         
-        {% endfor %}
-        </table>
-    </div>
-
-    Affected Packages</br></br></br>
-    <div class="col-md-12">
-        <table class="table">
-            <tr>
-                <td>Package Name</td><td>Version</td>  <td>Location</td><td>Insecure Versions</td><td>Secure Versions</td>
-                <td>Latest Version Without known Vulnerablities</td><td>Latest Version</td><td>More Info</td>
-            </tr>
-        {% for key, value in json_data.affected_packages.items() %}
-            <tr>
-                <td>{{value.name}}</td><td>{{value.version}}</td>  <td>{{value.found}}</td><td>{{value.insecure_versions}}</td>
-                <td>{{value.secure_versions}}</td><td>{{value.latest_version_without_known_vulnerabilities}}</td><td>{{value.latest_version}}</td><td><a href="{{value.more_info_url}}">More Info</a></td> 
-            </tr>
         
-        {% endfor %}
-        </table>
-    </div>
+
+        <div class="col-md-12">
+            <h3> <span class="badge badge-secondary">Vulnerablities</span></h3></br></br>
+            <table class="table">
+
+                <tr>
+                {% for key,value in json_data.vulnerabilities[0].items() %}
+                    {% if key in ["vulnerability_id","package_name","vulnerable_spec","all_vulnerable_specs","analyzed_version","advisory","published_date","CVE","severity"] %}
+                    <th>{{key}}</th>
+                    {% endif %}
+                {% endfor %}
+                </tr>
+
+
+            {% for data in json_data.vulnerabilities %}
+                <tr>
+                {% for key, value in data.items() %}
+                    {% if key in ["vulnerability_id","package_name","vulnerable_spec","all_vulnerable_specs","analyzed_version","advisory","published_date","CVE","severity"] %}
+                    <td>{{value}}</td>
+                    {% endif %}
+                {% endfor %}
+                </tr>
+            {% endfor %}
+            </table>
+        </div>
+        {% if json_data.announcements|length > 0 %}
+        <div class="col-md-12">
+            <h3> <span class="badge badge-secondary">Announcements</span></h3></br></br>
+            <table class="table">
+
+                <tr>
+                {% for key,value in json_data.announcements[0].items() %}
+                
+                    <th>{{key}}</th>
+                
+                {% endfor %}
+                </tr>
+
+
+            {% for data in json_data.announcements %}
+                <tr>
+                {% for key, value in data.items() %}
+                
+                    <td>{{value}}</td>
+                
+                {% endfor %}
+                </tr>
+            {% endfor %}
+            </table>
+        </div>
+        {% endif %}
+        {% if json_data.ignored_vulnerabilities|length > 0 %}
+        <div class="col-md-12">
+            <h3> <span class="badge badge-secondary">Ignored</span></h3></br></br>
+            <table class="table">
+            
+                <tr>
+                
+                    {% for key,value in json_data.ignored_vulnerabilities[0].items() %}
+
+                        <th>{{key}}</th>
+                    
+                    {% endfor %}
+                
+                </tr>
+
+
+            {% for data in json_data.ignored_vulnerabilities %}
+                <tr>
+                {% for key, value in data.items() %}
+                
+                    <td>{{value}}</td>
+                
+                {% endfor %}
+                </tr>
+            {% endfor %}
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="col-md-12">
+            <h3> <span class="badge badge-secondary">Remediations</span></h3></br></br>
+            <table class="table">
+                <tr>
+                    <th>Package Name</th><th>Version</th>  <th>Vul Found</th><th>Recommended Versions</th><th>Other Recommended Versions</th>
+                    <th>More Info</th>
+                </tr>
+            {% for key, value in json_data.remediations.items() %}
+                <tr>
+                    <td>{{key}}</td><td>{{value.current_version}}</td>  <td>{{value.vulnerabilities_found}}</td><td>{{value.recommended_version}}</td>
+                    <td>{{value.other_recommended_versions}}</td><td><a href="{{value.more_info_url}}">More Info</a></td> 
+                </tr>
+            
+            {% endfor %}
+            </table>
+        </div>
+
 </div>
 
 
-{{json_data.affected_packages}}
 
-{{json_data.announcements}}
-
-{{json_data.vulnerabilities}}
-
-{{json_data.ignored_vulnerabilities}}
-
-{{json_data.remediations}}
+<!-- 
+announ: {{json_data.announcements}}
+</br>
+vul: {{json_data.vulnerabilities}}
+</br>
+ignored: {{json_data.ignored_vulnerabilities}}
+</br>
+rem: {{json_data.remediations}} -->
 
 
 </body>

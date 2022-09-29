@@ -1,12 +1,14 @@
 import json
 import logging
+import os
 import textwrap
 from datetime import datetime
 
 import click
 
 from safety.constants import RED, YELLOW
-from safety.util import get_safety_version, Package, get_terminal_size, SafetyContext, build_telemetry_data, build_git_data
+from safety.util import get_safety_version, Package, get_terminal_size, \
+    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror
 
 from jinja2 import Environment, PackageLoader
 
@@ -488,16 +490,24 @@ def build_report_for_review_vuln_report(as_dict=False):
 
 def build_using_sentence(key, db):
     key_sentence = []
+    custom_integration = os.environ.get('SAFETY_CUSTOM_INTEGRATION',
+                                        'false').lower() == 'true'
 
     if key:
         key_sentence = [{'style': True, 'value': 'an API KEY'},
                         {'style': False, 'value': ' and the '}]
         db_name = 'PyUp Commercial'
+    elif db and custom_integration and is_a_remote_mirror(db):
+        return []
     else:
         db_name = 'non-commercial'
 
     if db:
-        db_name = "local file {0}".format(db)
+        db_type = 'local file'
+        if is_a_remote_mirror(db):
+            db_type = 'remote URL'
+
+        db_name = f"{db_type} {db}"
 
     database_sentence = [{'style': True, 'value': db_name + ' database'}]
 
@@ -632,6 +642,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['json_version'] = 1
 
     using_sentence = build_using_sentence(key, db)
+    using_sentence_section = [nl] if not using_sentence else [nl] + [build_using_sentence(key, db)]
     scanned_count_sentence = build_scanned_count_sentence(packages)
 
     timestamp = [{'style': False, 'value': 'Timestamp '}, {'style': True, 'value': current_time}]
@@ -641,7 +652,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
      {'style': False, 'value': ' is scanning for '},
      {'style': True, 'value': scanning_types.get(context.command, {}).get('name', '')},
      {'style': True, 'value': '...'}] + safety_policy_used + audit_and_monitor, action_executed
-     ] + [nl] + scanned_items + [nl] + [using_sentence] + [scanned_count_sentence] + [timestamp]
+     ] + [nl] + scanned_items + using_sentence_section + [scanned_count_sentence] + [timestamp]
 
     brief_info.extend(additional_data)
 

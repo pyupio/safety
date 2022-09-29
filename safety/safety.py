@@ -249,7 +249,7 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
     more_info_url = f"{base_domain}{data.get('more_info_path', '')}"
     severity = None
 
-    if cve and cve.cvssv2 or cve.cvssv3:
+    if cve and (cve.cvssv2 or cve.cvssv3):
         severity = Severity(source=cve.name, cvssv2=cve.cvssv2, cvssv3=cve.cvssv3)
 
     return Vulnerability(
@@ -276,9 +276,15 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
 
 
 def get_cve_from(data, db_full):
-    cve_id = data.get("cve", '').split(",")[0].strip()
+    cve_data = data.get("cve", '')
+
+    if not cve_data:
+        return None
+
+    cve_id = cve_data.split(",")[0].strip()
     cve_meta = db_full.get("$meta", {}).get("cve", {}).get(cve_id, {})
-    return CVE(name=cve_id, cvssv2=cve_meta.get("cvssv2", None), cvssv3=cve_meta.get("cvssv3", None))
+    return CVE(name=cve_id, cvssv2=cve_meta.get("cvssv2", None),
+               cvssv3=cve_meta.get("cvssv3", None))
 
 
 def ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules):
@@ -288,11 +294,12 @@ def ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules):
 
     severity = None
 
-    if cve.cvssv2 and cve.cvssv2.get("base_score", None):
-        severity = cve.cvssv2.get("base_score", None)
+    if cve:
+        if cve.cvssv2 and cve.cvssv2.get("base_score", None):
+            severity = cve.cvssv2.get("base_score", None)
 
-    if cve.cvssv3 and cve.cvssv3.get("base_score", None):
-        severity = cve.cvssv3.get("base_score", None)
+        if cve.cvssv3 and cve.cvssv3.get("base_score", None):
+            severity = cve.cvssv3.get("base_score", None)
 
     ignore_severity_below = float(ignore_severity_rules.get('ignore-cvss-severity-below', 0.0))
     ignore_unknown_severity = bool(ignore_severity_rules.get('ignore-cvss-unknown-severity', False))

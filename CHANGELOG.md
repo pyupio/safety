@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
-## [Unreleased] 2.2.0.dev
+## [2.2.0] - 2022-09-19
+- Safety starts to use dparse to parse files, now Safety supports mainly Poetry and Pipenv lock files plus other files supported by dparse.
+- Added logic for custom integrations like pipenv check.
+- The --db flag is compatible remote sources too.
+- Added more logging
+- Upgrade dparse dependency to avoid a possible ReDos security issue
+- Removed Travis and Appveyor, the CI/CD was migrated to GitHub Actions
 
 ## [2.1.1] - 2022-07-18
 - Fix crash when running on systems without git present (Thanks @andyjones)

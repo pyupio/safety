@@ -326,7 +326,12 @@ def active_color_if_needed(ctx, param, value):
     color = os.environ.get("SAFETY_COLOR", None)
 
     if color is not None:
-        ctx.color = bool(color)
+        color = color.lower()
+
+        if color == '1' or color == 'true':
+            ctx.color = True
+        elif color == '0' or color == 'false':
+            ctx.color = False
 
     return value
 

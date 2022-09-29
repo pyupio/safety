@@ -2,6 +2,8 @@ import logging
 
 import json as json_parser
 
+from requests.models import PreparedRequest
+
 from safety.formatter import FormatterAPI
 from safety.output_utils import get_report_brief_info
 from safety.util import get_basic_announcements
@@ -45,6 +47,13 @@ class JsonReport(FormatterAPI):
             remed[k]['other_recommended_versions'] = [other_v for other_v in v.get('secure_versions', []) if
                                                       other_v != recommended_version]
             remed[k]['more_info_url'] = v.get('more_info_url', '')
+
+            # Use Request's PreparedRequest to handle parsing, joining etc the URL since we're adding query
+            # parameters and don't know what the server might send down.
+            if remed[k]['more_info_url']:
+                req = PreparedRequest()
+                req.prepare_url(remed[k]['more_info_url'], {'from': remed[k]['current_version'], 'to': recommended_version})
+                remed[k]['more_info_url'] = req.url
 
         template = {
             "report_meta": report,

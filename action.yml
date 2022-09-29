@@ -6,6 +6,10 @@ inputs:
     description: 'PyUp.io API key'
     required: false
     default: ''
+  create-pr:
+    description: 'Create a PR if Safety finds any vulnerabilities. Only the `file` scan mode is currently supported - combine with Cron based actions to get automatic notifications of new vulnerabilities.'
+    required: false
+    default: ''
   scan:
     description: 'Scan mode to use. One of auto / docker / env / file (defaults to auto)'
     required: false
@@ -30,6 +34,9 @@ inputs:
     description: '[Advanced] Any additional arguments to pass to Safety'
     required: false
     default: ''
+  repo-token:
+    required: false
+    default: ''
 
 outputs:
   cli-output:
@@ -43,6 +50,7 @@ runs:
   env:
     SAFETY_API_KEY: ${{ inputs.api-key }}
     SAFETY_ACTION: true
+    SAFETY_ACTION_CREATE_PR: ${{ inputs.create-pr }}
     SAFETY_ACTION_SCAN: ${{ inputs.scan }}
     SAFETY_ACTION_DOCKER_IMAGE: ${{ inputs.docker-image }}
     SAFETY_ACTION_REQUIREMENTS: ${{ inputs.requirements }}
@@ -50,6 +58,7 @@ runs:
     SAFETY_ACTION_OUTPUT_FORMAT: ${{ inputs.output-format }}
     SAFETY_ACTION_ARGS: ${{ inputs.args }}
     SAFETY_ACTION_FORMAT: true
+    GITHUB_TOKEN: ${{ inputs.repo-token }}
     COLUMNS: 120
 
 branding:

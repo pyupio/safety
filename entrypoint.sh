@@ -66,9 +66,14 @@ if [ "${SAFETY_ACTION_SCAN}" = "auto" ]; then
 fi
 
 # remediation mode
-if [ "${SAFETY_ACTION_CREATE_PR}" = "true" ]; then
+if [ "${SAFETY_ACTION_CREATE_PR}" = "true" ] && [ "${SAFETY_ACTION_CREATE_ISSUE}" = "true" ]; then
+    echo "[Safety Action] Can only create issues or PRs, not both."
+    exit 1
+fi
+
+if [ "${SAFETY_ACTION_CREATE_PR}" = "true" ] || [ "${SAFETY_ACTION_CREATE_ISSUE}" = "true" ]; then
     if [ "${SAFETY_ACTION_SCAN}" != "file" ]; then
-        echo "[Safety Action] Creating PRs is only supported when scanning a requirements file."
+        echo "[Safety Action] Creating PRs / issues is only supported when scanning a requirements file."
         exit 1
     fi
 
@@ -86,8 +91,13 @@ if [ "${SAFETY_ACTION_CREATE_PR}" = "true" ]; then
         requirement_files=("-r" "${SAFETY_ACTION_REQUIREMENTS}")
     fi
 
+    alert_action="github-pr"
+    if [ "${SAFETY_ACTION_CREATE_ISSUE}" = "true" ]; then
+        alert_action="github-issue"
+    fi
+
     # Continue on error is set because we're using Safety's output here for further processing.
-    python -m safety check "${requirement_files[@]}" --continue-on-error --output=json ${SAFETY_ACTION_ARGS} | python -m safety alert github-pr --repo "${GITHUB_REPOSITORY}" --token "${GITHUB_TOKEN}" --base-url "${GITHUB_API_URL}"
+    python -m safety check "${requirement_files[@]}" --continue-on-error --output=json ${SAFETY_ACTION_ARGS} | python -m safety alert "${alert_action}" --repo "${GITHUB_REPOSITORY}" --token "${GITHUB_TOKEN}" --base-url "${GITHUB_API_URL}"
 
     exit 0
 fi

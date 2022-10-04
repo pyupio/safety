@@ -10,6 +10,10 @@ inputs:
     description: 'Create a PR if Safety finds any vulnerabilities. Only the `file` scan mode is currently supported - combine with Cron based actions to get automatic notifications of new vulnerabilities.'
     required: false
     default: ''
+  create-issue:
+    description: 'Create an issue if Safety finds any vulnerabilities. Only the `file` scan mode is currently supported - combine with Cron based actions to get automatic notifications of new vulnerabilities.'
+    required: false
+    default: ''
   scan:
     description: 'Scan mode to use. One of auto / docker / env / file (defaults to auto)'
     required: false
@@ -46,11 +50,12 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'docker://pyupio/safety-v2-beta:latest'
+  image: 'Dockerfile'
   env:
     SAFETY_API_KEY: ${{ inputs.api-key }}
     SAFETY_ACTION: true
     SAFETY_ACTION_CREATE_PR: ${{ inputs.create-pr }}
+    SAFETY_ACTION_CREATE_ISSUE: ${{ inputs.create-issue }}
     SAFETY_ACTION_SCAN: ${{ inputs.scan }}
     SAFETY_ACTION_DOCKER_IMAGE: ${{ inputs.docker-image }}
     SAFETY_ACTION_REQUIREMENTS: ${{ inputs.requirements }}

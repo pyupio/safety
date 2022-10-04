@@ -37,7 +37,13 @@ def generate_body(pkg, remediation, vulns, *, api_key):
     template = env.get_template('pr.jinja2')
 
     overall_impact = cvss3_score_to_label(highest_base_score(vulns))
-    return template.render({"pkg": pkg, "remediation": remediation, "vulns": vulns, "changelog": changelog, "overall_impact": overall_impact })
+    result = template.render({"pkg": pkg, "remediation": remediation, "vulns": vulns, "changelog": changelog, "overall_impact": overall_impact, "summary_changelog": False })
+
+    # GitHub has a PR body length limit of 65536. If we're going over that, skip the changelog and just use a link.
+    if len(result) > 65500:
+        return template.render({"pkg": pkg, "remediation": remediation, "vulns": vulns, "changelog": changelog, "overall_impact": overall_impact, "summary_changelog": True })
+
+    return result
 
 def generate_issue_body(pkg, remediation, vulns, *, api_key):
     changelog = fetch_changelog(pkg, remediation['current_version'], remediation['recommended_version'], api_key=api_key)
@@ -47,7 +53,11 @@ def generate_issue_body(pkg, remediation, vulns, *, api_key):
     template = env.get_template('issue.jinja2')
 
     overall_impact = cvss3_score_to_label(highest_base_score(vulns))
-    return template.render({"pkg": pkg, "remediation": remediation, "vulns": vulns, "changelog": changelog, "overall_impact": overall_impact })
+    result = template.render({"pkg": pkg, "remediation": remediation, "vulns": vulns, "changelog": changelog, "overall_impact": overall_impact, "summary_changelog": False })
+
+    # GitHub has a PR body length limit of 65536. If we're going over that, skip the changelog and just use a link.
+    if len(result) > 65500:
+        return template.render({"pkg": pkg, "remediation": remediation, "vulns": vulns, "changelog": changelog, "overall_impact": overall_impact, "summary_changelog": True })
 
 def generate_commit_message(pkg, remediation):
     return f"Update {pkg} from {remediation['current_version']} to {remediation['recommended_version']}"

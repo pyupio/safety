@@ -50,7 +50,7 @@ def github_pr(obj, repo, token, base_url):
     except pygithub.GithubException:
         # If we're using a token from an action (or integration) we can't call `get_user()`. Fall back
         # to assuming we're running under an action
-        self_user = "github-actions[bot]"
+        self_user = "web-flow"
 
     pulls = repo.get_pulls(state='open', sort='created', base=repo.default_branch)
     pending_updates = set(obj.report['remediations'].keys())
@@ -61,27 +61,33 @@ def github_pr(obj, repo, token, base_url):
         contents = contents.decode('utf-8') # TODO - encoding?
         parsed_req_file = requirements.RequirementFile(name, contents)
         for pkg, remediation in obj.report['remediations'].items():
+            if remediation['recommended_version'] is None:
+                print(f"The GitHub PR alerter only currently supports remediations that have a recommended_version: {pkg}")
+                continue
+
             # We have a single remediation that can have multiple vulnerabilities
             vulns = [x for x in obj.report['vulnerabilities'] if x['package_name'] == pkg and x['analyzed_version'] == remediation['current_version']]
 
             if ignore_cvss_unknown_severity and all(x['severity'] is None for x in vulns):
+                print("All vulnerabilities have unknown severity, and ignore_cvss_unknown_severity is set.")
                 continue
 
-            at_least_one_match = False
             highest_base_score = 0
             for vuln in vulns:
                 if vuln['severity'] is not None:
                     highest_base_score = max(highest_base_score, vuln['severity'].get('cvssv3', {}).get('base_score', 10))
 
             if ignore_cvss_severity_below:
+                at_least_one_match = False
                 for vuln in vulns:
                     # Consider a None severity as a match, since it's controlled by a different flag
                     # If we can't find a base_score but we have severity data, assume it's critical for now.
                     if vuln['severity'] is None or vuln['severity'].get('cvssv3', {}).get('base_score', 10) >= ignore_cvss_severity_below:
                         at_least_one_match = True
 
-            if not at_least_one_match:
-                continue
+                if not at_least_one_match:
+                    print(f"None of the vulnerabilities found have a score greater than or equal to the ignore_cvss_severity_below of {ignore_cvss_severity_below}")
+                    continue
 
             for parsed_req in parsed_req_file.requirements:
                 if parsed_req.name == pkg:
@@ -110,6 +116,10 @@ def github_pr(obj, repo, token, base_url):
                             _, pr_pkg, pr_ver = pr.head.ref.split('/')
                         except ValueError:
                             # It's possible that something weird has manually been done, so skip that
+                            print('Found an invalid branch name on an open PR, that matches our prefix. Skipping.')
+                            continue
+
+                        if pr_pkg != pkg:
                             continue
 
                         # Case 4
@@ -120,6 +130,7 @@ def github_pr(obj, repo, token, base_url):
                             continue
 
                         if not only_us:
+                            print(f"There are other committers on the PR #{pr.number} for {pkg}. No further action will be taken.")
                             continue
 
                         # Case 2
@@ -139,6 +150,7 @@ def github_pr(obj, repo, token, base_url):
                             delete_branch(repo, pr.head.ref)
 
                     if updated_contents == contents:
+                        print(f"Couldn't update {pkg} to {remediation['recommended_version']}")
                         continue
 
                     if skip_create:
@@ -157,7 +169,7 @@ def github_pr(obj, repo, token, base_url):
                                 delete_branch(repo, new_branch)
                                 create_branch(repo, repo.default_branch, new_branch)
                             else:
-                                # Skip this, and print out a warning later.
+                                print(f"The branch '{new_branch}' already exists - but there is no matching PR and this branch has committers other than us. This remediation will be skipped.")
                                 continue
                         else:
                             raise e
@@ -222,27 +234,33 @@ def github_issue(obj, repo, token, base_url):
         contents = contents.decode('utf-8') # TODO - encoding?
         parsed_req_file = requirements.RequirementFile(name, contents)
         for pkg, remediation in obj.report['remediations'].items():
+            if remediation['recommended_version'] is None:
+                print(f"The GitHub Issue alerter only currently supports remediations that have a recommended_version: {pkg}")
+                continue
+
             # We have a single remediation that can have multiple vulnerabilities
             vulns = [x for x in obj.report['vulnerabilities'] if x['package_name'] == pkg and x['analyzed_version'] == remediation['current_version']]
 
             if ignore_cvss_unknown_severity and all(x['severity'] is None for x in vulns):
+                print("All vulnerabilities have unknown severity, and ignore_cvss_unknown_severity is set.")
                 continue
 
-            at_least_one_match = False
             highest_base_score = 0
             for vuln in vulns:
                 if vuln['severity'] is not None:
                     highest_base_score = max(highest_base_score, vuln['severity'].get('cvssv3', {}).get('base_score', 10))
 
             if ignore_cvss_severity_below:
+                at_least_one_match = False
                 for vuln in vulns:
                     # Consider a None severity as a match, since it's controlled by a different flag
                     # If we can't find a base_score but we have severity data, assume it's critical for now.
                     if vuln['severity'] is None or vuln['severity'].get('cvssv3', {}).get('base_score', 10) >= ignore_cvss_severity_below:
                         at_least_one_match = True
 
-            if not at_least_one_match:
-                continue
+                if not at_least_one_match:
+                    print(f"None of the vulnerabilities found have a score greater than or equal to the ignore_cvss_severity_below of {ignore_cvss_severity_below}")
+                    continue
 
             for parsed_req in parsed_req_file.requirements:
                 if parsed_req.name == pkg:

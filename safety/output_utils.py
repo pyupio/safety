@@ -176,7 +176,8 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
         to_print += expire_section
 
-    to_print += more_info_line
+    if cve:
+        to_print += more_info_line
 
     to_print = [{**common_format, **line} for line in to_print]
 

@@ -50,7 +50,7 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'Dockerfile'
+  image: 'docker://pyupio/safety-v2-beta:latest'
   env:
     SAFETY_API_KEY: ${{ inputs.api-key }}
     SAFETY_ACTION: true

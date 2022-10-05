@@ -174,13 +174,20 @@ def github_pr(obj, repo, token, base_url):
                         else:
                             raise e
 
-                    repo.update_file(
-                            path=name,
-                            message=utils.generate_commit_message(pkg, remediation),
-                            content=updated_contents,
-                            branch=new_branch,
-                            sha=utils.git_sha1(raw_contents)
-                        )
+                    try:
+                        repo.update_file(
+                                path=name,
+                                message=utils.generate_commit_message(pkg, remediation),
+                                content=updated_contents,
+                                branch=new_branch,
+                                sha=utils.git_sha1(raw_contents)
+                            )
+                    except pygithub.GithubException as e:
+                        if "does not match" in e.data['message']:
+                            click.secho(f"GitHub blocked a commit on our branch to the requirements file, {name}, as the local hash we computed didn't match the version on {repo.default_branch}. Make sure you're running safety against the latest code on your default branch.", fg='red')
+                            continue
+                        else:
+                            raise e
 
                     pr = repo.create_pull(title=pr_prefix + utils.generate_title(pkg, remediation, vulns), body=utils.generate_body(pkg, remediation, vulns, api_key=obj.key), head=new_branch, base=repo.default_branch)
                     print(f"Created Pull Request to update {pkg}")

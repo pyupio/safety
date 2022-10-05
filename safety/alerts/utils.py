@@ -23,7 +23,7 @@ def highest_base_score(vulns):
     highest_base_score = 0
     for vuln in vulns:
         if vuln['severity'] is not None:
-            highest_base_score = max(highest_base_score, vuln['severity'].get('cvssv3', {}).get('base_score', 10))
+            highest_base_score = max(highest_base_score, (vuln['severity'].get('cvssv3', {}) or {}).get('base_score', 10))
 
     return highest_base_score
 

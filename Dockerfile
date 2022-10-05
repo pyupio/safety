@@ -10,7 +10,7 @@ RUN cd /app && python3 -m pip install poetry==1.1.13 pipenv==2022.6.7
 
 # Install this project dependencies
 COPY . /app
-RUN cd /app && python3 -m pip install -e .
+RUN cd /app && python3 -m pip install -e .[github]
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8

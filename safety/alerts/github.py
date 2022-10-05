@@ -75,14 +75,14 @@ def github_pr(obj, repo, token, base_url):
             highest_base_score = 0
             for vuln in vulns:
                 if vuln['severity'] is not None:
-                    highest_base_score = max(highest_base_score, vuln['severity'].get('cvssv3', {}).get('base_score', 10))
+                    highest_base_score = max(highest_base_score, (vuln['severity'].get('cvssv3', {}) or {}).get('base_score', 10))
 
             if ignore_cvss_severity_below:
                 at_least_one_match = False
                 for vuln in vulns:
                     # Consider a None severity as a match, since it's controlled by a different flag
                     # If we can't find a base_score but we have severity data, assume it's critical for now.
-                    if vuln['severity'] is None or vuln['severity'].get('cvssv3', {}).get('base_score', 10) >= ignore_cvss_severity_below:
+                    if vuln['severity'] is None or (vuln['severity'].get('cvssv3', {}) or {}).get('base_score', 10) >= ignore_cvss_severity_below:
                         at_least_one_match = True
 
                 if not at_least_one_match:
@@ -248,14 +248,14 @@ def github_issue(obj, repo, token, base_url):
             highest_base_score = 0
             for vuln in vulns:
                 if vuln['severity'] is not None:
-                    highest_base_score = max(highest_base_score, vuln['severity'].get('cvssv3', {}).get('base_score', 10))
+                    highest_base_score = max(highest_base_score, (vuln['severity'].get('cvssv3', {}) or {}).get('base_score', 10))
 
             if ignore_cvss_severity_below:
                 at_least_one_match = False
                 for vuln in vulns:
                     # Consider a None severity as a match, since it's controlled by a different flag
                     # If we can't find a base_score but we have severity data, assume it's critical for now.
-                    if vuln['severity'] is None or vuln['severity'].get('cvssv3', {}).get('base_score', 10) >= ignore_cvss_severity_below:
+                    if vuln['severity'] is None or (vuln['severity'].get('cvssv3', {}) or {}).get('base_score', 10) >= ignore_cvss_severity_below:
                         at_least_one_match = True
 
                 if not at_least_one_match:

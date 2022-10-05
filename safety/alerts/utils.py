@@ -7,7 +7,15 @@ from packaging.version import parse as parse_version
 from pathlib import Path
 
 import click
-import jinja2
+
+# Jinja2 will only be installed if the optional deps are installed.
+# It's fine if our functions fail, but don't let this top level
+# import error out.
+try:
+    import jinja2
+except ImportError:
+    jinja2 = None
+
 import requests
 
 

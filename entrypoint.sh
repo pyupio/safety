@@ -65,6 +65,43 @@ if [ "${SAFETY_ACTION_SCAN}" = "auto" ]; then
     fi
 fi
 
+# remediation mode
+if [ "${SAFETY_ACTION_CREATE_PR}" = "true" ] && [ "${SAFETY_ACTION_CREATE_ISSUE}" = "true" ]; then
+    echo "[Safety Action] Can only create issues or PRs, not both."
+    exit 1
+fi
+
+if [ "${SAFETY_ACTION_CREATE_PR}" = "true" ] || [ "${SAFETY_ACTION_CREATE_ISSUE}" = "true" ]; then
+    if [ "${SAFETY_ACTION_SCAN}" != "file" ]; then
+        echo "[Safety Action] Creating PRs / issues is only supported when scanning a requirements file."
+        exit 1
+    fi
+
+    # TODO: Add info to env vars for telemetry...
+
+    # Build up a list of requirements files, or use SAFETY_ACTION_REQUIREMENTS if that's set.
+    # This will be moved into Safety proper in the future.
+    requirement_files=()
+    if [ -z "${SAFETY_ACTION_REQUIREMENTS}" ]; then
+        readarray -d '' matches < <(find . -type f -name requirements.txt -print0)
+        for match in ${matches[@]}; do
+            requirement_files+=("-r" "${match}")
+        done
+    else
+        requirement_files=("-r" "${SAFETY_ACTION_REQUIREMENTS}")
+    fi
+
+    alert_action="github-pr"
+    if [ "${SAFETY_ACTION_CREATE_ISSUE}" = "true" ]; then
+        alert_action="github-issue"
+    fi
+
+    # Continue on error is set because we're using Safety's output here for further processing.
+    python -m safety check "${requirement_files[@]}" --continue-on-error --output=json ${SAFETY_ACTION_ARGS} | python -m safety alert "${alert_action}" --repo "${GITHUB_REPOSITORY}" --token "${GITHUB_TOKEN}" --base-url "${GITHUB_API_URL}"
+
+    exit 0
+fi
+
 if [ "${SAFETY_ACTION_SCAN}" = "docker" ]; then
     if [[ "${SAFETY_ACTION_DOCKER_IMAGE}" == "" ]]; then
         SAFETY_OS_DESCRIPTION="${SAFETY_OS_DESCRIPTION} docker_image_scan"

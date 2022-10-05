@@ -6,3 +6,4 @@ requests
 packaging>=21.0
 dparse>=0.6.2
 ruamel.yaml>=0.17.21
+dataclasses==0.8; python_version=="3.6"

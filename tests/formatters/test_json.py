@@ -29,7 +29,7 @@ class TestJSONFormatter(unittest.TestCase):
                                    insecure_versions=['4.0.1'], secure_versions=['4.0.4', '3.2.13', '2.2.28'],
                                    latest_version_without_known_vulnerabilities='',
                                    latest_version='4.0.4',
-                                   more_info_url='https://pyup.io/packages/pypi/django/')
+                                   more_info_url='https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4')
 
         remediations = {
             'django': {'vulns_found': 1, 'version': '4.0.1', 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
@@ -103,7 +103,7 @@ class TestJSONFormatter(unittest.TestCase):
                         ],
                         "latest_version_without_known_vulnerabilities": "",
                         "latest_version": "4.0.4",
-                        "more_info_url": "https://pyup.io/packages/pypi/django/"
+                        "more_info_url": "https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4"
                     }
                 },
                 "announcements": [],
@@ -162,7 +162,7 @@ class TestJSONFormatter(unittest.TestCase):
                             "2.2.28",
                             "3.2.13"
                         ],
-                        "more_info_url": "https://pyup.io/packages/pypi/django/"
+                        "more_info_url": "https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4"
                     }
                 }
             },

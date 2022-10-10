@@ -1,3 +1,3 @@
 FROM python:3.10-slim
 
-RUN python3 -m pip install safety==1.10.3
+RUN python3 -m pip install safety==2.3.1

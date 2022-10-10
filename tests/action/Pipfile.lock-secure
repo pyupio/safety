@@ -121,11 +121,11 @@
         },
         "safety": {
             "hashes": [
-                "sha256:30e394d02a20ac49b7f65292d19d38fa927a8f9582cdfd3ad1adbbc66c641ad5",
-                "sha256:5f802ad5df5614f9622d8d71fedec2757099705c2356f862847c58c6dfe13e84"
+                "sha256:6e6fcb7d4e8321098cf289f59b65051cafd3467f089c6e57c9f894ae32c23b71",
+                "sha256:8f098d12b607db2756886280e85c28ece8db1bba4f45fc5f981f4663217bd619"
             ],
             "index": "pypi",
-            "version": "==1.10.3"
+            "version": "==2.3.1"
         },
         "setuptools": {
             "hashes": [

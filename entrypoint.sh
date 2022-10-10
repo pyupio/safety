@@ -42,6 +42,15 @@ export SAFETY_OS_TYPE="docker action"
 export SAFETY_OS_RELEASE=""
 export SAFETY_OS_DESCRIPTION=""
 
+# Compatibility default values, this avoids breaking old GitHub actions.
+if [[ "${SAFETY_ACTION_CREATE_PR:-}" == "" ]]; then
+    export SAFETY_ACTION_CREATE_PR="false"
+fi
+
+if [[ "${SAFETY_ACTION_CREATE_ISSUE:-}" == "" ]]; then
+    export SAFETY_ACTION_CREATE_ISSUE="false"
+fi
+
 # auto / docker / env / file
 if [ "${SAFETY_ACTION_SCAN}" = "auto" ]; then
     echo "[Safety Action] Autodetecting Mode..." 1>&2

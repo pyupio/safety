@@ -28,7 +28,7 @@ jobs:
         needs: test
         runs-on: ${{ matrix.os }}
 
-        if: contains(fromJson('["refs/heads/master", "refs/heads/develop", "refs/heads/binaries-fixes"]'), github.ref) || startsWith(github.ref, 'refs/tags')
+        if: contains(fromJson('["refs/heads/main", "refs/heads/develop", "refs/heads/binaries-fixes"]'), github.ref) || startsWith(github.ref, 'refs/tags')
 
         strategy:
             matrix:

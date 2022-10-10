@@ -7,16 +7,33 @@ on:
     branches: [main, develop]
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: set-matrix
+        run: |
+          TASKS=$(echo $(cat .github/workflows/gh-action-integration-matrix.json) | sed 's/ //g' )
+          echo "::set-output name=matrix::$TASKS"
+
   ##### Auto mode tests
   ### File scanning
   # Scans a requirements.txt in the repo; the simplest case. We contort one into existing for this test
   # case, to avoid confusion
   test-auto-requirements-txt-insecure:
+    needs: [ matrix ]
     runs-on: ubuntu-latest
     environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}    
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
 
       - run: cp tests/action/requirements.txt-insecure requirements.txt
 
@@ -31,11 +48,17 @@ jobs:
 
   # Same as above, but for a poetry lock file
   test-auto-poetry-insecure:
+    needs: [ matrix ]
     runs-on: ubuntu-latest
     environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}    
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
 
       - run: cp tests/action/poetry.lock-insecure poetry.lock && cp tests/action/pyproject.toml-insecure pyproject.toml
 
@@ -50,11 +73,17 @@ jobs:
 
   # Same as above, but for a Pipfile.lock
   test-auto-pipfile-insecure:
+    needs: [ matrix ]
     runs-on: ubuntu-latest
     environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
 
       - run: cp tests/action/Pipfile.lock-insecure Pipfile.lock
 
@@ -71,11 +100,17 @@ jobs:
   ### Scans the runner environment. Here, the Github action `actions/setup-python@v3` actually
   ### installs things in the root VM that the action runs on; this is what gets scanned.
   test-auto-environment-insecure:
+    needs: [ matrix ]
     runs-on: ubuntu-latest
     environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
 
       - uses: actions/setup-python@v3
         with:
@@ -96,11 +131,17 @@ jobs:
   ### Docker scanning:
   ### Scans a recently built Docker container. This uses a few heuristics, defined in entrypoint.sh
   test-auto-docker-insecure:
+    needs: [ matrix ]
     runs-on: ubuntu-latest
     environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
 
       - name: Build image
         run: DOCKER_BUILDKIT=1 docker build -t my-insecure-image tests/action/docker-insecure

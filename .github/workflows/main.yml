@@ -113,5 +113,4 @@ jobs:
             -   uses: actions/checkout@v2
             -   uses: ncipollo/release-action@v1
                 with:
-                    artifacts: "dist/safety-win-i686.exe,dist/safety-win-x86_64.exe,dist/safety-linux-i686,dist/safety-linux-x86_64,dist/safety-macos-x86_64"
-                    token: ${{ secrets.SAFETY_GITHUB_TOKEN }}
+                    artifacts: "dist/*"

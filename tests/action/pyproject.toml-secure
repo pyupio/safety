@@ -1,15 +1,16 @@
 [tool.poetry]
-name = "secure"
+name = "poetry-demo"
 version = "0.1.0"
 description = ""
-authors = []
+authors = ["Yeison Vargas <yeisonvargasjf@gmail.com>"]
+readme = "README.md"
+packages = [{include = "poetry_demo"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-safety = "^2.3.1"
+secure-package = "0.1.0"
 
-[tool.poetry.dev-dependencies]
 
 [build-system]
-requires = ["setuptools>=42"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

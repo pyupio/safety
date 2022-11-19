@@ -46,6 +46,11 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
 
     LOG.info(f'Telemetry enabled: {ctx.telemetry}')
 
+    @ctx.call_on_close
+    def clean_up_on_close():
+        LOG.debug('Calling clean up on close function.')
+        safety.close_session()
+
 
 @cli.command()
 @click.option("--key", default="", envvar="SAFETY_API_KEY",
@@ -278,7 +283,8 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
     licenses_db = {}
 
     try:
-        licenses_db = safety.get_licenses(key, db, cache, proxy_dictionary, telemetry=ctx.parent.telemetry)
+        licenses_db = safety.get_licenses(key=key, db_mirror=db, cached=cache, proxy=proxy_dictionary,
+                                          telemetry=ctx.parent.telemetry)
     except SafetyError as e:
         LOG.exception('Expected SafetyError happened: %s', e)
         output_exception(e, exit_code_output=False)
@@ -366,6 +372,7 @@ def validate(ctx, name, path):
     click.secho(json.dumps(values, indent=4, default=str))
 
 cli.add_command(alert)
+
 
 if __name__ == "__main__":
     cli()

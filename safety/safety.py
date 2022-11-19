@@ -208,10 +208,12 @@ def fetch_database_file(path, db_name):
 
 
 def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, telemetry=True):
-    if db:
+    if key:
+        mirrors = API_MIRRORS
+    elif db:
         mirrors = [db]
     else:
-        mirrors = API_MIRRORS if key else OPEN_MIRRORS
+        mirrors = OPEN_MIRRORS
 
     db_name = "insecure_full.json" if full else "insecure.json"
     for mirror in mirrors:
@@ -346,7 +348,7 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
 
                         ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules)
 
-                        vulnerability = get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg,
+                        vulnerability = get_vulnerability_from(vuln_id, cve, data, specifier, db_full, name, pkg,
                                                                ignore_vulns)
 
                         should_add_vuln = not (vulnerability.is_transitive and is_env_scan)
@@ -608,3 +610,8 @@ def read_vulnerabilities(fh):
         raise MalformedDatabase(reason=e, fetched_from=fh.name)
 
     return data
+
+
+def close_session():
+    LOG.debug('Closing requests session.')
+    session.close()

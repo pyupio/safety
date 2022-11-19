@@ -152,6 +152,11 @@ def get_basic_announcements(announcements):
             announcement.get('type', '').lower() != 'primary_announcement']
 
 
+def filter_announcements(announcements, by_type='error'):
+    return [announcement for announcement in announcements if
+            announcement.get('type', '').lower() == by_type]
+
+
 def build_telemetry_data(telemetry=True):
     context = SafetyContext()
 

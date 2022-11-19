@@ -18,7 +18,8 @@ from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities, fetch_policy, post_results
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext, is_a_remote_mirror
+    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext, is_a_remote_mirror, \
+    filter_announcements
 
 LOG = logging.getLogger(__name__)
 
@@ -185,9 +186,11 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
                                                                               full_report, packages)
 
         # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
-        if announcements and (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run'):
-            LOG.info('sys.stdout is not a tty, announcements are going to be send to stderr')
-            click.secho(SafetyFormatter(output='text').render_announcements(announcements), fg="red", file=sys.stderr)
+        stderr_announcements = filter_announcements(announcements=announcements, by_type='error')
+        if stderr_announcements and (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run'):
+            LOG.info('sys.stdout is not a tty, error announcements are going to be send to stderr')
+            click.secho(SafetyFormatter(output='text').render_announcements(stderr_announcements), fg="red",
+                        file=sys.stderr)
 
         found_vulns = list(filter(lambda v: not v.ignored, vulns))
         LOG.info('Vulnerabilities found (Not ignored): %s', len(found_vulns))

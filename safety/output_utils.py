@@ -495,17 +495,15 @@ def build_using_sentence(key, db):
         key_sentence = [{'style': True, 'value': 'an API KEY'},
                         {'style': False, 'value': ' and the '}]
         db_name = 'PyUp Commercial'
-    elif db and custom_integration and is_a_remote_mirror(db):
-        return []
+    elif db:
+        if is_a_remote_mirror(db):
+            if custom_integration:
+                return []
+            db_name = f"remote URL {db}"
+        else:
+            db_name = f"local file {db}"
     else:
         db_name = 'non-commercial'
-
-    if db:
-        db_type = 'local file'
-        if is_a_remote_mirror(db):
-            db_type = 'remote URL'
-
-        db_name = f"{db_type} {db}"
 
     database_sentence = [{'style': True, 'value': db_name + ' database'}]
 

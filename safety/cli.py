@@ -111,11 +111,6 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         packages = get_packages(files, stdin)
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
-        announcements = []
-        if not db or is_a_remote_mirror(db):
-            LOG.info('Not local DB used, Getting announcements')
-            announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
-
         if key:
             server_policies = fetch_policy(key=key, proxy=proxy_dictionary)
             server_audit_and_monitor = server_policies["audit_and_monitor"]
@@ -157,6 +152,11 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         LOG.info('Safety is going to calculate remediations')
         remediations = safety.calculate_remediations(vulns, db_full)
 
+        announcements = []
+        if not db or is_a_remote_mirror(db):
+            LOG.info('Not local DB used, Getting announcements')
+            announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
+
         json_report = None
         if save_json or (server_audit_and_monitor and audit_and_monitor):
             default_name = 'safety-report.json'
@@ -183,7 +183,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
             output_report = json_report
         else:
             output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
-                                                                              full_report, packages)
+                                                                                  full_report, packages)
 
         # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
         stderr_announcements = filter_announcements(announcements=announcements, by_type='error')
@@ -227,7 +227,6 @@ def review(ctx, full_report, output, file):
     Show an output from a previous exported JSON report.
     """
     LOG.info('Running check command')
-    announcements = safety.get_announcements(key=None, proxy=None, telemetry=ctx.parent.telemetry)
     report = {}
 
     try:
@@ -243,6 +242,7 @@ def review(ctx, full_report, output, file):
     params = {'file': file}
     vulns, remediations, packages = safety.review(report, params=params)
 
+    announcements = safety.get_announcements(key=None, proxy=None, telemetry=ctx.parent.telemetry)
     output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
                                                                           full_report, packages)
 
@@ -279,10 +279,6 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
     packages = get_packages(files, False)
 
     proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
-    announcements = []
-    if not db:
-        announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
-
     licenses_db = {}
 
     try:
@@ -297,6 +293,10 @@ def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyp
         output_exception(exception, exit_code_output=False)
 
     filtered_packages_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
+
+    announcements = []
+    if not db:
+        announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
 
     output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
 

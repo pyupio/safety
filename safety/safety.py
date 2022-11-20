@@ -550,7 +550,7 @@ def get_announcements(key, proxy, telemetry=True):
         url = source
         method = 'get'
         data = {
-            'telemetry': json.dumps(build_telemetry_data(telemetry=telemetry))}
+            'telemetry': json.dumps(data)}
         data_keyword = 'params'
 
     request_kwargs[data_keyword] = data

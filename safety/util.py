@@ -152,6 +152,11 @@ def get_basic_announcements(announcements):
             announcement.get('type', '').lower() != 'primary_announcement']
 
 
+def filter_announcements(announcements, by_type='error'):
+    return [announcement for announcement in announcements if
+            announcement.get('type', '').lower() == by_type]
+
+
 def build_telemetry_data(telemetry=True):
     context = SafetyContext()
 
@@ -388,11 +393,13 @@ class SafetyPolicyFile(click.ParamType):
         mode: str = "r",
         encoding: str = None,
         errors: str = "strict",
+        pure: bool = os.environ.get('SAFETY_PURE_YAML', 'false').lower() == 'true'
     ) -> None:
         self.mode = mode
         self.encoding = encoding
         self.errors = errors
         self.basic_msg = '\n' + click.style('Unable to load the Safety Policy file "{name}".', fg='red')
+        self.pure = pure
 
     def to_info_dict(self):
         info_dict = super().to_info_dict()
@@ -429,16 +436,17 @@ class SafetyPolicyFile(click.ParamType):
 
             msg = self.basic_msg.format(name=value) + '\n' + click.style('HINT:', fg='yellow') + ' {hint}'
 
-            f, should_close = click.types.open_stream(
+            f, _ = click.types.open_stream(
                 value, self.mode, self.encoding, self.errors, atomic=False
             )
             filename = ''
 
             try:
                 raw = f.read()
-                yaml = YAML(typ='safe', pure=False)
+                yaml = YAML(typ='safe', pure=self.pure)
                 safety_policy = yaml.load(raw)
                 filename = f.name
+                f.close()
             except Exception as e:
                 show_parsed_hint = isinstance(e, MarkedYAMLError)
                 hint = str(e)

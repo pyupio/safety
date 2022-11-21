@@ -10,6 +10,15 @@ By default it uses the open Python vulnerability database [Safety DB](https://gi
 
 For all commercial projects, Safely must be upgraded to use a [PyUp API](https://pyup.io) using the `--key` option.
 
+# Supported and Tested Python Versions
+
+Python: `3.6`, `3.7`, `3.8`, `3.9`, `3.10`, `3.11`
+
+Safety supports the above versions but only is tested in the latest patch version available at [Python for Actions
+](https://github.com/actions/python-versions/blob/main/versions-manifest.json). For instance, in Python `3.6` we only will test with `3.6.15`, which is the latest Python 3.6 version available on GitHub actions.
+
+Make sure to use the latest patch available for your Python version.
+
 # Using Safety as a GitHub Action
 
 Safety can be integrated into your existing GitHub CI pipeline as an action. Just add the following as a step in your workflow YAML file after setting your `SAFETY_API_KEY` secret on GitHub under Settings -> Secrets -> Actions:

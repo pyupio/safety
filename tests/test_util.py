@@ -35,6 +35,14 @@ class ReadRequirementsTestCase(unittest.TestCase):
             result = list(read_requirements(fh, resolve=True))
         self.assertEqual(len(result), 2)
 
+    def test_recursive_requirement_pinned_after_unpinned(self):
+        # this should find 3 packages, unpinned are ignored
+        dirname = os.path.dirname(__file__)
+        test_filename = os.path.join(dirname, "reqs_pinned_and_unpinned.txt")
+        with open(test_filename) as fh:
+            result = list(read_requirements(fh, resolve=True))
+        self.assertEqual(len(result), 3)
+
     @patch("safety.util.get_flags_from_context")
     @patch.object(sys, 'argv', ['safety/__main__.py', 'check', '--key=my-key', '-i', '3232', '-i', '3231', '--ignore',
                                 '1212', '--json'])

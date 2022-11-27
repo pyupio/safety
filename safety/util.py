@@ -70,7 +70,7 @@ def read_requirements(fh, resolve=True):
                 fg="yellow",
                 file=sys.stderr
             )
-            return
+            continue
 
         version = spec[1]
         if spec[0] == '==':

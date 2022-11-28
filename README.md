@@ -24,7 +24,7 @@ Make sure to use the latest patch available for your Python version.
 Safety can be integrated into your existing GitHub CI pipeline as an action. Just add the following as a step in your workflow YAML file after setting your `SAFETY_API_KEY` secret on GitHub under Settings -> Secrets -> Actions:
 
 ```yaml
-      - uses: pyupio/safety@2.3.2
+      - uses: pyupio/safety@2.3.3
         with:
           api-key: ${{ secrets.SAFETY_API_KEY }}
 ```

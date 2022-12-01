@@ -10,7 +10,6 @@ from threading import Lock
 from typing import List
 
 import click
-from click import BadParameter
 from dparse import parse, filetypes
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
@@ -540,7 +539,7 @@ class SafetyPolicyFile(click.ParamType):
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 
             return safety_policy
-        except BadParameter as expected_e:
+        except click.BadParameter as expected_e:
             raise expected_e
         except Exception as e:
             # Don't fail in the default case
@@ -554,7 +553,7 @@ class SafetyPolicyFile(click.ParamType):
             self.fail(f"{problem}\n{hint}", param, ctx)
 
     def shell_complete(
-        self, ctx: "Context", param: "Parameter", incomplete: str
+        self, ctx: click.Context, param: click.Parameter, incomplete: str
     ):
         """Return a special completion marker that tells the completion
         system to use the shell to provide file path completions.

@@ -4,7 +4,7 @@ on: [ push ]
 
 jobs:
     test:
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-20.04
         strategy:
             matrix:
                 python-version: [ "3.6", "3.7", "3.8", "3.9", "3.10", "3.11" ]
@@ -32,7 +32,7 @@ jobs:
 
         strategy:
             matrix:
-                os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
+                os: ['windows-latest', 'ubuntu-20.04', 'macos-latest']
         env:
             BINARY_OS: '${{ matrix.os }}'
         steps:
@@ -60,13 +60,13 @@ jobs:
                   path: dist/safety-win-x86_64.exe
                   if-no-files-found: error
             - uses: actions/upload-artifact@v3
-              if: ${{ matrix.os == 'ubuntu-latest' }}
+              if: ${{ matrix.os == 'ubuntu-20.04' }}
               with:
                   name: safety-linux-i686
                   path: dist/safety-linux-i686
                   if-no-files-found: error
             - uses: actions/upload-artifact@v3
-              if: ${{ matrix.os == 'ubuntu-latest' }}
+              if: ${{ matrix.os == 'ubuntu-20.04' }}
               with:
                   name: safety-linux-x86_64
                   path: dist/safety-linux-x86_64
@@ -81,7 +81,7 @@ jobs:
 
     deploy-pypi:
         needs: build-binaries
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-20.04
 
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
 
@@ -105,7 +105,7 @@ jobs:
 
     create-gh-release:
         needs: deploy-pypi
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-20.04
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
         permissions:
             contents: write

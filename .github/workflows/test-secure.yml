@@ -9,7 +9,7 @@ on:
 
 jobs:
   matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -25,7 +25,7 @@ jobs:
   # case, to avoid confusion
   test-auto-requirements-txt-secure:
     needs: [ matrix ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: main
     strategy:
       matrix:
@@ -47,7 +47,7 @@ jobs:
   # Same as above, but for a poetry lock file
   test-auto-poetry-secure:
     needs: [ matrix ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: main
     strategy:
       matrix:
@@ -69,7 +69,7 @@ jobs:
   # Same as above, but for a Pipfile.lock
   test-auto-pipfile-secure:
     needs: [ matrix ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: main
     strategy:
       matrix:
@@ -93,7 +93,7 @@ jobs:
   ### installs things in the root VM that the action runs on; this is what gets scanned.
   test-auto-environment-secure:
     needs: [ matrix ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: main
     strategy:
       matrix:
@@ -121,7 +121,7 @@ jobs:
   ### Scans a recently built Docker container. This uses a few heuristics, defined in entrypoint.sh
   test-auto-docker-secure:
     needs: [ matrix ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     environment: main
     strategy:
       matrix:

@@ -19,7 +19,7 @@ class environment:
     def __init__(self):
         os_mapping = {
             "windows-latest": self.WIN,
-            "ubuntu-latest": self.LINUX,
+            "ubuntu-20.04": self.LINUX,
             "macos-latest": self.MACOS
         }
         self.os = os_mapping[os.getenv("BINARY_OS")]

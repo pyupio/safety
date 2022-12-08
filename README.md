@@ -50,7 +50,7 @@ For detailed documentation, please see [Safety's documentation portal](https://d
 # Basic Usage
 
 To check your currently selected virtual environment for dependencies with known security
- vulnerabilites, run:
+ vulnerabilities, run:
 
 ```bash
 safety check
@@ -142,7 +142,7 @@ Run `safety check` again:
 ## Starter documentation
 
 ### Configuring the target of the scan
-Safety can scan requirements.txt files, the local environemnt as well as direct input piped into Safety.
+Safety can scan requirements.txt files, the local environment as well as direct input piped into Safety.
 
 To scan a requirements file:
 
@@ -150,7 +150,7 @@ To scan a requirements file:
 safety check -r requirements.txt
 ```
 
-To scan the local enviroment:
+To scan the local environment:
 
 ```bash
 safety check
@@ -547,7 +547,7 @@ safety license --key=12345-ABCDEFGH
 
 ### `--output json` (Optional)
 
-This license command can also be used in conjuction with optional arguments `--output bare` and `--output json` for structured, parsable outputs that can be fed into other tools and pipelines.
+This license command can also be used in conjunction with optional arguments `--output bare` and `--output json` for structured, parsable outputs that can be fed into other tools and pipelines.
 
 ___
 

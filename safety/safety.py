@@ -11,7 +11,7 @@ from datetime import datetime
 import requests
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
-from packaging.version import parse as parse_version, Version, LegacyVersion, parse
+from packaging.version import parse as parse_version
 
 from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
@@ -458,7 +458,7 @@ def review(report=None, params=None):
         major = None
         if recommended:
             secure_v.append(recommended)
-            major = parse(recommended)
+            major = parse_version(recommended)
 
         remediations[key] = {'vulns_found': value.get('vulnerabilities_found', 0),
                              'version': value.get('current_version'),

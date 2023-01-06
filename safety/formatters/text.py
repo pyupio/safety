@@ -42,7 +42,7 @@ class TextReport(FormatterAPI):
 
         return announcements_table
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         primary_announcement = get_primary_announcement(announcements)
         remediation_section = [click.unstyle(rem) for rem in build_remediation_section(remediations, columns=80)]
         end_content = []

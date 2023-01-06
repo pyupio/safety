@@ -1,8 +1,8 @@
 import json
 import logging
+import logging
 import os
 import platform
-
 import sys
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -18,6 +18,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
 
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
+from safety.errors import InvalidProvidedReportError
 from safety.models import Package, RequirementFile
 
 LOG = logging.getLogger(__name__)
@@ -246,6 +247,22 @@ def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code)
     return ignore, ignore_severity_rules, exit_code
 
 
+def get_fix_options(policy_file, automatically_fix):
+    auto_fix = []
+
+    source = click.get_current_context().get_parameter_source("automatically_fix")
+    if source == click.core.ParameterSource.COMMANDLINE:
+        return automatically_fix
+
+    if policy_file:
+        fix = policy_file.get('fix', {})
+        auto_fix = fix.get('automatically-fix', None)
+        if not auto_fix:
+            auto_fix = []
+
+    return auto_fix
+
+
 class MutuallyExclusiveOption(click.Option):
     def __init__(self, *args, **kwargs):
         self.mutually_exclusive = set(kwargs.pop('mutually_exclusive', []))
@@ -299,7 +316,10 @@ class DependentOption(click.Option):
         super(DependentOption, self).__init__(*args, **kwargs)
 
     def handle_parse_result(self, ctx, opts, args):
-        missing_required_arguments = self.required_options.difference(opts) and self.name in opts
+        missing_required_arguments = None
+
+        if self.name in opts:
+            missing_required_arguments = self.required_options.difference(opts)
 
         if missing_required_arguments:
             raise click.UsageError(
@@ -585,7 +605,7 @@ class SingletonMeta(type):
 
 
 class SafetyContext(metaclass=SingletonMeta):
-    packages = None
+    packages = []
     key = False
     db_mirror = False
     cached = None
@@ -667,3 +687,17 @@ def get_packages_licenses(packages=None, licenses_db=None):
         })
 
     return filtered_packages_licenses
+
+
+def get_requirements_content(files):
+    requirements_files = {}
+
+    for f in files:
+        try:
+            f.seek(0)
+            requirements_files[f.name] = f.read()
+            f.close()
+        except Exception as e:
+            raise InvalidProvidedReportError(message=f"Unable to read a requirement file scanned in the report. {e}")
+
+    return requirements_files

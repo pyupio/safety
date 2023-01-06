@@ -5,9 +5,12 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import time
 from datetime import datetime
+from typing import Dict
 
+import click
 import requests
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
@@ -17,9 +20,10 @@ from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, 
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
-from .models import Vulnerability, CVE, Severity
+from .models import Vulnerability, CVE, Severity, Fix
+from .output_utils import print_service, get_applied_msg, prompt_service, get_skipped_msg, get_fix_opt_used_msg
 from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context, SafetyContext, \
-    validate_expiration_date, is_a_remote_mirror
+    validate_expiration_date, is_a_remote_mirror, get_requirements_content, SafetyPolicyFile, get_terminal_size
 
 session = requests.session()
 
@@ -155,8 +159,6 @@ def fetch_policy(key, proxy):
         LOG.debug(r.text)
         return r.json()
     except:
-        import click
-
         LOG.exception("Error fetching policy")
         click.secho(
             "Warning: couldn't fetch policy from pyup.io.",
@@ -187,8 +189,6 @@ def post_results(key, proxy, safety_json, policy_file):
 
         return r.json()
     except:
-        import click
-
         LOG.exception("Error posting results")
         click.secho(
             "Warning: couldn't upload results to pyup.io.",
@@ -430,6 +430,17 @@ def compute_sec_ver(remediations, package_metadata, ignored_vulns, db_full):
         remediations[pkg_name]['closest_secure_version'] = get_closest_ver(secure_v,
                                                                            pkg.get('version', None))
 
+        upgrade = remediations[pkg_name]['closest_secure_version'].get('major', None)
+        downgrade = remediations[pkg_name]['closest_secure_version'].get('minor', None)
+        recommended_version = None
+
+        if upgrade:
+            recommended_version = upgrade
+        elif downgrade:
+            recommended_version = downgrade
+
+        remediations[pkg_name]['recommended_version'] = recommended_version
+
 
 def calculate_remediations(vulns, db_full):
     remediations = {}
@@ -443,6 +454,224 @@ def calculate_remediations(vulns, db_full):
     compute_sec_ver(remediations, package_metadata, ignored_vulns, db_full)
 
     return remediations
+
+
+def should_apply_auto_fix(from_ver, to_ver, allowed_automatic):
+    if 'major' in allowed_automatic:
+        return True
+
+    major_change = to_ver.major - from_ver.major
+    minor_change = to_ver.minor - from_ver.minor
+
+    if 'minor' in allowed_automatic:
+        if major_change != 0:
+            return False
+
+        return True
+
+    if 'patch' in allowed_automatic:
+        if major_change != 0 or minor_change != 0:
+            return False
+
+        return True
+
+    return False
+
+
+def get_update_type(from_ver, to_ver):
+    if (to_ver.major - from_ver.major) != 0:
+        return 'major'
+
+    if (to_ver.minor - from_ver.minor) != 0:
+        return 'minor'
+
+    return 'patch'
+
+
+def process_fixes(files, remediations, automatically_fix, accept_all, output, no_output=True, prompt=False):
+    requirements = compute_fixes_per_requirements(files, remediations, automatically_fix, accept_all, prompt=prompt)
+    fixes = apply_fixes(requirements, output, no_output, prompt)
+    return fixes
+
+
+def compute_fixes_per_requirements(files, remediations, automatically_fix, accept_all, prompt=False):
+    requirements_files = get_requirements_content(files)
+
+    from dparse.parser import parse, filetypes
+    from packaging.version import Version, InvalidVersion
+
+    requirements = {
+        'files': {},
+        'dependencies': {},
+    }
+
+    for name, contents in requirements_files.items():
+        dependency_file = parse(contents, path=name, file_type=filetypes.requirements_txt, resolve=True)
+        dependency_files = dependency_file.resolved_files + [dependency_file]
+
+        # Support recursive requirements in the multiple requirement files provided
+        for resolved_f in dependency_files:
+            file = {'content': resolved_f.content, 'fixes': {'TO_SKIP': [], 'TO_APPLY': [], 'TO_CONFIRM': []}}
+            requirements['files'][resolved_f.path] = file
+            requirements['dependencies'].update({d.name: (d, resolved_f.path) for d in resolved_f.dependencies})
+
+    for pkg, remediation in remediations.items():
+        dry_fix = Fix(package=pkg, more_info_url=remediation.get('more_info_url', ''))
+
+        if pkg not in requirements['dependencies']:
+            # Let's attach it to the first file scanned.
+            file = next(iter(requirements['files']))
+            # Let's use the no parsed version.
+            previous_version = remediations.get('version', None)
+            dry_fix.previous_version = previous_version
+            dry_fix.status = 'AUTOMATICALLY_SKIPPED_NOT_FOUND_IN_FILE'
+            dry_fix.applied_at = file
+            requirements['files'][file]['fixes']['TO_SKIP'].append(dry_fix)
+            continue
+
+        dependency, name = requirements['dependencies'][pkg]
+        dry_fix.applied_at = name
+
+        fixes = requirements['files'][name]['fixes']
+
+        to_ver = remediation['recommended_version']
+
+        try:
+            from_ver = Version(next(iter(dependency.specs._specs))._spec[1])
+        except InvalidVersion:
+            dry_fix.status = 'AUTOMATICALLY_SKIPPED_INVALID_VERSION'
+            fixes['TO_SKIP'].append(dry_fix)
+            continue
+
+        dry_fix.previous_version = str(from_ver)
+
+        if remediation['recommended_version'] is None:
+            dry_fix.status = 'AUTOMATICALLY_SKIPPED_NO_RECOMMENDED_VERSION'
+            fixes['TO_SKIP'].append(dry_fix)
+            continue
+
+        dry_fix.updated_version = str(to_ver)
+
+        is_fixed = from_ver == to_ver
+
+        if is_fixed:
+            dry_fix.status = 'AUTOMATICALLY_SKIPPED_ALREADY_FIXED'
+            fixes['TO_SKIP'].append(dry_fix)
+            continue
+
+        update_type = get_update_type(from_ver, to_ver)
+        dry_fix.update_type = update_type
+        dry_fix.dependency = dependency
+
+        auto_fix = should_apply_auto_fix(from_ver, to_ver, automatically_fix)
+
+        TARGET = 'TO_APPLY'
+
+        if auto_fix:
+            dry_fix.status = 'PENDING_TO_APPLY'
+            dry_fix.fix_type = 'AUTOMATIC'
+        elif accept_all:
+            dry_fix.status = 'PENDING_TO_APPLY'
+            dry_fix.fix_type = 'FORCE_MODE'
+        elif prompt:
+            TARGET = 'TO_CONFIRM'
+            dry_fix.status = 'PENDING_TO_CONFIRM'
+            dry_fix.fix_type = 'MANUAL'
+        else:
+            TARGET = 'TO_SKIP'
+            dry_fix.status = 'AUTOMATICALLY_SKIPPED_UNABLE_TO_CONFIRM'
+
+        fixes[TARGET].append(dry_fix)
+
+    return requirements
+
+
+def apply_fixes(requirements, out_type, no_output, prompt):
+
+    from dparse.updater import RequirementsTXTUpdater
+
+    lm = ' ' * 3
+
+    skip = []
+    apply = []
+    confirm = []
+
+    brief = []
+
+    if not no_output:
+        brief.append((f"{lm}Safety fix running with {get_fix_opt_used_msg()} fix policy.", {}))
+        print_service(brief, out_type)
+
+    for name, data in requirements['files'].items():
+        output = [('', {}), (f"-> Analyzing {name}...", {'bold': True})]
+
+        new_content = data['content']
+
+        r_skip = data['fixes']['TO_SKIP']
+        r_apply = data['fixes']['TO_APPLY']
+        r_confirm = data['fixes']['TO_CONFIRM']
+
+        updated: bool = False
+
+        for f in r_apply:
+            new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
+                                                        dependency=f.dependency)
+            f.status = 'APPLIED'
+            updated = True
+            output.append((get_applied_msg(f'{lm}- ', f), {}))
+
+        for f in r_skip:
+            output.append((get_skipped_msg(f'{lm}- ', f), {}))
+
+        if not no_output:
+            print_service(output, out_type)
+
+        if prompt and not no_output:
+            for f in r_confirm:
+                changelog_detail = f'Changelogs notes: {f.more_info_url}?from={f.previous_version}&to={f.updated_version}'
+                confirmed = prompt_service(
+                    (f'{lm}- Do you want to upgrade {f.package} from {f.previous_version} to {f.updated_version}? '
+                     f'({changelog_detail})', {}),
+                    out_type
+                )
+
+                if confirmed:
+                    f.status = 'APPLIED'
+                    updated = True
+                    new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
+                                                                dependency=f.dependency)
+                    output.append((get_applied_msg(f'{lm}  ', f), {}))
+                else:
+                    f.status = 'MANUALLY_SKIPPED'
+                    output.append((get_skipped_msg(f'{lm}  ', f), {}))
+
+        if updated:
+            output.append((f"{lm}Updating {name}...", {}))
+            with open(name, mode="w") as r_file:
+                r_file.write(new_content)
+
+            output.append((f"{lm}Changes applied to {name}.", {}))
+        else:
+            output.append((f"{lm}Skipping update, no changes to apply in {name}.", {}))
+
+        if not no_output:
+            print_service(output, out_type)
+
+        skip.extend(r_skip)
+        apply.extend(r_apply)
+        confirm.extend(r_confirm)
+
+    if not no_output:
+        divider = f'+{"=" * 78}+' if out_type == 'text' else f'+{"=" * (get_terminal_size().columns - 2)}+'
+        print_service([(divider, {})], out_type)
+
+    return skip + apply + confirm
+
+
+def find_vulnerabilities_fixed(vulnerabilities: Dict, fixes):
+    fixed_pkgs = set(fix.package for fix in fixes)
+
+    return [vulnerability for vulnerability in vulnerabilities if vulnerability['package_name'] in fixed_pkgs]
 
 
 @sync_safety_context
@@ -610,6 +839,54 @@ def read_vulnerabilities(fh):
         raise MalformedDatabase(reason=e, fetched_from=fh.name)
 
     return data
+
+
+def get_server_policies(key: str, policy_file, proxy_dictionary: Dict):
+    if key:
+        server_policies = fetch_policy(key=key, proxy=proxy_dictionary)
+        server_audit_and_monitor = server_policies["audit_and_monitor"]
+        server_safety_policy = server_policies["safety_policy"]
+    else:
+        server_audit_and_monitor = False
+        server_safety_policy = ""
+
+    if server_safety_policy and policy_file:
+        click.secho(
+            "Warning: both a local policy file '{policy_filename}' and a server sent policy are present. "
+            "Continuing with the local policy file.".format(policy_filename=policy_file['filename']),
+            fg="yellow",
+            file=sys.stderr
+        )
+    elif server_safety_policy:
+        with tempfile.NamedTemporaryFile(prefix='server-safety-policy-') as tmp:
+            tmp.write(server_safety_policy.encode('utf-8'))
+            tmp.seek(0)
+
+            policy_file = SafetyPolicyFile().convert(tmp.name, param=None, ctx=None)
+            LOG.info('Using server side policy file')
+
+    return policy_file, server_audit_and_monitor
+
+
+def save_json_report(save_json, json_report):
+    if save_json:
+        default_name = 'safety-report.json'
+
+        if os.path.isdir(save_json):
+            save_json = os.path.join(save_json, default_name)
+
+        with open(save_json, 'w+') as output_json_file:
+            output_json_file.write(json_report)
+
+
+def push_audit_and_monitor(key, proxy, audit_and_monitor, json_report, policy_file):
+    if audit_and_monitor:
+        policy_contents = ''
+        if policy_file:
+            policy_contents = policy_file.get('raw', '')
+
+        r = post_results(key=key, proxy=proxy, safety_json=json_report, policy_file=policy_contents)
+        SafetyContext().params['audit_and_monitor_url'] = r.get('url')
 
 
 def close_session():

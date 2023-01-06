@@ -1,12 +1,15 @@
 import logging
 
 import json as json_parser
+from collections import defaultdict
+from typing import Iterable
 
 from requests.models import PreparedRequest
 
 from safety.formatter import FormatterAPI
 from safety.output_utils import get_report_brief_info
-from safety.util import get_basic_announcements
+from safety.safety import find_vulnerabilities_fixed
+from safety.util import get_basic_announcements, SafetyContext
 
 LOG = logging.getLogger(__name__)
 
@@ -14,7 +17,7 @@ LOG = logging.getLogger(__name__)
 class JsonReport(FormatterAPI):
     """Json report, for when the output is input for something else"""
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         remediations_recommended = len(remediations.keys())
         LOG.debug('Rendering %s vulnerabilities, %s remediations with full_report: %s', len(vulnerabilities),
                   remediations_recommended, full)
@@ -66,6 +69,8 @@ class JsonReport(FormatterAPI):
             "remediations": remed
         }
 
+        template = self.__render_fixes(template, fixes)
+
         return json_parser.dumps(template, indent=4)
 
     def render_licenses(self, announcements, licenses):
@@ -82,3 +87,45 @@ class JsonReport(FormatterAPI):
 
     def render_announcements(self, announcements):
         return json_parser.dumps({"announcements": get_basic_announcements(announcements)}, indent=4)
+
+    def __render_fixes(self, scan_template, fixes: Iterable):
+
+        applied = defaultdict(dict)
+        skipped = defaultdict(dict)
+
+        fixes_applied = []
+
+        for fix in fixes:
+            if fix.status == 'APPLIED':
+                applied[fix.applied_at][fix.package] = {
+                    "previous_version": str(fix.previous_version),
+                    "updated_version": str(fix.updated_version),
+                    "update_type": str(fix.update_type),
+                    "fix_type": fix.fix_type
+                }
+                fixes_applied.append(fix)
+            else:
+                skipped[fix.applied_at][fix.package] = {
+                    "scanned_version": str(fix.previous_version) if fix.previous_version else fix.previous_version,
+                    "skipped_reason": fix.status
+                }
+
+        vulnerabilities = scan_template.get("vulnerabilities", {})
+        remediation_mode = 'NON_INTERACTIVE'
+
+        if SafetyContext().params.get('interactive', False):
+            remediation_mode = 'INTERACTIVE'
+
+        scan_template['report_meta'].update(
+            {'remediations_attempted': len(fixes),
+             'remediations_completed': len(applied),
+             'remediation_mode': remediation_mode}
+        )
+
+        scan_template['remediations_results'] = {
+            "vulnerabilities_fixed": find_vulnerabilities_fixed(vulnerabilities, fixes_applied),
+            "remediations_applied": applied,
+            "remediations_skipped": skipped
+        }
+
+        return scan_template

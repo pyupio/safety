@@ -3,6 +3,7 @@ import logging
 import os
 import textwrap
 from datetime import datetime
+from typing import List, Tuple, Dict
 
 import click
 
@@ -691,3 +692,63 @@ def should_add_nl(output, found_vulns):
 
     return True
 
+
+def get_skip_reason(status: str) -> str:
+    print(status)
+    reasons = {"AUTOMATICALLY_SKIPPED_NO_RECOMMENDED_VERSION": "there isn't a recommended version.",
+               "MANUALLY_SKIPPED": "it was manually discarded.",
+               "AUTOMATICALLY_SKIPPED_UNABLE_TO_CONFIRM": "not able to confirm."
+               }
+
+    return reasons.get(status, 'unknown.')
+
+
+def get_applied_msg(lm: str, fix) -> str:
+    return f"{lm}Applied auto fix for {fix.package} from {fix.previous_version} to {fix.updated_version}."
+
+
+def get_skipped_msg(lm: str, fix) -> str:
+    return f'{lm}{fix.package} remediation was skipped because {get_skip_reason(fix.status)}'
+
+
+def get_fix_opt_used_msg() -> str:
+    fix_options = SafetyContext().params.get('automatically_fix', [])
+    msg = "no automatic"
+
+    if fix_options:
+        msg = f"automatic {', '.join(fix_options)} upgrade"
+
+    if SafetyContext().params.get('accept_all', False):
+        msg += ' and force'
+
+    return msg
+
+
+def print_service(output: List[Tuple[str, Dict]], out_format: str):
+    formats = ['text', 'screen']
+
+    if out_format not in formats:
+        raise ValueError(f"Print is only allowed for {', '.join(formats)}")
+
+    while output:
+        line, kwargs = output.pop(0)
+
+        if out_format == 'screen':
+            click.secho(line, **kwargs)
+        else:
+            click.echo(line)
+
+
+def prompt_service(output: Tuple[str, Dict], out_format: str) -> bool:
+    formats = ['text', 'screen']
+
+    if out_format not in formats:
+        raise ValueError(f"Prompt is only allowed for {', '.join(formats)}")
+
+    line, kwargs = output
+    msg = line
+
+    if out_format == 'screen':
+        msg = click.style(line, **kwargs)
+
+    return click.confirm(msg)

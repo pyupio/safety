@@ -1,6 +1,7 @@
 from collections import namedtuple
+from dataclasses import dataclass
 from datetime import datetime
-from typing import NamedTuple
+from typing import Any
 
 
 class DictConverter(object):
@@ -58,6 +59,19 @@ class Remediation(remediation_nmt, DictConverter):
                 'secure_versions': self.secure_versions,
                 'latest_package_version': self.latest_package_version
                 }
+
+
+@dataclass
+class Fix:
+    dependency: Any = None
+    previous_version: Any = None
+    updated_version: Any = None
+    update_type: str = ""
+    package: str = ""
+    status: str = ""
+    applied_at: str = ""
+    fix_type: str = ""
+    more_info_url: str = ""
 
 
 class CVE(cve_nmt, DictConverter):

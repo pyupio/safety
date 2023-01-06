@@ -40,7 +40,7 @@ class ScreenReport(FormatterAPI):
 
         return announcements_section
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         announcements_section = self.__build_announcements_section(announcements)
         primary_announcement = get_primary_announcement(announcements)
         remediation_section = build_remediation_section(remediations)

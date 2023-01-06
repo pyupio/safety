@@ -12,7 +12,6 @@ Tests for `safety` module.
 import json
 import os
 import unittest
-from datetime import datetime
 from http import HTTPStatus
 from io import StringIO
 from json import JSONDecodeError
@@ -28,7 +27,6 @@ from safety.formatter import SafetyFormatter
 from safety.models import CVE
 from safety.safety import ignore_vuln_if_needed, get_closest_ver, precompute_remediations, compute_sec_ver, \
     calculate_remediations, read_vulnerabilities
-from safety.util import SafetyContext
 from tests.resources import VALID_REPORT, VULNS, SCANNED_PACKAGES, REMEDIATIONS
 from tests.test_cli import get_vulnerability
 
@@ -591,7 +589,7 @@ class TestSafety(unittest.TestCase):
         compute_sec_ver(remediations=rem, package_metadata=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
         EXPECTED = {'numpy': {'vulns_found': 1, 'version': '1.22.0', 'secure_versions': ['1.22.3', '1.21.5'],
                               'closest_secure_version': {'major': parse('1.22.3'), 'minor': parse('1.21.5')},
-                              'more_info_url': 'https://pyup.io/package/foo'}}
+                              'more_info_url': 'https://pyup.io/package/foo', 'recommended_version': parse('1.22.3')}}
         self.assertEqual(rem, EXPECTED)
 
         pre_pkg_meta = {'numpy': {'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
@@ -602,7 +600,7 @@ class TestSafety(unittest.TestCase):
         EXPECTED = {'numpy': {'vulns_found': 2,
                               'version': '1.22.0', 'secure_versions': ['1.22.3'],
                               'closest_secure_version': {'major': parse('1.22.3'), 'minor': None},
-                              'more_info_url': 'https://pyup.io/package/foo'}}
+                              'more_info_url': 'https://pyup.io/package/foo', 'recommended_version': parse('1.22.3')}}
 
         self.assertEqual(rem, EXPECTED)
 

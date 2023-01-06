@@ -79,3 +79,7 @@ alert: # configuration for the `safety alert` command
             # Set a global prefix for PRs
             # default: "[PyUp] "
             pr-prefix: "[PyUp] "
+fix: # configuration for the `safety fix` command
+    automatically-fix:
+        # A list of allowed values: major, minor, patch
+        - patch

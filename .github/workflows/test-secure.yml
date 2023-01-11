@@ -112,6 +112,7 @@ jobs:
         id: scan-4
         with:
           api-key: ${{ secrets.SAFETY_API_KEY }}
+          args: '-i 52495'
 
   ### Docker scanning:
   ### Scans a recently built Docker container. This uses a few heuristics, defined in entrypoint.sh

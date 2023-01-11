@@ -141,7 +141,7 @@ def clean_check_command(f):
                                               "Safety will use safety-report.json as filename. Default: empty")
 @click.option('--and-fix', default=False, is_flag=True)
 @click.option("--automatically-fix", "-af", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
-              default=['minor'],
+              default=['patch'],
               help="Let Safety update automatically. Default: empty")
 @click.option("accept_all", "--yes", "-y", default=False, help="Force and accept all the fixes.", is_flag=True, show_default=True)
 @click.pass_context

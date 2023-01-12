@@ -694,7 +694,6 @@ def should_add_nl(output, found_vulns):
 
 
 def get_skip_reason(status: str) -> str:
-    print(status)
     reasons = {"AUTOMATICALLY_SKIPPED_NO_RECOMMENDED_VERSION": "there isn't a recommended version.",
                "MANUALLY_SKIPPED": "it was manually discarded.",
                "AUTOMATICALLY_SKIPPED_UNABLE_TO_CONFIRM": "not able to confirm."
@@ -703,8 +702,8 @@ def get_skip_reason(status: str) -> str:
     return reasons.get(status, 'unknown.')
 
 
-def get_applied_msg(lm: str, fix) -> str:
-    return f"{lm}Applied auto fix for {fix.package} from {fix.previous_version} to {fix.updated_version}."
+def get_applied_msg(lm: str, fix, mode="auto") -> str:
+    return f"{lm}Applied {mode} fix for {fix.package} from {fix.previous_version} to {fix.updated_version}."
 
 
 def get_skipped_msg(lm: str, fix) -> str:

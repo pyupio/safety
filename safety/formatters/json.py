@@ -106,14 +106,14 @@ class JsonReport(FormatterAPI):
                 fixes_applied.append(fix)
             else:
                 skipped[fix.applied_at][fix.package] = {
-                    "scanned_version": str(fix.previous_version) if fix.previous_version else fix.previous_version,
+                    "scanned_version": str(fix.previous_version) if fix.previous_version else None,
                     "skipped_reason": fix.status
                 }
 
         vulnerabilities = scan_template.get("vulnerabilities", {})
         remediation_mode = 'NON_INTERACTIVE'
 
-        if SafetyContext().params.get('interactive', False):
+        if SafetyContext().params.get('prompt_mode', False):
             remediation_mode = 'INTERACTIVE'
 
         scan_template['report_meta'].update(

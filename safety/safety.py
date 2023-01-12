@@ -618,7 +618,7 @@ def apply_fixes(requirements, out_type, no_output, prompt):
                                                         dependency=f.dependency)
             f.status = 'APPLIED'
             updated = True
-            output.append((get_applied_msg(f'{lm}- ', f), {}))
+            output.append((get_applied_msg(f'{lm}- ', f, mode="auto"), {}))
 
         for f in r_skip:
             output.append((get_skipped_msg(f'{lm}- ', f), {}))
@@ -640,7 +640,7 @@ def apply_fixes(requirements, out_type, no_output, prompt):
                     updated = True
                     new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
                                                                 dependency=f.dependency)
-                    output.append((get_applied_msg(f'{lm}  ', f), {}))
+                    output.append((get_applied_msg(f'{lm}  ', f, mode="manual"), {}))
                 else:
                     f.status = 'MANUALLY_SKIPPED'
                     output.append((get_skipped_msg(f'{lm}  ', f), {}))
@@ -652,7 +652,7 @@ def apply_fixes(requirements, out_type, no_output, prompt):
 
             output.append((f"{lm}Changes applied to {name}.", {}))
         else:
-            output.append((f"{lm}Skipping update, no changes to apply in {name}.", {}))
+            output.append((f"{lm}No fixes to be made in {name}.", {}))
 
         if not no_output:
             print_service(output, out_type)

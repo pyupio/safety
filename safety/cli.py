@@ -74,7 +74,6 @@ def clean_check_command(f):
                                               'to remediate.')
 
             automatically_fix = get_fix_options(policy_file, automatically_fix)
-            print(automatically_fix)
             policy_file, server_audit_and_monitor = safety.get_server_policies(key=key, policy_file=policy_file,
                                                                                proxy_dictionary=proxy_dictionary)
             audit_and_monitor = (audit_and_monitor and server_audit_and_monitor)
@@ -155,7 +154,9 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
     LOG.info('Running check command')
 
     non_interactive = (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run')
-    prompt_mode = bool(not non_interactive and not stdin)
+    silent_outputs = ['json', 'bare']
+    is_silent_output = output in silent_outputs
+    prompt_mode = bool(not non_interactive and not stdin and not is_silent_output)
 
     try:
         packages = get_packages(files, stdin)
@@ -168,7 +169,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         is_env_scan = not stdin and not files
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,
-                  'audit_and_monitor': audit_and_monitor, 'interactive': not non_interactive,
+                  'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
                   'automatically_fix': automatically_fix, 'accept_all': accept_all}
 
         LOG.info('Calling the check function')
@@ -191,7 +192,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
 
         fixes = []
 
-        if and_fix and output in ['json', 'bare']:
+        if and_fix and is_silent_output:
             # it runs and apply only automatic fixes.
             fixes = process_fixes(files, remediations, automatically_fix, accept_all, output, no_output=True,
                                   prompt=False)
@@ -215,8 +216,8 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         post_processing_report = (save_json or audit_and_monitor or and_fix)
 
         if post_processing_report:
-            if and_fix and output in ['screen', 'text']:
-                # Interactive fixing after main check output if prompt is enabled.
+            if and_fix and not is_silent_output:
+                # prompt_mode fixing after main check output if prompt is enabled.
                 fixes = process_fixes(files, remediations, automatically_fix, accept_all, output, no_output=False,
                                       prompt=prompt_mode)
 

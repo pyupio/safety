@@ -482,9 +482,7 @@ class SafetyPolicyFile(click.ParamType):
             security_config = safety_policy.get('security', {})
             security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
                              'continue-on-vulnerability-error']
-            used_keys = security_config.keys()
-
-            self.fail_if_unrecognized_keys(used_keys, security_keys, param=param, ctx=ctx, msg=msg,
+            self.fail_if_unrecognized_keys(security_config.keys(), security_keys, param=param, ctx=ctx, msg=msg,
                                            context_hint='"security" -> ')
 
             ignore_cvss_security_below = security_config.get('ignore-cvss-severity-below', None)
@@ -558,6 +556,16 @@ class SafetyPolicyFile(click.ParamType):
                 safety_policy['raw'] = raw
             else:
                 safety_policy['security']['ignore-vulnerabilities'] = {}
+
+            fix_config = safety_policy.get('fix', {})
+            self.fail_if_unrecognized_keys(fix_config.keys(), ['automatically-fix'], param=param, ctx=ctx, msg=msg,
+                                           context_hint='"fix" -> ')
+            automatically_fix = fix_config.get('automatically-fix', None)
+
+            if automatically_fix:
+                self.fail_if_unrecognized_keys(automatically_fix, ['patch', 'minor', 'major'], param=param, ctx=ctx,
+                                               msg=msg,
+                                               context_hint='"automatically-fix" -> ')
 
             return safety_policy
         except BadParameter as expected_e:

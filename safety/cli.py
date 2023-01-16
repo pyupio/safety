@@ -106,7 +106,6 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
 
     """
     LOG.info('Running check command')
-    print(ignore)
     try:
         packages = get_packages(files, stdin)
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
@@ -134,11 +133,9 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
                 policy_file = SafetyPolicyFile().convert(tmp.name, param=None, ctx=None)
                 LOG.info('Using server side policy file')
 
-        print(ignore)
         ignore_severity_rules = None
         ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
                                                                          ignore_severity_rules, exit_code)
-        print(ignore)
         is_env_scan = not stdin and not files
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project, 'audit_and_monitor': server_audit_and_monitor and audit_and_monitor}

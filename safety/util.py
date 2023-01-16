@@ -4,7 +4,6 @@ import os
 import platform
 
 import sys
-from collections import defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock

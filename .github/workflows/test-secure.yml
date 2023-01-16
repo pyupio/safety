@@ -1,0 +1,142 @@
+######## Secure test cases. All of these use secure packages, and shouldn't fail. Easier than our insecure
+######## case, as we don't need anything else. We test against Safety and its deps here; if these tests
+######## fail, the pinned version might need to be updated.
+name: Safety Action Secure Tests
+
+on:
+  push:
+    branches: [main, develop]
+
+jobs:
+  matrix:
+    runs-on: ubuntu-20.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: set-matrix
+        run: |
+          TASKS=$(echo $(cat .github/workflows/gh-action-integration-matrix.json) | sed 's/ //g' )
+          echo "::set-output name=matrix::$TASKS"
+
+  ##### Auto mode tests
+  ### File scanning
+  # Scans a requirements.txt in the repo; the simplest case. We contort one into existing for this test
+  # case, to avoid confusion
+  test-auto-requirements-txt-secure:
+    needs: [ matrix ]
+    runs-on: ubuntu-20.04
+    environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
+
+      - run: cp tests/action/requirements.txt-secure requirements.txt
+
+      - uses: ./
+        id: scan-1
+        args: -i 51358
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  # Same as above, but for a poetry lock file
+  test-auto-poetry-secure:
+    needs: [ matrix ]
+    runs-on: ubuntu-20.04
+    environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
+
+      - run: cp tests/action/poetry.lock-secure poetry.lock && cp tests/action/pyproject.toml-secure pyproject.toml
+
+      - uses: ./
+        id: scan-2
+        args: -i 51358
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  # Same as above, but for a Pipfile.lock
+  test-auto-pipfile-secure:
+    needs: [ matrix ]
+    runs-on: ubuntu-20.04
+    environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
+
+      - run: cp tests/action/Pipfile.lock-secure Pipfile.lock
+
+      - uses: ./
+        id: scan-3
+        args: -i 51358
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  ### Env scanning:
+  ### Scans the runner environment. Here, the Github action `actions/setup-python@v3` actually
+  ### installs things in the root VM that the action runs on; this is what gets scanned.
+  test-auto-environment-secure:
+    needs: [ matrix ]
+    runs-on: ubuntu-20.04
+    environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+          architecture: 'x64'
+
+      - run: python -m pip install -r tests/action/requirements.txt-secure
+
+      - uses: ./
+        id: scan-4
+        args: -i 51358
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
+
+  ### Docker scanning:
+  ### Scans a recently built Docker container. This uses a few heuristics, defined in entrypoint.sh
+  test-auto-docker-secure:
+    needs: [ matrix ]
+    runs-on: ubuntu-20.04
+    environment: main
+    strategy:
+      matrix:
+        safety: ${{ fromJson(needs.matrix.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.safety.version }}
+
+      - name: Build image
+        run: DOCKER_BUILDKIT=1 docker build -t my-secure-image tests/action/docker-secure
+
+      - uses: ./
+        id: scan-5
+        args: -i 51358
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}

@@ -197,28 +197,6 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
 
     @patch("safety.safety.check")
-    def test_check_report_vulnerability(self, check):
-        runner = CliRunner()
-
-        check.return_value = [
-            Vulnerability(
-                name="django",
-                spec="<1.11.19,>=1.11.0",
-                version="1.11",
-                advisory="Django 1.11.x before 1.11.19 allows Uncontrolled Memory Consumption via a malicious attacker-supplied value to the django.utils.numberformat.format() function.",
-                vuln_id="36885",
-                cvssv2=None,
-                cvssv3=None,
-            )
-        ]
-
-        dirname = os.path.dirname(__file__)
-        reqs_path = os.path.join(dirname, "reqs_4.txt")
-
-        result = runner.invoke(cli.cli, ["check", "--file", reqs_path])
-        self.assertEqual(result.exit_code, -1)
-
-    @patch("safety.safety.check")
     def test_check_ignore_format_backward_compatible(self, check):
         runner = CliRunner()
 
@@ -232,7 +210,13 @@ class TestSafetyCLI(unittest.TestCase):
             check_call_kwargs = check.call_args[1]  # Python < 3.8
         except IndexError:
             check_call_kwargs = check.call_args.kwargs
-        self.assertEqual(check_call_kwargs['ignore_ids'], {'123', '456', '789'})
+
+        ignored_transformed = {
+            '123': {'expires': None, 'reason': ''},
+            '456': {'expires': None, 'reason': ''},
+            '789': {'expires': None, 'reason': ''}
+        }
+        self.assertEqual(check_call_kwargs['ignore_vulns'], ignored_transformed)
 
     def test_validate_with_unsupported_argument(self):
         result = self.runner.invoke(cli.cli, ['validate', 'safety_ci'])

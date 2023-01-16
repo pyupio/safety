@@ -60,41 +60,28 @@ class TestSafety(unittest.TestCase):
         )
         self.assertEqual(len(vulns), 2)
 
-    def test_check_ignore(self):
+    def test_check_ignores(self):
         reqs = StringIO("Django==1.8.1")
-        packages = list(util.read_requirements(reqs))
+        packages = util.read_requirements(reqs)
 
-        expected_vuln_ids = ['some id', 'some other id']
+        # Second that ignore works
+        ignored_vulns = {'some id': {'expires': None, 'reason': ''}}
 
-        # Verify without ignore
-        vulns = safety.check(
+        vulns, _ = safety.check(
             packages=packages,
+            key=None,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
-            cached=False,
-            key=False,
-            ignore_ids=[],
+            cached=0,
+            ignore_vulns=ignored_vulns,
+            ignore_severity_rules=None,
             proxy={},
+            telemetry=False
         )
-        vulns_ids = {v.vuln_id for v in vulns}
-        self.assertEqual(vulns_ids, set(expected_vuln_ids))
-
-        # Verify with ignore
-        vulns = safety.check(
-            packages=packages,
-            db_mirror=os.path.join(
-                os.path.dirname(os.path.realpath(__file__)),
-                "test_db"
-            ),
-            cached=False,
-            key=False,
-            ignore_ids=["some id"],
-            proxy={},
-        )
-        vulns_ids = {v.vuln_id for v in vulns}
-        self.assertEqual(vulns_ids, {expected_vuln_ids[1]})
+        self.assertEqual(len(vulns), 1)
+        self.assertEqual(vulns[0].vulnerability_id, "some other id")
 
     def test_check_from_file_with_hash_pins(self):
         reqs = StringIO(("Django==1.8.1 "

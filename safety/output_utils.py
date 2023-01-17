@@ -711,7 +711,7 @@ def get_skipped_msg(lm: str, fix) -> str:
 
 
 def get_fix_opt_used_msg() -> str:
-    fix_options = SafetyContext().params.get('automatically_fix', [])
+    fix_options = SafetyContext().params.get('auto_remediation_limit', [])
     msg = "no automatic"
 
     if fix_options:

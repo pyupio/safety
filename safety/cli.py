@@ -60,20 +60,20 @@ def clean_check_command(f):
     @wraps(f)
     def inner(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host,
               proxy_port,
-              exit_code, policy_file, save_json, audit_and_monitor, project, and_fix, automatically_fix, accept_all,
+              exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all,
               *args, **kwargs):
 
         try:
             proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
-            if ctx.get_parameter_source("and_fix") != click.core.ParameterSource.DEFAULT:
+            if ctx.get_parameter_source("apply_remediations") != click.core.ParameterSource.DEFAULT:
                 if not key:
-                    raise InvalidKeyError(message="The --and-fix option needs an API-KEY. See {link}.")
+                    raise InvalidKeyError(message="The --apply-remediations option needs an API-KEY. See {link}.")
                 if not files:
-                    raise SafetyError(message='--and-fix only works with files; use the "-r" option to specify files '
-                                              'to remediate.')
+                    raise SafetyError(message='--apply-remediations only works with files; use the "-r" option to '
+                                              'specify files to remediate.')
 
-            automatically_fix = get_fix_options(policy_file, automatically_fix)
+            auto_remediation_limit = get_fix_options(policy_file, auto_remediation_limit)
             policy_file, server_audit_and_monitor = safety.get_server_policies(key=key, policy_file=policy_file,
                                                                                proxy_dictionary=proxy_dictionary)
             audit_and_monitor = (audit_and_monitor and server_audit_and_monitor)
@@ -88,7 +88,7 @@ def clean_check_command(f):
 
         return f(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host,
                  proxy_port,
-                 exit_code, policy_file, save_json, audit_and_monitor, project, and_fix, automatically_fix, accept_all,
+                 exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all,
                  *args, **kwargs)
 
     return inner
@@ -138,15 +138,15 @@ def clean_check_command(f):
               help="Project to associate this scan with on pyup.io. Defaults to a canonicalized github style name if available, otherwise unknown")
 @click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
                                               "Safety will use safety-report.json as filename. Default: empty")
-@click.option('--and-fix', default=False, is_flag=True)
-@click.option("--automatically-fix", "-af", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
+@click.option('--apply-remediations', default=False, is_flag=True)
+@click.option("--auto-remediation-limit", "-arl", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
               default=['patch'],
               help="Let Safety update automatically. Default: empty")
 @click.option("accept_all", "--yes", "-y", default=False, help="Force and accept all the fixes.", is_flag=True, show_default=True)
 @click.pass_context
 @clean_check_command
 def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host, proxy_port,
-          exit_code, policy_file, save_json, audit_and_monitor, project, and_fix, automatically_fix, accept_all):
+          exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
@@ -170,7 +170,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,
                   'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
-                  'automatically_fix': automatically_fix, 'accept_all': accept_all}
+                  'auto_remediation_limit': auto_remediation_limit, 'accept_all': accept_all}
 
         LOG.info('Calling the check function')
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
@@ -192,9 +192,9 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
 
         fixes = []
 
-        if and_fix and is_silent_output:
+        if apply_remediations and is_silent_output:
             # it runs and apply only automatic fixes.
-            fixes = process_fixes(files, remediations, automatically_fix, accept_all, output, no_output=True,
+            fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=True,
                                   prompt=False)
 
         output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
@@ -213,12 +213,12 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
 
         click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
 
-        post_processing_report = (save_json or audit_and_monitor or and_fix)
+        post_processing_report = (save_json or audit_and_monitor or apply_remediations)
 
         if post_processing_report:
-            if and_fix and not is_silent_output:
+            if apply_remediations and not is_silent_output:
                 # prompt_mode fixing after main check output if prompt is enabled.
-                fixes = process_fixes(files, remediations, automatically_fix, accept_all, output, no_output=False,
+                fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=False,
                                       prompt=prompt_mode)
 
             # Render fixes

@@ -488,13 +488,13 @@ def get_update_type(from_ver, to_ver):
     return 'patch'
 
 
-def process_fixes(files, remediations, automatically_fix, accept_all, output, no_output=True, prompt=False):
-    requirements = compute_fixes_per_requirements(files, remediations, automatically_fix, accept_all, prompt=prompt)
+def process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=True, prompt=False):
+    requirements = compute_fixes_per_requirements(files, remediations, auto_remediation_limit, accept_all, prompt=prompt)
     fixes = apply_fixes(requirements, output, no_output, prompt)
     return fixes
 
 
-def compute_fixes_per_requirements(files, remediations, automatically_fix, accept_all, prompt=False):
+def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, accept_all, prompt=False):
     requirements_files = get_requirements_content(files)
 
     from dparse.parser import parse, filetypes
@@ -563,7 +563,7 @@ def compute_fixes_per_requirements(files, remediations, automatically_fix, accep
         dry_fix.update_type = update_type
         dry_fix.dependency = dependency
 
-        auto_fix = should_apply_auto_fix(from_ver, to_ver, automatically_fix)
+        auto_fix = should_apply_auto_fix(from_ver, to_ver, auto_remediation_limit)
 
         TARGET = 'TO_APPLY'
 

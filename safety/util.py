@@ -255,7 +255,7 @@ def get_fix_options(policy_file, auto_remediation_limit):
         return auto_remediation_limit
 
     if policy_file:
-        fix = policy_file.get('fix', {})
+        fix = policy_file.get('remediations', {})
         auto_fix = fix.get('auto-remediation-limit', None)
         if not auto_fix:
             auto_fix = []

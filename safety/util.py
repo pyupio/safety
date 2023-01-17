@@ -247,16 +247,16 @@ def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code)
     return ignore, ignore_severity_rules, exit_code
 
 
-def get_fix_options(policy_file, automatically_fix):
+def get_fix_options(policy_file, auto_remediation_limit):
     auto_fix = []
 
-    source = click.get_current_context().get_parameter_source("automatically_fix")
+    source = click.get_current_context().get_parameter_source("auto_remediation_limit")
     if source == click.core.ParameterSource.COMMANDLINE:
-        return automatically_fix
+        return auto_remediation_limit
 
     if policy_file:
         fix = policy_file.get('fix', {})
-        auto_fix = fix.get('automatically-fix', None)
+        auto_fix = fix.get('auto-remediation-limit', None)
         if not auto_fix:
             auto_fix = []
 
@@ -558,14 +558,14 @@ class SafetyPolicyFile(click.ParamType):
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 
             fix_config = safety_policy.get('fix', {})
-            self.fail_if_unrecognized_keys(fix_config.keys(), ['automatically-fix'], param=param, ctx=ctx, msg=msg,
+            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-remediation-limit'], param=param, ctx=ctx, msg=msg,
                                            context_hint='"fix" -> ')
-            automatically_fix = fix_config.get('automatically-fix', None)
+            auto_remediation_limit = fix_config.get('auto-remediation-limit', None)
 
-            if automatically_fix:
-                self.fail_if_unrecognized_keys(automatically_fix, ['patch', 'minor', 'major'], param=param, ctx=ctx,
+            if auto_remediation_limit:
+                self.fail_if_unrecognized_keys(auto_remediation_limit, ['patch', 'minor', 'major'], param=param, ctx=ctx,
                                                msg=msg,
-                                               context_hint='"automatically-fix" -> ')
+                                               context_hint='"auto-remediation-limit" -> ')
 
             return safety_policy
         except BadParameter as expected_e:

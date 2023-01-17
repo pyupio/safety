@@ -287,15 +287,15 @@ class TestSafetyCLI(unittest.TestCase):
     def test_check_with_fix_does_verify_api_key(self):
         dirname = os.path.dirname(__file__)
         req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
-        result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--and-fix'])
+        result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-remediations'])
         self.assertEqual(click.unstyle(result.stderr),
-                         "The --and-fix option needs an API-KEY. See https://bit.ly/3OY2wEI.\n")
+                         "The --apply-remediations option needs an API-KEY. See https://bit.ly/3OY2wEI.\n")
         self.assertEqual(result.exit_code, 65)
 
     def test_check_with_fix_only_works_with_files(self):
-        result = self.runner.invoke(cli.cli, ['check', '--key', 'TEST-API_KEY', '--and-fix'])
+        result = self.runner.invoke(cli.cli, ['check', '--key', 'TEST-API_KEY', '--apply-remediations'])
         self.assertEqual(click.unstyle(result.stderr),
-                         '--and-fix only works with files; use the "-r" option to specify files to remediate.\n')
+                         '--apply-remediations only works with files; use the "-r" option to specify files to remediate.\n')
         self.assertEqual(result.exit_code, 1)
 
     @patch("safety.util.SafetyContext")
@@ -328,12 +328,12 @@ class TestSafetyCLI(unittest.TestCase):
             req_file = os.path.join(tempdir, 'reqs_simple_minor.txt')
             shutil.copy(source_req, req_file)
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--and-fix'])
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations'])
 
             with open(req_file) as f:
                 self.assertEqual("django==1.8\nsafety==2.3.0\nflask==0.87.0", f.read())
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--and-fix', '-af',
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
                                                   'minor'])
 
             with open(req_file) as f:
@@ -349,12 +349,12 @@ class TestSafetyCLI(unittest.TestCase):
                     "closest_secure_version": {"minor": None, "major": target},
                     "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--and-fix', '-af',
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
                                                   'minor', '--json'])
             with open(req_file) as f:
                 self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--and-fix', '-af',
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
                                                   'major', '--output', 'bare'])
 
             with open(req_file) as f:

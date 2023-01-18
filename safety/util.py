@@ -14,6 +14,7 @@ from click import BadParameter
 from dparse import parse, filetypes
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
+from packaging.specifiers import SpecifierSet
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
 
@@ -62,8 +63,10 @@ def read_requirements(fh, resolve=True):
     LOG.debug(f'Dependency file: {dependency_file.serialize()}')
     LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
     for dep in dependency_file.resolved_dependencies:
+        pinned_spec = None
+
         try:
-            spec = next(iter(dep.specs))._spec
+            pinned_spec = next(iter(dep.specs))
         except StopIteration:
             click.secho(
                 f"Warning: unpinned requirement '{dep.name}' found in {path}, "
@@ -73,14 +76,27 @@ def read_requirements(fh, resolve=True):
             )
             continue
 
-        version = spec[1]
-        if spec[0] == '==':
-            yield Package(name=dep.name, version=version,
-                          found=found,
-                          insecure_versions=[],
-                          secure_versions=[], latest_version=None,
-                          latest_version_without_known_vulnerabilities=None,
-                          more_info_url=None)
+        version = None
+
+        if is_pinned_requirement(dep.specs):
+            version = pinned_spec.version
+
+        yield Package(name=dep.name, version=version,
+                      spec=dep.specs,
+                      found=found,
+                      insecure_versions=[],
+                      secure_versions=[], latest_version=None,
+                      latest_version_without_known_vulnerabilities=None,
+                      more_info_url=None)
+
+
+def is_pinned_requirement(spec: SpecifierSet) -> bool:
+    if not spec or len(spec) != 1:
+        return False
+
+    specifier = next(iter(spec))
+
+    return specifier.operator == '==' and '*' != specifier.version[-1]
 
 
 def get_proxy_dict(proxy_protocol, proxy_host, proxy_port):

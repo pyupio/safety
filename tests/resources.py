@@ -38,7 +38,7 @@ SCANNED_PACKAGES = {
 VULNS = [Vulnerability(vulnerability_id='25853', package_name='insecure-package',
                        pkg=Package(name='insecure-package', version='0.1.0',
                                    found=None,
-                                   insecure_versions=None, secure_versions=None,
+                                   insecure_versions=[], secure_versions=[],
                                    latest_version_without_known_vulnerabilities=None,
                                    latest_version=None,
                                    more_info_url=None),

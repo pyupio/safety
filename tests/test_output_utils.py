@@ -3,8 +3,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-import click
 from packaging.version import parse
+from packaging.specifiers import SpecifierSet
 
 from safety.models import Package
 from safety.output_utils import format_vulnerability, get_printable_list_of_scanned_items, build_remediation_section, \
@@ -17,8 +17,12 @@ class TestOutputUtils(unittest.TestCase):
     def setUp(self) -> None:
         self.maxDiff = None
 
-    def test_format_vulnerability(self):
-        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'secure_versions': ['1.22.3'],
+    @patch("safety.output_utils.is_using_api_key")
+    def test_format_vulnerability(self, is_using_api_key):
+        is_using_api_key.return_value = True
+
+        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'spec': SpecifierSet('==1.22.0'),
+                     'secure_versions': ['1.22.3'],
                      'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5']}
         severity = {
             "cvssv2": {
@@ -56,8 +60,57 @@ class TestOutputUtils(unittest.TestCase):
         EXPECTED = '\n'.join(lines)
         self.assertEqual(output, EXPECTED)
 
-    def test_format_vulnerability_with_ignored_vulnerability(self):
-        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'secure_versions': ['1.22.3'],
+    @patch("safety.output_utils.is_using_api_key")
+    def test_format_vulnerability_with_dep_spec(self, is_using_api_key):
+        is_using_api_key.return_value = True
+
+        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'spec': SpecifierSet('>=1.22.0'),
+                     'secure_versions': ['1.22.3'], 'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', 
+                                                                          '1.21.5']}
+        severity = {
+            "cvssv2": {
+                "base_score": 4.3,
+                "impact_score": 2.9,
+                "vector_string": "AV:N/AC:M/Au:N/C:N/I:P/A:N"
+            },
+            "cvssv3": {
+                "base_score": 6.1,
+                "impact_score": 2.7,
+                "base_severity": "MEDIUM",
+                "vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+            }}
+
+        vulnerability = get_vulnerability(pkg_kwargs=numpy_pkg,
+                                          vuln_kwargs={'affected_versions': ['1.22.0', '1.21.5']},
+                                          cve_kwargs=severity)
+        columns = 80
+
+        output = format_vulnerability(vulnerability, full_mode=True, only_text=True, columns=columns)
+
+        lines = [
+            '-> Vulnerability found given that numpy version is likely 1.22.0',
+            '   Vulnerability ID: PYUP-1234',
+            '   Affected spec: >0',
+            '   ADVISORY: ',
+            '   Fixed versions: No known fix',
+            '   bla is MEDIUM SEVERITY => CVSS v3, BASE SCORE 6.1, IMPACT',
+            '   SCORE 2.7, VECTOR STRING CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N',
+            '   CVSS v2, BASE SCORE 4.3, IMPACT SCORE 2.9, VECTOR STRING',
+            '   AV:N/AC:M/Au:N/C:N/I:P/A:N',
+            '   1.22.0 is calculated from your numpy install specification of',
+            '   >=1.22.0. For more information about version range handling see',
+            '   https://docs.pyup.io/docs/safety-range-specs\n'
+            '   For more information, please visit https://pyup.io/PVE/2323\n',
+        ]
+
+        EXPECTED = '\n'.join(lines)
+        self.assertEqual(output, EXPECTED)
+
+    @patch("safety.output_utils.is_using_api_key")
+    def test_format_vulnerability_with_ignored_vulnerability(self, is_using_api_key):
+        is_using_api_key.return_value = True
+
+        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'spec': SpecifierSet('==1.22.0'), 'secure_versions': ['1.22.3'],
                      'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5']}
 
         vulnerability = get_vulnerability(pkg_kwargs=numpy_pkg,

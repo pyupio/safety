@@ -1,8 +1,10 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from datetime import datetime
+from packaging.version import Version
 from unittest.mock import patch, Mock
 
 import click
@@ -282,8 +284,78 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 
+    def test_check_with_fix_does_verify_api_key(self):
+        dirname = os.path.dirname(__file__)
+        req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
+        result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-remediations'])
+        self.assertEqual(click.unstyle(result.stderr),
+                         "The --apply-remediations option needs an API-KEY. See https://bit.ly/3OY2wEI.\n")
+        self.assertEqual(result.exit_code, 65)
 
+    def test_check_with_fix_only_works_with_files(self):
+        result = self.runner.invoke(cli.cli, ['check', '--key', 'TEST-API_KEY', '--apply-remediations'])
+        self.assertEqual(click.unstyle(result.stderr),
+                         '--apply-remediations only works with files; use the "-r" option to specify files to remediate.\n')
+        self.assertEqual(result.exit_code, 1)
 
+    @patch("safety.util.SafetyContext")
+    @patch("safety.safety.check")
+    @patch("safety.safety.calculate_remediations")
+    @patch("safety.cli.get_packages")
+    def test_check_with_fix(self, get_packages, calculate_remediations, check_func, ctx):
+        vulns = [get_vulnerability()]
+        packages = [pkg for pkg in {vuln.pkg.name: vuln.pkg for vuln in vulns}.values()]
+        get_packages.return_value = packages
+        provided_context = SafetyContext()
+        provided_context.command = 'check'
+        provided_context.packages = packages
+        ctx.return_value = provided_context
+        check_func.return_value = vulns, None
+        target = Version("1.9")
+        calculate_remediations.return_value = {
+            "django": {
+                "version": "1.8",
+                "vulns_found": 1,
+                "recommended_version": target,
+                "secure_versions": [],
+                "closest_secure_version": {"minor": None, "major": target},
+                "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
 
+        dirname = os.path.dirname(__file__)
+        source_req = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
 
+        with tempfile.TemporaryDirectory() as tempdir:
+            req_file = os.path.join(tempdir, 'reqs_simple_minor.txt')
+            shutil.copy(source_req, req_file)
 
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations'])
+
+            with open(req_file) as f:
+                self.assertEqual("django==1.8\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
+                                                  'minor'])
+
+            with open(req_file) as f:
+                self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+            target = Version("2.0")
+            calculate_remediations.return_value = {
+                "django": {
+                    "version": "1.9",
+                    "vulns_found": 1,
+                    "recommended_version": target,
+                    "secure_versions": [],
+                    "closest_secure_version": {"minor": None, "major": target},
+                    "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
+
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
+                                                  'minor', '--json'])
+            with open(req_file) as f:
+                self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
+                                                  'major', '--output', 'bare'])
+
+            with open(req_file) as f:
+                self.assertEqual("django==2.0\nsafety==2.3.0\nflask==0.87.0", f.read())

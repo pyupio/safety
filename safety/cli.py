@@ -5,21 +5,21 @@ import json
 import logging
 import os
 import sys
-import tempfile
+from functools import wraps
 
 import click
 
 from safety import safety
 from safety.alerts import alert
 from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
-from safety.errors import SafetyException, SafetyError
+from safety.errors import SafetyException, SafetyError, InvalidKeyError
 from safety.formatter import SafetyFormatter
 from safety.output_utils import should_add_nl
-from safety.safety import get_packages, read_vulnerabilities, fetch_policy, post_results
+from safety.safety import get_packages, read_vulnerabilities, process_fixes
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
     get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext, is_a_remote_mirror, \
-    filter_announcements
+    filter_announcements, get_fix_options
 
 LOG = logging.getLogger(__name__)
 
@@ -51,6 +51,47 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
     def clean_up_on_close():
         LOG.debug('Calling clean up on close function.')
         safety.close_session()
+
+
+def clean_check_command(f):
+    """
+    Main entry point for validation.
+    """
+    @wraps(f)
+    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host,
+              proxy_port,
+              exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all,
+              *args, **kwargs):
+
+        try:
+            proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
+
+            if ctx.get_parameter_source("apply_remediations") != click.core.ParameterSource.DEFAULT:
+                if not key:
+                    raise InvalidKeyError(message="The --apply-remediations option needs an API-KEY. See {link}.")
+                if not files:
+                    raise SafetyError(message='--apply-remediations only works with files; use the "-r" option to '
+                                              'specify files to remediate.')
+
+            auto_remediation_limit = get_fix_options(policy_file, auto_remediation_limit)
+            policy_file, server_audit_and_monitor = safety.get_server_policies(key=key, policy_file=policy_file,
+                                                                               proxy_dictionary=proxy_dictionary)
+            audit_and_monitor = (audit_and_monitor and server_audit_and_monitor)
+
+        except SafetyError as e:
+            LOG.exception('Expected SafetyError happened: %s', e)
+            output_exception(e, exit_code_output=exit_code)
+        except Exception as e:
+            LOG.exception('Unexpected Exception happened: %s', e)
+            exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
+            output_exception(exception, exit_code_output=exit_code)
+
+        return f(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host,
+                 proxy_port,
+                 exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all,
+                 *args, **kwargs)
+
+    return inner
 
 
 @cli.command()
@@ -95,44 +136,31 @@ def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
               help="Send results back to pyup.io for viewing on your dashboard. Requires an API key.")
 @click.option("--project", default=None,
               help="Project to associate this scan with on pyup.io. Defaults to a canonicalized github style name if available, otherwise unknown")
-
 @click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
                                               "Safety will use safety-report.json as filename. Default: empty")
+@click.option('--apply-remediations', default=False, is_flag=True)
+@click.option("--auto-remediation-limit", "-arl", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
+              default=['patch'],
+              help="Let Safety update automatically. Default: empty")
+@click.option("accept_all", "--yes", "-y", default=False, help="Force and accept all the fixes.", is_flag=True, show_default=True)
 @click.pass_context
+@clean_check_command
 def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host, proxy_port,
-          exit_code, policy_file, save_json, audit_and_monitor, project):
+          exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
     """
     LOG.info('Running check command')
 
+    non_interactive = (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run')
+    silent_outputs = ['json', 'bare']
+    is_silent_output = output in silent_outputs
+    prompt_mode = bool(not non_interactive and not stdin and not is_silent_output)
+
     try:
         packages = get_packages(files, stdin)
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
-
-        if key:
-            server_policies = fetch_policy(key=key, proxy=proxy_dictionary)
-            server_audit_and_monitor = server_policies["audit_and_monitor"]
-            server_safety_policy = server_policies["safety_policy"]
-        else:
-            server_audit_and_monitor = False
-            server_safety_policy = ""
-
-        if server_safety_policy and policy_file:
-            click.secho(
-                "Warning: both a local policy file '{policy_filename}' and a server sent policy are present. "
-                "Continuing with the local policy file.".format(policy_filename=policy_file['filename']),
-                fg="yellow",
-                file=sys.stderr
-            )
-        elif server_safety_policy:
-            with tempfile.NamedTemporaryFile(prefix='server-safety-policy-') as tmp:
-                tmp.write(server_safety_policy.encode('utf-8'))
-                tmp.seek(0)
-
-                policy_file = SafetyPolicyFile().convert(tmp.name, param=None, ctx=None)
-                LOG.info('Using server side policy file')
 
         ignore_severity_rules = None
         ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
@@ -140,7 +168,10 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
 
         is_env_scan = not stdin and not files
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
-                  'ignore_severity_rules': ignore_severity_rules, 'project': project, 'audit_and_monitor': server_audit_and_monitor and audit_and_monitor}
+                  'ignore_severity_rules': ignore_severity_rules, 'project': project,
+                  'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
+                  'auto_remediation_limit': auto_remediation_limit, 'accept_all': accept_all}
+
         LOG.info('Calling the check function')
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
                                       ignore_severity_rules=ignore_severity_rules, proxy=proxy_dictionary,
@@ -157,37 +188,21 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
             LOG.info('Not local DB used, Getting announcements')
             announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
 
-        json_report = None
-        if save_json or (server_audit_and_monitor and audit_and_monitor):
-            default_name = 'safety-report.json'
-            json_report = SafetyFormatter(output='json').render_vulnerabilities(announcements, vulns, remediations,
-                                                                                full_report, packages)
-
-            if server_audit_and_monitor and audit_and_monitor:
-                policy_contents = ''
-                if policy_file:
-                    policy_contents = policy_file.get('raw', '')
-
-                r = post_results(key=key, proxy=proxy_dictionary, safety_json=json_report, policy_file=policy_contents)
-                SafetyContext().params['audit_and_monitor_url'] = r.get('url')
-
-            if save_json:
-                if os.path.isdir(save_json):
-                    save_json = os.path.join(save_json, default_name)
-
-                with open(save_json, 'w+') as output_json_file:
-                    output_json_file.write(json_report)
-
         LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
-        if json_report and output == 'json':
-            output_report = json_report
-        else:
-            output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
-                                                                                  full_report, packages)
+
+        fixes = []
+
+        if apply_remediations and is_silent_output:
+            # it runs and apply only automatic fixes.
+            fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=True,
+                                  prompt=False)
+
+        output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
+                                                                              full_report, packages, fixes)
 
         # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
         stderr_announcements = filter_announcements(announcements=announcements, by_type='error')
-        if stderr_announcements and (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run'):
+        if stderr_announcements and non_interactive:
             LOG.info('sys.stdout is not a tty, error announcements are going to be send to stderr')
             click.secho(SafetyFormatter(output='text').render_announcements(stderr_announcements), fg="red",
                         file=sys.stderr)
@@ -197,6 +212,20 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         LOG.info('All vulnerabilities found (ignored and Not ignored): %s', len(vulns))
 
         click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
+
+        post_processing_report = (save_json or audit_and_monitor or apply_remediations)
+
+        if post_processing_report:
+            if apply_remediations and not is_silent_output:
+                # prompt_mode fixing after main check output if prompt is enabled.
+                fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=False,
+                                      prompt=prompt_mode)
+
+            # Render fixes
+            json_report = output_report if output == 'json' else SafetyFormatter(output='json').render_vulnerabilities(announcements, vulns, remediations, full_report, packages, fixes)
+
+            safety.push_audit_and_monitor(key, proxy_dictionary, audit_and_monitor, json_report, policy_file)
+            safety.save_json_report(save_json, json_report)
 
         if exit_code and found_vulns:
             LOG.info('Exiting with default code for vulnerabilities found')
@@ -373,6 +402,7 @@ def validate(ctx, name, path):
 
     click.secho(f'The Safety policy file was successfully parsed with the following values:', fg='green')
     click.secho(json.dumps(values, indent=4, default=str))
+
 
 cli.add_command(alert)
 

@@ -1,8 +1,8 @@
 import json
 import logging
+import logging
 import os
 import platform
-
 import sys
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -18,6 +18,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
 
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
+from safety.errors import InvalidProvidedReportError
 from safety.models import Package, RequirementFile
 
 LOG = logging.getLogger(__name__)
@@ -246,6 +247,22 @@ def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code)
     return ignore, ignore_severity_rules, exit_code
 
 
+def get_fix_options(policy_file, auto_remediation_limit):
+    auto_fix = []
+
+    source = click.get_current_context().get_parameter_source("auto_remediation_limit")
+    if source == click.core.ParameterSource.COMMANDLINE:
+        return auto_remediation_limit
+
+    if policy_file:
+        fix = policy_file.get('remediations', {})
+        auto_fix = fix.get('auto-remediation-limit', None)
+        if not auto_fix:
+            auto_fix = []
+
+    return auto_fix
+
+
 class MutuallyExclusiveOption(click.Option):
     def __init__(self, *args, **kwargs):
         self.mutually_exclusive = set(kwargs.pop('mutually_exclusive', []))
@@ -299,7 +316,10 @@ class DependentOption(click.Option):
         super(DependentOption, self).__init__(*args, **kwargs)
 
     def handle_parse_result(self, ctx, opts, args):
-        missing_required_arguments = self.required_options.difference(opts) and self.name in opts
+        missing_required_arguments = None
+
+        if self.name in opts:
+            missing_required_arguments = self.required_options.difference(opts)
 
         if missing_required_arguments:
             raise click.UsageError(
@@ -462,9 +482,7 @@ class SafetyPolicyFile(click.ParamType):
             security_config = safety_policy.get('security', {})
             security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
                              'continue-on-vulnerability-error']
-            used_keys = security_config.keys()
-
-            self.fail_if_unrecognized_keys(used_keys, security_keys, param=param, ctx=ctx, msg=msg,
+            self.fail_if_unrecognized_keys(security_config.keys(), security_keys, param=param, ctx=ctx, msg=msg,
                                            context_hint='"security" -> ')
 
             ignore_cvss_security_below = security_config.get('ignore-cvss-severity-below', None)
@@ -539,6 +557,16 @@ class SafetyPolicyFile(click.ParamType):
             else:
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 
+            fix_config = safety_policy.get('fix', {})
+            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-remediation-limit'], param=param, ctx=ctx, msg=msg,
+                                           context_hint='"fix" -> ')
+            auto_remediation_limit = fix_config.get('auto-remediation-limit', None)
+
+            if auto_remediation_limit:
+                self.fail_if_unrecognized_keys(auto_remediation_limit, ['patch', 'minor', 'major'], param=param, ctx=ctx,
+                                               msg=msg,
+                                               context_hint='"auto-remediation-limit" -> ')
+
             return safety_policy
         except BadParameter as expected_e:
             raise expected_e
@@ -585,7 +613,7 @@ class SingletonMeta(type):
 
 
 class SafetyContext(metaclass=SingletonMeta):
-    packages = None
+    packages = []
     key = False
     db_mirror = False
     cached = None
@@ -667,3 +695,17 @@ def get_packages_licenses(packages=None, licenses_db=None):
         })
 
     return filtered_packages_licenses
+
+
+def get_requirements_content(files):
+    requirements_files = {}
+
+    for f in files:
+        try:
+            f.seek(0)
+            requirements_files[f.name] = f.read()
+            f.close()
+        except Exception as e:
+            raise InvalidProvidedReportError(message=f"Unable to read a requirement file scanned in the report. {e}")
+
+    return requirements_files

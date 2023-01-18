@@ -14,7 +14,7 @@ class FormatterAPI:
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         raise NotImplementedError(NOT_IMPLEMENTED)  # pragma: no cover
 
     @abstractmethod
@@ -28,9 +28,9 @@ class FormatterAPI:
 
 class SafetyFormatter(FormatterAPI):
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         LOG.info('Safety is going to render_vulnerabilities with format: %s', self.format)
-        return self.format.render_vulnerabilities(announcements, vulnerabilities, remediations, full, packages)
+        return self.format.render_vulnerabilities(announcements, vulnerabilities, remediations, full, packages, fixes)
 
     def render_licenses(self, announcements, licenses):
         LOG.info('Safety is going to render_licenses with format: %s', self.format)

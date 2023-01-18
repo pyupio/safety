@@ -79,3 +79,7 @@ alert: # configuration for the `safety alert` command
             # Set a global prefix for PRs
             # default: "[PyUp] "
             pr-prefix: "[PyUp] "
+remediations: # configuration for the `safety check --apply-remediations` command
+    auto-remediation-limit:
+        # A list of allowed values: major, minor, patch
+        - patch

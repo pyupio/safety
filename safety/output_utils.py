@@ -9,7 +9,7 @@ import click
 
 from safety.constants import RED, YELLOW
 from safety.util import get_safety_version, Package, get_terminal_size, \
-    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror
+    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, is_pinned_requirement
 
 LOG = logging.getLogger(__name__)
 
@@ -80,6 +80,8 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     vulnerability_spec = [
         {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
 
+    is_pinned_req = is_pinned_requirement(vulnerability.pkg.spec)
+
     cve = vulnerability.CVE
 
     cvssv2_line = None
@@ -139,7 +141,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
             {'value': vulnerability.advisory.replace('\n', '')}]}
     ]
 
-    if SafetyContext().key:
+    if is_using_api_key():
         fixed_version_line = {'words': [
             {'style': {'bold': True}, 'value': 'Fixed versions: '},
             {'value': ', '.join(vulnerability.fixed_versions) if vulnerability.fixed_versions else 'No known fix'}
@@ -147,10 +149,25 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
         basic_vuln_data_lines.append(fixed_version_line)
 
-    more_info_line = [{'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
-                       {'value': click.style(vulnerability.more_info_url)}]}]
+    more_info_line = [
+        {'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
+                   {'value': click.style(vulnerability.more_info_url)}]}
+    ]
+
+    if not is_pinned_req:
+        more_info_line.insert(0, {'words': [
+            {'style': {'bold': True}, 'value': f'{vulnerability.analyzed_version}'},
+            {'value': f' is calculated from your {vulnerability.package_name} install specification of '},
+            {'style': {'bold': True}, 'value': f'{vulnerability.pkg.spec}.'},
+            {'style': {'bold': True}, 'value': ' For more information about version range handling see '},
+            {'value': 'https://docs.pyup.io/docs/safety-range-specs'}
+        ]})
 
     vuln_title = f'-> Vulnerability found in {vulnerability.package_name} version {vulnerability.analyzed_version}\n'
+
+    if not is_pinned_req:
+        vuln_title = f'-> Vulnerability found given that {vulnerability.package_name} version is likely ' \
+                     f'{vulnerability.analyzed_version}\n'
 
     styled_text = click.style(vuln_title, fg='red')
 

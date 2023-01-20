@@ -60,6 +60,29 @@ class TestSafety(unittest.TestCase):
         )
         self.assertEqual(len(vulns), 2)
 
+    def test_check_ignores(self):
+        reqs = StringIO("Django==1.8.1")
+        packages = util.read_requirements(reqs)
+
+        # Second that ignore works
+        ignored_vulns = {'some id': {'expires': None, 'reason': ''}}
+
+        vulns, _ = safety.check(
+            packages=packages,
+            key=None,
+            db_mirror=os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                "test_db"
+            ),
+            cached=0,
+            ignore_vulns=ignored_vulns,
+            ignore_severity_rules=None,
+            proxy={},
+            telemetry=False
+        )
+        self.assertEqual(len(vulns), 1)
+        self.assertEqual(vulns[0].vulnerability_id, "some other id")
+
     def test_check_from_file_with_hash_pins(self):
         reqs = StringIO(("Django==1.8.1 "
                          "--hash=sha256:c6c7e7a961e2847d050d214ca96dc3167bb5f2b25cd5c6cb2eea96e1717f4ade"))

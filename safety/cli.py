@@ -113,7 +113,7 @@ def clean_check_command(f):
               mutually_exclusive=["stdin"],
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
-              help="Ignore one (or multiple) vulnerabilities by ID. Default: empty")
+              help="Ignore one (or multiple) vulnerabilities by ID (coma separated). Default: empty")
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
               with_values={"output": ['screen', 'text', 'bare', 'json'], "bare": [True, False]}, callback=json_alias,
               hidden=True, is_flag=True, show_default=True)
@@ -165,7 +165,6 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         ignore_severity_rules = None
         ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
                                                                          ignore_severity_rules, exit_code)
-
         is_env_scan = not stdin and not files
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,

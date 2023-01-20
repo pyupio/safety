@@ -1,9 +1,10 @@
 pytest
 pytest-cov
-setuptools>=19.3
+setuptools>=65.5.1; python_version>="3.7"
+setuptools; python_version=="3.6"
 Click>=8.0.2
 requests
-packaging>=21.0
+packaging>=21.0,<=23.0
 dparse>=0.6.2
 ruamel.yaml>=0.17.21
 dataclasses==0.8; python_version=="3.6"

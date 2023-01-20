@@ -5,6 +5,7 @@ from unittest.mock import patch, Mock
 
 from safety.formatters.json import JsonReport
 from packaging.version import parse
+from packaging.specifiers import SpecifierSet
 
 from safety.models import CVE, Vulnerability, Package, Severity
 
@@ -24,7 +25,7 @@ class TestJSONFormatter(unittest.TestCase):
                                               'timestamp': '2022-03-03 16:31:30',
                                               'safety_version': '2.0.0.dev6'}
 
-        affected_package = Package(name='django', version='4.0.1',
+        affected_package = Package(name='django', version='4.0.1', spec=SpecifierSet('==4.0.1'),
                                    found='/usr/local/lib/python3.9/site-packages',
                                    insecure_versions=['4.0.1'], secure_versions=['4.0.4', '3.2.13', '2.2.28'],
                                    latest_version_without_known_vulnerabilities='',
@@ -55,7 +56,7 @@ class TestJSONFormatter(unittest.TestCase):
                                          severity=Severity(source=cve.name, cvssv2=cve.cvssv2, cvssv3=cve.cvssv3),
                                          affected_versions=['4.0.1'],
                                          more_info_url='https://pyup.io/vulnerabilities/CVE-2022-22818/44742/')]
-        packages = [Package(name='secure-package', version='0.1.0',
+        packages = [Package(name='secure-package', version='0.1.0', spec=SpecifierSet('==0.1.0'),
                             found='/usr/local/lib/python3.9/site-packages',
                             insecure_versions=[], secure_versions=['0.1.0'],
                             latest_version_without_known_vulnerabilities='',
@@ -64,7 +65,8 @@ class TestJSONFormatter(unittest.TestCase):
                     affected_package]
 
         result = self.formatter.render_vulnerabilities(announcements=[], vulnerabilities=vulnerabilities,
-                                                       remediations=remediations, full=True, packages=packages)
+                                                       remediations=remediations, full=True, packages=packages,
+                                                       fixes=[])
 
         expected_result = json.dumps(
             {
@@ -76,7 +78,10 @@ class TestJSONFormatter(unittest.TestCase):
                     "api_key": True,
                     "packages_found": 2,
                     "timestamp": "2022-03-03 16:31:30",
-                    "safety_version": "2.0.0.dev6"
+                    "safety_version": "2.0.0.dev6",
+                    "remediations_attempted": 0,
+                    "remediations_completed": 0,
+                    "remediation_mode": "NON_INTERACTIVE"
                 },
                 "scanned_packages": {
                     "secure-package": {
@@ -92,6 +97,7 @@ class TestJSONFormatter(unittest.TestCase):
                     "django": {
                         "name": "django",
                         "version": "4.0.1",
+                        "spec": "==4.0.1",
                         "found": "/usr/local/lib/python3.9/site-packages",
                         "insecure_versions": [
                             "4.0.1"
@@ -164,6 +170,11 @@ class TestJSONFormatter(unittest.TestCase):
                         ],
                         "more_info_url": "https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4"
                     }
+                },
+                "remediations_results": {
+                    "vulnerabilities_fixed": [],
+                    "remediations_applied": {},
+                    "remediations_skipped": {}
                 }
             },
             indent=4

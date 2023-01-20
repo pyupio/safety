@@ -24,7 +24,7 @@ from requests.exceptions import RequestException
 from safety import util, safety
 from safety.errors import MalformedDatabase
 from safety.formatter import SafetyFormatter
-from safety.models import CVE
+from safety.models import CVE, Package
 from safety.safety import ignore_vuln_if_needed, get_closest_ver, precompute_remediations, compute_sec_ver, \
     calculate_remediations, read_vulnerabilities
 from tests.resources import VALID_REPORT, VULNS, SCANNED_PACKAGES, REMEDIATIONS
@@ -575,8 +575,11 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(versions, EXPECTED)
 
     def test_precompute_remediations(self):
-        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'secure_versions': ['1.22.3'],
-                     'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5']}
+        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'found': '/site-packages/numpy',
+                     'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
+                     'secure_versions': ['1.22.3'], 'latest_version_without_known_vulnerabilities': '2.2',
+                     'latest_version': '2.2', 'more_info_url': 'https://pyup.io/package/numpy'}
+
         vulns = [
             get_vulnerability(pkg_kwargs=numpy_pkg, vuln_kwargs={'affected_versions': ['1.22.0', '1.21.5']}),
             get_vulnerability(pkg_kwargs=numpy_pkg,
@@ -585,45 +588,47 @@ class TestSafety(unittest.TestCase):
         ]
         remediations = {}
         package_meta = {}
-        precompute_remediations(remediations=remediations, package_metadata=package_meta, vulns=vulns,
+        precompute_remediations(remediations=remediations, packages=package_meta, vulns=vulns,
                                 ignored_vulns=set())
 
-        EXPECTED = {'numpy': {'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
-                              'secure_versions': ['1.22.3'], 'version': '1.22.0'}}
+        EXPECTED = {'numpy': Package(**numpy_pkg)}
         self.assertEqual(package_meta, EXPECTED)
 
-        EXPECTED = {'numpy': {'vulns_found': 2, 'version': '1.22.0', 'more_info_url': 'https://pyup.io/package/foo'}}
+        EXPECTED = {'numpy': {'vulns_found': 2, 'version': '1.22.0', 'more_info_url': 'https://pyup.io/package/numpy'}}
 
         self.assertEqual(remediations, EXPECTED)
 
     def test_compute_sec_ver(self):
+        import copy
+
         test_filename = os.path.join(self.dirname, "test_db/insecure_full_affected_versions.json")
         db_full = None
         with open(test_filename) as f:
             db_full = json.loads(f.read())
         self.assertIsNotNone(db_full)
 
-        pre_pkg_meta = {'numpy': {'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
-                                  'secure_versions': ['1.22.3'], 'version': '1.22.0'}}
+        npy = Package(insecure_versions=['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
+                      secure_versions=['1.22.3'], version='1.22.0', name='numpy')
+
+        pre_pkg_meta = {'numpy': copy.copy(npy)}
         # The vuln affecting '1.21.5' was ignored by the user
         ignored_vulns = set()
         ignored_vulns.add('29')
         rem = {'numpy': {'vulns_found': 1, 'version': '1.22.0', 'more_info_url': 'https://pyup.io/package/foo'}}
-        compute_sec_ver(remediations=rem, package_metadata=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
+        compute_sec_ver(remediations=rem, packages=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
         EXPECTED = {'numpy': {'vulns_found': 1, 'version': '1.22.0', 'secure_versions': ['1.22.3', '1.21.5'],
                               'closest_secure_version': {'major': parse('1.22.3'), 'minor': parse('1.21.5')},
-                              'more_info_url': 'https://pyup.io/package/foo'}}
+                              'more_info_url': 'https://pyup.io/package/foo', 'recommended_version': parse('1.22.3')}}
         self.assertEqual(rem, EXPECTED)
 
-        pre_pkg_meta = {'numpy': {'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
-                                  'secure_versions': ['1.22.3'], 'version': '1.22.0'}}
+        pre_pkg_meta = {'numpy': copy.copy(npy)}
         ignored_vulns = set()
         rem = {'numpy': {'vulns_found': 2, 'version': '1.22.0', 'more_info_url': 'https://pyup.io/package/foo'}}
-        compute_sec_ver(remediations=rem, package_metadata=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
+        compute_sec_ver(remediations=rem, packages=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
         EXPECTED = {'numpy': {'vulns_found': 2,
                               'version': '1.22.0', 'secure_versions': ['1.22.3'],
                               'closest_secure_version': {'major': parse('1.22.3'), 'minor': None},
-                              'more_info_url': 'https://pyup.io/package/foo'}}
+                              'more_info_url': 'https://pyup.io/package/foo', 'recommended_version': parse('1.22.3')}}
 
         self.assertEqual(rem, EXPECTED)
 

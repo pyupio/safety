@@ -3,12 +3,13 @@ import logging
 import os
 import textwrap
 from datetime import datetime
+from typing import List, Tuple, Dict
 
 import click
 
 from safety.constants import RED, YELLOW
 from safety.util import get_safety_version, Package, get_terminal_size, \
-    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror
+    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, is_pinned_requirement
 
 LOG = logging.getLogger(__name__)
 
@@ -79,6 +80,8 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     vulnerability_spec = [
         {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
 
+    is_pinned_req = is_pinned_requirement(vulnerability.pkg.spec)
+
     cve = vulnerability.CVE
 
     cvssv2_line = None
@@ -138,7 +141,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
             {'value': vulnerability.advisory.replace('\n', '')}]}
     ]
 
-    if SafetyContext().key:
+    if is_using_api_key():
         fixed_version_line = {'words': [
             {'style': {'bold': True}, 'value': 'Fixed versions: '},
             {'value': ', '.join(vulnerability.fixed_versions) if vulnerability.fixed_versions else 'No known fix'}
@@ -146,10 +149,25 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
         basic_vuln_data_lines.append(fixed_version_line)
 
-    more_info_line = [{'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
-                       {'value': click.style(vulnerability.more_info_url)}]}]
+    more_info_line = [
+        {'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
+                   {'value': click.style(vulnerability.more_info_url)}]}
+    ]
+
+    if not is_pinned_req:
+        more_info_line.insert(0, {'words': [
+            {'style': {'bold': True}, 'value': f'{vulnerability.analyzed_version}'},
+            {'value': f' is calculated from your {vulnerability.package_name} install specification of '},
+            {'style': {'bold': True}, 'value': f'{vulnerability.pkg.spec}.'},
+            {'style': {'bold': True}, 'value': ' For more information about version range handling see '},
+            {'value': 'https://docs.pyup.io/docs/safety-range-specs'}
+        ]})
 
     vuln_title = f'-> Vulnerability found in {vulnerability.package_name} version {vulnerability.analyzed_version}\n'
+
+    if not is_pinned_req:
+        vuln_title = f'-> Vulnerability found given that {vulnerability.package_name} version is likely ' \
+                     f'{vulnerability.analyzed_version}\n'
 
     styled_text = click.style(vuln_title, fg='red')
 
@@ -691,3 +709,62 @@ def should_add_nl(output, found_vulns):
 
     return True
 
+
+def get_skip_reason(status: str) -> str:
+    reasons = {"AUTOMATICALLY_SKIPPED_NO_RECOMMENDED_VERSION": "there isn't a recommended version.",
+               "MANUALLY_SKIPPED": "it was manually discarded.",
+               "AUTOMATICALLY_SKIPPED_UNABLE_TO_CONFIRM": "not able to confirm."
+               }
+
+    return reasons.get(status, 'unknown.')
+
+
+def get_applied_msg(lm: str, fix, mode="auto") -> str:
+    return f"{lm}Applied {mode} fix for {fix.package} from {fix.previous_version} to {fix.updated_version}."
+
+
+def get_skipped_msg(lm: str, fix) -> str:
+    return f'{lm}{fix.package} remediation was skipped because {get_skip_reason(fix.status)}'
+
+
+def get_fix_opt_used_msg() -> str:
+    fix_options = SafetyContext().params.get('auto_remediation_limit', [])
+    msg = "no automatic"
+
+    if fix_options:
+        msg = f"automatic {', '.join(fix_options)} upgrade"
+
+    if SafetyContext().params.get('accept_all', False):
+        msg += ' and force'
+
+    return msg
+
+
+def print_service(output: List[Tuple[str, Dict]], out_format: str):
+    formats = ['text', 'screen']
+
+    if out_format not in formats:
+        raise ValueError(f"Print is only allowed for {', '.join(formats)}")
+
+    while output:
+        line, kwargs = output.pop(0)
+
+        if out_format == 'screen':
+            click.secho(line, **kwargs)
+        else:
+            click.echo(line)
+
+
+def prompt_service(output: Tuple[str, Dict], out_format: str) -> bool:
+    formats = ['text', 'screen']
+
+    if out_format not in formats:
+        raise ValueError(f"Prompt is only allowed for {', '.join(formats)}")
+
+    line, kwargs = output
+    msg = line
+
+    if out_format == 'screen':
+        msg = click.style(line, **kwargs)
+
+    return click.confirm(msg)

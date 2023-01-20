@@ -1,6 +1,9 @@
 from collections import namedtuple
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import NamedTuple
+from typing import Any, List, Optional
+from packaging.specifiers import SpecifierSet
+from packaging.version import parse as parse_version
 
 
 class DictConverter(object):
@@ -20,13 +23,57 @@ vulnerability_nmt = namedtuple('Vulnerability',
                                 'is_transitive', 'published_date', 'fixed_versions',
                                 'closest_versions_without_known_vulnerabilities', 'resources', 'CVE', 'severity',
                                 'affected_versions', 'more_info_url'])
-package_nmt = namedtuple('Package', ['name', 'version', 'found', 'insecure_versions', 'secure_versions',
-                                     'latest_version_without_known_vulnerabilities', 'latest_version', 'more_info_url'])
-package_nmt.__new__.__defaults__ = (None,) * len(package_nmt._fields)  # Ugly hack for now
 RequirementFile = namedtuple('RequirementFile', ['path'])
 
 
-class Package(package_nmt, DictConverter):
+@dataclass
+class Package(DictConverter):
+    name: str
+    version: Optional[str]
+    spec: Optional[SpecifierSet] = None
+    found: Optional[str] = None
+    insecure_versions: List[str] = field(default_factory=lambda: [])
+    secure_versions: List[str] = field(default_factory=lambda: [])
+    latest_version_without_known_vulnerabilities: Optional[str] = None
+    latest_version: Optional[str] = None
+    more_info_url: Optional[str] = None
+
+    def compute_version(self, db_full):
+        """
+        Given a full db, find a version to analyze depending on the spec.
+        """
+
+        from packaging.requirements import Requirement
+
+        requirement = Requirement(f"{self.name}{self.spec}").specifier
+        versions = self.get_versions(db_full)
+        sorted_versions = sorted(versions, key=lambda ver: parse_version(ver), reverse=True)
+        matched_versions = requirement.filter(sorted_versions, prereleases=None)
+        version = None
+
+        try:
+            version = next(matched_versions)
+        except StopIteration:
+            pass
+
+        self.version = version
+
+    def get_versions(self, db_full):
+        pkg_meta = db_full.get('$meta', {}).get('packages', {}).get(self.name, {})
+        return set(pkg_meta.get("insecure_versions", []) + pkg_meta.get("secure_versions", []))
+
+    def refresh_from(self, db_full):
+        base_domain = db_full.get('$meta', {}).get('base_domain')
+        pkg_meta = db_full.get('$meta', {}).get('packages', {}).get(self.name, {})
+
+        kwargs = {'insecure_versions': pkg_meta.get("insecure_versions", []),
+                  'secure_versions': pkg_meta.get("secure_versions", []),
+                  'latest_version_without_known_vulnerabilities': pkg_meta.get("latest_secure_version",
+                                                                               None),
+                  'latest_version': pkg_meta.get("latest_version", None),
+                  'more_info_url': f"{base_domain}{pkg_meta.get('more_info_path', '')}"}
+
+        self.update(kwargs)
 
     def to_dict(self, **kwargs):
         if kwargs.get('short_version', False):
@@ -37,6 +84,7 @@ class Package(package_nmt, DictConverter):
 
         return {'name': self.name,
                 'version': self.version,
+                'spec': str(self.spec),
                 'found': self.found,
                 'insecure_versions': self.insecure_versions,
                 'secure_versions': self.secure_versions,
@@ -44,6 +92,11 @@ class Package(package_nmt, DictConverter):
                 'latest_version': self.latest_version,
                 'more_info_url': self.more_info_url
                 }
+
+    def update(self, new):
+        for key, value in new.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
 
 
 class Announcement(announcement_nmt):
@@ -58,6 +111,19 @@ class Remediation(remediation_nmt, DictConverter):
                 'secure_versions': self.secure_versions,
                 'latest_package_version': self.latest_package_version
                 }
+
+
+@dataclass
+class Fix:
+    dependency: Any = None
+    previous_version: Any = None
+    updated_version: Any = None
+    update_type: str = ""
+    package: str = ""
+    status: str = ""
+    applied_at: str = ""
+    fix_type: str = ""
+    more_info_url: str = ""
 
 
 class CVE(cve_nmt, DictConverter):

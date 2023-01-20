@@ -1,5 +1,6 @@
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_INVALID_API_KEY, EXIT_CODE_TOO_MANY_REQUESTS, \
-    EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB, EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB, EXIT_CODE_MALFORMED_DB
+    EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB, EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB, EXIT_CODE_MALFORMED_DB, \
+    EXIT_CODE_INVALID_PROVIDED_REPORT
 
 
 class SafetyException(Exception):
@@ -45,6 +46,17 @@ class DatabaseFetchError(SafetyError):
         return EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB
 
 
+class InvalidProvidedReportError(SafetyError):
+
+    def __init__(self, message="Unable to apply fix: the report needs to be generated from a file. "
+                               "Environment isn't supported yet."):
+        self.message = message
+        super().__init__(self.message)
+
+    def get_exit_code(self):
+        return EXIT_CODE_INVALID_PROVIDED_REPORT
+
+
 class DatabaseFileNotFoundError(DatabaseFetchError):
 
     def __init__(self, db=None, message="Unable to find vulnerability database in {db}"):
@@ -61,7 +73,7 @@ class InvalidKeyError(DatabaseFetchError):
     def __init__(self, key=None, message="Your API Key '{key}' is invalid. See {link}.", reason=None):
         self.key = key
         self.link = 'https://bit.ly/3OY2wEI'
-        self.message = message.format(key=key, link=self.link) if key else message
+        self.message = message.format(key=key, link=self.link) if key else message.format(link=self.link)
         info = f" Reason: {reason}"
         self.message = self.message + (info if reason else "")
         super().__init__(self.message)

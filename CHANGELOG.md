@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
-## [Development]
+## [Unreleased] 2.4.0.dev
 - Add support for coma separated ignore (--ignore=123,456) on top of existing --ignore=123 --ignore=456
 
 ## [2.3.5] - 2022-12-08

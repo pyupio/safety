@@ -466,6 +466,10 @@ safety check -i 1234
 safety check --ignore=1234
 ```
 ```bash
+safety check -i 1234,4567,89101
+```
+The following is also supported (backward compatibility)
+```bash
 safety check -i 1234 -i 4567 -i 89101
 ```
 

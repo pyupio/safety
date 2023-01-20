@@ -7,7 +7,7 @@ from unittest.mock import patch, Mock
 import click as click
 
 from safety import util
-from safety.util import read_requirements, get_processed_options, SafetyPolicyFile
+from safety.util import read_requirements, get_processed_options, SafetyPolicyFile, transform_ignore
 
 
 class ReadRequirementsTestCase(unittest.TestCase):
@@ -122,5 +122,16 @@ class ReadRequirementsTestCase(unittest.TestCase):
         EXPECTED = not security_pf.get('continue-on-vulnerability-error')
         self.assertEqual(exit_code, EXPECTED)
 
+    def test_transform_ignore(self):
+        ignored_transformed = {'123': {'expires': None, 'reason': ''}, '456': {'expires': None, 'reason': ''}}
+        self.assertEqual(transform_ignore(None, None, value=("123", "456")), ignored_transformed)
+        self.assertEqual(transform_ignore(None, None, value=("123,456",)), ignored_transformed)
 
-
+    def test_transform_ignore_mixed_arguments(self):
+        # mix old and new way of providing --ignore
+        ignored_transformed = {
+            '123': {'expires': None, 'reason': ''},
+            '456': {'expires': None, 'reason': ''},
+            '789': {'expires': None, 'reason': ''}
+        }
+        self.assertEqual(transform_ignore(None, None, value=("123,456", "789")), ignored_transformed)

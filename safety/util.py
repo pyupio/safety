@@ -354,8 +354,15 @@ class DependentOption(click.Option):
 
 
 def transform_ignore(ctx, param, value):
+    ignored_default_dict = {'reason': '', 'expires': None}
     if isinstance(value, tuple):
-        return dict(zip(value, [{'reason': '', 'expires': None} for _ in range(len(value))]))
+        # Following code is required to support the 2 ways of providing 'ignore'
+        # --ignore=1234,567,789
+        # or, the historical way (supported for backward compatibility)
+        # -i 1234 -i 567
+        combined_value = ','.join(value)
+        ignore_ids = {vuln_id.strip() for vuln_id in combined_value.split(',')}
+        return {ignore_id: dict(ignored_default_dict) for ignore_id in ignore_ids}
 
     return {}
 

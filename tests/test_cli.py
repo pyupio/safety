@@ -198,6 +198,28 @@ class TestSafetyCLI(unittest.TestCase):
         # TODO: Add test for the screen formatter, this only test that the command doesn't crash
         self.assertEqual(result.exit_code, 0)
 
+    @patch("safety.safety.check")
+    def test_check_ignore_format_backward_compatible(self, check):
+        runner = CliRunner()
+
+        check.return_value = []
+
+        dirname = os.path.dirname(__file__)
+        reqs_path = os.path.join(dirname, "reqs_4.txt")
+
+        _ = runner.invoke(cli.cli, ['check', '--file', reqs_path, '--ignore', "123,456", '--ignore', "789"])
+        try:
+            check_call_kwargs = check.call_args[1]  # Python < 3.8
+        except IndexError:
+            check_call_kwargs = check.call_args.kwargs
+
+        ignored_transformed = {
+            '123': {'expires': None, 'reason': ''},
+            '456': {'expires': None, 'reason': ''},
+            '789': {'expires': None, 'reason': ''}
+        }
+        self.assertEqual(check_call_kwargs['ignore_vulns'], ignored_transformed)
+
     def test_validate_with_unsupported_argument(self):
         result = self.runner.invoke(cli.cli, ['validate', 'safety_ci'])
         msg = 'This Safety version only supports "policy_file" validation. "safety_ci" is not supported.\n'

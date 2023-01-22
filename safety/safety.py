@@ -879,15 +879,15 @@ def get_server_policies(key: str, policy_file, proxy_dictionary: Dict):
     return policy_file, server_audit_and_monitor
 
 
-def save_json_report(save_json, json_report):
-    if save_json:
-        default_name = 'safety-report.json'
+def save_report(path: str, default_name: str, report: str):
+    if path:
+        save_at = path
 
-        if os.path.isdir(save_json):
-            save_json = os.path.join(save_json, default_name)
+        if os.path.isdir(path):
+            save_at = os.path.join(path, default_name)
 
-        with open(save_json, 'w+') as output_json_file:
-            output_json_file.write(json_report)
+        with open(save_at, 'w+') as report_file:
+            report_file.write(report)
 
 
 def push_audit_and_monitor(key, proxy, audit_and_monitor, json_report, policy_file):

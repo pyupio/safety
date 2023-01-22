@@ -11,6 +11,9 @@ from safety.constants import RED, YELLOW
 from safety.util import get_safety_version, Package, get_terminal_size, \
     SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, is_pinned_requirement
 
+from jinja2 import Environment, PackageLoader
+
+
 LOG = logging.getLogger(__name__)
 
 
@@ -768,3 +771,10 @@ def prompt_service(output: Tuple[str, Dict], out_format: str) -> bool:
         msg = click.style(line, **kwargs)
 
     return click.confirm(msg)
+
+
+def parse_html(json_data):
+    file_loader = PackageLoader('safety', 'templates')
+    env = Environment(loader=file_loader)
+    template = env.get_template("index.html")
+    return template.render(json_data=json_data)

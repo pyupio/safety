@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"
+          integrity="sha256-wLz3iY/cO4e6vKZ4zRmo4+9XDpMcgKOvv/zEU3OMlRo=" crossorigin="anonymous">
+    <title>Safety Check Report</title>
+</head>
+<body>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card text-center my-3">
+                <div class="card-body">
+                    <h3 class="card-title">Vulnerabilities Summary</h3>
+                    <div class="row justify-content-center">
+                        <div class="col-md-4">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ json_data.vulnerabilities|length }}</h5>
+                                    <p class="card-text">Vulnerabilities Found</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ json_data.ignored_vulnerabilities|length }}</h5>
+                                    <p class="card-text">Vulnerabilities Ignored</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ json_data.scanned_packages|length }}</h5>
+                                    <p class="card-text">Packages Scanned</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if json_data.announcements|length > 0 %}
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card my-3">
+                <div class="card-body">
+                    <h3 class="card-title">Announcements</h3>
+                    <ul class="list-group list-group-flush">
+                        {% for announcement in json_data.announcements %}
+                        {% set color = "text-danger" if announcement.type == "error" else "text-warning" if announcement.type == "warning" else "text-secondary" %}
+                        <li class="list-group-item {{ color }}">{{ announcement.message }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>   
+    {% endif %}
+
+    <h1 class="text-center mb-5">Safety Check Report</h1>
+    <div class="card">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h2 class="mb-3">Scanned Paths</h2>
+                    <p>{{json_data.report_meta.scanned}}</p>
+                </div>
+                <div class="col-md-6">
+                    <h2 class="mb-3">Scanned Target</h2>
+                    <p>{{json_data.report_meta.scan_target}}</p>
+                </div>
+            </div>
+            {% if json_data.vulnerabilities|length > 0 %}
+            <div class="row">
+                <div class="col-12">
+                    <h2 class="mb-3">Affected Packages</h2>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Package name</th>
+                                <th>Version</th>
+                                <th>Location</th>
+                                <th>Insecure versions</th>
+                                <th>Secure versions</th>
+                                <th>Latest version without known vulnerabilities</th>
+                                <th>Latest version</th>
+                                <th>More info</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for key, value in json_data.affected_packages.items() %}
+                            <tr>
+                                <td>{{value.name}}</td>
+                                <td>{{value.version}}</td>
+                                <td>{{value.found}}</td>
+                                <td>{{value.insecure_versions}}</td>
+                                <td>{{value.secure_versions}}</td>
+                                <td>{{value.latest_version_without_known_vulnerabilities}}</td>
+                                <td>{{value.latest_version}}</td>
+                                <td>
+                                    <button class="btn btn-info" onclick="location.href='{{value.more_info_url}}'">More
+                                        Info
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            <div class="row">
+                <div class="col-12">
+                    <h2 class="mb-3">Scanned Packages</h2>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Package Name</th>
+                                <th>Version</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for key, value in json_data.scanned_packages.items() %}
+                            <tr>
+                                <td>{{value.name}}</td>
+                                <td>{{value.version}}</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <h2 class="mb-3">Vulnerabilities</h2>
+                    {% if json_data.vulnerabilities|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Vulnerability ID</th>
+                                <th>Package name</th>
+                                <th>Vulnerable spec</th>
+                                <th>All vulnerable specs</th>
+                                <th>Analyzed version</th>
+                                <th>Advisory</th>
+                                <th>Published date</th>
+                                <th>CVE</th>
+                                <th>severity</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for data in json_data.vulnerabilities %}
+                            <tr>
+                                <td><a href="{{ data.more_info_url }}">{{ data.vulnerability_id }}</a></td>
+                                <td>{{data.package_name}}</td>
+                                <td>{{data.vulnerable_spec}}</td>
+                                <td>{{data.all_vulnerable_specs}}</td>
+                                <td>{{data.analyzed_version}}</td>
+                                <td>{{data.advisory}}</td>
+                                <td>{{data.published_date}}</td>
+                                <td>{{data.CVE}}</td>
+                                <td>{{data.severity}}</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p>No known security vulnerabilities found.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% if json_data.ignored_vulnerabilities|length > 0 %}
+            <div class="row">
+                <div class="col-12">
+                    <h2 class="mb-3">Vulnerabilities ignored</h2>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Vulnerability ID</th>
+                                <th>Package name</th>
+                                <th>Version</th>
+                                <th>Notes</th>
+                                <th>Expires</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for data in json_data.ignored_vulnerabilities %}
+                            <tr>
+                                <td><a href="{{ data.more_info_url }}">{{ data.vulnerability_id }}</a></td>
+                                <td>{{data.package_name}}</td>
+                                <td>{{data.analyzed_version}}</td>
+                                <td>{{data.ignored_reason|default("-", true)}}</td>
+                                <td>{{data.ignored_expires|default("-", true)}}</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if json_data.remediations|length > 0 %}
+            <div class="row">
+                <div class="col-12">
+                    <h2 class="mb-3">Remediations</h2>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Package name</th>
+                                <th>Version</th>
+                                <th>Vulnerabilities found</th>
+                                <th>Recommended versions</th>
+                                <th>Other recommended versions</th>
+                                <th>More info</th>
+                            </tr>
+
+                            </thead>
+                            <tbody>
+                            {% for key, value in json_data.remediations.items() %}
+                            <tr>
+                                <td>{{ key }}</td>
+                                <td>{{value.current_version}}</td>
+                                <td>{{value.vulnerabilities_found}}</td>
+                                <td>{{value.recommended_version}}</td>
+                                <td>{{value.other_recommended_versions}}</td>
+                                <td><a href="{{ value.more_info_url }}">{{value.more_info_url}}</a></td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+</body>
+</html>

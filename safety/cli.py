@@ -18,7 +18,7 @@ from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities, process_fixes
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version, json_alias, bare_alias, SafetyContext, is_a_remote_mirror, \
+    get_processed_options, get_safety_version, json_alias, bare_alias, html_alias, SafetyContext, is_a_remote_mirror, \
     filter_announcements, get_fix_options
 
 LOG = logging.getLogger(__name__)
@@ -58,10 +58,9 @@ def clean_check_command(f):
     Main entry point for validation.
     """
     @wraps(f)
-    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host,
-              proxy_port,
-              exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all,
-              *args, **kwargs):
+    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
+              proxy_host, proxy_port, exit_code, policy_file, save_json, save_html, audit_and_monitor, project,
+              apply_remediations, auto_remediation_limit, accept_all, *args, **kwargs):
 
         try:
             proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
@@ -86,10 +85,9 @@ def clean_check_command(f):
             exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
             output_exception(exception, exit_code_output=exit_code)
 
-        return f(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host,
-                 proxy_port,
-                 exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all,
-                 *args, **kwargs)
+        return f(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
+                 proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html,
+                 apply_remediations, auto_remediation_limit, accept_all, *args, **kwargs)
 
     return inner
 
@@ -102,7 +100,7 @@ def clean_check_command(f):
               help="Path to a local or remote vulnerability database. Default: empty")
 @click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption,
               mutually_exclusive=["output", "json", "bare"],
-              with_values={"output": ['json', 'bare'], "json": [True, False], "bare": [True, False]},
+              with_values={"output": ['json', 'bare'], "json": [True, False], "html": [True, False], "bare": [True, False]},
               help='Full reports include a security advisory (if available). Default: --short-report')
 @click.option("--cache", is_flag=False, flag_value=60, default=0,
               help="Cache requests to the vulnerability database locally. Default: 0 seconds",
@@ -115,18 +113,23 @@ def clean_check_command(f):
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID (coma separated). Default: empty")
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
-              with_values={"output": ['screen', 'text', 'bare', 'json'], "bare": [True, False]}, callback=json_alias,
+              with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=json_alias,
+              hidden=True, is_flag=True, show_default=True)
+@click.option('--html', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
+              with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=html_alias,
               hidden=True, is_flag=True, show_default=True)
 @click.option('--bare', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "json"],
               with_values={"output": ['screen', 'text', 'bare', 'json'], "json": [True, False]}, callback=bare_alias,
               hidden=True, is_flag=True, show_default=True)
-@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
+@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare', 'html'], case_sensitive=False),
               default='screen', callback=active_color_if_needed, envvar='SAFETY_OUTPUT')
-@click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption, required_options=['proxy_host'],
+@click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption,
+              required_options=['proxy_host'],
               help="Proxy protocol (https or http) --proxy-protocol")
 @click.option("--proxy-host", "-ph", multiple=False, type=str, default=None,
               help="Proxy host IP or DNS --proxy-host")
-@click.option("--proxy-port", "-pp", multiple=False, type=int, default=80, cls=DependentOption, required_options=['proxy_host'],
+@click.option("--proxy-port", "-pp", multiple=False, type=int, default=80, cls=DependentOption,
+              required_options=['proxy_host'],
               help="Proxy port number --proxy-port")
 @click.option("--exit-code/--continue-on-error", default=True,
               help="Output standard exit codes. Default: --exit-code")
@@ -135,18 +138,23 @@ def clean_check_command(f):
 @click.option("--audit-and-monitor/--disable-audit-and-monitor", default=True,
               help="Send results back to pyup.io for viewing on your dashboard. Requires an API key.")
 @click.option("--project", default=None,
-              help="Project to associate this scan with on pyup.io. Defaults to a canonicalized github style name if available, otherwise unknown")
+              help="Project to associate this scan with on pyup.io. "
+                   "Defaults to a canonicalized github style name if available, otherwise unknown")
 @click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
                                               "Safety will use safety-report.json as filename. Default: empty")
+@click.option("--save-html", default="", help="Path to where output file will be placed, if the path is a directory, "
+                                              "Safety will use safety-report/index.html as main file. Default: empty")
 @click.option('--apply-remediations', default=False, is_flag=True)
 @click.option("--auto-remediation-limit", "-arl", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
               default=['patch'],
               help="Let Safety update automatically. Default: empty")
-@click.option("accept_all", "--yes", "-y", default=False, help="Force and accept all the fixes.", is_flag=True, show_default=True)
+@click.option("accept_all", "--yes", "-y", default=False, help="Force and accept all the fixes.", is_flag=True,
+              show_default=True)
 @click.pass_context
 @clean_check_command
-def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, bare, proxy_protocol, proxy_host, proxy_port,
-          exit_code, policy_file, save_json, audit_and_monitor, project, apply_remediations, auto_remediation_limit, accept_all):
+def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol, proxy_host,
+          proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html, apply_remediations,
+          auto_remediation_limit, accept_all):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
@@ -154,7 +162,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
     LOG.info('Running check command')
 
     non_interactive = (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run')
-    silent_outputs = ['json', 'bare']
+    silent_outputs = ['json', 'bare', 'html']
     is_silent_output = output in silent_outputs
     prompt_mode = bool(not non_interactive and not stdin and not is_silent_output)
 
@@ -221,10 +229,17 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
                                       prompt=prompt_mode)
 
             # Render fixes
-            json_report = output_report if output == 'json' else SafetyFormatter(output='json').render_vulnerabilities(announcements, vulns, remediations, full_report, packages, fixes)
+            json_report = output_report if output == 'json' else SafetyFormatter(output='json').render_vulnerabilities(
+                announcements, vulns, remediations, full_report, packages, fixes)
 
             safety.push_audit_and_monitor(key, proxy_dictionary, audit_and_monitor, json_report, policy_file)
-            safety.save_json_report(save_json, json_report)
+            safety.save_report(save_json, 'safety-report.json', json_report)
+
+        if save_html:
+            html_report = output_report if output == 'html' else SafetyFormatter(output='html').render_vulnerabilities(
+                announcements, vulns, remediations, full_report, packages, fixes)
+
+            safety.save_report(save_html, 'safety-report.html', html_report)
 
         if exit_code and found_vulns:
             LOG.info('Exiting with default code for vulnerabilities found')

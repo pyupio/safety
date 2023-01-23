@@ -3,9 +3,11 @@ pytest-cov
 setuptools>=65.5.1; python_version>="3.7"
 setuptools; python_version=="3.6"
 Click>=8.0.2
+urllib3>=1.26.5
 requests
 packaging>=21.0,<=23.0
 dparse>=0.6.2
 ruamel.yaml>=0.17.21
 dataclasses==0.8; python_version=="3.6"
-jinja2>=3.1.0
+jinja2; python_version=="3.6"
+jinja2>=3.1.0; python_version>="3.7"

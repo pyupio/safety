@@ -604,7 +604,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
 
     if policy_file and policy_file.get('filename', False):
         safety_policy_used = [
-            {'style': False, 'value': '\nScanning using a security policy file'},
+            {'style': False, 'value': '\nScan configuration using a security policy file'},
             {'style': True, 'value': ' {0}'.format(policy_file.get('filename', '-'))},
         ]
 
@@ -615,6 +615,10 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
             {'style': False, 'value': '\nLogging scan results to'},
             {'style': True, 'value': ' {0}'.format(logged_url)},
         ]
+        brief_data['audit_and_monitor'] = logged_url
+    else:
+        brief_data['audit_and_monitor'] = False
+
 
     current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
@@ -659,7 +663,13 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['json_version'] = 1
 
     using_sentence = build_using_sentence(key, db)
-    using_sentence_section = [nl] if not using_sentence else [nl] + [build_using_sentence(key, db)]
+    sentence_array = []
+    for section in using_sentence:
+        sentence_array.append(section['value'])
+    brief_using_sentence = ' '.join(sentence_array)
+    brief_data['using_sentence'] = brief_using_sentence
+
+    using_sentence_section = [nl] if not using_sentence else [nl] + [using_sentence]
     scanned_count_sentence = build_scanned_count_sentence(packages)
 
     timestamp = [{'style': False, 'value': 'Timestamp '}, {'style': True, 'value': current_time}]

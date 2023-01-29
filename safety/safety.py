@@ -22,7 +22,8 @@ from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
 from .models import Vulnerability, CVE, Severity, Fix
-from .output_utils import print_service, get_applied_msg, prompt_service, get_skipped_msg, get_fix_opt_used_msg
+from .output_utils import print_service, get_applied_msg, prompt_service, get_skipped_msg, get_fix_opt_used_msg, \
+    is_using_api_key
 from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context,\
     SafetyContext, validate_expiration_date, is_a_remote_mirror, get_requirements_content, SafetyPolicyFile, \
     get_terminal_size
@@ -453,6 +454,9 @@ def compute_sec_ver_for_user(package: Package, ignored_vulns, db_full):
 def build_remediation_info_url(base_url: str, current_version: Optional[str], current_spec: str,
                                target_version: Optional[str] = ''):
 
+    if not is_using_api_key():
+        return base_url
+
     params = {'from': current_version, 'to': target_version}
 
     # No pinned version
@@ -487,7 +491,6 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], ignored_vulns, d
         else:
             secure_v = compute_sec_ver_for_user(package=pkg, ignored_vulns=ignored_vulns, db_full=db_full)
 
-        # remediations[pkg_name]['secure_versions'] = secure_v
         remediations[pkg_name]['closest_secure_version'] = get_closest_ver(secure_v, version, spec)
 
         upgrade = remediations[pkg_name]['closest_secure_version'].get('upper', None)

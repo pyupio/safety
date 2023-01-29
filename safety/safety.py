@@ -284,7 +284,8 @@ def get_cve_from(data, db_full):
                cvssv3=cve_meta.get("cvssv3", None))
 
 
-def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules, ignore_unpinned_packages):
+def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules,
+                          ignore_unpinned_packages=True):
 
     if ignore_unpinned_packages and not pkg.version:
         reason = "This vulnerability is being ignored due to the 'ignore-unpinned-packages' flag (default True). " \
@@ -496,7 +497,7 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], ignored_vulns, d
             spec = pkg.spec
 
         if not ignored_vulns:
-            secure_v = secure_versions
+            secure_v = sorted(secure_versions, key=lambda ver: parse_version(ver), reverse=True)
         else:
             secure_v = compute_sec_ver_for_user(package=pkg, ignored_vulns=ignored_vulns, db_full=db_full)
 
@@ -513,7 +514,7 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], ignored_vulns, d
 
         remediations[pkg_name]['recommended_version'] = recommended_version
         remediations[pkg_name]['other_recommended_versions'] = [other_v for other_v in secure_v if
-                                                                other_v != recommended_version]
+                                                                other_v != str(recommended_version)]
 
         # Refresh the URL with the recommended version.
         base_url = remediations[pkg_name]['more_info_url']
@@ -573,13 +574,13 @@ def get_update_type(from_ver: Optional[Version], to_ver: Version):
     return 'patch'
 
 
-def process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=True, prompt=False):
-    requirements = compute_fixes_per_requirements(files, remediations, auto_remediation_limit, accept_all, prompt=prompt)
+def process_fixes(files, remediations, auto_remediation_limit, output, no_output=True, prompt=False):
+    requirements = compute_fixes_per_requirements(files, remediations, auto_remediation_limit, prompt=prompt)
     fixes = apply_fixes(requirements, output, no_output, prompt)
     return fixes
 
 
-def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, accept_all, prompt=False):
+def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, prompt=False):
     requirements_files = get_requirements_content(files)
 
     from dparse.parser import parse, filetypes
@@ -661,9 +662,6 @@ def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, 
         if auto_fix:
             dry_fix.status = 'PENDING_TO_APPLY'
             dry_fix.fix_type = 'AUTOMATIC'
-        elif accept_all:
-            dry_fix.status = 'PENDING_TO_APPLY'
-            dry_fix.fix_type = 'FORCE_MODE'
         elif prompt:
             TARGET = 'TO_CONFIRM'
             dry_fix.status = 'PENDING_TO_CONFIRM'
@@ -719,15 +717,28 @@ def apply_fixes(requirements, out_type, no_output, prompt):
         if prompt and not no_output:
             for f in r_confirm:
                 changelog_detail = f'Changelogs notes: {f.more_info_url}'
-                confirmed = prompt_service(
-                    (f'- Do you want to update {f.package} from {f.previous_spec} to =={f.updated_version}? '
-                     f'({changelog_detail})', {}),
-                    out_type
-                )
+                options = [f"({index}) =={option}" for index, option in enumerate(f.other_options)]
 
-                if confirmed:
+                confirmed: str = prompt_service(
+                    (f'- Do you want to update {f.package} from {f.previous_spec} to =={f.updated_version}? '
+                     f'({changelog_detail}). Other secure options: {", ".join(options)}. [y/n/index]', {}),
+                    out_type
+                ).lower()
+
+                try:
+                    index: int = int(confirmed)
+                    if index <= len(f.other_options):
+                        confirmed = 'y'
+                except ValueError:
+                    index = -1
+
+                if confirmed == 'y' or index > -1:
                     f.status = 'APPLIED'
                     updated = True
+
+                    if index > -1:
+                        f.updated_version = f.other_options[index]
+
                     new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
                                                                 dependency=f.dependency)
                     output.append((get_applied_msg(f, mode="manual"), {'indent': ' ' * 5}))

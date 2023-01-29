@@ -602,7 +602,10 @@ class TestSafety(unittest.TestCase):
 
         self.assertEqual(remediations, EXPECTED)
 
-    def test_compute_sec_ver(self):
+    @patch("safety.safety.is_using_api_key")
+    def test_compute_sec_ver(self, is_using_api_key):
+        is_using_api_key.return_value = True
+
         import copy
 
         test_filename = os.path.join(self.dirname, "test_db/insecure_full_affected_versions.json")

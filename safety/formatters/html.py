@@ -26,22 +26,15 @@ class HTMLReport(FormatterAPI):
             if k not in remed:
                 remed[k] = {}
 
-            closest = v.get('closest_secure_version', {})
-            upgrade = closest.get('major', None)
-            downgrade = closest.get('minor', None)
+            recommended_version = str(v.get('recommended_version')) if v.get('recommended_version', None) else None
+            current_version = str(v.get('version')) if v.get('version', None) else None
+            current_spec = str(v.get('current_spec')) if v.get('current_spec', None) else None
 
-            recommended_version = None
-
-            if upgrade:
-                recommended_version = str(upgrade)
-            elif downgrade:
-                recommended_version = str(downgrade)
-
-            remed[k]['current_version'] = v.get('version', None)
+            remed[k]['current_version'] = current_version
+            remed[k]['current_spec'] = current_spec
             remed[k]['vulnerabilities_found'] = v.get('vulnerabilities_found', 0)
             remed[k]['recommended_version'] = recommended_version
-            remed[k]['other_recommended_versions'] = [other_v for other_v in v.get('secure_versions', []) if
-                                                      other_v != recommended_version]
+            remed[k]['other_recommended_versions'] = v.get('other_recommended_versions', [])
             remed[k]['more_info_url'] = v.get('more_info_url', '')
 
         template = {

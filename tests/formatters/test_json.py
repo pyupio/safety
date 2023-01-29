@@ -1,7 +1,6 @@
 import json
 import unittest
-from datetime import datetime
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 
 from safety.formatters.json import JsonReport
 from packaging.version import parse
@@ -33,10 +32,11 @@ class TestJSONFormatter(unittest.TestCase):
                                    more_info_url='https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4')
 
         remediations = {
-            'django': {'vulns_found': 1, 'version': '4.0.1', 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
-                       'closest_secure_version': {'major': parse('4.0.4'),
-                                                  'minor': None},
-                       'more_info_url': 'https://pyup.io/packages/pypi/django/'}}
+            'django': {'vulnerabilities_found': 1, 'version': '4.0.1', 'current_spec': SpecifierSet('==4.0.1'),
+                       'other_recommended_versions': ['2.2.28', '3.2.13'], 'recommended_version': parse('4.0.4'),
+                       'closest_secure_version': {'upper': parse('4.0.4'),
+                                                  'lower': None},
+                       'more_info_url': 'https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4'}}
         cve = CVE(name='CVE-2022-22818',
                   cvssv2={'base_score': 4.3, 'impact_score': 2.9,
                           'vector_string': 'AV:N/AC:M/Au:N/C:N/I:P/A:N'},
@@ -47,6 +47,7 @@ class TestJSONFormatter(unittest.TestCase):
                                          ignored=False, ignored_reason=None, ignored_expires=None, vulnerable_spec='>=4.0a1,<4.0.2',
                                          all_vulnerable_specs=['>=4.0a1,<4.0.2'],
                                          analyzed_version='4.0.1',
+                                         analyzed_spec='==4.0.1',
                                          advisory='The {% debug %} template tag in Django',
                                          vulnerability_id='44742', is_transitive=False, published_date='2022-Feb-03',
                                          fixed_versions=['2.2.27', '3.2.12', '4.0.2'],
@@ -86,11 +87,13 @@ class TestJSONFormatter(unittest.TestCase):
                 "scanned_packages": {
                     "secure-package": {
                         "name": "secure-package",
-                        "version": "0.1.0"
+                        "version": "0.1.0",
+                        "spec": "==0.1.0"
                     },
                     "django": {
                         "name": "django",
-                        "version": "4.0.1"
+                        "version": "4.0.1",
+                        "spec": "==4.0.1"
                     },
                 },
                 "affected_packages": {
@@ -125,6 +128,7 @@ class TestJSONFormatter(unittest.TestCase):
                             ">=4.0a1,<4.0.2"
                         ],
                         "analyzed_version": "4.0.1",
+                        "analyzed_spec": "==4.0.1",
                         "advisory": "The {% debug %} template tag in Django",
                         "is_transitive": False,
                         "published_date": "2022-Feb-03",
@@ -162,6 +166,7 @@ class TestJSONFormatter(unittest.TestCase):
                 "remediations": {
                     "django": {
                         "current_version": "4.0.1",
+                        "current_spec": "==4.0.1",
                         "vulnerabilities_found": 1,
                         "recommended_version": "4.0.4",
                         "other_recommended_versions": [

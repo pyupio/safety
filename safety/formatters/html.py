@@ -38,7 +38,7 @@ class HTMLReport(FormatterAPI):
                 recommended_version = str(downgrade)
 
             remed[k]['current_version'] = v.get('version', None)
-            remed[k]['vulnerabilities_found'] = v.get('vulns_found', 0)
+            remed[k]['vulnerabilities_found'] = v.get('vulnerabilities_found', 0)
             remed[k]['recommended_version'] = recommended_version
             remed[k]['other_recommended_versions'] = [other_v for other_v in v.get('secure_versions', []) if
                                                       other_v != recommended_version]

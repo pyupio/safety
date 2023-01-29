@@ -23,7 +23,7 @@ pip install {{ pkg }}=={{ remediation['recommended_version'] }}
 <details>
   <summary>Changelog from {{ remediation['current_version'] }} to {{ remediation['recommended_version'] }}</summary>
 {% if summary_changelog %}
-The full changelog is too long to post here. Please see [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}) for more information.
+The full changelog is too long to post here. See [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}) for more information.
 {% else %}
 {% for version, log in changelog.items() %}
 ### {{ version }}

@@ -873,7 +873,7 @@ def prompt_service(output: Tuple[str, Dict], out_format: str, format_text: Optio
     if out_format == 'text':
         msg = click.unstyle(msg)
 
-    return click.confirm(msg)
+    return click.prompt(msg)
 
 
 def parse_html(json_data):

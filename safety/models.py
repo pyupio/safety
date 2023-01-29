@@ -19,8 +19,8 @@ cve_nmt = namedtuple('Cve', ['name', 'cvssv2', 'cvssv3'])
 severity_nmt = namedtuple('Severity', ['source', 'cvssv2', 'cvssv3'])
 vulnerability_nmt = namedtuple('Vulnerability',
                                ['vulnerability_id', 'package_name', 'pkg', 'ignored', 'ignored_reason', 'ignored_expires',
-                                'vulnerable_spec', 'all_vulnerable_specs', 'analyzed_version', 'advisory',
-                                'is_transitive', 'published_date', 'fixed_versions',
+                                'vulnerable_spec', 'all_vulnerable_specs', 'analyzed_version', 'analyzed_spec',
+                                'advisory', 'is_transitive', 'published_date', 'fixed_versions',
                                 'closest_versions_without_known_vulnerabilities', 'resources', 'CVE', 'severity',
                                 'affected_versions', 'more_info_url'])
 RequirementFile = namedtuple('RequirementFile', ['path'])
@@ -30,33 +30,13 @@ RequirementFile = namedtuple('RequirementFile', ['path'])
 class Package(DictConverter):
     name: str
     version: Optional[str]
-    spec: Optional[SpecifierSet] = None
+    spec: SpecifierSet
     found: Optional[str] = None
     insecure_versions: List[str] = field(default_factory=lambda: [])
     secure_versions: List[str] = field(default_factory=lambda: [])
     latest_version_without_known_vulnerabilities: Optional[str] = None
     latest_version: Optional[str] = None
     more_info_url: Optional[str] = None
-
-    def compute_version(self, db_full):
-        """
-        Given a full db, find a version to analyze depending on the spec.
-        """
-
-        from packaging.requirements import Requirement
-
-        requirement = Requirement(f"{self.name}{self.spec}").specifier
-        versions = self.get_versions(db_full)
-        sorted_versions = sorted(versions, key=lambda ver: parse_version(ver), reverse=True)
-        matched_versions = requirement.filter(sorted_versions, prereleases=None)
-        version = None
-
-        try:
-            version = next(matched_versions)
-        except StopIteration:
-            pass
-
-        self.version = version
 
     def get_versions(self, db_full):
         pkg_meta = db_full.get('$meta', {}).get('packages', {}).get(self.name, {})
@@ -80,6 +60,7 @@ class Package(DictConverter):
             return {
                 'name': self.name,
                 'version': self.version,
+                'spec': str(self.spec),
             }
 
         return {'name': self.name,
@@ -117,6 +98,8 @@ class Remediation(remediation_nmt, DictConverter):
 class Fix:
     dependency: Any = None
     previous_version: Any = None
+    previous_spec: Optional[str] = None
+    other_options: [str] = field(default_factory=lambda: [])
     updated_version: Any = None
     update_type: str = ""
     package: str = ""
@@ -165,7 +148,7 @@ class Vulnerability(vulnerability_nmt):
                 result[field] = val
             elif isinstance(value, DictConverter):
                 result.update(value.to_dict())
-            elif isinstance(value, datetime):
+            elif isinstance(value, SpecifierSet) or isinstance(value, datetime):
                 result[field] = str(value)
             else:
                 result[field] = value

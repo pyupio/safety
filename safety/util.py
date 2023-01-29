@@ -64,17 +64,12 @@ def read_requirements(fh, resolve=True):
     LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
     for dep in dependency_file.resolved_dependencies:
         pinned_spec = None
+        spec = dep.specs
 
         try:
             pinned_spec = next(iter(dep.specs))
         except StopIteration:
-            click.secho(
-                f"Warning: unpinned requirement '{dep.name}' found in {path}, "
-                "unable to check.",
-                fg="yellow",
-                file=sys.stderr
-            )
-            continue
+            spec = SpecifierSet('>=0')
 
         version = None
 
@@ -82,7 +77,7 @@ def read_requirements(fh, resolve=True):
             version = pinned_spec.version
 
         yield Package(name=dep.name, version=version,
-                      spec=dep.specs,
+                      spec=spec,
                       found=found,
                       insecure_versions=[],
                       secure_versions=[], latest_version=None,

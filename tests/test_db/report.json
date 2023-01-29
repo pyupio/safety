@@ -13,21 +13,25 @@
     "scanned_packages": {
         "safety": {
             "name": "safety",
-            "version": "2.0b1"
+            "version": "2.0b1",
+            "spec": "==2.0b1"
         },
         "click": {
             "name": "click",
-            "version": "8.0.4"
+            "version": "8.0.4",
+            "spec": "==8.0.4"
         },
         "insecure-package": {
             "name": "insecure-package",
-            "version": "0.1.0"
+            "version": "0.1.0",
+            "spec": "==0.1.0"
         }
     },
     "affected_packages": {
         "insecure-package": {
             "name": "insecure-package",
             "version": "0.1.0",
+            "spec": "==0.1.0",            
             "found": "/usr/local/lib/python3.9/site-packages",
             "insecure_versions": [
                 "0.1.0"
@@ -51,6 +55,7 @@
                 "<0.2.0"
             ],
             "analyzed_version": "0.1.0",
+            "analyzed_spec": "==0.1.0",
             "advisory": "This is an insecure package with lots of exploitable security vulnerabilities.",
             "is_transitive": false,
             "published_date": "2021-Apr-14",
@@ -73,6 +78,7 @@
     "remediations": {
         "insecure-package": {
             "current_version": "0.1.0",
+            "current_spec": "==0.1.0",
             "vulnerabilities_found": 1,
             "recommended_version": null,
             "other_recommended_versions": [],

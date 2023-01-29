@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from packaging.version import Version
+from packaging.specifiers import SpecifierSet
 from unittest.mock import patch, Mock
 
 import click
@@ -20,8 +21,9 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
     cve_kwargs = {} if cve_kwargs is None else cve_kwargs
     pkg_kwargs = {} if pkg_kwargs is None else pkg_kwargs
 
-    p_kwargs = {'name': 'django', 'version': '2.2', 'found': '/site-packages/django', 'insecure_versions': [],
-                'secure_versions': ['2.2'], 'latest_version_without_known_vulnerabilities': '2.2',
+    p_kwargs = {'name': 'django', 'version': '2.2', 'spec': SpecifierSet('==2.2'), 'found': '/site-packages/django',
+                'insecure_versions': [], 'secure_versions': ['2.2'],
+                'latest_version_without_known_vulnerabilities': '2.2',
                 'latest_version': '2.2', 'more_info_url': 'https://pyup.io/package/foo'}
     p_kwargs.update(pkg_kwargs)
 
@@ -38,6 +40,7 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
                 'vulnerable_spec': ">0",
                 'all_vulnerable_specs': ['2.2'],
                 'analyzed_version': pkg.version,
+                'analyzed_spec': str(pkg.spec),
                 'advisory': '',
                 'vulnerability_id': 'PYUP-1234',
                 'is_transitive': False,
@@ -337,8 +340,9 @@ class TestSafetyCLI(unittest.TestCase):
         calculate_remediations.return_value = {
             "django": {
                 "version": "1.8",
-                "vulns_found": 1,
+                "vulnerabilities_found": 1,
                 "recommended_version": target,
+                "current_spec": SpecifierSet('==1.8'),
                 "secure_versions": [],
                 "closest_secure_version": {"minor": None, "major": target},
                 "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
@@ -365,7 +369,7 @@ class TestSafetyCLI(unittest.TestCase):
             calculate_remediations.return_value = {
                 "django": {
                     "version": "1.9",
-                    "vulns_found": 1,
+                    "vulnerabilities_found": 1,
                     "recommended_version": target,
                     "secure_versions": [],
                     "closest_secure_version": {"minor": None, "major": target},

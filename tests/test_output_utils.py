@@ -54,7 +54,11 @@ class TestOutputUtils(unittest.TestCase):
             '   SCORE 2.7, VECTOR STRING CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N',
             '   CVSS v2, BASE SCORE 4.3, IMPACT SCORE 2.9, VECTOR STRING',
             '   AV:N/AC:M/Au:N/C:N/I:P/A:N',
-            '   For more information, please visit https://pyup.io/PVE/2323\n',
+            '   For more information about this vulnerability, visit',
+            '   https://pyup.io/PVE/2323',
+            '   To ignore this vulnerability, use PyUp vulnerability id PYUP-1234 in',
+            '   safety’s ignore command-line argument or add the ignore to your safety',
+            '   policy file.\n'
         ]
 
         EXPECTED = '\n'.join(lines)
@@ -65,7 +69,7 @@ class TestOutputUtils(unittest.TestCase):
         is_using_api_key.return_value = True
 
         numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'spec': SpecifierSet('>=1.22.0'),
-                     'secure_versions': ['1.22.3'], 'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', 
+                     'secure_versions': ['1.22.3'], 'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3',
                                                                           '1.21.5']}
         severity = {
             "cvssv2": {
@@ -87,8 +91,10 @@ class TestOutputUtils(unittest.TestCase):
 
         output = format_vulnerability(vulnerability, full_mode=True, only_text=True, columns=columns)
 
+        # As we apply the style first and then we wrap the text, it won't use all the 80 columns.
         lines = [
-            '-> Vulnerability found given that numpy version is likely 1.22.0',
+            '-> Vulnerability may be present given that your numpy install specifier is',
+            '   >=1.22.0',
             '   Vulnerability ID: PYUP-1234',
             '   Affected spec: >0',
             '   ADVISORY: ',
@@ -97,13 +103,18 @@ class TestOutputUtils(unittest.TestCase):
             '   SCORE 2.7, VECTOR STRING CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N',
             '   CVSS v2, BASE SCORE 4.3, IMPACT SCORE 2.9, VECTOR STRING',
             '   AV:N/AC:M/Au:N/C:N/I:P/A:N',
-            '   1.22.0 is calculated from your numpy install specification of',
-            '   >=1.22.0. For more information about version range handling see',
-            '   https://docs.pyup.io/docs/safety-range-specs\n'
-            '   For more information, please visit https://pyup.io/PVE/2323\n',
+            '   This vulnerability is present in your install specifier range.',
+            '   To learn more about specifier range handling and options for securing',
+            '   and scanning this, visit https://docs.pyup.io/docs/safety-range-specs',
+            '   For more information about this vulnerability, visit',
+            '   https://pyup.io/PVE/2323',
+            '   To ignore this vulnerability, use PyUp vulnerability id PYUP-1234 in',
+            '   safety’s ignore command-line argument or add the ignore to your safety',
+            '   policy file.\n'
         ]
 
         EXPECTED = '\n'.join(lines)
+
         self.assertEqual(output, EXPECTED)
 
     @patch("safety.output_utils.is_using_api_key")
@@ -123,7 +134,8 @@ class TestOutputUtils(unittest.TestCase):
             '-> Vulnerability found in numpy version 1.22.0',
             '   Vulnerability ID: PYUP-1234',
             '   This vulnerability is being ignored.',
-            '   For more information, please visit https://pyup.io/PVE/2323\n',
+            '   For more information about this vulnerability, visit',
+            '   https://pyup.io/PVE/2323\n'
         ]
 
         EXPECTED = '\n'.join(lines)
@@ -141,7 +153,8 @@ class TestOutputUtils(unittest.TestCase):
             '   Vulnerability ID: PYUP-1234',
             '   This vulnerability is being ignored.',
            f'   Reason: {reason}',
-            '   For more information, please visit https://pyup.io/PVE/2323\n',
+            '   For more information about this vulnerability, visit',
+            '   https://pyup.io/PVE/2323\n',
         ]
 
         EXPECTED = '\n'.join(lines)
@@ -162,7 +175,7 @@ class TestOutputUtils(unittest.TestCase):
             '   Vulnerability ID: PYUP-1234',
            f'   This vulnerability is being ignored until {expires}. See your configurations.',
            f'   Reason: {reason}',
-            '   For more information, please visit https://pyup.io/PVE/2323\n'
+            '   For more information about this vulnerability, visit https://pyup.io/PVE/2323\n'
         ]
 
         EXPECTED = '\n'.join(lines)
@@ -179,9 +192,10 @@ class TestOutputUtils(unittest.TestCase):
 
         self.assertTupleEqual(output, EXPECTED)
 
-        p_kwargs = {'name': 'django', 'version': '2.2', 'found': '/site-packages/django', 'insecure_versions': [],
-                    'secure_versions': ['2.2'], 'latest_version_without_known_vulnerabilities': '2.2',
-                    'latest_version': '2.2', 'more_info_url': 'https://pyup.io/package/foo'}
+        p_kwargs = {'name': 'django', 'version': '2.2', 'spec': SpecifierSet('==2.2'), 'found': '/site-packages/django',
+                    'insecure_versions': [], 'secure_versions': ['2.2'],
+                    'latest_version_without_known_vulnerabilities': '2.2', 'latest_version': '2.2',
+                    'more_info_url': 'https://pyup.io/package/foo'}
         ctx.return_value = Mock(packages=[Package(**p_kwargs)])
         output = get_printable_list_of_scanned_items('stdin')
 
@@ -244,23 +258,27 @@ class TestOutputUtils(unittest.TestCase):
         is_using_api_key.return_value = True
 
         remediations = {
-            'django': {'vulns_found': 1, 'version': '4.0.1', 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
-                       'closest_secure_version': {'major': parse('4.0.4'),
-                                                  'minor': None},
-                       'more_info_url': 'https://pyup.io/packages/pypi/django/'}}
+            'django': {'vulnerabilities_found': 1, 'version': '4.0.1', 'current_spec': SpecifierSet('==4.0.1'),
+                       'other_recommended_versions': ['2.2.28', '3.2.13'],
+                       'recommended_version': parse('4.0.4'),
+                       'closest_secure_version': {'upper': parse('4.0.4'), 'lower': None},
+                       'more_info_url': 'https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4'}}
 
         EXPECTED = ['   REMEDIATIONS',
                     '\n-> django version 4.0.1 was found, which has 1 vulnerability'
                     '\n   The closest version with no known vulnerabilities is 4.0.4'
-                    '\n                                                                              '
-                    '\n   We recommend upgrading to version 4.0.4 of django. Other versions'
+                    '\n' + f"{' ' * 78}"
+                    '\n   We recommend updating to version 4.0.4 of django. Other versions'
                     '\n   without known vulnerabilities are: 2.2.28, 3.2.13'
-                    '\n   For more information, please visit https://pyup.io/packages/pypi/django/'
-                    '\n   Always check for breaking changes when upgrading packages.'
-                    '\n                                                                              ',
+                    '\n' + f"{' ' * 78}"
+                    '\n   For more information about the django package and update options, visit'
+                    '\n   https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4'
+                    '\n   Always check for breaking changes when updating packages.'
+                    '\n' + f"{' ' * 78}",
                     '+==============================================================================+']
 
         rem_text_section = build_remediation_section(remediations=remediations, only_text=True, columns=80)
+
         self.assertEqual(rem_text_section, EXPECTED)
 
     @patch("safety.output_utils.is_using_api_key")
@@ -268,9 +286,9 @@ class TestOutputUtils(unittest.TestCase):
         is_using_api_key.return_value = False
 
         remediations = {
-            'django': {'vulns_found': 1, 'version': '4.0.1', 'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
-                       'closest_secure_version': {'major': parse('4.0.4'),
-                                                  'minor': None},
+            'django': {'vulnerabilities_found': 1, 'version': '4.0.1', 'current_spec': SpecifierSet('==4.0.1'),
+                       'secure_versions': ['2.2.28', '3.2.13', '4.0.4'],
+                       'closest_secure_version': {'major': parse('4.0.4'), 'minor': None},
                        'more_info_url': 'https://pyup.io/packages/pypi/django/'}}
 
         # Start & End line decorator in format_long_text affects this output

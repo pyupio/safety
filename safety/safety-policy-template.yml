@@ -4,6 +4,7 @@
 # Otherwise, you can use the flag `safety check --policy-file <path-to-this-file>` to specify a custom location and name for the file.
 # To validate and review your policy file, run the validate command: `safety validate policy_file --path <path-to-this-file>`
 security: # configuration for the `safety check` command
+    ignore-unpinned-packages: True # This will ignore dependencies found in requirement files without a pinned specification. Like requests or requests>=0 or django>=2.2
     ignore-cvss-severity-below: 0 # A severity number between 0 and 10. Some helpful reference points: 9=ignore all vulnerabilities except CRITICAL severity. 7=ignore all vulnerabilities except CRITICAL & HIGH severity. 4=ignore all vulnerabilities except CRITICAL, HIGH & MEDIUM severity.
     ignore-cvss-unknown-severity: False # True or False. We recommend you set this to False.
     ignore-vulnerabilities: # Here you can list multiple specific vulnerabilities you want to ignore (optionally for a time period)

@@ -33,30 +33,16 @@ class JsonReport(FormatterAPI):
             if k not in remed:
                 remed[k] = {}
 
-            closest = v.get('closest_secure_version', {})
-            upgrade = closest.get('major', None)
-            downgrade = closest.get('minor', None)
+            recommended_version = str(v.get('recommended_version')) if v.get('recommended_version', None) else None
+            current_version = str(v.get('version')) if v.get('version', None) else None
+            current_spec = str(v.get('current_spec')) if v.get('current_spec', None) else None
 
-            recommended_version = None
-
-            if upgrade:
-                recommended_version = str(upgrade)
-            elif downgrade:
-                recommended_version = str(downgrade)
-
-            remed[k]['current_version'] = v.get('version', None)
-            remed[k]['vulnerabilities_found'] = v.get('vulns_found', 0)
+            remed[k]['current_version'] = current_version
+            remed[k]['current_spec'] = current_spec
+            remed[k]['vulnerabilities_found'] = v.get('vulnerabilities_found', 0)
             remed[k]['recommended_version'] = recommended_version
-            remed[k]['other_recommended_versions'] = [other_v for other_v in v.get('secure_versions', []) if
-                                                      other_v != recommended_version]
+            remed[k]['other_recommended_versions'] = v.get('other_recommended_versions', [])
             remed[k]['more_info_url'] = v.get('more_info_url', '')
-
-            # Use Request's PreparedRequest to handle parsing, joining etc the URL since we're adding query
-            # parameters and don't know what the server might send down.
-            if remed[k]['more_info_url']:
-                req = PreparedRequest()
-                req.prepare_url(remed[k]['more_info_url'], {'from': remed[k]['current_version'], 'to': recommended_version})
-                remed[k]['more_info_url'] = req.url
 
         template = {
             "report_meta": report,
@@ -99,6 +85,7 @@ class JsonReport(FormatterAPI):
             if fix.status == 'APPLIED':
                 applied[fix.applied_at][fix.package] = {
                     "previous_version": str(fix.previous_version),
+                    "previous_spec": str(fix.previous_spec),
                     "updated_version": str(fix.updated_version),
                     "update_type": str(fix.update_type),
                     "fix_type": fix.fix_type
@@ -107,6 +94,7 @@ class JsonReport(FormatterAPI):
             else:
                 skipped[fix.applied_at][fix.package] = {
                     "scanned_version": str(fix.previous_version) if fix.previous_version else None,
+                    "scanned_spec": str(fix.previous_spec) if fix.previous_spec else None,
                     "skipped_reason": fix.status
                 }
 

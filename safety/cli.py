@@ -60,7 +60,7 @@ def clean_check_command(f):
     @wraps(f)
     def inner(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
               proxy_host, proxy_port, exit_code, policy_file, save_json, save_html, audit_and_monitor, project,
-              apply_remediations, auto_remediation_limit, accept_all, *args, **kwargs):
+              apply_remediations, auto_remediation_limit, no_prompt, *args, **kwargs):
 
         try:
             proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
@@ -87,7 +87,7 @@ def clean_check_command(f):
 
         return f(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
                  proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html,
-                 apply_remediations, auto_remediation_limit, accept_all, *args, **kwargs)
+                 apply_remediations, auto_remediation_limit, no_prompt, *args, **kwargs)
 
     return inner
 
@@ -148,13 +148,14 @@ def clean_check_command(f):
 @click.option("--auto-remediation-limit", "-arl", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
               default=['patch'],
               help="Let Safety update automatically. Default: empty")
-@click.option("accept_all", "--yes", "-y", default=False, help="Force and accept all the fixes.", is_flag=True,
+@click.option("no_prompt", "--no-prompt", "-np", default=False, help="Safety won't ask for remediations outside of "
+                                                                     "the remediation limit.", is_flag=True,
               show_default=True)
 @click.pass_context
 @clean_check_command
 def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol, proxy_host,
           proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html, apply_remediations,
-          auto_remediation_limit, accept_all):
+          auto_remediation_limit, no_prompt):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
@@ -164,7 +165,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
     non_interactive = (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run')
     silent_outputs = ['json', 'bare', 'html']
     is_silent_output = output in silent_outputs
-    prompt_mode = bool(not non_interactive and not stdin and not is_silent_output)
+    prompt_mode = bool(not non_interactive and not stdin and not is_silent_output) and not no_prompt
 
     try:
         packages = get_packages(files, stdin)
@@ -177,7 +178,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,
                   'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
-                  'auto_remediation_limit': auto_remediation_limit, 'accept_all': accept_all}
+                  'auto_remediation_limit': auto_remediation_limit}
 
         LOG.info('Calling the check function')
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
@@ -201,7 +202,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
 
         if apply_remediations and is_silent_output:
             # it runs and apply only automatic fixes.
-            fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=True,
+            fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=True,
                                   prompt=False)
 
         output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
@@ -225,7 +226,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         if post_processing_report:
             if apply_remediations and not is_silent_output:
                 # prompt_mode fixing after main check output if prompt is enabled.
-                fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=False,
+                fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=False,
                                       prompt=prompt_mode)
 
             # Render fixes

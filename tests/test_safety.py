@@ -41,6 +41,12 @@ class TestSafety(unittest.TestCase):
         self.report_vulns = VULNS
         self.report_packages = SCANNED_PACKAGES
         self.report_remediations = REMEDIATIONS
+        self.default_pkg = Package(**{'name': 'default_pkg', 'version': '1.22.0', 'spec': SpecifierSet('==1.22.0'),
+                                      'found': '/site-packages/default_pkg',
+                                      'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
+                                      'secure_versions': ['1.22.3'],
+                                      'latest_version_without_known_vulnerabilities': '2.2',
+                                      'latest_version': '2.2', 'more_info_url': 'https://pyup.io/package/default_pkg'})
 
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
@@ -507,7 +513,7 @@ class TestSafety(unittest.TestCase):
         cve_no_cvss = CVE(name='PYUP-123', cvssv2=None, cvssv3=None)
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-unknown-severity': True}
-        ignore_vuln_if_needed(vuln_id='1234', cve=cve_no_cvss, ignore_vulns=ignore_vulns,
+        ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1234', cve=cve_no_cvss, ignore_vulns=ignore_vulns,
                               ignore_severity_rules=ignore_rules)
         EXPECTED = {
             '1234': {'reason': 'Unknown CVSS severity, ignored by severity rule in policy file.', 'expires': None}}
@@ -518,7 +524,7 @@ class TestSafety(unittest.TestCase):
         cve_no_cvss = CVE(name='PYUP-123', cvssv2=None, cvssv3=None)
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-unknown-severity': False}
-        ignore_vuln_if_needed(vuln_id='1234', cve=cve_no_cvss, ignore_vulns=ignore_vulns,
+        ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1234', cve=cve_no_cvss, ignore_vulns=ignore_vulns,
                               ignore_severity_rules=ignore_rules)
 
         self.assertEqual(ignore_vulns, {})
@@ -528,7 +534,7 @@ class TestSafety(unittest.TestCase):
                               cvssv3={'base_score': '6.1', 'impact_score': '2.7', 'base_severity': 'MEDIUM'})
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-severity-below': 7}
-        ignore_vuln_if_needed(vuln_id='1234', cve=cve_cvss_medium, ignore_vulns=ignore_vulns,
+        ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1234', cve=cve_cvss_medium, ignore_vulns=ignore_vulns,
                               ignore_severity_rules=ignore_rules)
         m_b_score = cve_cvss_medium.cvssv3.get('base_score')
 
@@ -542,7 +548,7 @@ class TestSafety(unittest.TestCase):
                                 cvssv3={'base_score': '9.8', 'impact_score': '5.9', 'base_severity': 'CRITICAL'})
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-severity-below': 7}
-        ignore_vuln_if_needed(vuln_id='1235', cve=cve_cvss_critical, ignore_vulns=ignore_vulns,
+        ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1235', cve=cve_cvss_critical, ignore_vulns=ignore_vulns,
                               ignore_severity_rules=ignore_rules)
         self.assertEqual(ignore_vulns, {})
 
@@ -550,7 +556,7 @@ class TestSafety(unittest.TestCase):
                             cvssv3={'base_score': '7.0', 'impact_score': '5.9', 'base_severity': 'HIGH'})
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-severity-below': 7}
-        ignore_vuln_if_needed(vuln_id='1236', cve=cve_cvss_high, ignore_vulns=ignore_vulns,
+        ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1236', cve=cve_cvss_high, ignore_vulns=ignore_vulns,
                               ignore_severity_rules=ignore_rules)
         self.assertEqual(ignore_vulns, {})
 
@@ -625,7 +631,7 @@ class TestSafety(unittest.TestCase):
                          'more_info_url': 'https://pyup.io/package/foo'}}
         compute_sec_ver(remediations=rem, packages=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
         EXPECTED = {'numpy': {'vulnerabilities_found': 1, 'version': '1.22.0', 'current_spec': SpecifierSet('==1.22.0'),
-                              'other_recommended_versions': ['1.22.3', '1.21.5'],
+                              'other_recommended_versions': ['1.21.5'],
                               'closest_secure_version': {'upper': parse('1.22.3'), 'lower': parse('1.21.5')},
                               'more_info_url': 'https://pyup.io/package/foo?from=1.22.0&to=1.22.3',
                               'recommended_version': parse('1.22.3')}}
@@ -637,7 +643,7 @@ class TestSafety(unittest.TestCase):
                          'more_info_url': 'https://pyup.io/package/foo'}}
         compute_sec_ver(remediations=rem, packages=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
         EXPECTED = {'numpy': {'vulnerabilities_found': 2, 'version': '1.22.0', 'current_spec': SpecifierSet('==1.22.0'),
-                              'other_recommended_versions': ['1.22.3'],
+                              'other_recommended_versions': [],
                               'closest_secure_version': {'upper': parse('1.22.3'), 'lower': None},
                               'more_info_url': 'https://pyup.io/package/foo?from=1.22.0&to=1.22.3',
                               'recommended_version': parse('1.22.3')}}

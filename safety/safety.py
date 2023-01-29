@@ -284,7 +284,14 @@ def get_cve_from(data, db_full):
                cvssv3=cve_meta.get("cvssv3", None))
 
 
-def ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules):
+def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules, ignore_unpinned_packages):
+
+    if ignore_unpinned_packages and not pkg.version:
+        reason = "This vulnerability is being ignored due to the 'ignore-unpinned-packages' flag (default True). " \
+                 "To change this, set 'ignore-unpinned-packages' to False under 'security' in your policy file. " \
+                 "See https://docs.pyup.io/docs/safety-20-policy-file for more information."
+        ignore_vulns[vuln_id] = {'reason': reason, 'expires': None}
+        return
 
     if not ignore_severity_rules or not isinstance(ignore_vulns, dict):
         return
@@ -327,7 +334,8 @@ def is_vulnerable(vulnerable_spec: SpecifierSet, package: Package):
 
 @sync_safety_context
 def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
-          include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None):
+          include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None,
+          ignore_unpinned_packages=True):
     SafetyContext().command = 'check'
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy, telemetry=telemetry)
     db_full = None
@@ -366,7 +374,8 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
                         vuln_id = data.get("id").replace("pyup.io-", "")
                         cve = get_cve_from(data, db_full)
 
-                        ignore_vuln_if_needed(vuln_id, cve, ignore_vulns, ignore_severity_rules)
+                        ignore_vuln_if_needed(pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules,
+                                              ignore_unpinned_packages)
 
                         vulnerability = get_vulnerability_from(vuln_id, cve, data, specifier, db_full, name, pkg,
                                                                ignore_vulns)

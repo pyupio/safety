@@ -157,7 +157,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
                    {'value': click.style(vulnerability.more_info_url)}]}
     ]
 
-    if not is_pinned_req:
+    if not is_pinned_req and not vulnerability.ignored:
         more_info_line.insert(0, {'words': [
             {'style': {'bold': True}, 'value': f'This vulnerability is present in your install specifier range.'},
             {'value': f' {get_specifier_range_info()}'}

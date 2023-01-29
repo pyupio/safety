@@ -171,8 +171,8 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
         ignore_severity_rules = None
-        ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
-                                                                         ignore_severity_rules, exit_code)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages = \
+            get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code)
         is_env_scan = not stdin and not files
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,

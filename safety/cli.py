@@ -58,9 +58,9 @@ def clean_check_command(f):
     Main entry point for validation.
     """
     @wraps(f)
-    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
-              proxy_host, proxy_port, exit_code, policy_file, save_json, save_html, audit_and_monitor, project,
-              apply_remediations, auto_remediation_limit, no_prompt, *args, **kwargs):
+    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output,
+              json, html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, save_json, save_html,
+              audit_and_monitor, project, apply_remediations, auto_remediation_limit, no_prompt, *args, **kwargs):
 
         try:
             proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
@@ -85,9 +85,9 @@ def clean_check_command(f):
             exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
             output_exception(exception, exit_code_output=exit_code)
 
-        return f(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
-                 proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html,
-                 apply_remediations, auto_remediation_limit, no_prompt, *args, **kwargs)
+        return f(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
+                 html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor,
+                 project, save_json, save_html, apply_remediations, auto_remediation_limit, no_prompt, *args, **kwargs)
 
     return inner
 
@@ -112,6 +112,8 @@ def clean_check_command(f):
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID (coma separated). Default: empty")
+@click.option("ignore_unpinned_requirements", "--ignore-unpinned-requirements", "-iur", default=True,
+              help="Safety will ignore unpinned requirements found.", is_flag=True, show_default=True)
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
               with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=json_alias,
               hidden=True, is_flag=True, show_default=True)
@@ -153,8 +155,9 @@ def clean_check_command(f):
               show_default=True)
 @click.pass_context
 @clean_check_command
-def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol, proxy_host,
-          proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html, apply_remediations,
+def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
+          html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project,
+          save_json, save_html, apply_remediations,
           auto_remediation_limit, no_prompt):
     """
     Find vulnerabilities in Python dependencies at the target provided.
@@ -172,8 +175,8 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
         ignore_severity_rules = None
-        ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages = \
-            get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements = \
+            get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements)
         is_env_scan = not stdin and not files
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,
@@ -184,7 +187,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
                                       ignore_severity_rules=ignore_severity_rules, proxy=proxy_dictionary,
                                       include_ignored=True, is_env_scan=is_env_scan, telemetry=ctx.parent.telemetry,
-                                      params=params)
+                                      params=params, ignore_unpinned_requirements=ignore_unpinned_requirements)
         LOG.debug('Vulnerabilities returned: %s', vulns)
         LOG.debug('full database returned is None: %s', db_full is None)
 
@@ -195,6 +198,8 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         if not db or is_a_remote_mirror(db):
             LOG.info('Not local DB used, Getting announcements')
             announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
+
+        announcements.extend(safety.add_local_notifications(packages, ignore_unpinned_requirements))
 
         LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
 

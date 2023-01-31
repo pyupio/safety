@@ -18,8 +18,8 @@ from jinja2 import Environment, PackageLoader
 LOG = logging.getLogger(__name__)
 
 
-def build_announcements_section_content(announcements, columns=get_terminal_size().columns,
-                                        start_line_decorator=' ', end_line_decorator=' '):
+def build_announcements_section_content(announcements, columns=get_terminal_size().columns, indent: str = ' ' * 2,
+                                        sub_indent: str = ' ' * 4):
     section = ''
 
     for i, announcement in enumerate(announcements):
@@ -30,10 +30,9 @@ def build_announcements_section_content(announcements, columns=get_terminal_size
         elif announcement.get('type') == 'warning':
             color = YELLOW
 
-        item = '{message}'.format(
-            message=format_long_text('* ' + announcement.get('message'), color, columns,
-                                                 start_line_decorator, end_line_decorator))
-        section += '{item}'.format(item=item)
+        message = f"* {announcement.get('message')}"
+        section += format_long_text(message, color, columns, indent=indent, sub_indent=sub_indent,
+                                    start_line_decorator='', end_line_decorator='')
 
         if i + 1 < len(announcements):
             section += '\n'
@@ -230,11 +229,14 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
     return click.unstyle(content) if only_text else content
 
 
-def get_specifier_range_info() -> str:
-    info = click.style('To learn more about specifier range handling and options for securing and scanning this, visit',
-                       bold=True)
+def get_specifier_range_info(style: bool = True) -> str:
+    msg = 'To learn more about reporting these, specifier range handling, and options for scanning, visit'
+    link = 'https://docs.pyup.io/docs/safety-range-specs'
 
-    return f'{info} https://docs.pyup.io/docs/safety-range-specs'
+    if style:
+        msg = click.style(msg, bold=True)
+
+    return f'{msg} {link}'
 
 
 def build_other_options_msg(fix_version: Optional[str], is_spec: bool, secure_options: [str]) -> str:

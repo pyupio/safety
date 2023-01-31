@@ -12,7 +12,7 @@ class BareReport(FormatterAPI):
 
         Announcement = namedtuple("Announcement", ["name"])
 
-        for announcement in get_basic_announcements(announcements):
+        for announcement in get_basic_announcements(announcements, include_local=False):
             normalized_message = "-".join(announcement.get('message', 'none').lower().split())
             parsed_announcements.append(Announcement(name=normalized_message))
 

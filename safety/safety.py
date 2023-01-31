@@ -8,7 +8,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import click
 import requests
@@ -23,7 +23,7 @@ from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
 from .models import Vulnerability, CVE, Severity, Fix
 from .output_utils import print_service, get_applied_msg, prompt_service, get_skipped_msg, get_fix_opt_used_msg, \
-    is_using_api_key
+    is_using_api_key, get_specifier_range_info
 from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context,\
     SafetyContext, validate_expiration_date, is_a_remote_mirror, get_requirements_content, SafetyPolicyFile, \
     get_terminal_size
@@ -285,11 +285,11 @@ def get_cve_from(data, db_full):
 
 
 def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules,
-                          ignore_unpinned_packages=True):
+                          ignore_unpinned_requirements=None):
 
-    if ignore_unpinned_packages and not pkg.version:
-        reason = "This vulnerability is being ignored due to the 'ignore-unpinned-packages' flag (default True). " \
-                 "To change this, set 'ignore-unpinned-packages' to False under 'security' in your policy file. " \
+    if (ignore_unpinned_requirements is None or ignore_unpinned_requirements) and not pkg.version:
+        reason = "This vulnerability is being ignored due to the 'ignore-unpinned-requirements' flag (default True). " \
+                 "To change this, set 'ignore-unpinned-requirements' to False under 'security' in your policy file. " \
                  "See https://docs.pyup.io/docs/safety-20-policy-file for more information."
         ignore_vulns[vuln_id] = {'reason': reason, 'expires': None}
         return
@@ -327,7 +327,7 @@ def is_vulnerable(vulnerable_spec: SpecifierSet, package: Package):
 
     from packaging.requirements import Requirement
 
-    specifier = Requirement(f"{package.name}{package.spec}").specifier
+    specifier: SpecifierSet = Requirement(f"{package.name}{package.spec}").specifier
     resolved_insecure_versions = specifier.filter(package.insecure_versions, prereleases=None)
 
     return any(resolved_insecure_versions)
@@ -336,7 +336,7 @@ def is_vulnerable(vulnerable_spec: SpecifierSet, package: Package):
 @sync_safety_context
 def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
           include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None,
-          ignore_unpinned_packages=True):
+          ignore_unpinned_requirements=None):
     SafetyContext().command = 'check'
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy, telemetry=telemetry)
     db_full = None
@@ -376,7 +376,7 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
                         cve = get_cve_from(data, db_full)
 
                         ignore_vuln_if_needed(pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules,
-                                              ignore_unpinned_packages)
+                                              ignore_unpinned_requirements)
 
                         vulnerability = get_vulnerability_from(vuln_id, cve, data, specifier, db_full, name, pkg,
                                                                ignore_vulns)
@@ -868,6 +868,34 @@ def get_licenses(key=False, db_mirror=False, cached=0, proxy=None, telemetry=Tru
         if licenses:
             return licenses
     raise DatabaseFetchError()
+
+
+def add_local_notifications(packages: List[Package],
+                            ignore_unpinned_requirements: Optional[bool]) -> List[Dict[str, str]]:
+    announcements = []
+    unpinned_packages: [str] = [f"{pkg.name}" for pkg in packages if not pkg.version]
+
+    if unpinned_packages and ignore_unpinned_requirements is not False:
+        found = len(unpinned_packages)
+        and_msg = ''
+
+        if found >= 2:
+            last = unpinned_packages.pop()
+            and_msg = f' and {last}'
+
+        pkgs: str = f"{', '.join(unpinned_packages)}{and_msg} {'are' if found > 1 else 'is'}"
+        doc_msg: str = get_specifier_range_info(style=False)
+
+        if ignore_unpinned_requirements is None:
+            msg = f'Warning: {pkgs} unpinned. Safety by default does not ' \
+                  f'report on potential vulnerabilities in unpinned packages. {doc_msg}'
+        else:
+            msg = f'Warning: {pkgs} unpinned and potential vulnerabilities are ' \
+                  f'being ignored given `ignore-unpinned-spec` is True in your config. {doc_msg}'
+
+        announcements.append({'message': msg, 'type': 'warning', 'local': True})
+
+    return announcements
 
 
 def get_announcements(key, proxy, telemetry=True):

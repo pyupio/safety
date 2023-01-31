@@ -270,7 +270,7 @@ class TestSafetyCLI(unittest.TestCase):
         cleaned_stdout = click.unstyle(result.stderr)
         msg_hint = 'HINT: "security" -> "transitive" is not a valid keyword. Valid keywords in this level are: ' \
                    'ignore-cvss-severity-below, ignore-cvss-unknown-severity, ignore-vulnerabilities, ' \
-                   'continue-on-vulnerability-error, ignore-unpinned-packages\n'
+                   'continue-on-vulnerability-error, ignore-unpinned-requirements\n'
         msg = f'Unable to load the Safety Policy file "{path}".\n{msg_hint}'
 
         self.assertEqual(msg, cleaned_stdout)

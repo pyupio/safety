@@ -34,10 +34,8 @@ class TextReport(FormatterAPI):
 
         if basic_announcements:
             announcements_content = click.unstyle(build_announcements_section_content(basic_announcements,
-                                                                                      columns=80,
-                                                                                      start_line_decorator=' ' * 2,
-                                                                                      end_line_decorator=''))
-            announcements_table = [add_empty_line(), 'ANNOUNCEMENTS', add_empty_line(),
+                                                                                      columns=80))
+            announcements_table = [add_empty_line(), ' ANNOUNCEMENTS', add_empty_line(),
                                    announcements_content, add_empty_line(), self.SMALL_DIVIDER_SECTIONS]
 
         return announcements_table

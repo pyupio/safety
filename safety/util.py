@@ -159,9 +159,10 @@ def get_primary_announcement(announcements):
     return None
 
 
-def get_basic_announcements(announcements):
+def get_basic_announcements(announcements, include_local: bool = True):
     return [announcement for announcement in announcements if
-            announcement.get('type', '').lower() != 'primary_announcement']
+            announcement.get('type', '').lower() != 'primary_announcement' and not announcement.get('local', False)
+            or (announcement.get('local', False) and include_local)]
 
 
 def filter_announcements(announcements, by_type='error'):
@@ -241,11 +242,14 @@ def output_exception(exception, exit_code_output=True):
     sys.exit(exit_code)
 
 
-def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages=True):
+def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=True):
     if policy_file:
         security = policy_file.get('security', {})
-        source = click.get_current_context().get_parameter_source("exit_code")
-        ignore_unpinned_packages = security.get('ignore-unpinned-packages', True)
+        ctx = click.get_current_context()
+        source = ctx.get_parameter_source("exit_code")
+
+        if ctx.get_parameter_source("ignore_unpinned_requirements") == click.core.ParameterSource.DEFAULT:
+            ignore_unpinned_requirements = security.get('ignore-unpinned-requirements', None)
 
         if not ignore:
             ignore = security.get('ignore-vulnerabilities', {})
@@ -256,7 +260,7 @@ def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code,
         ignore_severity_rules = {'ignore-cvss-severity-below': ignore_cvss_below,
                                  'ignore-cvss-unknown-severity': ignore_cvss_unknown}
 
-    return ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages
+    return ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements
 
 
 def get_fix_options(policy_file, auto_remediation_limit):
@@ -505,7 +509,7 @@ class SafetyPolicyFile(click.ParamType):
 
             security_config = safety_policy.get('security', {})
             security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
-                             'continue-on-vulnerability-error', 'ignore-unpinned-packages']
+                             'continue-on-vulnerability-error', 'ignore-unpinned-requirements']
             self.fail_if_unrecognized_keys(security_config.keys(), security_keys, param=param, ctx=ctx, msg=msg,
                                            context_hint='"security" -> ')
 

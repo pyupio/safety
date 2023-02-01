@@ -112,8 +112,8 @@ def clean_check_command(f):
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID (coma separated). Default: empty")
-@click.option("ignore_unpinned_requirements", "--ignore-unpinned-requirements", "-iur", default=True,
-              help="Safety will ignore unpinned requirements found.", is_flag=True, show_default=True)
+@click.option("ignore_unpinned_requirements", "--ignore-unpinned-requirements/--check-unpinned-requirements", "-iur",
+              default=True, help="Check or ignore unpinned requirements found.")
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
               with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=json_alias,
               hidden=True, is_flag=True, show_default=True)
@@ -192,6 +192,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
         LOG.debug('full database returned is None: %s', db_full is None)
 
         LOG.info('Safety is going to calculate remediations')
+
         remediations = safety.calculate_remediations(vulns, db_full)
 
         announcements = []

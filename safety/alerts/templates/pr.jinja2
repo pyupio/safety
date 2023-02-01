@@ -1,4 +1,4 @@
-Vulnerability fix: This PR updates [{{ pkg }}]({{ remediation['more_info_url'] }}) from **{{ remediation['current_version'] }}** to **{{ remediation['recommended_version'] }}** to fix {{ vulns | length }} vulnerabilit{{ "y" if vulns|length == 1 else "ies" }}{% if overall_impact %}{{ " rated " + overall_impact if vulns|length == 1 else " with the highest rating being " + overall_impact }}{% endif %}.
+Vulnerability fix: This PR updates [{{ pkg }}]({{ remediation['more_info_url'] }}) from **{% if remediation['current_version'] %}{{ remediation['current_version'] }}{% else %}{{ remediation['current_spec'] }}{% endif %}** to **{{ remediation['recommended_version'] }}** to fix {{ vulns | length }} vulnerabilit{{ "y" if vulns|length == 1 else "ies" }}{% if overall_impact %}{{ " rated " + overall_impact if vulns|length == 1 else " with the highest rating being " + overall_impact }}{% endif %}.
 
 To read more about the impact of {{ "this vulnerability" if vulns|length == 1 else "these vulnerabilities" }} see [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}).
 

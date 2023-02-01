@@ -602,7 +602,7 @@ def build_using_sentence(key, db):
         else:
             db_name = f"local file {db}"
     else:
-        db_name = 'non-commercial'
+        db_name = 'open-source vulnerability'
 
     database_sentence = [{'style': True, 'value': db_name + ' database'}]
 

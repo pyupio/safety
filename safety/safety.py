@@ -496,6 +496,12 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], ignored_vulns, d
             version = pkg.version
             spec = pkg.spec
 
+        if not is_using_api_key():
+            remediations[pkg_name]['closest_secure_version'] = {'upper': None, 'lower': None}
+            remediations[pkg_name]['recommended_version'] = None
+            remediations[pkg_name]['other_recommended_versions'] = []
+            continue
+
         if not ignored_vulns:
             secure_v = sorted(secure_versions, key=lambda ver: parse_version(ver), reverse=True)
         else:

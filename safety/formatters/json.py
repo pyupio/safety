@@ -7,6 +7,7 @@ from typing import Iterable
 from requests.models import PreparedRequest
 
 from safety.formatter import FormatterAPI
+from safety.formatters.schemas import VulnerabilitySchemaV05
 from safety.output_utils import get_report_brief_info
 from safety.safety import find_vulnerabilities_fixed
 from safety.util import get_basic_announcements, SafetyContext
@@ -17,7 +18,16 @@ LOG = logging.getLogger(__name__)
 class JsonReport(FormatterAPI):
     """Json report, for when the output is input for something else"""
 
+    VERSIONS = ("0.5", "1.0")
+
+    def __init__(self, version="1.0", **kwargs):
+        super().__init__(**kwargs)
+        self.version: str = version if version in self.VERSIONS else "1.0"
+
     def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
+        if self.version == '0.5':
+            return json_parser.dumps(VulnerabilitySchemaV05().dump(obj=vulnerabilities, many=True), indent=4)
+
         remediations_recommended = len(remediations.keys())
         LOG.debug('Rendering %s vulnerabilities, %s remediations with full_report: %s', len(vulnerabilities),
                   remediations_recommended, full)
@@ -27,6 +37,9 @@ class JsonReport(FormatterAPI):
         report = get_report_brief_info(as_dict=True, report_type=1, vulnerabilities_found=len(vulns),
                                        vulnerabilities_ignored=len(vulns_ignored),
                                        remediations_recommended=remediations_recommended)
+
+        if 'using_sentence' in report:
+            del report['using_sentence']
 
         remed = {}
         for k, v in remediations.items():

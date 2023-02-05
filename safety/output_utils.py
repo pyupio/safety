@@ -32,7 +32,7 @@ def build_announcements_section_content(announcements, columns=get_terminal_size
 
         message = f"* {announcement.get('message')}"
         section += format_long_text(message, color, columns, indent=indent, sub_indent=sub_indent,
-                                    start_line_decorator='', end_line_decorator='')
+                                    start_line_decorator='', end_line_decorator=' ')
 
         if i + 1 < len(announcements):
             section += '\n'
@@ -168,14 +168,13 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
         vuln_title = f'-> Vulnerability may be present given that your {vulnerability.package_name} install specifier' \
                      f' is {vulnerability.pkg.spec}'
 
-    styled_text = format_long_text(vuln_title, 'red', columns, start_line_decorator='', end_line_decorator='',
-                                   sub_indent=' ' * 3) + '\n'
-
+    title_color: str = 'red'
     to_print = styled_vulnerability
 
     if not vulnerability.ignored:
         to_print += vulnerability_spec + basic_vuln_data_lines + cve_lines
     else:
+        title_color = ''
         generic_reason = 'This vulnerability is being ignored'
         if vulnerability.ignored_expires:
             generic_reason += f" until {vulnerability.ignored_expires.strftime('%Y-%m-%d %H:%M:%S UTC')}. " \
@@ -210,6 +209,9 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
     to_print = [{**common_format, **line} for line in to_print]
 
+    styled_text = format_long_text(vuln_title, title_color, columns, start_line_decorator='', end_line_decorator='',
+                                   sub_indent=' ' * 3) + '\n'
+
     content = style_lines(to_print, columns - 3, styled_text, start_line='', end_line='')
 
     return click.unstyle(content) if only_text else content
@@ -230,7 +232,9 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
 
 
 def get_specifier_range_info(style: bool = True) -> str:
-    msg = 'To learn more about reporting these, specifier range handling, and options for scanning, visit'
+    pre = 'It is recommended to pin your dependencies unless this is a library meant for distribution.'
+    msg = f'{pre} To learn more about reporting these, specifier range handling, and options for scanning unpinned' \
+          f' packages, visit'
     link = 'https://docs.pyup.io/docs/safety-range-specs'
 
     if style:
@@ -380,7 +384,7 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     if not is_using_api_key():
         vuln_text = 'vulnerabilities were' if total_vulns != 1 else 'vulnerability was'
         pkg_text = 'packages' if total_packages > 1 else 'package'
-        msg = "{0} {1} found in {2} {3}. " \
+        msg = "{0} {1} reported in {2} {3}. " \
               "For detailed remediation & fix recommendations, upgrade to a commercial license."\
             .format(total_vulns, vuln_text, total_packages, pkg_text)
         content = '\n' + format_long_text(msg, indent=' ', sub_indent=' ', columns=columns) + '\n'
@@ -407,7 +411,7 @@ def get_final_brief(total_vulns_found, total_remediations, ignored, total_ignore
 
     policy_file_text = ' using a safety policy file' if is_using_a_safety_policy_file() else ''
 
-    vuln_brief = f" {total_vulns} vulnerabilit{'y was' if total_vulns == 1 else 'ies were'} found."
+    vuln_brief = f" {total_vulns} vulnerabilit{'y was' if total_vulns == 1 else 'ies were'} reported."
     ignored_text = f' {total_ignored} {vuln_text} from {len(ignored.keys())} {pkg_text} ignored.' if ignored else ''
     remediation_text = f" {total_remediations} remediation{' was' if total_remediations == 1 else 's were'} " \
                        f"recommended." if is_using_api_key() else ''
@@ -714,7 +718,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
 
         additional_data = [
             [{'style': True, 'value': str(brief_data['vulnerabilities_found'])},
-             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_found"] == 1 else "ies"} found'}],
+             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_found"] == 1 else "ies"} reported'}],
             [{'style': True, 'value': str(brief_data['vulnerabilities_ignored'])},
              {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_ignored"] == 1 else "ies"} ignored'}],
         ]
@@ -738,7 +742,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['git'] = build_git_data()
     brief_data['project'] = context.params.get('project', None)
 
-    brief_data['json_version'] = 1
+    brief_data['json_version'] = "1.0"
 
     using_sentence = build_using_sentence(key, db)
     sentence_array = []

@@ -46,7 +46,7 @@
                         <div class="col-md-4">
                             <div class="card {{ 'bg-danger' if json_data.vulnerabilities|length > 0 else 'bg-success' }}  bg-opacity-25 text-black">
                                 <div class="card-body">
-                                    <p class="card-text">Vulnerabilities Found (<a href="#vulnerabilities-found">details &#8595;</a>)</p>
+                                    <p class="card-text">Vulnerabilities Reported (<a href="#vulnerabilities-found">details &#8595;</a>)</p>
                                     <h5 class="card-title fs-3">{{ json_data.vulnerabilities|length }}</h5>
                                     {% if json_data.ignored_vulnerabilities|length > 0 %}
                                         <p>Found vulnerabilities that were ignored: {{ json_data.ignored_vulnerabilities|length }}</p>
@@ -144,7 +144,7 @@
 
             <div class="row">
                 <div class="col-12" id="vulnerabilities-found">
-                    <h4 class="mt-2 mb-3 px-2">Vulnerabilities Found [ <a href="#vulnerabilities-found">#</a> ]</h4>
+                    <h4 class="mt-2 mb-3 px-2">Vulnerabilities Reported [ <a href="#vulnerabilities-found">#</a> ]</h4>
                     {% if json_data.vulnerabilities|length > 0 %}
                     <div class="table-responsive">
                         <table class="table">
@@ -289,7 +289,7 @@
                                 <tr>
                                     <th>Package name</th>
                                     <th>Version/Spec</th>
-                                    <th>Vulnerabilities found</th>
+                                    <th>Vulnerabilities reported</th>
                                     <th>Recommended versions</th>
                                     <th>Other recommended versions</th>
                                     <th>More info</th>

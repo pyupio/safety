@@ -17,17 +17,16 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
 
-from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL)
+from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL, JSON_SCHEMA)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
 from .models import Vulnerability, CVE, Severity, Fix
 from .output_utils import print_service, get_applied_msg, prompt_service, get_skipped_msg, get_fix_opt_used_msg, \
     is_using_api_key, get_specifier_range_info
-from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context,\
+from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context, \
     SafetyContext, validate_expiration_date, is_a_remote_mirror, get_requirements_content, SafetyPolicyFile, \
-    get_terminal_size
-
+    get_terminal_size, should_show_unpinned_messages
 
 session = requests.session()
 
@@ -104,7 +103,8 @@ def write_to_cache(db_name, data):
 
 
 def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
-    headers = {}
+    headers = {'schema-version': JSON_SCHEMA}
+
     if key:
         headers["X-Api-Key"] = key
 
@@ -187,6 +187,7 @@ def post_results(key, proxy, safety_json, policy_file):
     }
 
     try:
+        LOG.debug(f'Posting results to: {url}')
         LOG.debug(f'Posting results: {audit_report}')
         r = session.post(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy, json=audit_report)
         LOG.debug(r.text)
@@ -232,14 +233,14 @@ def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, teleme
 
 
 def get_vulnerabilities(pkg, spec, db):
-    for entry in db[pkg]:
+    for entry in db['vulnerable_packages'][pkg]:
         for entry_spec in entry["specs"]:
             if entry_spec == spec:
                 yield entry
 
 
 def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_vulns):
-    base_domain = db.get('$meta', {}).get('base_domain')
+    base_domain = db.get('meta', {}).get('base_domain')
     ignored = (ignore_vulns and vuln_id in ignore_vulns and (
             not ignore_vulns[vuln_id]['expires'] or ignore_vulns[vuln_id]['expires'] > datetime.utcnow()))
     more_info_url = f"{base_domain}{data.get('more_info_path', '')}"
@@ -273,21 +274,23 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
 
 
 def get_cve_from(data, db_full):
-    cve_data = data.get("cve", '')
+    try:
+        xve_id: str = str(
+            next(filter(lambda i: i.get('type', None) in ['cve', 'pve'], data.get('ids', []))).get('id', ''))
+    except StopIteration:
+        xve_id: str = ''
 
-    if not cve_data:
+    if not xve_id:
         return None
 
-    cve_id = cve_data.split(",")[0].strip()
-    cve_meta = db_full.get("$meta", {}).get("cve", {}).get(cve_id, {})
-    return CVE(name=cve_id, cvssv2=cve_meta.get("cvssv2", None),
+    cve_meta = db_full.get("meta", {}).get("severities", {}).get(xve_id, {})
+    return CVE(name=xve_id, cvssv2=cve_meta.get("cvssv2", None),
                cvssv3=cve_meta.get("cvssv3", None))
 
 
-def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules,
-                          ignore_unpinned_requirements=None):
+def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules):
 
-    if (ignore_unpinned_requirements is None or ignore_unpinned_requirements) and not pkg.version:
+    if should_show_unpinned_messages(pkg.version):
         reason = "This vulnerability is being ignored due to the 'ignore-unpinned-requirements' flag (default True). " \
                  "To change this, set 'ignore-unpinned-requirements' to False under 'security' in your policy file. " \
                  "See https://docs.pyup.io/docs/safety-20-policy-file for more information."
@@ -340,7 +343,7 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
     SafetyContext().command = 'check'
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy, telemetry=telemetry)
     db_full = None
-    vulnerable_packages = frozenset(db.keys())
+    vulnerable_packages = frozenset(db.get('vulnerable_packages', []))
     vulnerabilities = []
 
     for pkg in packages:
@@ -361,7 +364,7 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
 
         if name in vulnerable_packages:
             # we have a candidate here, build the spec set
-            for specifier in db[name]:
+            for specifier in db['vulnerable_packages'][name]:
                 spec_set = SpecifierSet(specifiers=specifier)
 
                 if is_vulnerable(spec_set, pkg):
@@ -372,11 +375,14 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
                         pkg.refresh_from(db_full)
 
                     for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
-                        vuln_id = data.get("id").replace("pyup.io-", "")
+                        try:
+                            vuln_id: str = str(next(filter(lambda i: i.get('type', None) == 'pyup', data.get('ids', []))).get('id', ''))
+                        except StopIteration:
+                            vuln_id: str = ''
+
                         cve = get_cve_from(data, db_full)
 
-                        ignore_vuln_if_needed(pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules,
-                                              ignore_unpinned_requirements)
+                        ignore_vuln_if_needed(pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules)
 
                         vulnerability = get_vulnerability_from(vuln_id, cve, data, specifier, db_full, name, pkg,
                                                                ignore_vulns)

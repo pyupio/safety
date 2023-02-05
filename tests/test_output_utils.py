@@ -105,8 +105,8 @@ class TestOutputUtils(unittest.TestCase):
             '   AV:N/AC:M/Au:N/C:N/I:P/A:N',
             '   This vulnerability is present in your install specifier range.',
             '   To learn more about reporting these, specifier range handling, and',
-            '   options for scanning, visit https://docs.pyup.io/docs/safety-range-',
-            '   specs',
+            '   options for scanning unpinned packages, visit',
+            '   https://docs.pyup.io/docs/safety-range-specs',
             '   For more information about this vulnerability, visit',
             '   https://pyup.io/PVE/2323',
             '   To ignore this vulnerability, use PyUp vulnerability id PYUP-1234 in',
@@ -294,8 +294,8 @@ class TestOutputUtils(unittest.TestCase):
 
         # Start & End line decorator in format_long_text affects this output
         EXPECTED = ['   REMEDIATIONS',
-                    '\n  1 vulnerability was found in 1 package. For detailed remediation & fix \n'
-                    '  recommendations, upgrade to a commercial license. \n',
+                    '\n  1 vulnerability was reported in 1 package. For detailed remediation & fix '
+                    '\n  recommendations, upgrade to a commercial license. \n',
                     '+==============================================================================+']
 
         rem_text_section = build_remediation_section(remediations=remediations, only_text=True, columns=80)

@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock
-from typing import List
+from typing import List, Optional
 
 import click
 from click import BadParameter
@@ -657,6 +657,7 @@ class SafetyContext(metaclass=SingletonMeta):
     review = None
     params = {}
     safety_source = 'code'
+    ignore_unpinned_requirements: Optional[bool] = None
 
 
 def sync_safety_context(f):
@@ -737,3 +738,8 @@ def get_requirements_content(files):
             raise InvalidProvidedReportError(message=f"Unable to read a requirement file scanned in the report. {e}")
 
     return requirements_files
+
+
+def should_show_unpinned_messages(version):
+    ignore = SafetyContext().ignore_unpinned_requirements
+    return (ignore is None or ignore) and not version

@@ -39,12 +39,12 @@ class Package(DictConverter):
     more_info_url: Optional[str] = None
 
     def get_versions(self, db_full):
-        pkg_meta = db_full.get('$meta', {}).get('packages', {}).get(self.name, {})
+        pkg_meta = db_full.get('meta', {}).get('packages', {}).get(self.name, {})
         return set(pkg_meta.get("insecure_versions", []) + pkg_meta.get("secure_versions", []))
 
     def refresh_from(self, db_full):
-        base_domain = db_full.get('$meta', {}).get('base_domain')
-        pkg_meta = db_full.get('$meta', {}).get('packages', {}).get(self.name, {})
+        base_domain = db_full.get('meta', {}).get('base_domain')
+        pkg_meta = db_full.get('meta', {}).get('packages', {}).get(self.name, {})
 
         kwargs = {'insecure_versions': pkg_meta.get("insecure_versions", []),
                   'secure_versions': pkg_meta.get("secure_versions", []),

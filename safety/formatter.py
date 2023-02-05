@@ -13,6 +13,12 @@ class FormatterAPI:
 
     __metaclass__ = ABCMeta
 
+    def __init__(self, **kwargs):
+        """
+        Dummy
+        """
+        pass
+
     @abstractmethod
     def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         raise NotImplementedError(NOT_IMPLEMENTED)  # pragma: no cover
@@ -40,20 +46,20 @@ class SafetyFormatter(FormatterAPI):
         LOG.info('Safety is going to render_announcements with format: %s', self.format)
         return self.format.render_announcements(announcements)
 
-    def __init__(self, output):
+    def __init__(self, output, **kwargs):
         from safety.formatters.screen import ScreenReport
         from safety.formatters.text import TextReport
         from safety.formatters.json import JsonReport
         from safety.formatters.bare import BareReport
         from safety.formatters.html import HTMLReport
 
-        self.format = ScreenReport()
+        self.format = ScreenReport(**kwargs)
 
         if output == 'json':
-            self.format = JsonReport()
+            self.format = JsonReport(**kwargs)
         elif output == 'html':
-            self.format = HTMLReport()
+            self.format = HTMLReport(**kwargs)
         elif output == 'bare':
-            self.format = BareReport()
+            self.format = BareReport(**kwargs)
         elif output == 'text':
-            self.format = TextReport()
+            self.format = TextReport(**kwargs)

@@ -4,7 +4,7 @@ from safety.formatter import FormatterAPI
 from safety.output_utils import build_announcements_section_content, format_long_text, \
     add_empty_line, format_vulnerability, get_final_brief, \
     build_report_brief_section, format_license, get_final_brief_license, build_remediation_section, \
-    build_primary_announcement, get_specifier_range_info
+    build_primary_announcement, get_specifier_range_info, format_unpinned_vulnerabilities
 from safety.util import get_primary_announcement, get_basic_announcements, get_terminal_size, \
     should_show_unpinned_messages
 
@@ -69,26 +69,7 @@ class ScreenReport(FormatterAPI):
                     continue
             styled_vulns.append(format_vulnerability(vuln, full))
 
-        for pkg_name, vulns in unpinned_packages.items():
-            pkg = vulns[0].pkg
-            doc_msg: str = get_specifier_range_info(style=False)
-
-            match_text = 'vulnerabilities match' if len(vulns) > 1 else 'vulnerability matches'
-
-            msg = f"-> Warning: {len(vulns)} known {match_text} the {pkg.name} versions that could be " \
-                  f"installed from your {pkg.name} specifier is {pkg.spec} (unpinned). These vulnerabilities are not " \
-                  f"reported by default. To report these vulnerabilities set 'ignore-unpinned-requirements' to False " \
-                  f"under 'security' in your policy file. " \
-                  f"See https://docs.pyup.io/docs/safety-20-policy-file for more information."
-
-            kwargs = {'color': 'yellow', 'indent': '', 'sub_indent': ' ' * 3, 'start_line_decorator': '',
-                      'end_line_decorator': ' '}
-
-            msg = format_long_text(text=msg, **kwargs)
-            doc_msg = format_long_text(text=doc_msg, **{**kwargs, **{'indent': ' ' * 3}})
-
-            table.append(f'{msg}\n{doc_msg}')
-
+        table.extend(format_unpinned_vulnerabilities(unpinned_packages))
         table.extend(styled_vulns)
 
         report_brief_section = build_report_brief_section(primary_announcement=primary_announcement, report_type=1,
@@ -97,6 +78,9 @@ class ScreenReport(FormatterAPI):
                                                           remediations_recommended=len(remediations))
 
         if vulnerabilities:
+            # Add a space between warning and brief, when all the vulnerabilities are ignored.
+            if not styled_vulns:
+                table.append('')
 
             final_brief = get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored)
 

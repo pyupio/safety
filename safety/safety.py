@@ -17,7 +17,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
 
-from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL, JSON_SCHEMA)
+from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL, JSON_SCHEMA_VERSION)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
@@ -103,7 +103,7 @@ def write_to_cache(db_name, data):
 
 
 def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
-    headers = {'schema-version': JSON_SCHEMA}
+    headers = {'schema-version': JSON_SCHEMA_VERSION}
 
     if key:
         headers["X-Api-Key"] = key
@@ -162,7 +162,7 @@ def fetch_policy(key, proxy):
         r = session.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy)
         LOG.debug(r.text)
         return r.json()
-    except:
+    except Exception:
         LOG.exception("Error fetching policy")
         click.secho(
             "Warning: couldn't fetch policy from pyup.io.",
@@ -212,6 +212,16 @@ def fetch_database_file(path, db_name):
         return json.loads(f.read())
 
 
+def is_valid_database(db) -> bool:
+    try:
+        if db['meta']['schema_version'] == JSON_SCHEMA_VERSION:
+            return True
+    except Exception:
+        return False
+
+    return False
+
+
 def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, telemetry=True):
     if key:
         mirrors = API_MIRRORS
@@ -228,7 +238,12 @@ def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, teleme
         else:
             data = fetch_database_file(mirror, db_name=db_name)
         if data:
-            return data
+            if is_valid_database(data):
+                return data
+            raise MalformedDatabase(fetched_from=mirror,
+                                    reason=f'Not supported schema version. '
+                                           f'This Safety version supports only schema version {JSON_SCHEMA_VERSION}')
+
     raise DatabaseFetchError()
 
 
@@ -338,8 +353,7 @@ def is_vulnerable(vulnerable_spec: SpecifierSet, package: Package):
 
 @sync_safety_context
 def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
-          include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None,
-          ignore_unpinned_requirements=None):
+          include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None):
     SafetyContext().command = 'check'
     db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy, telemetry=telemetry)
     db_full = None
@@ -456,8 +470,8 @@ def compute_sec_ver_for_user(package: Package, ignored_vulns, db_full):
     versions = package.get_versions(db_full)
     affected_versions = []
 
-    for vuln in db_full.get(package.name, []):
-        vuln_id = vuln.get('id', None)
+    for vuln in db_full.get('vulnerable_packages', {}).get(package.name, []):
+        vuln_id: str = str(next(filter(lambda i: i.get('type', None) == 'pyup', vuln.get('ids', []))).get('id', ''))
         if vuln_id and vuln_id not in ignored_vulns:
             affected_versions += vuln.get('affected_versions', [])
 
@@ -801,17 +815,13 @@ def review(report=None, params=None):
     for key, value in report.get('remediations', {}).items():
         recommended = value.get('recommended_version', None)
         secure_v = value.get('other_recommended_versions', [])
-        upper = None
-        if recommended:
-            # secure_v.append(recommended)
-            upper = parse_version(recommended)
 
         remediations[key] = {'vulnerabilities_found': value.get('vulnerabilities_found', 0),
                              'version': value.get('current_version'),
                              'current_spec': SpecifierSet(
                                  value.get('current_spec', f"=={value.get('current_version')}")),
                              'other_recommended_versions': secure_v,
-                             'closest_secure_version': {'upper': upper, 'lower': None},
+                             'recommended_version': parse_version(recommended) if recommended else None,
                              # minor isn't supported in review
                              'more_info_url': value.get('more_info_url')}
 
@@ -896,7 +906,7 @@ def add_local_notifications(packages: List[Package],
             and_msg = f' and {last}'
 
         pkgs: str = f"{', '.join(unpinned_packages)}{and_msg} {'are' if found > 1 else 'is'}"
-        doc_msg: str = get_specifier_range_info(style=False)
+        doc_msg: str = get_specifier_range_info(style=False, pin_hint=True)
 
         if ignore_unpinned_requirements is None:
             msg = f'Warning: {pkgs} unpinned. Safety by default does not ' \

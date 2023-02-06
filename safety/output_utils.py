@@ -231,9 +231,13 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
     return click.unstyle(content) if only_text else content
 
 
-def get_specifier_range_info(style: bool = True) -> str:
-    pre = 'It is recommended to pin your dependencies unless this is a library meant for distribution.'
-    msg = f'{pre} To learn more about reporting these, specifier range handling, and options for scanning unpinned' \
+def get_specifier_range_info(style: bool = True, pin_hint: bool = False) -> str:
+    hint = ''
+
+    if pin_hint:
+        hint = 'It is recommended to pin your dependencies unless this is a library meant for distribution. '
+
+    msg = f'{hint}To learn more about reporting these, specifier range handling, and options for scanning unpinned' \
           f' packages, visit'
     link = 'https://docs.pyup.io/docs/safety-range-specs'
 
@@ -316,9 +320,12 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
                         f" {get_specifier_range_info()}"
 
         if fix_version:
-            closest_msg = f'The closest version with no known vulnerabilities is ' + click.style(
-                fix_version,
-                bold=True)
+            fix_v: str = click.style(fix_version, bold=True)
+            closest_msg = f'The closest version with no known vulnerabilities is {fix_v}'
+
+            if is_spec:
+                closest_msg = f'Version {fix_v} has no known vulnerabilities and falls within your current specifier ' \
+                              f'range'
 
             raw_recommendation = f"We recommend updating to version {fix_version} of {pkg}."
 
@@ -887,3 +894,35 @@ def parse_html(json_data):
     env = Environment(loader=file_loader)
     template = env.get_template("index.html")
     return template.render(json_data=json_data)
+
+
+def format_unpinned_vulnerabilities(unpinned_packages, columns=None):
+    lines = []
+
+    if not unpinned_packages:
+        return lines
+
+    for pkg_name, vulns in unpinned_packages.items():
+        pkg = vulns[0].pkg
+        doc_msg: str = get_specifier_range_info(style=False, pin_hint=True)
+
+        match_text = 'vulnerabilities match' if len(vulns) > 1 else 'vulnerability matches'
+
+        msg = f"-> Warning: {len(vulns)} known {match_text} the {pkg.name} versions that could be " \
+              f"installed from your {pkg.name} specifier is {pkg.spec} (unpinned). These vulnerabilities are not " \
+              f"reported by default. To report these vulnerabilities set 'ignore-unpinned-requirements' to False " \
+              f"under 'security' in your policy file. " \
+              f"See https://docs.pyup.io/docs/safety-20-policy-file for more information."
+
+        kwargs = {'color': 'yellow', 'indent': '', 'sub_indent': ' ' * 3, 'start_line_decorator': '',
+                  'end_line_decorator': ' '}
+
+        if columns:
+            kwargs.update({'columns': columns})
+
+        msg = format_long_text(text=msg, **kwargs)
+        doc_msg = format_long_text(text=doc_msg, **{**kwargs, **{'indent': ' ' * 3}})
+
+        lines.append(f'{msg}\n{doc_msg}')
+
+    return lines

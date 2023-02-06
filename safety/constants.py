@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
 
-JSON_SCHEMA = '2.0.0'
+JSON_SCHEMA_VERSION = '2.0.0'
 
 OPEN_MIRRORS = [
-    f"https://pyup.io/aws/safety/free/{JSON_SCHEMA}/",
+    f"https://pyup.io/aws/safety/free/{JSON_SCHEMA_VERSION}/",
 ]
 
 API_VERSION = 'v1/'
@@ -20,7 +20,7 @@ REQUEST_TIMEOUT = 5
 CACHE_FILE = os.path.join(
     os.path.expanduser("~"),
     ".safety",
-    f"{JSON_SCHEMA}",
+    f"{JSON_SCHEMA_VERSION.replace('.', '')}",
     "cache.json"
 )
 

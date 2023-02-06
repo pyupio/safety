@@ -312,15 +312,15 @@ class TestSafetyCLI(unittest.TestCase):
     def test_check_with_fix_does_verify_api_key(self):
         dirname = os.path.dirname(__file__)
         req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
-        result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-remediations'])
+        result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-security-updates'])
         self.assertEqual(click.unstyle(result.stderr),
-                         "The --apply-remediations option needs an API-KEY. See https://bit.ly/3OY2wEI.\n")
+                         "The --apply-security-updates option needs an API-KEY. See https://bit.ly/3OY2wEI.\n")
         self.assertEqual(result.exit_code, 65)
 
     def test_check_with_fix_only_works_with_files(self):
-        result = self.runner.invoke(cli.cli, ['check', '--key', 'TEST-API_KEY', '--apply-remediations'])
+        result = self.runner.invoke(cli.cli, ['check', '--key', 'TEST-API_KEY', '--apply-security-updates'])
         self.assertEqual(click.unstyle(result.stderr),
-                         '--apply-remediations only works with files; use the "-r" option to specify files to remediate.\n')
+                         '--apply-security-updates only works with files; use the "-r" option to specify files to remediate.\n')
         self.assertEqual(result.exit_code, 1)
 
     @patch("safety.util.SafetyContext")
@@ -354,13 +354,14 @@ class TestSafetyCLI(unittest.TestCase):
             req_file = os.path.join(tempdir, 'reqs_simple_minor.txt')
             shutil.copy(source_req, req_file)
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations'])
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY',
+                                             '--apply-security-updates'])
 
             with open(req_file) as f:
                 self.assertEqual("django==1.8\nsafety==2.3.0\nflask==0.87.0", f.read())
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
-                                                  'minor'])
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+                                         '--auto-security-updates-limit', 'minor'])
 
             with open(req_file) as f:
                 self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
@@ -375,13 +376,88 @@ class TestSafetyCLI(unittest.TestCase):
                     "closest_secure_version": {"minor": None, "major": target},
                     "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
-                                                  'minor', '--json'])
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+                                         '-asul', 'minor', '--json'])
             with open(req_file) as f:
                 self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-remediations', '-arl',
-                                                  'major', '--output', 'bare'])
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+                                         '-asul', 'major', '--output', 'bare'])
 
             with open(req_file) as f:
                 self.assertEqual("django==2.0\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+    def test_check_ignore_unpinned_requirements(self):
+        dirname = os.path.dirname(__file__)
+        db = os.path.join(dirname, "test_db")
+        reqs_unpinned = os.path.join(dirname, "reqs_unpinned.txt")
+
+        # If not set (default None) then show local announcement and reported in group and ignored.
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'text'])
+
+        announcement = "\n\n ANNOUNCEMENTS\n\n  " \
+                       "* Warning: django and numpy are unpinned. Safety by default does not report \n  " \
+                       "  on potential vulnerabilities in unpinned packages. It is recommended to pin \n  " \
+                       "  your dependencies unless this is a library meant for distribution. To learn \n  " \
+                       "  more about reporting these, specifier range handling, and options for \n  " \
+                       "  scanning unpinned packages, visit https://docs.pyup.io/docs/safety-range- \n  " \
+                       "  specs \n\n"
+        self.assertIn(announcement, result.stdout)
+
+        unpinned_vulns = "-> Warning: 2 known vulnerabilities match the django versions that could be \n" \
+                         "   installed from your django specifier is >=0 (unpinned). These \n" \
+                         "   vulnerabilities are not reported by default. To report these vulnerabilities \n" \
+                         "   set 'ignore-unpinned-requirements' to False under 'security' in your policy \n" \
+                         "   file. See https://docs.pyup.io/docs/safety-20-policy-file for more \n" \
+                         "   information. \n" \
+                         "   It is recommended to pin your dependencies unless this is a library meant \n" \
+                         "   for distribution. To learn more about reporting these, specifier range \n" \
+                         "   handling, and options for scanning unpinned packages, visit \n" \
+                         "   https://docs.pyup.io/docs/safety-range-specs \n\n"
+
+        self.assertIn(unpinned_vulns, result.stdout)
+
+        # If true then
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--ignore-unpinned-requirements',
+                                              '--db', db, '--output', 'text'])
+
+        announcement = "\n\n ANNOUNCEMENTS\n\n  " \
+                       "* Warning: django and numpy are unpinned and potential vulnerabilities are \n  " \
+                       "  being ignored given `ignore-unpinned-spec` is True in your config. It is \n  " \
+                       "  recommended to pin your dependencies unless this is a library meant for \n  " \
+                       "  distribution. To learn more about reporting these, specifier range \n  " \
+                       "  handling, and options for scanning unpinned packages, visit \n  " \
+                       "  https://docs.pyup.io/docs/safety-range-specs \n\n"
+
+        self.assertIn(announcement, result.stdout)
+        self.assertIn(unpinned_vulns, result.stdout)
+
+        # If false then
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--check-unpinned-requirements', '--db', db,
+                                              '--output', 'text'])
+
+        self.assertNotIn("ANNOUNCEMENTS", result.stdout)
+        self.assertNotIn("-> Warning: 2 known vulnerabilities match the django versions", result.stdout)
+        self.assertIn("-> Vulnerability may be present given that your django install specifier is >=0", result.stdout)
+        self.assertIn("Scan was completed. 2 vulnerabilities were reported.", result.stdout)
+
+    def test_basic_html_output_pass(self):
+        dirname = os.path.dirname(__file__)
+        db = os.path.join(dirname, "test_db")
+        reqs_unpinned = os.path.join(dirname, "reqs_unpinned.txt")
+
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'html'])
+
+        ignored = "<p>Found vulnerabilities that were ignored: 2</p>"
+        announcement = "Warning: django and numpy are unpinned."
+        self.assertIn(ignored, result.stdout)
+        self.assertIn(announcement, result.stdout)
+        self.assertNotIn("remediations-suggested", result.stdout)
+
+        reqs_affected = os.path.join(dirname, "reqs_pinned_affected.txt")
+
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_affected, '--db', db, '--output', 'html'])
+
+        self.assertIn("remediations-suggested", result.stdout)
+        self.assertIn("Use API Key", result.stdout)
+

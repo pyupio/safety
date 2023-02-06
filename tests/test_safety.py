@@ -698,8 +698,7 @@ class TestSafety(unittest.TestCase):
         REMEDIATIONS_WITH_FIX = {'django': {'version': '4.0.1', 'vulnerabilities_found': 4,
                                             'current_spec': SpecifierSet('==4.0.1'),
                                             'other_recommended_versions': ['2.2.28', '3.2.13'],
-                                            'closest_secure_version': {'upper': parse('4.0.4'),
-                                                                       'lower': None},
+                                            'recommended_version': parse('4.0.4'),
                                             'more_info_url': 'https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4'}}
 
         with open(os.path.join(self.dirname, "test_db", "report_with_recommended_fix.json")) as f:

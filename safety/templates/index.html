@@ -16,9 +16,9 @@
                     <h3 class="card-title">Announcements</h3>
                     <ul class="list-group list-group-flush">
                         {% for announcement in json_data.announcements %}
-                        {% set color = "text-danger" if announcement.type == "error" else "text-warning" if
-                        announcement.type == "warning" else "text-secondary" %}
-                        <li class="list-group-item {{ color }}">{{ announcement.message }}</li>
+                        {% set color = "#DC3545" if announcement.type == "error" else "#8B4000" if
+                        announcement.type == "warning" else "#6C757D" %}
+                        <li class="list-group-item p-0" style="color: {{ color }}">{{ announcement.message }}</li>
                         {% endfor %}
                     </ul>
                 </div>
@@ -46,7 +46,7 @@
                         <div class="col-md-4">
                             <div class="card {{ 'bg-danger' if json_data.vulnerabilities|length > 0 else 'bg-success' }}  bg-opacity-25 text-black">
                                 <div class="card-body">
-                                    <p class="card-text">Vulnerabilities Found (<a href="#vulnerabilities-found">details &#8595;</a>)</p>
+                                    <p class="card-text">Vulnerabilities Reported (<a href="#vulnerabilities-found">details &#8595;</a>)</p>
                                     <h5 class="card-title fs-3">{{ json_data.vulnerabilities|length }}</h5>
                                     {% if json_data.ignored_vulnerabilities|length > 0 %}
                                         <p>Found vulnerabilities that were ignored: {{ json_data.ignored_vulnerabilities|length }}</p>
@@ -128,7 +128,7 @@
                             {% for key, value in json_data.scanned_packages.items() %}
                                 <tr>
                                     <td>{{value.name}}</td>
-                                    <td>{{value.version}}</td>
+                                    <td>{{value.spec}}</td>
                                 </tr>
                             {% endfor %}
                             </tbody>
@@ -144,7 +144,7 @@
 
             <div class="row">
                 <div class="col-12" id="vulnerabilities-found">
-                    <h4 class="mt-2 mb-3 px-2">Vulnerabilities Found [ <a href="#vulnerabilities-found">#</a> ]</h4>
+                    <h4 class="mt-2 mb-3 px-2">Vulnerabilities Reported [ <a href="#vulnerabilities-found">#</a> ]</h4>
                     {% if json_data.vulnerabilities|length > 0 %}
                     <div class="table-responsive">
                         <table class="table">
@@ -203,7 +203,7 @@
                             <tr>
                                 <th>Vulnerability ID</th>
                                 <th>Package name</th>
-                                <th>Version</th>
+                                <th>Version/Spec</th>
                                 <th>Notes</th>
                                 <th>Expires</th>
                             </tr>
@@ -213,7 +213,13 @@
                             <tr>
                                 <td><a href="{{ data.more_info_url }}" target="_blank">{{ data.vulnerability_id }}</a></td>
                                 <td>{{data.package_name}}</td>
-                                <td>{{data.analyzed_version}}</td>
+                                <td>
+                                    {% if data.analyzed_version %}
+                                        {{ data.analyzed_version }}
+                                    {% else %}
+                                        {{ data.analyzed_spec }}
+                                    {% endif %}
+                                </td>
                                 <td>{{data.ignored_reason|default("-", true)}}</td>
                                 <td>{{data.ignored_expires|default("-", true)}}</td>
                             </tr>
@@ -245,7 +251,13 @@
                                 {% for key, value in json_data.affected_packages.items() %}
                                 <tr>
                                     <td>{{value.name}}</td>
-                                    <td>{{value.version}}</td>
+                                    <td>
+                                        {% if value.version %}
+                                            {{ value.version }}
+                                        {% else %}
+                                            {{ value.spec }}
+                                        {% endif %}
+                                    </td>
                                     <td>{{value.found}}</td>
                                     <td>{{value.insecure_versions}}</td>
                                     <td>{{value.latest_version_without_known_vulnerabilities}}</td>
@@ -276,8 +288,8 @@
                                 <thead>
                                 <tr>
                                     <th>Package name</th>
-                                    <th>Version</th>
-                                    <th>Vulnerabilities found</th>
+                                    <th>Version/Spec</th>
+                                    <th>Vulnerabilities reported</th>
                                     <th>Recommended versions</th>
                                     <th>Other recommended versions</th>
                                     <th>More info</th>
@@ -288,7 +300,13 @@
                                 {% for key, value in json_data.remediations.items() %}
                                 <tr>
                                     <td>{{ key }}</td>
-                                    <td>{{value.current_version}}</td>
+                                    <td>
+                                        {% if value.current_version %}
+                                            {{ value.current_version }}
+                                        {% else %}
+                                            {{ value.current_spec }}
+                                        {% endif %}
+                                    </td>
                                     <td>{{value.vulnerabilities_found}}</td>
                                     <td>
                                         {% if not json_data.report_meta.api_key and not value.recommended_version %}

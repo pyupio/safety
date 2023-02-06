@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock
-from typing import List
+from typing import List, Optional
 
 import click
 from click import BadParameter
@@ -64,17 +64,12 @@ def read_requirements(fh, resolve=True):
     LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
     for dep in dependency_file.resolved_dependencies:
         pinned_spec = None
+        spec = dep.specs
 
         try:
             pinned_spec = next(iter(dep.specs))
         except StopIteration:
-            click.secho(
-                f"Warning: unpinned requirement '{dep.name}' found in {path}, "
-                "unable to check.",
-                fg="yellow",
-                file=sys.stderr
-            )
-            continue
+            spec = SpecifierSet('>=0')
 
         version = None
 
@@ -82,7 +77,7 @@ def read_requirements(fh, resolve=True):
             version = pinned_spec.version
 
         yield Package(name=dep.name, version=version,
-                      spec=dep.specs,
+                      spec=spec,
                       found=found,
                       insecure_versions=[],
                       secure_versions=[], latest_version=None,
@@ -96,7 +91,7 @@ def is_pinned_requirement(spec: SpecifierSet) -> bool:
 
     specifier = next(iter(spec))
 
-    return specifier.operator == '==' and '*' != specifier.version[-1]
+    return (specifier.operator == '==' and '*' != specifier.version[-1]) or specifier.operator == '==='
 
 
 def get_proxy_dict(proxy_protocol, proxy_host, proxy_port):
@@ -164,9 +159,10 @@ def get_primary_announcement(announcements):
     return None
 
 
-def get_basic_announcements(announcements):
+def get_basic_announcements(announcements, include_local: bool = True):
     return [announcement for announcement in announcements if
-            announcement.get('type', '').lower() != 'primary_announcement']
+            announcement.get('type', '').lower() != 'primary_announcement' and not announcement.get('local', False)
+            or (announcement.get('local', False) and include_local)]
 
 
 def filter_announcements(announcements, by_type='error'):
@@ -246,10 +242,14 @@ def output_exception(exception, exit_code_output=True):
     sys.exit(exit_code)
 
 
-def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code):
+def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=None):
     if policy_file:
         security = policy_file.get('security', {})
-        source = click.get_current_context().get_parameter_source("exit_code")
+        ctx = click.get_current_context()
+        source = ctx.get_parameter_source("exit_code")
+
+        if ctx.get_parameter_source("ignore_unpinned_requirements") == click.core.ParameterSource.DEFAULT:
+            ignore_unpinned_requirements = security.get('ignore-unpinned-requirements', None)
 
         if not ignore:
             ignore = security.get('ignore-vulnerabilities', {})
@@ -260,7 +260,7 @@ def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code)
         ignore_severity_rules = {'ignore-cvss-severity-below': ignore_cvss_below,
                                  'ignore-cvss-unknown-severity': ignore_cvss_unknown}
 
-    return ignore, ignore_severity_rules, exit_code
+    return ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements
 
 
 def get_fix_options(policy_file, auto_remediation_limit):
@@ -271,8 +271,8 @@ def get_fix_options(policy_file, auto_remediation_limit):
         return auto_remediation_limit
 
     if policy_file:
-        fix = policy_file.get('remediations', {})
-        auto_fix = fix.get('auto-remediation-limit', None)
+        fix = policy_file.get('security-updates', {})
+        auto_fix = fix.get('auto-security-updates-limit', None)
         if not auto_fix:
             auto_fix = []
 
@@ -509,7 +509,7 @@ class SafetyPolicyFile(click.ParamType):
 
             security_config = safety_policy.get('security', {})
             security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
-                             'continue-on-vulnerability-error']
+                             'continue-on-vulnerability-error', 'ignore-unpinned-requirements']
             self.fail_if_unrecognized_keys(security_config.keys(), security_keys, param=param, ctx=ctx, msg=msg,
                                            context_hint='"security" -> ')
 
@@ -586,14 +586,14 @@ class SafetyPolicyFile(click.ParamType):
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 
             fix_config = safety_policy.get('fix', {})
-            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-remediation-limit'], param=param, ctx=ctx, msg=msg,
+            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-security-updates-limit'], param=param, ctx=ctx, msg=msg,
                                            context_hint='"fix" -> ')
-            auto_remediation_limit = fix_config.get('auto-remediation-limit', None)
+            auto_remediation_limit = fix_config.get('auto-security-updates-limit', None)
 
             if auto_remediation_limit:
                 self.fail_if_unrecognized_keys(auto_remediation_limit, ['patch', 'minor', 'major'], param=param, ctx=ctx,
                                                msg=msg,
-                                               context_hint='"auto-remediation-limit" -> ')
+                                               context_hint='"auto-security-updates-limit" -> ')
 
             return safety_policy
         except BadParameter as expected_e:
@@ -737,3 +737,8 @@ def get_requirements_content(files):
             raise InvalidProvidedReportError(message=f"Unable to read a requirement file scanned in the report. {e}")
 
     return requirements_files
+
+
+def should_show_unpinned_messages(version):
+    ignore = SafetyContext().params.get('ignore_unpinned_requirements')
+    return (ignore is None or ignore) and not version

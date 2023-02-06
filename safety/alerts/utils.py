@@ -3,7 +3,10 @@ import os
 import sys
 
 from functools import wraps
+from typing import Optional
+
 from packaging.version import parse as parse_version
+from packaging.specifiers import SpecifierSet
 from pathlib import Path
 
 import click
@@ -27,18 +30,25 @@ def highest_base_score(vulns):
 
     return highest_base_score
 
+
 def generate_branch_name(pkg, remediation):
     return pkg + "/" + remediation['recommended_version']
+
 
 def generate_issue_title(pkg, remediation):
     return f"Security Vulnerability in {pkg}"
 
+
 def generate_title(pkg, remediation, vulns):
     suffix = "y" if len(vulns) == 1 else "ies"
-    return f"Update {pkg} from {remediation['current_version']} to {remediation['recommended_version']} to fix {len(vulns)} vulnerabilit{suffix}"
+    from_dependency = remediation['current_version'] if remediation['current_version'] else remediation['current_spec']
+
+    return f"Update {pkg} from {from_dependency} to {remediation['recommended_version']} to fix {len(vulns)} vulnerabilit{suffix}"
+
 
 def generate_body(pkg, remediation, vulns, *, api_key):
-    changelog = fetch_changelog(pkg, remediation['current_version'], remediation['recommended_version'], api_key=api_key)
+    changelog = fetch_changelog(pkg, remediation['current_version'], remediation['recommended_version'],
+                                api_key=api_key, from_spec=remediation.get('current_spec', None))
 
     p = Path(__file__).parent / 'templates'
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(p)))
@@ -53,8 +63,10 @@ def generate_body(pkg, remediation, vulns, *, api_key):
 
     return result
 
+
 def generate_issue_body(pkg, remediation, vulns, *, api_key):
-    changelog = fetch_changelog(pkg, remediation['current_version'], remediation['recommended_version'], api_key=api_key)
+    changelog = fetch_changelog(pkg, remediation['current_version'], remediation['recommended_version'],
+                                api_key=api_key, from_spec=remediation.get('current_spec', None))
 
     p = Path(__file__).parent / 'templates'
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(p)))
@@ -67,15 +79,27 @@ def generate_issue_body(pkg, remediation, vulns, *, api_key):
     if len(result) > 65500:
         return template.render({"pkg": pkg, "remediation": remediation, "vulns": vulns, "changelog": changelog, "overall_impact": overall_impact, "summary_changelog": True })
 
+    return result
+
+
 def generate_commit_message(pkg, remediation):
-    return f"Update {pkg} from {remediation['current_version']} to {remediation['recommended_version']}"
+    from_dependency = remediation['current_version'] if remediation['current_version'] else remediation['current_spec']
+
+    return f"Update {pkg} from {from_dependency} to {remediation['recommended_version']}"
+
 
 def git_sha1(raw_contents):
     return hashlib.sha1(b"blob " + str(len(raw_contents)).encode('ascii') + b"\0" + raw_contents).hexdigest()
 
-def fetch_changelog(package, from_version, to_version, *, api_key):
-    from_version = parse_version(from_version)
+
+def fetch_changelog(package, from_version: Optional[str], to_version: str, *, api_key, from_spec=None):
     to_version = parse_version(to_version)
+
+    if from_version:
+        from_version = parse_version(from_version)
+    else:
+        from_spec = SpecifierSet(from_spec)
+
     changelog = {}
 
     r = requests.get(
@@ -94,10 +118,14 @@ def fetch_changelog(package, from_version, to_version, *, api_key):
             # not for 0.4.
             for version, log in sorted_log:
                 parsed_version = parse_version(version)
-                if parsed_version > from_version and parsed_version <= to_version:
+                version_check = from_version and (parsed_version > from_version)
+                spec_check = from_spec and isinstance(from_spec, SpecifierSet) and from_spec.contains(parsed_version)
+
+                if version_check or spec_check and parsed_version <= to_version:
                     changelog[version] = log
 
     return changelog
+
 
 def cvss3_score_to_label(score):
     if score >= 0.1 and score <= 3.9:
@@ -110,6 +138,7 @@ def cvss3_score_to_label(score):
         return 'critical'
 
     return None
+
 
 def require_files_report(func):
     @wraps(func)

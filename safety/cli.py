@@ -58,18 +58,25 @@ def clean_check_command(f):
     Main entry point for validation.
     """
     @wraps(f)
-    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
-              proxy_host, proxy_port, exit_code, policy_file, save_json, save_html, audit_and_monitor, project,
-              apply_remediations, auto_remediation_limit, accept_all, *args, **kwargs):
+    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output,
+              json, html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, save_json, save_html,
+              audit_and_monitor, project, apply_remediations, auto_remediation_limit, no_prompt, json_version,
+              *args, **kwargs):
+
+        if ctx.get_parameter_source("json_version") != click.core.ParameterSource.DEFAULT and not (
+                save_json or json or output == 'json'):
+            raise click.UsageError(
+                f"Illegal usage: `--json-version` only works with JSON related outputs."
+            )
 
         try:
             proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
             if ctx.get_parameter_source("apply_remediations") != click.core.ParameterSource.DEFAULT:
                 if not key:
-                    raise InvalidKeyError(message="The --apply-remediations option needs an API-KEY. See {link}.")
+                    raise InvalidKeyError(message="The --apply-security-updates option needs an API-KEY. See {link}.")
                 if not files:
-                    raise SafetyError(message='--apply-remediations only works with files; use the "-r" option to '
+                    raise SafetyError(message='--apply-security-updates only works with files; use the "-r" option to '
                                               'specify files to remediate.')
 
             auto_remediation_limit = get_fix_options(policy_file, auto_remediation_limit)
@@ -85,9 +92,10 @@ def clean_check_command(f):
             exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
             output_exception(exception, exit_code_output=exit_code)
 
-        return f(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol,
-                 proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html,
-                 apply_remediations, auto_remediation_limit, accept_all, *args, **kwargs)
+        return f(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
+                 html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor,
+                 project, save_json, save_html, apply_remediations, auto_remediation_limit, no_prompt, json_version,
+                 *args, **kwargs)
 
     return inner
 
@@ -112,6 +120,8 @@ def clean_check_command(f):
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID (coma separated). Default: empty")
+@click.option("ignore_unpinned_requirements", "--ignore-unpinned-requirements/--check-unpinned-requirements", "-iur",
+              default=None, help="Check or ignore unpinned requirements found.")
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
               with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=json_alias,
               hidden=True, is_flag=True, show_default=True)
@@ -140,21 +150,29 @@ def clean_check_command(f):
 @click.option("--project", default=None,
               help="Project to associate this scan with on pyup.io. "
                    "Defaults to a canonicalized github style name if available, otherwise unknown")
-@click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
-                                              "Safety will use safety-report.json as filename. Default: empty")
-@click.option("--save-html", default="", help="Path to where output file will be placed, if the path is a directory, "
-                                              "Safety will use safety-report/index.html as main file. Default: empty")
-@click.option('--apply-remediations', default=False, is_flag=True)
-@click.option("--auto-remediation-limit", "-arl", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
-              default=['patch'],
-              help="Let Safety update automatically. Default: empty")
-@click.option("accept_all", "--yes", "-y", default=False, help="Force and accept all the fixes.", is_flag=True,
+@click.option("--save-json", default="", help="Path to where the output file will be placed; if the path is a"
+                                              " directory, Safety will use safety-report.json as filename."
+                                              " Default: empty")
+@click.option("--save-html", default="", help="Path to where the output file will be placed; if the path is a"
+                                              " directory, Safety will use safety-report.html as the main file. "
+                                              "Default: empty")
+@click.option("apply_remediations", "--apply-security-updates", "-asu", default=False, is_flag=True,
+              help="Apply security updates in your requirement files.")
+@click.option("auto_remediation_limit", "--auto-security-updates-limit", "-asul", multiple=True,
+              type=click.Choice(['patch', 'minor', 'major']), default=['patch'],
+              help="Define the limit to be used for automatic security updates in your requirement files."
+                   " Default: patch")
+@click.option("no_prompt", "--no-prompt", "-np", default=False, help="Safety won't ask for remediations outside of "
+                                                                     "the remediation limit.", is_flag=True,
               show_default=True)
+@click.option('--json-version', type=click.Choice(['0.5', '1.0']), default="1.0", help="Select the JSON version to be "
+                                                                                       "used in the output")
 @click.pass_context
 @clean_check_command
-def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, html, bare, proxy_protocol, proxy_host,
-          proxy_port, exit_code, policy_file, audit_and_monitor, project, save_json, save_html, apply_remediations,
-          auto_remediation_limit, accept_all):
+def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
+          html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project,
+          save_json, save_html, apply_remediations,
+          auto_remediation_limit, no_prompt, json_version):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
@@ -164,20 +182,24 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
     non_interactive = (not sys.stdout.isatty() and os.environ.get("SAFETY_OS_DESCRIPTION", None) != 'run')
     silent_outputs = ['json', 'bare', 'html']
     is_silent_output = output in silent_outputs
-    prompt_mode = bool(not non_interactive and not stdin and not is_silent_output)
+    prompt_mode = bool(not non_interactive and not stdin and not is_silent_output) and not no_prompt
+    kwargs = {'version': json_version } if output == 'json' else {}
 
     try:
         packages = get_packages(files, stdin)
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
         ignore_severity_rules = None
-        ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file, ignore,
-                                                                         ignore_severity_rules, exit_code)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements = \
+            get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements)
         is_env_scan = not stdin and not files
+
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,
                   'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
-                  'auto_remediation_limit': auto_remediation_limit, 'accept_all': accept_all}
+                  'auto_remediation_limit': auto_remediation_limit,
+                  'apply_remediations': apply_remediations,
+                  'ignore_unpinned_requirements': ignore_unpinned_requirements}
 
         LOG.info('Calling the check function')
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
@@ -188,6 +210,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         LOG.debug('full database returned is None: %s', db_full is None)
 
         LOG.info('Safety is going to calculate remediations')
+
         remediations = safety.calculate_remediations(vulns, db_full)
 
         announcements = []
@@ -195,17 +218,19 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
             LOG.info('Not local DB used, Getting announcements')
             announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
 
+        announcements.extend(safety.add_local_notifications(packages, ignore_unpinned_requirements))
+
         LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
 
         fixes = []
 
         if apply_remediations and is_silent_output:
             # it runs and apply only automatic fixes.
-            fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=True,
+            fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=True,
                                   prompt=False)
 
-        output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
-                                                                              full_report, packages, fixes)
+        output_report = SafetyFormatter(output, **kwargs).render_vulnerabilities(announcements, vulns, remediations,
+                                                                                 full_report, packages, fixes)
 
         # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
         stderr_announcements = filter_announcements(announcements=announcements, by_type='error')
@@ -225,12 +250,14 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, output, json, 
         if post_processing_report:
             if apply_remediations and not is_silent_output:
                 # prompt_mode fixing after main check output if prompt is enabled.
-                fixes = process_fixes(files, remediations, auto_remediation_limit, accept_all, output, no_output=False,
+                fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=False,
                                       prompt=prompt_mode)
 
             # Render fixes
-            json_report = output_report if output == 'json' else SafetyFormatter(output='json').render_vulnerabilities(
-                announcements, vulns, remediations, full_report, packages, fixes)
+            json_report = output_report if output == 'json' else \
+                SafetyFormatter(output='json', version=json_version).render_vulnerabilities(announcements, vulns,
+                                                                                            remediations, full_report,
+                                                                                            packages, fixes)
 
             safety.push_audit_and_monitor(key, proxy_dictionary, audit_and_monitor, json_report, policy_file)
             safety.save_report(save_json, 'safety-report.json', json_report)

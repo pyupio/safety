@@ -5,7 +5,16 @@
         "last_updated": "2023-02-03 21:28:11",
         "base_domain": "https://pyup.io",
         "schema_version": "2.0.0",
-        "attribution": "Licensed under CC-BY-4.0 by pyup.io"
+        "attribution": "Licensed under CC-BY-4.0 by pyup.io",
+        "packages": {
+            "django": {
+                "secure_versions": ["2.1", "1.9", "2.0"],
+                "insecure_versions": ["1.8"],
+                "latest_version": "2.1",
+                "latest_secure_version": "2.1",
+                "more_info_path": "/p/pypi/django/97c/"
+            }
+        }
     },
     "vulnerable_packages": {
         "django": [

@@ -91,7 +91,7 @@ def is_pinned_requirement(spec: SpecifierSet) -> bool:
 
     specifier = next(iter(spec))
 
-    return specifier.operator == '==' and '*' != specifier.version[-1]
+    return (specifier.operator == '==' and '*' != specifier.version[-1]) or specifier.operator == '==='
 
 
 def get_proxy_dict(proxy_protocol, proxy_host, proxy_port):
@@ -242,7 +242,7 @@ def output_exception(exception, exit_code_output=True):
     sys.exit(exit_code)
 
 
-def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=True):
+def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=None):
     if policy_file:
         security = policy_file.get('security', {})
         ctx = click.get_current_context()
@@ -271,8 +271,8 @@ def get_fix_options(policy_file, auto_remediation_limit):
         return auto_remediation_limit
 
     if policy_file:
-        fix = policy_file.get('remediations', {})
-        auto_fix = fix.get('auto-remediation-limit', None)
+        fix = policy_file.get('security-updates', {})
+        auto_fix = fix.get('auto-security-updates-limit', None)
         if not auto_fix:
             auto_fix = []
 
@@ -586,14 +586,14 @@ class SafetyPolicyFile(click.ParamType):
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 
             fix_config = safety_policy.get('fix', {})
-            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-remediation-limit'], param=param, ctx=ctx, msg=msg,
+            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-security-updates-limit'], param=param, ctx=ctx, msg=msg,
                                            context_hint='"fix" -> ')
-            auto_remediation_limit = fix_config.get('auto-remediation-limit', None)
+            auto_remediation_limit = fix_config.get('auto-security-updates-limit', None)
 
             if auto_remediation_limit:
                 self.fail_if_unrecognized_keys(auto_remediation_limit, ['patch', 'minor', 'major'], param=param, ctx=ctx,
                                                msg=msg,
-                                               context_hint='"auto-remediation-limit" -> ')
+                                               context_hint='"auto-security-updates-limit" -> ')
 
             return safety_policy
         except BadParameter as expected_e:
@@ -657,7 +657,6 @@ class SafetyContext(metaclass=SingletonMeta):
     review = None
     params = {}
     safety_source = 'code'
-    ignore_unpinned_requirements: Optional[bool] = None
 
 
 def sync_safety_context(f):
@@ -741,5 +740,5 @@ def get_requirements_content(files):
 
 
 def should_show_unpinned_messages(version):
-    ignore = SafetyContext().ignore_unpinned_requirements
+    ignore = SafetyContext().params.get('ignore_unpinned_requirements')
     return (ignore is None or ignore) and not version

@@ -59,5 +59,5 @@ VULNS = [Vulnerability(vulnerability_id='25853', package_name='insecure-package'
 REMEDIATIONS = {'insecure-package': {'vulnerabilities_found': 1, 'version': '0.1.0',
                                      'current_spec': SpecifierSet('==0.1.0'),
                                      'other_recommended_versions': [],
-                                     'closest_secure_version': {'lower': None, 'upper': None},
+                                     'recommended_version':  None,
                                      'more_info_url': 'https://pyup.io/packages/pypi/insecure-package/'}}

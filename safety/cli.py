@@ -74,9 +74,9 @@ def clean_check_command(f):
 
             if ctx.get_parameter_source("apply_remediations") != click.core.ParameterSource.DEFAULT:
                 if not key:
-                    raise InvalidKeyError(message="The --apply-remediations option needs an API-KEY. See {link}.")
+                    raise InvalidKeyError(message="The --apply-security-updates option needs an API-KEY. See {link}.")
                 if not files:
-                    raise SafetyError(message='--apply-remediations only works with files; use the "-r" option to '
+                    raise SafetyError(message='--apply-security-updates only works with files; use the "-r" option to '
                                               'specify files to remediate.')
 
             auto_remediation_limit = get_fix_options(policy_file, auto_remediation_limit)
@@ -121,7 +121,7 @@ def clean_check_command(f):
 @click.option("--ignore", "-i", multiple=True, type=str, default=[], callback=transform_ignore,
               help="Ignore one (or multiple) vulnerabilities by ID (coma separated). Default: empty")
 @click.option("ignore_unpinned_requirements", "--ignore-unpinned-requirements/--check-unpinned-requirements", "-iur",
-              default=True, help="Check or ignore unpinned requirements found.")
+              default=None, help="Check or ignore unpinned requirements found.")
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
               with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=json_alias,
               hidden=True, is_flag=True, show_default=True)
@@ -150,14 +150,18 @@ def clean_check_command(f):
 @click.option("--project", default=None,
               help="Project to associate this scan with on pyup.io. "
                    "Defaults to a canonicalized github style name if available, otherwise unknown")
-@click.option("--save-json", default="", help="Path to where output file will be placed, if the path is a directory, "
-                                              "Safety will use safety-report.json as filename. Default: empty")
-@click.option("--save-html", default="", help="Path to where output file will be placed, if the path is a directory, "
-                                              "Safety will use safety-report/index.html as main file. Default: empty")
-@click.option('--apply-remediations', default=False, is_flag=True)
-@click.option("--auto-remediation-limit", "-arl", multiple=True, type=click.Choice(['patch', 'minor', 'major']),
-              default=['patch'],
-              help="Let Safety update automatically. Default: empty")
+@click.option("--save-json", default="", help="Path to where the output file will be placed; if the path is a"
+                                              " directory, Safety will use safety-report.json as filename."
+                                              " Default: empty")
+@click.option("--save-html", default="", help="Path to where the output file will be placed; if the path is a"
+                                              " directory, Safety will use safety-report.html as the main file. "
+                                              "Default: empty")
+@click.option("apply_remediations", "--apply-security-updates", "-asu", default=False, is_flag=True,
+              help="Apply security updates in your requirement files.")
+@click.option("auto_remediation_limit", "--auto-security-updates-limit", "-asul", multiple=True,
+              type=click.Choice(['patch', 'minor', 'major']), default=['patch'],
+              help="Define the limit to be used for automatic security updates in your requirement files."
+                   " Default: patch")
 @click.option("no_prompt", "--no-prompt", "-np", default=False, help="Safety won't ask for remediations outside of "
                                                                      "the remediation limit.", is_flag=True,
               show_default=True)
@@ -189,16 +193,19 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
         ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements = \
             get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements)
         is_env_scan = not stdin and not files
+
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
                   'ignore_severity_rules': ignore_severity_rules, 'project': project,
                   'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
-                  'auto_remediation_limit': auto_remediation_limit}
+                  'auto_remediation_limit': auto_remediation_limit,
+                  'apply_remediations': apply_remediations,
+                  'ignore_unpinned_requirements': ignore_unpinned_requirements}
 
         LOG.info('Calling the check function')
         vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
                                       ignore_severity_rules=ignore_severity_rules, proxy=proxy_dictionary,
                                       include_ignored=True, is_env_scan=is_env_scan, telemetry=ctx.parent.telemetry,
-                                      params=params, ignore_unpinned_requirements=ignore_unpinned_requirements)
+                                      params=params)
         LOG.debug('Vulnerabilities returned: %s', vulns)
         LOG.debug('full database returned is None: %s', db_full is None)
 

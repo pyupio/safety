@@ -1,10 +1,12 @@
+from collections import defaultdict
+
 import click
 
 from safety.formatter import FormatterAPI
 from safety.output_utils import build_announcements_section_content, format_vulnerability, \
     build_report_brief_section, get_final_brief_license, add_empty_line, get_final_brief, build_remediation_section, \
-    build_primary_announcement
-from safety.util import get_primary_announcement, get_basic_announcements
+    build_primary_announcement, format_unpinned_vulnerabilities
+from safety.util import get_primary_announcement, get_basic_announcements, should_show_unpinned_messages
 
 
 class TextReport(FormatterAPI):
@@ -54,11 +56,20 @@ class TextReport(FormatterAPI):
 
         ignored = {}
         total_ignored = 0
+        unpinned_packages = defaultdict(list)
+
+        raw_vulns = []
 
         for n, vuln in enumerate(vulnerabilities):
             if vuln.ignored:
                 total_ignored += 1
                 ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
+
+                if should_show_unpinned_messages(version=vuln.analyzed_version) and not full:
+                    unpinned_packages[vuln.package_name].append(vuln)
+                    continue
+
+            raw_vulns.append(vuln)
 
         report_brief_section = click.unstyle(
             build_report_brief_section(columns=80, primary_announcement=primary_announcement,
@@ -75,7 +86,14 @@ class TextReport(FormatterAPI):
         if vulnerabilities:
             table += [" VULNERABILITIES FOUND", self.SMALL_DIVIDER_SECTIONS]
 
-            for vuln in vulnerabilities:
+            if unpinned_packages:
+                table.append('')
+
+            table.extend(map(click.unstyle, format_unpinned_vulnerabilities(unpinned_packages, columns=80)))
+            if not raw_vulns:
+                table.append('')
+
+            for vuln in raw_vulns:
                 table.append('\n' + format_vulnerability(vuln, full, only_text=True, columns=80))
 
             final_brief = click.unstyle(get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored,

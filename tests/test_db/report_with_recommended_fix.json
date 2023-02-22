@@ -7,7 +7,7 @@
         "policy_file": null,
         "api_key": true,
         "local_database_path": null,
-        "packages_found": 50,
+        "packages_found": 2,
         "timestamp": "2022-04-30 15:27:39",
         "safety_version": "2.0.0.dev6",
         "vulnerabilities_found": 4,
@@ -17,203 +17,45 @@
     "scanned_packages": {
         "safety": {
             "name": "safety",
-            "version": "2.0b1"
+            "version": "2.0b1",
+            "requirements": [
+                {
+                    "raw": "safety==0.1.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "safety",
+                    "specifier": "==2.0b1",
+                    "url": null
+                }
+            ]
         },
         "pipenv": {
             "name": "pipenv",
-            "version": "2022.1.8"
-        },
-        "certifi": {
-            "name": "certifi",
-            "version": "2021.10.8"
-        },
-        "pytz": {
-            "name": "pytz",
-            "version": "2021.3"
-        },
-        "setuptools": {
-            "name": "setuptools",
-            "version": "60.9.3"
-        },
-        "pip": {
-            "name": "pip",
-            "version": "21.3.1"
-        },
-        "packaging": {
-            "name": "packaging",
-            "version": "21.3"
-        },
-        "virtualenv": {
-            "name": "virtualenv",
-            "version": "20.10.0"
-        },
-        "websockets": {
-            "name": "websockets",
-            "version": "10.2"
-        },
-        "click": {
-            "name": "click",
-            "version": "8.0.4"
-        },
-        "pyyaml": {
-            "name": "pyyaml",
-            "version": "6.0"
-        },
-        "typing-extensions": {
-            "name": "typing-extensions",
-            "version": "4.1.1"
+            "version": "2022.1.8",
+            "requirements": [
+                {
+                    "raw": "pipenv==2022.1.8",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pipenv",
+                    "specifier": "==2022.1.8",
+                    "url": null
+                }
+            ]            
         },
         "django": {
             "name": "django",
-            "version": "4.0.1"
-        },
-        "tox": {
-            "name": "tox",
-            "version": "3.24.4"
-        },
-        "anyio": {
-            "name": "anyio",
-            "version": "3.5.0"
-        },
-        "asgiref": {
-            "name": "asgiref",
-            "version": "3.5.0"
-        },
-        "filelock": {
-            "name": "filelock",
-            "version": "3.4.0"
-        },
-        "idna": {
-            "name": "idna",
-            "version": "3.3"
-        },
-        "pyparsing": {
-            "name": "pyparsing",
-            "version": "3.0.7"
-        },
-        "requests": {
-            "name": "requests",
-            "version": "2.27.1"
-        },
-        "platformdirs": {
-            "name": "platformdirs",
-            "version": "2.4.0"
-        },
-        "charset-normalizer": {
-            "name": "charset-normalizer",
-            "version": "2.0.12"
-        },
-        "tomli": {
-            "name": "tomli",
-            "version": "2.0.1"
-        },
-        "urllib3": {
-            "name": "urllib3",
-            "version": "1.26.8"
-        },
-        "six": {
-            "name": "six",
-            "version": "1.16.0"
-        },
-        "py": {
-            "name": "py",
-            "version": "1.11.0"
-        },
-        "pydantic": {
-            "name": "pydantic",
-            "version": "1.9.0"
-        },
-        "sniffio": {
-            "name": "sniffio",
-            "version": "1.2.0"
-        },
-        "backports.entry-points-selectable": {
-            "name": "backports.entry-points-selectable",
-            "version": "1.1.1"
-        },
-        "pluggy": {
-            "name": "pluggy",
-            "version": "1.0.0"
-        },
-        "fastapi": {
-            "name": "fastapi",
-            "version": "0.75.0"
-        },
-        "wheel": {
-            "name": "wheel",
-            "version": "0.37.0"
-        },
-        "python-dotenv": {
-            "name": "python-dotenv",
-            "version": "0.20.0"
-        },
-        "ruamel.yaml": {
-            "name": "ruamel.yaml",
-            "version": "0.17.21"
-        },
-        "uvicorn": {
-            "name": "uvicorn",
-            "version": "0.17.6"
-        },
-        "starlette": {
-            "name": "starlette",
-            "version": "0.17.1"
-        },
-        "uvloop": {
-            "name": "uvloop",
-            "version": "0.16.0"
-        },
-        "h11": {
-            "name": "h11",
-            "version": "0.13.0"
-        },
-        "pep517": {
-            "name": "pep517",
-            "version": "0.12.0"
-        },
-        "toml": {
-            "name": "toml",
-            "version": "0.10.2"
-        },
-        "json-spec": {
-            "name": "json-spec",
-            "version": "0.10.1"
-        },
-        "watchgod": {
-            "name": "watchgod",
-            "version": "0.8.1"
-        },
-        "build": {
-            "name": "build",
-            "version": "0.7.0"
-        },
-        "virtualenv-clone": {
-            "name": "virtualenv-clone",
-            "version": "0.5.7"
-        },
-        "dparse": {
-            "name": "dparse",
-            "version": "0.5.1"
-        },
-        "sqlparse": {
-            "name": "sqlparse",
-            "version": "0.4.2"
-        },
-        "httptools": {
-            "name": "httptools",
-            "version": "0.4.0"
-        },
-        "distlib": {
-            "name": "distlib",
-            "version": "0.3.3"
-        },
-        "ruamel.yaml.clib": {
-            "name": "ruamel.yaml.clib",
-            "version": "0.2.6"
-        },
-        "pyyml": {
-            "name": "pyyml",
-            "version": "0.0.2"
+            "version": "4.0.1",
+            "requirements": [
+                {
+                    "raw": "django==4.0.1",
+                    "extras": [],
+                    "marker": null,
+                    "name": "django",
+                    "specifier": "==4.0.1",
+                    "url": null
+                }
+            ]            
         }
     },
     "affected_packages": {
@@ -5588,7 +5430,14 @@
                 ">=4.0a1,<4.0.2"
             ],
             "analyzed_version": "4.0.1",
-            "analyzed_spec": "==4.0.1",
+            "analyzed_requirement": {
+                "raw": "django==4.0.1",
+                "extras": [],
+                "marker": null,
+                "name": "django",
+                "specifier": "==4.0.1",
+                "url": null
+            },
             "advisory": "The {% debug %} template tag in Django 2.2 before 2.2.27, 3.2 before 3.2.12, and 4.0 before 4.0.2 does not properly encode the current context. This may lead to XSS.",
             "is_transitive": false,
             "published_date": "2022-Feb-03",
@@ -5924,7 +5773,14 @@
                 ">=4.0a1,<4.0.2"
             ],
             "analyzed_version": "4.0.1",
-            "analyzed_spec": "==4.0.1",
+            "analyzed_requirement": {
+                "raw": "django==4.0.1",
+                "extras": [],
+                "marker": null,
+                "name": "django",
+                "specifier": "==4.0.1",
+                "url": null
+            },
             "advisory": "An issue was discovered in MultiPartParser in Django 2.2 before 2.2.27, 3.2 before 3.2.12, and 4.0 before 4.0.2. Passing certain inputs to multipart forms could result in an infinite loop when parsing files.",
             "is_transitive": false,
             "published_date": "2022-Feb-03",
@@ -6259,7 +6115,14 @@
                 ">=4.0a1,<4.0.4"
             ],
             "analyzed_version": "4.0.1",
-            "analyzed_spec": "==4.0.1",
+            "analyzed_requirement": {
+                "raw": "django==4.0.1",
+                "extras": [],
+                "marker": null,
+                "name": "django",
+                "specifier": "==4.0.1",
+                "url": null
+            },
             "advisory": "Django 2.2.28, 3.2.13 and 4.0.4 include a fix for CVE-2022-28346: An issue was discovered in Django 2.2 before 2.2.28, 3.2 before 3.2.13, and 4.0 before 4.0.4. QuerySet.annotate(), aggregate(), and extra() methods are subject to SQL injection in column aliases via a crafted dictionary (with dictionary expansion) as the passed **kwargs.\r\nhttps://www.djangoproject.com/weblog/2022/apr/11/security-releases/",
             "is_transitive": false,
             "published_date": "2022-Apr-12",
@@ -6598,7 +6461,14 @@
                 ">=4.0a1,<4.0.4"
             ],
             "analyzed_version": "4.0.1",
-            "analyzed_spec": "==4.0.1",
+            "analyzed_requirement": {
+                "raw": "django==4.0.1",
+                "extras": [],
+                "marker": null,
+                "name": "django",
+                "specifier": "==4.0.1",
+                "url": null
+            },
             "advisory": "Django 2.2.28, 3.2.13 and 4.0.4 include a fix for CVE-2022-28347: A SQL injection issue was discovered in QuerySet.explain() in Django 2.2 before 2.2.28, 3.2 before 3.2.13, and 4.0 before 4.0.4. This occurs by passing a crafted dictionary (with dictionary expansion) as the **options argument, and placing the injection payload in an option name.\r\nhttps://www.djangoproject.com/weblog/2022/apr/11/security-releases/",
             "is_transitive": false,
             "published_date": "2022-Apr-12",
@@ -6928,14 +6798,26 @@
     "ignored_vulnerabilities": [],
     "remediations": {
         "django": {
-            "current_version": "4.0.1",
-            "vulnerabilities_found": 4,
-            "recommended_version": "4.0.4",
-            "other_recommended_versions": [
-                "2.2.28",
-                "3.2.13"
-            ],
-            "more_info_url": "https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4"
+            "requirements": {
+                "==4.0.1": {
+                    "version": "4.0.1",
+                    "requirement": {
+                        "raw": "django==4.0.1",
+                        "extras": [],
+                        "marker": null,
+                        "name": "django",
+                        "specifier": "==4.0.1",
+                        "url": null
+                    },
+                    "vulnerabilities_found": 4,
+                    "recommended_version": "4.0.4",
+                    "other_recommended_versions": [
+                        "2.2.28",
+                        "3.2.13"
+                    ],
+                    "more_info_url": "https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4"
+                }
+            }
         }
     }
 }

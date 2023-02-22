@@ -7,10 +7,11 @@ from typing import List, Tuple, Dict, Optional
 
 import click
 
+from packaging.specifiers import SpecifierSet
 from safety.constants import RED, YELLOW
-from safety.models import Fix
+from safety.models import Fix, is_pinned_requirement
 from safety.util import get_safety_version, Package, get_terminal_size, \
-    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, is_pinned_requirement
+    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, get_remediations_count
 
 from jinja2 import Environment, PackageLoader
 
@@ -77,13 +78,15 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     common_format = {'indent': 3, 'format': {'sub_indent': ' ' * 3, 'max_lines': None}}
 
     styled_vulnerability = [
-        {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
+        {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '},
+                   {'value': vulnerability.vulnerability_id}]},
     ]
 
     vulnerability_spec = [
-        {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
+        {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '},
+                   {'value': ', '.join(vulnerability.vulnerable_spec)}]}]
 
-    is_pinned_req = is_pinned_requirement(vulnerability.pkg.spec)
+    is_pinned_req = is_pinned_requirement(vulnerability.analyzed_requirement.specifier)
 
     cve = vulnerability.CVE
 
@@ -166,7 +169,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
     if not is_pinned_req:
         vuln_title = f'-> Vulnerability may be present given that your {vulnerability.package_name} install specifier' \
-                     f' is {vulnerability.pkg.spec}'
+                     f' is {vulnerability.analyzed_requirement.specifier}'
 
     title_color: str = 'red'
     to_print = styled_vulnerability
@@ -231,6 +234,24 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
     return click.unstyle(content) if only_text else content
 
 
+def get_fix_hint_for_unpinned(remediation):
+    secure_options: List[str] = [str(fix) for fix in remediation.get('other_recommended_versions', [])]
+    fixes_hint = f'Version {remediation.get("recommended_version")} has no known vulnerabilities and falls' \
+                 f' within your current specifier range.'
+
+    if len(secure_options) > 0:
+        other_options_msg = build_other_options_msg(fix_version=remediation.get("recommended_version"), is_spec=True,
+                                                    secure_options=secure_options)
+        fixes_hint += f' {other_options_msg}'
+
+    return fixes_hint
+
+
+def get_unpinned_hint(pkg: str):
+    return f"We recommend either pinning {pkg} to one of the versions above or updating your " \
+                                f"install specifier to ensure a vulnerable version cannot be installed."
+
+
 def get_specifier_range_info(style: bool = True, pin_hint: bool = False) -> str:
     hint = ''
 
@@ -238,7 +259,7 @@ def get_specifier_range_info(style: bool = True, pin_hint: bool = False) -> str:
         hint = 'It is recommended to pin your dependencies unless this is a library meant for distribution. '
 
     msg = f'{hint}To learn more about reporting these, specifier range handling, and options for scanning unpinned' \
-          f' packages, visit'
+          f' packages visit'
     link = 'https://docs.pyup.io/docs/safety-range-specs'
 
     if style:
@@ -287,102 +308,102 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     total_packages = len(remediations.keys())
 
     for pkg in remediations.keys():
-        total_vulns += remediations[pkg]['vulnerabilities_found']
-        version = remediations[pkg]['version']
-        spec = remediations[pkg]['current_spec']
-        is_spec = not version and spec
-        secure_options: List[str] = [str(fix) for fix in remediations[pkg].get('other_recommended_versions', [])]
-
-        fix_version = None
-        new_line = '\n'
-        spec_info = []
-
-        vuln_word = 'vulnerability'
-        pronoun_word = 'this'
-
-        if remediations[pkg]['vulnerabilities_found'] > 1:
-            vuln_word = 'vulnerabilities'
-            pronoun_word = 'these'
-
-        if remediations[pkg].get('recommended_version', None):
-            fix_version = str(remediations[pkg].get('recommended_version'))
-
-        other_options_msg = build_other_options_msg(fix_version=fix_version, is_spec=is_spec,
-                                                    secure_options=secure_options)
-
-        spec_hint = ''
-
-        if secure_options or fix_version and (not version and spec):
-            raw_spec_info = f"We recommend either pinning {pkg} to one of the versions above or updating your " \
-                            f"install specifier to ensure a vulnerable version cannot be installed."
-
-            spec_hint = f"{click.style(raw_spec_info, bold=True, fg='green')}" \
-                        f" {get_specifier_range_info()}"
-
-        if fix_version:
-            fix_v: str = click.style(fix_version, bold=True)
-            closest_msg = f'The closest version with no known vulnerabilities is {fix_v}'
-
+        for req, rem in remediations[pkg].items():
+            total_vulns += rem['vulnerabilities_found']
+            version = rem['version']
+            spec = rem['requirement']
+            is_spec = not version and spec
+            secure_options: List[str] = [str(fix) for fix in rem.get('other_recommended_versions', [])]
+    
+            fix_version = None
+            new_line = '\n'
+            spec_info = []
+    
+            vuln_word = 'vulnerability'
+            pronoun_word = 'this'
+    
+            if rem['vulnerabilities_found'] > 1:
+                vuln_word = 'vulnerabilities'
+                pronoun_word = 'these'
+    
+            if rem.get('recommended_version', None):
+                fix_version = str(rem.get('recommended_version'))
+    
+            other_options_msg = build_other_options_msg(fix_version=fix_version, is_spec=is_spec,
+                                                        secure_options=secure_options)
+    
+            spec_hint = ''
+    
+            if secure_options or fix_version and is_spec:                
+                raw_spec_info = get_unpinned_hint(pkg)
+    
+                spec_hint = f"{click.style(raw_spec_info, bold=True, fg='green')}" \
+                            f" {get_specifier_range_info()}"
+    
+            if fix_version:
+                fix_v: str = click.style(fix_version, bold=True)
+                closest_msg = f'The closest version with no known vulnerabilities is {fix_v}'
+    
+                if is_spec:
+                    closest_msg = f'Version {fix_v} has no known vulnerabilities and falls within your current specifier ' \
+                                  f'range'
+    
+                raw_recommendation = f"We recommend updating to version {fix_version} of {pkg}."
+    
+                remediation_styled = click.style(f'{raw_recommendation} {other_options_msg}', bold=True,
+                                                 fg='green')
+    
+                # Spec case
+                if is_spec:
+                    closest_msg += f'. {other_options_msg}'
+                    remediation_styled = spec_hint
+    
+                remediation_content = [
+                    closest_msg,
+                    new_line,
+                    remediation_styled
+                ]
+    
+            else:
+                no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word}.'
+    
+                if is_spec and secure_options:
+                    no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word} in the current specified ' \
+                                       f'range ({spec}).'
+    
+                no_fix_msg_styled = f"{click.style(no_known_fix_msg, bold=True, fg='yellow')} " \
+                                    f"{click.style(other_options_msg, bold=True, fg='green')}"
+    
+                remediation_content = [new_line, no_fix_msg_styled]
+    
+                if spec_hint:
+                    remediation_content.extend([new_line, spec_hint])
+    
+            # Pinned
+            raw_rem_title = f"-> {pkg} version {version} was found, " \
+                            f"which has {rem['vulnerabilities_found']} {vuln_word}"
+    
+            # Range
             if is_spec:
-                closest_msg = f'Version {fix_v} has no known vulnerabilities and falls within your current specifier ' \
-                              f'range'
-
-            raw_recommendation = f"We recommend updating to version {fix_version} of {pkg}."
-
-            remediation_styled = click.style(f'{raw_recommendation} {other_options_msg}', bold=True,
-                                             fg='green')
-
-            # Spec case
-            if not version and spec:
-                closest_msg += f'. {other_options_msg}'
-                remediation_styled = spec_hint
-
-            remediation_content = [
-                closest_msg,
-                new_line,
-                remediation_styled
-            ]
-
-        else:
-            no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word}.'
-
-            if (not version and spec) and secure_options:
-                no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word} in the current specified ' \
-                                   f'range ({spec}).'
-
-            no_fix_msg_styled = f"{click.style(no_known_fix_msg, bold=True, fg='yellow')} " \
-                                f"{click.style(other_options_msg, bold=True, fg='green')}"
-
-            remediation_content = [new_line, no_fix_msg_styled]
-
-            if spec_hint:
-                remediation_content.extend([new_line, spec_hint])
-
-        # Pinned
-        raw_rem_title = f"-> {pkg} version {version} was found, " \
-                        f"which has {remediations[pkg]['vulnerabilities_found']} {vuln_word}"
-
-        # Range
-        if not version and spec:
-            # Spec remediation copy
-            raw_rem_title = f"-> {pkg} with install specifier {spec} was found, " \
-                            f"which has {remediations[pkg]['vulnerabilities_found']} {vuln_word}"
-
-        remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
-        content += new_line + format_long_text(remediation_title,
-                                               **{**kwargs, **{'indent': '', 'sub_indent': ' ' * 3}}) + new_line
-
-        pre_content = remediation_content + spec_info + [new_line,
-                                                         f"For more information about the {pkg} package and update "
-                                                         f"options, visit {remediations[pkg]['more_info_url']}",
-                                                         f'Always check for breaking changes when updating packages.',
-                                                         new_line]
-
-        for i, element in enumerate(pre_content):
-            content += format_long_text(element, **kwargs)
-
-            if i + 1 < len(pre_content):
-                content += '\n'
+                # Spec remediation copy
+                raw_rem_title = f"-> {pkg} with install specifier {spec} was found, " \
+                                f"which has {rem['vulnerabilities_found']} {vuln_word}"
+    
+            remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
+            content += new_line + format_long_text(remediation_title,
+                                                   **{**kwargs, **{'indent': '', 'sub_indent': ' ' * 3}}) + new_line
+    
+            pre_content = remediation_content + spec_info + [new_line,
+                                                             f"For more information about the {pkg} package and update "
+                                                             f"options, visit {rem['more_info_url']}",
+                                                             f'Always check for breaking changes when updating packages.',
+                                                             new_line]
+    
+            for i, element in enumerate(pre_content):
+                content += format_long_text(element, **kwargs)
+    
+                if i + 1 < len(pre_content):
+                    content += '\n'
 
     title = format_long_text(click.style('REMEDIATIONS', fg='green', bold=True), **kwargs)
 
@@ -407,10 +428,11 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     return content
 
 
-def get_final_brief(total_vulns_found, total_remediations, ignored, total_ignored, kwargs=None):
+def get_final_brief(total_vulns_found, remediations, ignored, total_ignored, kwargs=None):
     if not kwargs:
         kwargs = {}
 
+    rem_count: int = get_remediations_count(remediations)
     total_vulns = max(0, total_vulns_found - total_ignored)
 
     vuln_text = 'vulnerabilities' if total_ignored > 1 else 'vulnerability'
@@ -420,7 +442,7 @@ def get_final_brief(total_vulns_found, total_remediations, ignored, total_ignore
 
     vuln_brief = f" {total_vulns} vulnerabilit{'y was' if total_vulns == 1 else 'ies were'} reported."
     ignored_text = f' {total_ignored} {vuln_text} from {len(ignored.keys())} {pkg_text} ignored.' if ignored else ''
-    remediation_text = f" {total_remediations} remediation{' was' if total_remediations == 1 else 's were'} " \
+    remediation_text = f" {rem_count} remediation{' was' if rem_count == 1 else 's were'} " \
                        f"recommended." if is_using_api_key() else ''
 
     raw_brief = f"Scan was completed{policy_file_text}.{vuln_brief}{ignored_text}{remediation_text}"
@@ -476,7 +498,7 @@ def get_printable_list_of_scanned_items(scanning_target):
     scanned_items_data = []
 
     if scanning_target == 'environment':
-        locations = set([pkg.found for pkg in context.packages if isinstance(pkg, Package)])
+        locations = set(SafetyContext().scanned_full_path)
 
         for path in locations:
             result.append([{'styled': False, 'value': '-> ' + path}])
@@ -679,6 +701,9 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['scanned'] = data
     nl = [{'style': False, 'value': ''}]
 
+    brief_data['scanned_full_path'] = SafetyContext().scanned_full_path
+    brief_data['target_languages'] = ['python']
+
     action_executed = [
         {'style': True, 'value': scanning_types.get(context.command, {}).get('action', '')},
         {'style': False, 'value': ' in your '},
@@ -731,7 +756,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
         ]
 
         if is_using_api_key():
-            brief_data['remediations_recommended'] = kwargs.get('remediations_recommended', 0)
+            brief_data['remediations_recommended'] = get_remediations_count(kwargs.get('remediations_recommended', {}))
             additional_data.extend(
                 [[{'style': True, 'value': str(brief_data['remediations_recommended'])},
                  {'style': True, 'value':
@@ -749,7 +774,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['git'] = build_git_data()
     brief_data['project'] = context.params.get('project', None)
 
-    brief_data['json_version'] = "1.0"
+    brief_data['json_version'] = "1.1"
 
     using_sentence = build_using_sentence(key, db)
     sentence_array = []
@@ -903,13 +928,15 @@ def format_unpinned_vulnerabilities(unpinned_packages, columns=None):
         return lines
 
     for pkg_name, vulns in unpinned_packages.items():
+        total = {vuln.vulnerability_id for vuln in vulns}
         pkg = vulns[0].pkg
         doc_msg: str = get_specifier_range_info(style=False, pin_hint=True)
 
-        match_text = 'vulnerabilities match' if len(vulns) > 1 else 'vulnerability matches'
+        match_text = 'vulnerabilities match' if len(total) > 1 else 'vulnerability matches'
+        reqs = ', '.join([str(r) for r in pkg.get_unpinned_req()])
 
-        msg = f"-> Warning: {len(vulns)} known {match_text} the {pkg.name} versions that could be " \
-              f"installed from your {pkg.name} specifier is {pkg.spec} (unpinned). These vulnerabilities are not " \
+        msg = f"-> Warning: {len(total)} known {match_text} the {pkg.name} versions that could be " \
+              f"installed from your specifier{'s' if len(pkg.requirements) > 1 else ''}: {reqs} (unpinned). These vulnerabilities are not " \
               f"reported by default. To report these vulnerabilities set 'ignore-unpinned-requirements' to False " \
               f"under 'security' in your policy file. " \
               f"See https://docs.pyup.io/docs/safety-20-policy-file for more information."

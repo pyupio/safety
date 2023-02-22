@@ -7,8 +7,9 @@ import os
 import sys
 import tempfile
 import time
+from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Union
 
 import click
 import requests
@@ -17,16 +18,17 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
 
-from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL, JSON_SCHEMA_VERSION)
+from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL, JSON_SCHEMA_VERSION,
+                        IGNORE_UNPINNED_REQ_REASON)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
                      InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
-from .models import Vulnerability, CVE, Severity, Fix
+from .models import Vulnerability, CVE, Severity, Fix, is_pinned_requirement, SafetyRequirement
 from .output_utils import print_service, get_applied_msg, prompt_service, get_skipped_msg, get_fix_opt_used_msg, \
     is_using_api_key, get_specifier_range_info
 from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context, \
     SafetyContext, validate_expiration_date, is_a_remote_mirror, get_requirements_content, SafetyPolicyFile, \
-    get_terminal_size, should_show_unpinned_messages
+    get_terminal_size, is_ignore_unpinned_mode, get_hashes
 
 session = requests.session()
 
@@ -254,15 +256,25 @@ def get_vulnerabilities(pkg, spec, db):
                 yield entry
 
 
-def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_vulns):
+def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_vulns, affected):
     base_domain = db.get('meta', {}).get('base_domain')
-    ignored = (ignore_vulns and vuln_id in ignore_vulns and (
+    unpinned_ignored = ignore_vulns.get(vuln_id, {}).get('requirements', None)
+    should_ignore = not unpinned_ignored or str(affected.specifier) in unpinned_ignored
+
+    ignored = (ignore_vulns and vuln_id in ignore_vulns and should_ignore and (
             not ignore_vulns[vuln_id]['expires'] or ignore_vulns[vuln_id]['expires'] > datetime.utcnow()))
     more_info_url = f"{base_domain}{data.get('more_info_path', '')}"
     severity = None
 
     if cve and (cve.cvssv2 or cve.cvssv3):
         severity = Severity(source=cve.name, cvssv2=cve.cvssv2, cvssv3=cve.cvssv3)
+
+    analyzed_requirement = affected
+    analyzed_version = next(iter(analyzed_requirement.specifier)).version if is_pinned_requirement(
+        analyzed_requirement.specifier) else None
+
+    vulnerable_spec = set()
+    vulnerable_spec.add(specifier)
 
     return Vulnerability(
         vulnerability_id=vuln_id,
@@ -271,10 +283,10 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
         ignored=ignored,
         ignored_reason=ignore_vulns.get(vuln_id, {}).get('reason', None) if ignore_vulns else None,
         ignored_expires=ignore_vulns.get(vuln_id, {}).get('expires', None) if ignore_vulns else None,
-        vulnerable_spec=specifier,
+        vulnerable_spec=vulnerable_spec,
         all_vulnerable_specs=data.get("specs", []),
-        analyzed_version=pkg.version,
-        analyzed_spec=pkg.spec,
+        analyzed_version=analyzed_version,
+        analyzed_requirement=analyzed_requirement,
         advisory=data.get("advisory"),
         is_transitive=data.get("transitive", False),
         published_date=data.get("published_date"),
@@ -303,16 +315,11 @@ def get_cve_from(data, db_full):
                cvssv3=cve_meta.get("cvssv3", None))
 
 
-def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules):
+def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules, req):
+    if not ignore_severity_rules:
+        ignore_severity_rules = {}
 
-    if should_show_unpinned_messages(pkg.version):
-        reason = "This vulnerability is being ignored due to the 'ignore-unpinned-requirements' flag (default True). " \
-                 "To change this, set 'ignore-unpinned-requirements' to False under 'security' in your policy file. " \
-                 "See https://docs.pyup.io/docs/safety-20-policy-file for more information."
-        ignore_vulns[vuln_id] = {'reason': reason, 'expires': None}
-        return
-
-    if not ignore_severity_rules or not isinstance(ignore_vulns, dict):
+    if not isinstance(ignore_vulns, dict):
         return
 
     severity = None
@@ -329,26 +336,31 @@ def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_sever
 
     if severity:
         if float(severity) < ignore_severity_below:
-            reason = 'Ignored by severity rule in policy file, {0} < {1}'.format(float(severity),
-                                                                                  ignore_severity_below)
+            reason = 'Ignored by severity rule in policy file, {0} < {1}'.format(float(severity), ignore_severity_below)
             ignore_vulns[vuln_id] = {'reason': reason, 'expires': None}
     elif ignore_unknown_severity:
         reason = 'Unknown CVSS severity, ignored by severity rule in policy file.'
         ignore_vulns[vuln_id] = {'reason': reason, 'expires': None}
 
+    version = next(iter(req.specifier)).version if is_pinned_requirement(req.specifier) else pkg.version
 
-def is_vulnerable(vulnerable_spec: SpecifierSet, package: Package):
+    is_prev_not_ignored: bool = vuln_id not in ignore_vulns
+    is_req_not_ignored: bool = 'requirements' in ignore_vulns.get(vuln_id, {}) and str(req.specifier) not in ignore_vulns.get(vuln_id, {}).get('requirements', set())
 
-    # Pinned
-    if package.version:
-        return vulnerable_spec.contains(package.version)
+    if (is_prev_not_ignored or is_req_not_ignored) and is_ignore_unpinned_mode(version):
+        reason = IGNORE_UNPINNED_REQ_REASON
+        requirements = set()
+        requirements.add(str(req.specifier))
+        ignore_vulns[vuln_id] = {'reason': reason, 'expires': None, 'requirements': requirements}
 
-    from packaging.requirements import Requirement
 
-    specifier: SpecifierSet = Requirement(f"{package.name}{package.spec}").specifier
-    resolved_insecure_versions = specifier.filter(package.insecure_versions, prereleases=None)
+def is_vulnerable(vulnerable_spec: SpecifierSet, requirement, package):
 
-    return any(resolved_insecure_versions)
+    if is_pinned_requirement(requirement.specifier):
+        return vulnerable_spec.contains(next(iter(requirement.specifier)).version)
+
+    return any(requirement.specifier.filter(vulnerable_spec.filter(package.insecure_versions, prereleases=True),
+                                            prereleases=True))
 
 
 @sync_safety_context
@@ -359,18 +371,21 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
     db_full = None
     vulnerable_packages = frozenset(db.get('vulnerable_packages', []))
     vulnerabilities = []
+    found_pkgs = {}
+    requirements = iter([])
 
-    for pkg in packages:
-        # Ignore recursive files not resolved
-        if isinstance(pkg, RequirementFile):
-            continue
+    for p in packages:
+        requirements = itertools.chain(p.requirements, requirements)
+        found_pkgs[canonicalize_name(p.name)] = p
 
-        # normalize the package name, the safety-db is converting underscores to dashes and uses
-        # lowercase
-        name = canonicalize_name(pkg.name)
-        version = pkg.version
+    # Let's report by req, pinned in environment will be ==version
+    for req in requirements:
+        vuln_per_req = {}
+        name = canonicalize_name(req.name)
 
-        if not version:
+        pkg = found_pkgs.get(name, None)
+
+        if not pkg.version:
             if not db_full:
                 db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy,
                                          telemetry=telemetry)
@@ -381,7 +396,7 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
             for specifier in db['vulnerable_packages'][name]:
                 spec_set = SpecifierSet(specifiers=specifier)
 
-                if is_vulnerable(spec_set, pkg):
+                if is_vulnerable(spec_set, req, pkg):
                     if not db_full:
                         db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy,
                                                  telemetry=telemetry)
@@ -394,36 +409,56 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
                         except StopIteration:
                             vuln_id: str = ''
 
+                        if vuln_id in vuln_per_req:
+                            vuln_per_req[vuln_id].vulnerable_spec.add(specifier)
+                            continue
+
                         cve = get_cve_from(data, db_full)
 
-                        ignore_vuln_if_needed(pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules)
+                        ignore_vuln_if_needed(pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules, req)
 
                         vulnerability = get_vulnerability_from(vuln_id, cve, data, specifier, db_full, name, pkg,
-                                                               ignore_vulns)
+                                                               ignore_vulns, req)
 
                         should_add_vuln = not (vulnerability.is_transitive and is_env_scan)
 
                         if (include_ignored or vulnerability.vulnerability_id not in ignore_vulns) and should_add_vuln:
+                            vuln_per_req[vulnerability.vulnerability_id] = vulnerability
                             vulnerabilities.append(vulnerability)
 
     return vulnerabilities, db_full
 
 
-def precompute_remediations(remediations, packages, vulns,
-                            ignored_vulns):
+def precompute_remediations(remediations, packages, vulns, secure_vulns_by_user):
+
     for vuln in vulns:
-        if vuln.ignored:
-            ignored_vulns.add(vuln.vulnerability_id)
+
+        if vuln.ignored and vuln.ignored_reason != IGNORE_UNPINNED_REQ_REASON:
+            secure_vulns_by_user.add(vuln.vulnerability_id)
             continue
 
-        if vuln.package_name in remediations.keys():
-            remediations[vuln.package_name]['vulnerabilities_found'] = \
-                remediations[vuln.package_name].get('vulnerabilities_found', 0) + 1
+        if vuln.package_name in remediations.keys() and str(vuln.analyzed_requirement.specifier) in remediations[vuln.package_name]:
+            spec = remediations[vuln.package_name][str(vuln.analyzed_requirement.specifier)]
+            spec['vulnerabilities_found'] = spec.get('vulnerabilities_found', 0) + 1
         else:
+            version = None
+            is_pinned = is_pinned_requirement(vuln.analyzed_requirement.specifier)
+
+            if is_pinned:
+                version = next(iter(vuln.analyzed_requirement.specifier)).version
+
+            if not is_pinned and is_ignore_unpinned_mode(version):
+                # Let's ignore this requirement
+                continue
+
             vulns_count = 1
             packages[vuln.package_name] = vuln.pkg
-            remediations[vuln.package_name] = {'vulnerabilities_found': vulns_count, 'version': vuln.pkg.version,
-                                               'current_spec': vuln.pkg.spec, 'more_info_url': vuln.pkg.more_info_url}
+
+            remediations[vuln.package_name][str(vuln.analyzed_requirement.specifier)] = {
+                'vulnerabilities_found': vulns_count,
+                'version': version,
+                'requirement': vuln.analyzed_requirement,
+                'more_info_url': vuln.pkg.more_info_url}
 
 
 def get_closest_ver(versions, version, spec: SpecifierSet):
@@ -466,13 +501,13 @@ def get_closest_ver(versions, version, spec: SpecifierSet):
     return results
 
 
-def compute_sec_ver_for_user(package: Package, ignored_vulns, db_full):
+def compute_sec_ver_for_user(package: Package, secure_vulns_by_user, db_full):
     versions = package.get_versions(db_full)
     affected_versions = []
 
     for vuln in db_full.get('vulnerable_packages', {}).get(package.name, []):
         vuln_id: str = str(next(filter(lambda i: i.get('type', None) == 'pyup', vuln.get('ids', []))).get('id', ''))
-        if vuln_id and vuln_id not in ignored_vulns:
+        if vuln_id and vuln_id not in secure_vulns_by_user:
             affected_versions += vuln.get('affected_versions', [])
 
     affected_v = set(affected_versions)
@@ -481,17 +516,17 @@ def compute_sec_ver_for_user(package: Package, ignored_vulns, db_full):
     return sorted(sec_ver_for_user, key=lambda ver: parse_version(ver), reverse=True)
 
 
-def build_remediation_info_url(base_url: str, current_version: Optional[str], current_spec: str,
+def build_remediation_info_url(base_url: str, version: Optional[str], spec: str,
                                target_version: Optional[str] = ''):
 
     if not is_using_api_key():
         return base_url
 
-    params = {'from': current_version, 'to': target_version}
+    params = {'from': version, 'to': target_version}
 
     # No pinned version
-    if not current_version:
-        params = {'spec': current_spec}
+    if not version:
+        params = {'spec': spec}
 
     req = PreparedRequest()
     req.prepare_url(base_url, params)
@@ -499,7 +534,7 @@ def build_remediation_info_url(base_url: str, current_version: Optional[str], cu
     return req.url
 
 
-def compute_sec_ver(remediations, packages: Dict[str, Package], ignored_vulns, db_full):
+def compute_sec_ver(remediations, packages: Dict[str, Package], secure_vulns_by_user, db_full):
     """
     Compute the secure_versions and the closest_secure_version for each remediation using the affected_versions
     of each no ignored vulnerability of the same package, there is only a remediation for each package.
@@ -508,58 +543,60 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], ignored_vulns, d
         pkg: Package = packages.get(pkg_name, None)
 
         secure_versions = []
-        version = None
-        spec = None
 
         if pkg:
             secure_versions = pkg.secure_versions
-            version = pkg.version
-            spec = pkg.spec
+
+        analyzed = set(remediations[pkg_name].keys())
 
         if not is_using_api_key():
-            remediations[pkg_name]['closest_secure_version'] = {'upper': None, 'lower': None}
-            remediations[pkg_name]['recommended_version'] = None
-            remediations[pkg_name]['other_recommended_versions'] = []
             continue
 
-        if not ignored_vulns:
-            secure_v = sorted(secure_versions, key=lambda ver: parse_version(ver), reverse=True)
-        else:
-            secure_v = compute_sec_ver_for_user(package=pkg, ignored_vulns=ignored_vulns, db_full=db_full)
+        for analyzed_requirement in analyzed:
+            rem = remediations[pkg_name][analyzed_requirement]
+            spec = rem.get('requirement').specifier
+            version = rem['version']
 
-        remediations[pkg_name]['closest_secure_version'] = get_closest_ver(secure_v, version, spec)
+            if not secure_vulns_by_user:
+                secure_v = sorted(secure_versions, key=lambda ver: parse_version(ver), reverse=True)
+            else:
+                secure_v = compute_sec_ver_for_user(package=pkg, secure_vulns_by_user=secure_vulns_by_user, db_full=db_full)
 
-        upgrade = remediations[pkg_name]['closest_secure_version'].get('upper', None)
-        downgrade = remediations[pkg_name]['closest_secure_version'].get('lower', None)
-        recommended_version = None
+            rem['closest_secure_version'] = get_closest_ver(secure_v, version, spec)
+    
+            upgrade = rem['closest_secure_version'].get('upper', None)
+            downgrade = rem['closest_secure_version'].get('lower', None)
+            recommended_version = None
+    
+            if upgrade:
+                recommended_version = upgrade
+            elif downgrade:
+                recommended_version = downgrade
+    
+            rem['recommended_version'] = recommended_version
+            rem['other_recommended_versions'] = [other_v for other_v in secure_v if
+                                                                    other_v != str(recommended_version)]
 
-        if upgrade:
-            recommended_version = upgrade
-        elif downgrade:
-            recommended_version = downgrade
+            # Refresh the URL with the recommended version.
 
-        remediations[pkg_name]['recommended_version'] = recommended_version
-        remediations[pkg_name]['other_recommended_versions'] = [other_v for other_v in secure_v if
-                                                                other_v != str(recommended_version)]
-
-        # Refresh the URL with the recommended version.
-        base_url = remediations[pkg_name]['more_info_url']
-        remediations[pkg_name]['more_info_url'] = \
-            build_remediation_info_url(base_url=base_url, current_version=version,
-                                       current_spec=str(remediations[pkg_name]['current_spec']),
-                                       target_version=recommended_version)
+            spec = str(rem['requirement'].specifier)
+            base_url = rem['more_info_url']
+            rem['more_info_url'] = \
+                build_remediation_info_url(base_url=base_url, version=version,
+                                           spec=spec,
+                                           target_version=recommended_version)
 
 
 def calculate_remediations(vulns, db_full):
-    remediations = {}
+    remediations = defaultdict(dict)
     package_metadata = {}
-    ignored_vulns = set()
+    secure_vulns_by_user = set()
 
     if not db_full:
         return remediations
 
-    precompute_remediations(remediations, package_metadata, vulns, ignored_vulns)
-    compute_sec_ver(remediations, package_metadata, ignored_vulns, db_full)
+    precompute_remediations(remediations, package_metadata, vulns, secure_vulns_by_user)
+    compute_sec_ver(remediations, package_metadata, secure_vulns_by_user, db_full)
 
     return remediations
 
@@ -601,12 +638,13 @@ def get_update_type(from_ver: Optional[Version], to_ver: Version):
 
 
 def process_fixes(files, remediations, auto_remediation_limit, output, no_output=True, prompt=False):
-    requirements = compute_fixes_per_requirements(files, remediations, auto_remediation_limit, prompt=prompt)
+    req_remediations = itertools.chain.from_iterable(rem.values() for pkg_name, rem in remediations.items())
+    requirements = compute_fixes_per_requirements(files, req_remediations, auto_remediation_limit, prompt=prompt)
     fixes = apply_fixes(requirements, output, no_output, prompt)
     return fixes
 
 
-def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, prompt=False):
+def compute_fixes_per_requirements(files, req_remediations, auto_remediation_limit, prompt=False):
     requirements_files = get_requirements_content(files)
 
     from dparse.parser import parse, filetypes
@@ -614,12 +652,14 @@ def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, 
 
     requirements = {
         'files': {},
-        'dependencies': {},
+        'dependencies': defaultdict(dict),
     }
 
     for name, contents in requirements_files.items():
         dependency_file = parse(contents, path=name, file_type=filetypes.requirements_txt, resolve=True)
         dependency_files = dependency_file.resolved_files + [dependency_file]
+        empty_spec = SpecifierSet('')
+        default_spec = SpecifierSet('>=0')
 
         # Support recursive requirements in the multiple requirement files provided
         for resolved_f in dependency_files:
@@ -627,15 +667,23 @@ def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, 
                 continue
             file = {'content': resolved_f.content, 'fixes': {'TO_SKIP': [], 'TO_APPLY': [], 'TO_CONFIRM': []}}
             requirements['files'][resolved_f.path] = file
-            requirements['dependencies'].update({d.name: (d, resolved_f.path) for d in resolved_f.dependencies})
 
-    for pkg, remediation in remediations.items():
+            for d in resolved_f.dependencies:
+                if d.specs == empty_spec:
+                    d.specs = default_spec
+
+                requirements['dependencies'][d.name][str(d.specs)] = (d, resolved_f.path)
+
+    for remediation in req_remediations:
+        req: SafetyRequirement = remediation.get('requirement')
+        pkg: str = req.name
+
         dry_fix = Fix(package=pkg, more_info_url=remediation.get('more_info_url', ''),
-                      previous_spec=remediation.get('current_spec'),
+                      previous_spec=str(req.specifier),
                       other_options=remediation.get('other_recommended_versions', []))
         from_ver: Optional[str] = remediation.get('version', None)
 
-        if pkg not in requirements['dependencies']:
+        if pkg not in requirements['dependencies'] or dry_fix.previous_spec not in requirements['dependencies'][pkg]:
             # Let's attach it to the first file scanned.
             file = next(iter(requirements['files']))
             # Let's use the no parsed version.
@@ -645,7 +693,7 @@ def compute_fixes_per_requirements(files, remediations, auto_remediation_limit, 
             requirements['files'][file]['fixes']['TO_SKIP'].append(dry_fix)
             continue
 
-        dependency, name = requirements['dependencies'][pkg]
+        dependency, name = requirements['dependencies'][pkg][dry_fix.previous_spec]
         dry_fix.applied_at = name
 
         fixes = requirements['files'][name]['fixes']
@@ -729,7 +777,7 @@ def apply_fixes(requirements, out_type, no_output, prompt):
 
         for f in r_apply:
             new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
-                                                        dependency=f.dependency)
+                                                        dependency=f.dependency, hashes=get_hashes(f.dependency))
             f.status = 'APPLIED'
             updated = True
             output.append((f'- {get_applied_msg(f, mode="auto")}', {}))
@@ -744,10 +792,16 @@ def apply_fixes(requirements, out_type, no_output, prompt):
             for f in r_confirm:
                 changelog_detail = f'Changelogs notes: {f.more_info_url}'
                 options = [f"({index}) =={option}" for index, option in enumerate(f.other_options)]
+                other_options = ''
+                input_hint = '[y/n]'
+
+                if len(options) > 0:
+                    other_options = f' Other secure options: {", ".join(options)}.'
+                    input_hint = '[y/n/index]'
 
                 confirmed: str = prompt_service(
                     (f'- Do you want to update {f.package} from {f.previous_spec} to =={f.updated_version}? '
-                     f'({changelog_detail}). Other secure options: {", ".join(options)}. [y/n/index]', {}),
+                     f'({changelog_detail}).{other_options} {input_hint}', {}),
                     out_type
                 ).lower()
 
@@ -766,7 +820,8 @@ def apply_fixes(requirements, out_type, no_output, prompt):
                         f.updated_version = f.other_options[index]
 
                     new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
-                                                                dependency=f.dependency)
+                                                                dependency=f.dependency,
+                                                                hashes=get_hashes(f.dependency))
                     output.append((get_applied_msg(f, mode="manual"), {'indent': ' ' * 5}))
                 else:
                     f.status = 'MANUALLY_SKIPPED'
@@ -800,9 +855,10 @@ def apply_fixes(requirements, out_type, no_output, prompt):
 
 
 def find_vulnerabilities_fixed(vulnerabilities: Dict, fixes):
-    fixed_pkgs = set(fix.package for fix in fixes)
+    fixed_specs = set(fix.previous_spec for fix in fixes)
 
-    return [vulnerability for vulnerability in vulnerabilities if vulnerability['package_name'] in fixed_pkgs]
+    return [vulnerability for vulnerability in vulnerabilities if
+            str(vulnerability['analyzed_requirement'].specifier) in fixed_specs]
 
 
 @sync_safety_context
@@ -810,27 +866,30 @@ def review(report=None, params=None):
     SafetyContext().command = 'review'
     vulnerable = []
     vulnerabilities = report.get('vulnerabilities', []) + report.get('ignored_vulnerabilities', [])
-    remediations = {}
+    remediations = defaultdict(dict)
 
-    for key, value in report.get('remediations', {}).items():
-        recommended = value.get('recommended_version', None)
-        secure_v = value.get('other_recommended_versions', [])
+    for key, pkg_rem in report.get('remediations', {}).items():
+        analyzed = set(pkg_rem['requirements'].keys())
 
-        remediations[key] = {'vulnerabilities_found': value.get('vulnerabilities_found', 0),
-                             'version': value.get('current_version'),
-                             'current_spec': SpecifierSet(
-                                 value.get('current_spec', f"=={value.get('current_version')}")),
-                             'other_recommended_versions': secure_v,
-                             'recommended_version': parse_version(recommended) if recommended else None,
-                             # minor isn't supported in review
-                             'more_info_url': value.get('more_info_url')}
+        for req in analyzed:
+            req_rem = pkg_rem['requirements'][req]
+            recommended = req_rem.get('recommended_version', None)
+            secure_v = req_rem.get('other_recommended_versions', [])
+
+            remediations[key][req] = {'vulnerabilities_found': req_rem.get('vulnerabilities_found', 0),
+                                      'version': req_rem.get('version'),
+                                      'requirement': SafetyRequirement(req_rem['requirement']['raw']),
+                                      'other_recommended_versions': secure_v,
+                                      'recommended_version': parse_version(recommended) if recommended else None,
+                                      # minor isn't supported in review
+                                      'more_info_url': req_rem.get('more_info_url')}
 
     packages = report.get('scanned_packages', [])
     pkgs = {}
 
     for name, values in packages.items():
-        spec = values.get('spec', f"=={values.get('version')}")
-        values.update({'spec': SpecifierSet(spec)})
+        requirements = [SafetyRequirement(r['raw']) for r in values.get('requirements', [])]
+        values.update({'requirements': requirements})
         pkgs[name] = Package(**values)
 
     ctx = SafetyContext()
@@ -861,6 +920,7 @@ def review(report=None, params=None):
             vuln['ignored_expires'] = validate_expiration_date(ignored_expires)
 
         vuln['CVE'] = CVE(name=XVE_ID, cvssv2=cvssv2, cvssv3=cvssv3) if XVE_ID else None
+        vuln['analyzed_requirement'] = SafetyRequirement(vuln['analyzed_requirement']['raw'])
 
         vulnerable.append(Vulnerability(**vuln))
 
@@ -895,7 +955,7 @@ def get_licenses(key=False, db_mirror=False, cached=0, proxy=None, telemetry=Tru
 def add_local_notifications(packages: List[Package],
                             ignore_unpinned_requirements: Optional[bool]) -> List[Dict[str, str]]:
     announcements = []
-    unpinned_packages: [str] = [f"{pkg.name}" for pkg in packages if not pkg.version]
+    unpinned_packages: [str] = [f"{pkg.name}" for pkg in packages if pkg.has_unpinned_req()]
 
     if unpinned_packages and ignore_unpinned_requirements is not False:
         found = len(unpinned_packages)
@@ -913,9 +973,11 @@ def add_local_notifications(packages: List[Package],
                   f'report on potential vulnerabilities in unpinned packages. {doc_msg}'
         else:
             msg = f'Warning: {pkgs} unpinned and potential vulnerabilities are ' \
-                  f'being ignored given `ignore-unpinned-spec` is True in your config. {doc_msg}'
+                  f'being ignored given `ignore-unpinned-requirements` is True in your config. {doc_msg}'
 
         announcements.append({'message': msg, 'type': 'warning', 'local': True})
+
+    announcements.extend(SafetyContext().local_announcements)
 
     return announcements
 
@@ -985,12 +1047,29 @@ def get_packages(files=False, stdin=False):
 
     import pkg_resources
 
+    def allowed_version(pkg: str, version: str):
+        try:
+            parse_version(version)
+        except Exception:
+            SafetyContext.local_announcements.append(
+                {'message': f'Version {version} for {pkg} is invalid and is ignored by Safety. Please See PEP 440.',
+                 'type': 'warning', 'local': True})
+            return False
+
+        return True
+
+    w_set = pkg_resources.working_set
+
+    SafetyContext().scanned_full_path.extend(w_set.entry_keys.keys())
+
     return [
-        Package(name=d.key, version=d.version, spec=SpecifierSet(f'=={d.version}'), found=d.location, insecure_versions=[],
+        Package(name=d.key, version=d.version,
+                requirements=[SafetyRequirement(f'{d.key}=={d.version}', found=d.location)],
+                found=d.location, insecure_versions=[],
                 secure_versions=[], latest_version=None, latest_version_without_known_vulnerabilities=None,
                 more_info_url=None) for d in
-        pkg_resources.working_set
-        if d.key not in {"python", "wsgiref", "argparse"}
+        w_set
+        if d.key not in {"python", "wsgiref", "argparse"} and allowed_version(d.key, d.version)
     ]
 
 

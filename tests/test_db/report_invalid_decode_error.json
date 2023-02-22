@@ -54,7 +54,7 @@
                 "<0.2.0"
             ],
             "analyzed_version": "0.1.0",
-            "analyzed_spec": "==0.1.0",
+            "analyzed_requirement": "insecure-package==0.1.0",
             "advisory": "This is an insecure package with lots of exploitable security vulnerabilities.",
             "is_transitive": false,
             "published_date": "2021-Apr-14",

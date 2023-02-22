@@ -147,7 +147,7 @@ def clean_check_command(f):
               help="Define the policy file to be used")
 @click.option("--audit-and-monitor/--disable-audit-and-monitor", default=True,
               help="Send results back to pyup.io for viewing on your dashboard. Requires an API key.")
-@click.option("--project", default=None,
+@click.option("project", "--project-id", "--project", default=None,
               help="Project to associate this scan with on pyup.io. "
                    "Defaults to a canonicalized github style name if available, otherwise unknown")
 @click.option("--save-json", default="", help="Path to where the output file will be placed; if the path is a"
@@ -165,8 +165,8 @@ def clean_check_command(f):
 @click.option("no_prompt", "--no-prompt", "-np", default=False, help="Safety won't ask for remediations outside of "
                                                                      "the remediation limit.", is_flag=True,
               show_default=True)
-@click.option('--json-version', type=click.Choice(['0.5', '1.0']), default="1.0", help="Select the JSON version to be "
-                                                                                       "used in the output")
+@click.option('json_version', '--json-output-format', type=click.Choice(['0.5', '1.1']), default="1.1",
+              help="Select the JSON version to be used in the output", show_default=True)
 @click.pass_context
 @clean_check_command
 def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
@@ -183,15 +183,16 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
     silent_outputs = ['json', 'bare', 'html']
     is_silent_output = output in silent_outputs
     prompt_mode = bool(not non_interactive and not stdin and not is_silent_output) and not no_prompt
-    kwargs = {'version': json_version } if output == 'json' else {}
+    kwargs = {'version': json_version} if output == 'json' else {}
 
     try:
         packages = get_packages(files, stdin)
         proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
         ignore_severity_rules = None
-        ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements = \
-            get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements, project = \
+            get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements,
+                                  project)
         is_env_scan = not stdin and not files
 
         params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,

@@ -1,6 +1,8 @@
-Safety has detected a vulnerable package, [{{ pkg }}]({{ remediation['more_info_url'] }}), that should be updated from **{% if remediation['current_version'] %}{{ remediation['current_version'] }}{% else %}{{ remediation['current_spec'] }}{% endif %}** to **{{ remediation['recommended_version'] }}** to fix {{ vulns | length }} vulnerabilit{{ "y" if vulns|length == 1 else "ies" }}{% if overall_impact %}{{ " rated " + overall_impact if vulns|length == 1 else " with the highest rating being " + overall_impact }}{% endif %}.
+Safety has detected a vulnerable package, [{{ pkg }}]({{ remediation['more_info_url'] }}), that should be updated from **{% if remediation['version'] %}{{ remediation['version'] }}{% else %}{{ remediation['requirement']['specifier'] }}{% endif %}** to **{{ remediation['recommended_version'] }}** to fix {{ vulns | length }} vulnerabilit{{ "y" if vulns|length == 1 else "ies" }}{% if overall_impact %}{{ " rated " + overall_impact if vulns|length == 1 else " with the highest CVSS severity rating being " + overall_impact }}{% endif %}.
 
 To read more about the impact of {{ "this vulnerability" if vulns|length == 1 else "these vulnerabilities" }} see [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}).
+
+{{ hint }}
 
 If you're using `pip`, you can run:
 
@@ -21,7 +23,7 @@ pip install {{ pkg }}=={{ remediation['recommended_version'] }}
 </details>
 
 <details>
-  <summary>Changelog from {% if remediation['current_version'] %}{{ remediation['current_version'] }}{% else %}{{ remediation['current_spec'] }}{% endif %} to {{ remediation['recommended_version'] }}</summary>
+  <summary>Changelog from {{ remediation['requirement']['name'] }}{{ remediation['requirement']['specifier'] }} to {{ remediation['recommended_version'] }}</summary>
 {% if summary_changelog %}
 The full changelog is too long to post here. See [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}) for more information.
 {% else %}
@@ -36,7 +38,7 @@ The full changelog is too long to post here. See [PyUp’s {{ pkg }} page]({{ re
 </details>
 
 <details>
-  <summary>Ignoring This Vulnerability</summary>
+  <summary>Ignoring {{ "This Vulnerability" if vulns|length == 1 else "These Vulnerabilities" }}</summary>
 
 If you wish to [ignore this vulnerability](https://docs.pyup.io/docs/safety-20-policy-file), you can add the following to `.safety-policy.yml` in this repo:
 

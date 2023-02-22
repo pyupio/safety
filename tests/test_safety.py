@@ -12,6 +12,7 @@ Tests for `safety` module.
 import json
 import os
 import unittest
+from collections import defaultdict
 from http import HTTPStatus
 from io import StringIO
 from json import JSONDecodeError
@@ -25,7 +26,7 @@ from requests.exceptions import RequestException
 from safety import util, safety
 from safety.errors import MalformedDatabase
 from safety.formatter import SafetyFormatter
-from safety.models import CVE, Package
+from safety.models import CVE, Package, SafetyRequirement
 from safety.safety import ignore_vuln_if_needed, get_closest_ver, precompute_remediations, compute_sec_ver, \
     calculate_remediations, read_vulnerabilities
 from tests.resources import VALID_REPORT, VULNS, SCANNED_PACKAGES, REMEDIATIONS
@@ -41,7 +42,8 @@ class TestSafety(unittest.TestCase):
         self.report_vulns = VULNS
         self.report_packages = SCANNED_PACKAGES
         self.report_remediations = REMEDIATIONS
-        self.default_pkg = Package(**{'name': 'default_pkg', 'version': '1.22.0', 'spec': SpecifierSet('==1.22.0'),
+        self.default_pkg = Package(**{'name': 'default_pkg', 'version': '1.22.0',
+                                      'requirements': [SafetyRequirement('default_pkg==1.22.0')],
                                       'found': '/site-packages/default_pkg',
                                       'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
                                       'secure_versions': ['1.22.3'],
@@ -513,8 +515,9 @@ class TestSafety(unittest.TestCase):
         cve_no_cvss = CVE(name='PYUP-123', cvssv2=None, cvssv3=None)
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-unknown-severity': True}
+
         ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1234', cve=cve_no_cvss, ignore_vulns=ignore_vulns,
-                              ignore_severity_rules=ignore_rules)
+                              ignore_severity_rules=ignore_rules, req=SafetyRequirement('django==2.2'))
         EXPECTED = {
             '1234': {'reason': 'Unknown CVSS severity, ignored by severity rule in policy file.', 'expires': None}}
 
@@ -525,17 +528,18 @@ class TestSafety(unittest.TestCase):
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-unknown-severity': False}
         ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1234', cve=cve_no_cvss, ignore_vulns=ignore_vulns,
-                              ignore_severity_rules=ignore_rules)
+                              ignore_severity_rules=ignore_rules, req=SafetyRequirement('django==2.2'))
 
         self.assertEqual(ignore_vulns, {})
 
     def test_ignore_vulns_by_base_score(self):
+        req = SafetyRequirement('django==2.2')
         cve_cvss_medium = CVE(name='CVE-123', cvssv2={'base_score': '4,3', 'impact_score': '2,9'},
                               cvssv3={'base_score': '6.1', 'impact_score': '2.7', 'base_severity': 'MEDIUM'})
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-severity-below': 7}
         ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1234', cve=cve_cvss_medium, ignore_vulns=ignore_vulns,
-                              ignore_severity_rules=ignore_rules)
+                              ignore_severity_rules=ignore_rules, req=req)
         m_b_score = cve_cvss_medium.cvssv3.get('base_score')
 
         EXPECTED = {
@@ -549,7 +553,7 @@ class TestSafety(unittest.TestCase):
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-severity-below': 7}
         ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1235', cve=cve_cvss_critical, ignore_vulns=ignore_vulns,
-                              ignore_severity_rules=ignore_rules)
+                              ignore_severity_rules=ignore_rules, req=req)
         self.assertEqual(ignore_vulns, {})
 
         cve_cvss_high = CVE(name='PVE-125', cvssv2=None,
@@ -557,7 +561,7 @@ class TestSafety(unittest.TestCase):
         ignore_vulns = {}
         ignore_rules = {'ignore-cvss-severity-below': 7}
         ignore_vuln_if_needed(pkg=self.default_pkg, vuln_id='1236', cve=cve_cvss_high, ignore_vulns=ignore_vulns,
-                              ignore_severity_rules=ignore_rules)
+                              ignore_severity_rules=ignore_rules, req=req)
         self.assertEqual(ignore_vulns, {})
 
     def test_get_closest_ver(self):
@@ -583,7 +587,7 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(versions, EXPECTED)
 
     def test_precompute_remediations(self):
-        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'spec': SpecifierSet('==1.22.0'),
+        numpy_pkg = {'name': 'numpy', 'version': '1.22.0', 'requirements': [SafetyRequirement('numpy==1.22.0')],
                      'found': '/site-packages/numpy',
                      'insecure_versions': ['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
                      'secure_versions': ['1.22.3'], 'latest_version_without_known_vulnerabilities': '2.2',
@@ -595,16 +599,19 @@ class TestSafety(unittest.TestCase):
                               vuln_kwargs={'affected_versions': ['1.22.0', '1.22.0rc3']}),
             get_vulnerability(vuln_kwargs={'ignored': True}, pkg_kwargs={'name': 'django'})
         ]
-        remediations = {}
+        remediations = defaultdict(dict)
         package_meta = {}
         precompute_remediations(remediations=remediations, packages=package_meta, vulns=vulns,
-                                ignored_vulns=set())
+                                secure_vulns_by_user=set())
 
         EXPECTED = {'numpy': Package(**numpy_pkg)}
         self.assertEqual(package_meta, EXPECTED)
 
-        EXPECTED = {'numpy': {'vulnerabilities_found': 2, 'version': '1.22.0', 'current_spec': SpecifierSet('==1.22.0'),
-                              'more_info_url': 'https://pyup.io/package/numpy'}}
+        EXPECTED = {'numpy': {'==1.22.0':
+                                  {'vulnerabilities_found': 2, 'version': '1.22.0',
+                                   'requirement': SafetyRequirement('numpy==1.22.0'),
+                                   'more_info_url': 'https://pyup.io/package/numpy'}}
+                    }
 
         self.assertEqual(remediations, EXPECTED)
 
@@ -621,32 +628,38 @@ class TestSafety(unittest.TestCase):
         self.assertIsNotNone(db_full)
 
         npy = Package(insecure_versions=['1.22.2', '1.22.1', '1.22.0', '1.22.0rc3', '1.21.5'],
-                      secure_versions=['1.22.3'], version='1.22.0', name='numpy', spec=SpecifierSet('==1.22.0'))
+                      secure_versions=['1.22.3'], version='1.22.0', name='numpy',
+                      requirements=[SafetyRequirement('numpy==1.22.0')])
 
         pre_pkg_meta = {'numpy': copy.copy(npy)}
         # The vuln affecting '1.21.5' was ignored by the user
         ignored_vulns = set()
         ignored_vulns.add('29')
-        rem = {'numpy': {'vulnerabilities_found': 1, 'version': '1.22.0', 'current_spec': SpecifierSet('==1.22.0'),
-                         'more_info_url': 'https://pyup.io/package/foo'}}
-        compute_sec_ver(remediations=rem, packages=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
-        EXPECTED = {'numpy': {'vulnerabilities_found': 1, 'version': '1.22.0', 'current_spec': SpecifierSet('==1.22.0'),
-                              'other_recommended_versions': ['1.21.5'],
-                              'closest_secure_version': {'upper': parse('1.22.3'), 'lower': parse('1.21.5')},
-                              'more_info_url': 'https://pyup.io/package/foo?from=1.22.0&to=1.22.3',
-                              'recommended_version': parse('1.22.3')}}
+        rem = {'numpy': {'==1.22.0': {'vulnerabilities_found': 1, 'version': '1.22.0',
+                                      'requirement': SafetyRequirement('numpy==1.22.0'),
+                                      'more_info_url': 'https://pyup.io/package/foo'}}}
+        compute_sec_ver(remediations=rem, packages=pre_pkg_meta, secure_vulns_by_user=ignored_vulns, db_full=db_full)
+        EXPECTED = {'numpy': {
+            '==1.22.0': {'vulnerabilities_found': 1, 'version': '1.22.0',
+                         'requirement': SafetyRequirement('numpy==1.22.0'),
+                         'other_recommended_versions': ['1.21.5'],
+                         'closest_secure_version': {'upper': parse('1.22.3'), 'lower': parse('1.21.5')},
+                         'more_info_url': 'https://pyup.io/package/foo?from=1.22.0&to=1.22.3',
+                         'recommended_version': parse('1.22.3')}}}
         self.assertEqual(rem, EXPECTED)
 
         pre_pkg_meta = {'numpy': copy.copy(npy)}
         ignored_vulns = set()
-        rem = {'numpy': {'vulnerabilities_found': 2, 'version': '1.22.0', 'current_spec': SpecifierSet('==1.22.0'),
-                         'more_info_url': 'https://pyup.io/package/foo'}}
-        compute_sec_ver(remediations=rem, packages=pre_pkg_meta, ignored_vulns=ignored_vulns, db_full=db_full)
-        EXPECTED = {'numpy': {'vulnerabilities_found': 2, 'version': '1.22.0', 'current_spec': SpecifierSet('==1.22.0'),
-                              'other_recommended_versions': [],
-                              'closest_secure_version': {'upper': parse('1.22.3'), 'lower': None},
-                              'more_info_url': 'https://pyup.io/package/foo?from=1.22.0&to=1.22.3',
-                              'recommended_version': parse('1.22.3')}}
+        rem = {'numpy': {'==1.22.0' : {'vulnerabilities_found': 2, 'version': '1.22.0',
+                         'requirement': SafetyRequirement('numpy==1.22.0'),
+                         'more_info_url': 'https://pyup.io/package/foo'}}}
+        compute_sec_ver(remediations=rem, packages=pre_pkg_meta, secure_vulns_by_user=ignored_vulns, db_full=db_full)
+        EXPECTED = {'numpy': {'==1.22.0': {'vulnerabilities_found': 2, 'version': '1.22.0',
+                                           'requirement': SafetyRequirement('numpy==1.22.0'),
+                                           'other_recommended_versions': [],
+                                           'closest_secure_version': {'upper': parse('1.22.3'), 'lower': None},
+                                           'more_info_url': 'https://pyup.io/package/foo?from=1.22.0&to=1.22.3',
+                                           'recommended_version': parse('1.22.3')}}}
 
         self.assertEqual(rem, EXPECTED)
 
@@ -695,11 +708,12 @@ class TestSafety(unittest.TestCase):
         self.assertListEqual(vulns, self.report_vulns)
 
     def test_report_with_recommended_fix(self):
-        REMEDIATIONS_WITH_FIX = {'django': {'version': '4.0.1', 'vulnerabilities_found': 4,
-                                            'current_spec': SpecifierSet('==4.0.1'),
-                                            'other_recommended_versions': ['2.2.28', '3.2.13'],
-                                            'recommended_version': parse('4.0.4'),
-                                            'more_info_url': 'https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4'}}
+        REMEDIATIONS_WITH_FIX = {'django': {
+            '==4.0.1': {'version': '4.0.1', 'vulnerabilities_found': 4,
+                        'requirement': SafetyRequirement('django==4.0.1'),
+                        'other_recommended_versions': ['2.2.28', '3.2.13'],
+                        'recommended_version': parse('4.0.4'),
+                        'more_info_url': 'https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4'}}}
 
         with open(os.path.join(self.dirname, "test_db", "report_with_recommended_fix.json")) as f:
             vulns, remediations, packages = safety.review(read_vulnerabilities(f))

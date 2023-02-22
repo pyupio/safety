@@ -12,7 +12,7 @@ import click
 from click.testing import CliRunner
 
 from safety import cli
-from safety.models import Vulnerability, CVE, Severity
+from safety.models import Vulnerability, CVE, Severity, SafetyRequirement
 from safety.util import Package, SafetyContext
 
 
@@ -21,7 +21,7 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
     cve_kwargs = {} if cve_kwargs is None else cve_kwargs
     pkg_kwargs = {} if pkg_kwargs is None else pkg_kwargs
 
-    p_kwargs = {'name': 'django', 'version': '2.2', 'spec': SpecifierSet('==2.2'), 'found': '/site-packages/django',
+    p_kwargs = {'name': 'django', 'version': '2.2', 'requirements': [SafetyRequirement('django==2.2')], 'found': '/site-packages/django',
                 'insecure_versions': [], 'secure_versions': ['2.2'],
                 'latest_version_without_known_vulnerabilities': '2.2',
                 'latest_version': '2.2', 'more_info_url': 'https://pyup.io/package/foo'}
@@ -36,11 +36,14 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
         severity = Severity(source=cve.name, cvssv2=cve.cvssv2, cvssv3=cve.cvssv3)
     pkg = Package(**p_kwargs)
 
+    vulnerable_spec = set()
+    vulnerable_spec.add(">0")
+
     v_kwargs = {'package_name': pkg.name, 'pkg': pkg, 'ignored': False, 'ignored_reason': '', 'ignored_expires': '',
-                'vulnerable_spec': ">0",
+                'vulnerable_spec': vulnerable_spec,
                 'all_vulnerable_specs': ['2.2'],
                 'analyzed_version': pkg.version,
-                'analyzed_spec': str(pkg.spec),
+                'analyzed_requirement': pkg.requirements[0],
                 'advisory': '',
                 'vulnerability_id': 'PYUP-1234',
                 'is_transitive': False,
@@ -243,6 +246,7 @@ class TestSafetyCLI(unittest.TestCase):
         msg = 'The Safety policy file was successfully parsed with the following values:\n'
         parsed = json.dumps(
             {
+                "project-id": '',
                 "security": {
                     "ignore-cvss-severity-below": 0,
                     "ignore-cvss-unknown-severity": False,
@@ -339,13 +343,15 @@ class TestSafetyCLI(unittest.TestCase):
         target = Version("1.9")
         calculate_remediations.return_value = {
             "django": {
-                "version": "1.8",
-                "vulnerabilities_found": 1,
-                "recommended_version": target,
-                "current_spec": SpecifierSet('==1.8'),
-                "secure_versions": [],
-                "closest_secure_version": {"minor": None, "major": target},
-                "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
+                "==1.8": {
+                    "version": "1.8",
+                    "vulnerabilities_found": 1,
+                    "recommended_version": target,
+                    "requirement": SafetyRequirement('django==1.8'),
+                    "secure_versions": [],
+                    "closest_secure_version": {"minor": None, "major": target},
+                    "more_info_url": "https://pyup.io/p/pypi/django/52d/"}
+            }}
 
         dirname = os.path.dirname(__file__)
         source_req = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
@@ -369,12 +375,15 @@ class TestSafetyCLI(unittest.TestCase):
             target = Version("2.0")
             calculate_remediations.return_value = {
                 "django": {
-                    "version": "1.9",
-                    "vulnerabilities_found": 1,
-                    "recommended_version": target,
-                    "secure_versions": [],
-                    "closest_secure_version": {"minor": None, "major": target},
-                    "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
+                    "==1.9": {
+                        "version": "1.9",
+                        "vulnerabilities_found": 1,
+                        "recommended_version": target,
+                        "requirement": SafetyRequirement('django==1.9'),
+                        "secure_versions": [],
+                        "closest_secure_version": {"minor": None, "major": target},
+                        "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
+            }
 
             self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
                                          '-asul', 'minor', '--json'])
@@ -400,19 +409,18 @@ class TestSafetyCLI(unittest.TestCase):
                        "  on potential vulnerabilities in unpinned packages. It is recommended to pin \n  " \
                        "  your dependencies unless this is a library meant for distribution. To learn \n  " \
                        "  more about reporting these, specifier range handling, and options for \n  " \
-                       "  scanning unpinned packages, visit https://docs.pyup.io/docs/safety-range- \n  " \
+                       "  scanning unpinned packages visit https://docs.pyup.io/docs/safety-range- \n  " \
                        "  specs \n\n"
         self.assertIn(announcement, result.stdout)
 
         unpinned_vulns = "-> Warning: 2 known vulnerabilities match the django versions that could be \n" \
-                         "   installed from your django specifier is >=0 (unpinned). These \n" \
-                         "   vulnerabilities are not reported by default. To report these vulnerabilities \n" \
-                         "   set 'ignore-unpinned-requirements' to False under 'security' in your policy \n" \
-                         "   file. See https://docs.pyup.io/docs/safety-20-policy-file for more \n" \
-                         "   information. \n" \
+                         "   installed from your specifier: django>=0 (unpinned). These vulnerabilities \n" \
+                         "   are not reported by default. To report these vulnerabilities set 'ignore- \n" \
+                         "   unpinned-requirements' to False under 'security' in your policy file. See \n" \
+                         "   https://docs.pyup.io/docs/safety-20-policy-file for more information. \n" \
                          "   It is recommended to pin your dependencies unless this is a library meant \n" \
                          "   for distribution. To learn more about reporting these, specifier range \n" \
-                         "   handling, and options for scanning unpinned packages, visit \n" \
+                         "   handling, and options for scanning unpinned packages visit \n" \
                          "   https://docs.pyup.io/docs/safety-range-specs \n\n"
 
         self.assertIn(unpinned_vulns, result.stdout)
@@ -423,10 +431,10 @@ class TestSafetyCLI(unittest.TestCase):
 
         announcement = "\n\n ANNOUNCEMENTS\n\n  " \
                        "* Warning: django and numpy are unpinned and potential vulnerabilities are \n  " \
-                       "  being ignored given `ignore-unpinned-spec` is True in your config. It is \n  " \
-                       "  recommended to pin your dependencies unless this is a library meant for \n  " \
-                       "  distribution. To learn more about reporting these, specifier range \n  " \
-                       "  handling, and options for scanning unpinned packages, visit \n  " \
+                       "  being ignored given `ignore-unpinned-requirements` is True in your config. \n  " \
+                       "  It is recommended to pin your dependencies unless this is a library meant \n  " \
+                       "  for distribution. To learn more about reporting these, specifier range \n  " \
+                       "  handling, and options for scanning unpinned packages visit \n  " \
                        "  https://docs.pyup.io/docs/safety-range-specs \n\n"
 
         self.assertIn(announcement, result.stdout)
@@ -440,6 +448,15 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertNotIn("-> Warning: 2 known vulnerabilities match the django versions", result.stdout)
         self.assertIn("-> Vulnerability may be present given that your django install specifier is >=0", result.stdout)
         self.assertIn("Scan was completed. 2 vulnerabilities were reported.", result.stdout)
+
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--json', '-i', 'some id',
+                                              '--check-unpinned-requirements'])
+
+        ignored = json.loads(result.stdout).get('ignored_vulnerabilities', [])
+        self.assertEqual(1, len(ignored), 'Unexpected size for the ignored vulnerabilities list.')
+
+        reason = ignored[0].get('ignored_reason', None)
+        self.assertEqual("", reason, "Reason should be empty as this was ignored without a message.")
 
     def test_basic_html_output_pass(self):
         dirname = os.path.dirname(__file__)

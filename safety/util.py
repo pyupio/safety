@@ -1,13 +1,14 @@
-import json
-import logging
+import itertools
 import logging
 import os
 import platform
+import re
 import sys
+from collections import defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock
-from typing import List, Optional
+from typing import List, Dict, Optional
 
 import click
 from click import BadParameter
@@ -18,9 +19,9 @@ from packaging.specifiers import SpecifierSet
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
 
-from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
+from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK, HASH_REGEX_GROUPS
 from safety.errors import InvalidProvidedReportError
-from safety.models import Package, RequirementFile
+from safety.models import Package, RequirementFile, is_pinned_requirement, SafetyRequirement
 
 LOG = logging.getLogger(__name__)
 
@@ -35,6 +36,30 @@ def is_supported_by_parser(path):
     return path.endswith(supported_types)
 
 
+def parse_requirement(dep, found):
+    req = SafetyRequirement(dep)
+    req.found = found
+
+    if req.specifier == SpecifierSet(''):
+        req.specifier = SpecifierSet('>=0')
+
+    return req
+
+
+def find_version(requirements):
+    ver = None
+
+    if len(requirements) != 1:
+        return ver
+
+    specs = requirements[0].specifier
+
+    if is_pinned_requirement(specs):
+        ver = next(iter(requirements[0].specifier)).version
+
+    return ver
+
+
 def read_requirements(fh, resolve=True):
     """
     Reads requirements from a file like object and (optionally) from referenced files.
@@ -46,10 +71,13 @@ def read_requirements(fh, resolve=True):
     path = None
     found = 'temp_file'
     file_type = filetypes.requirements_txt
+    absolute_path: Optional[str] = None
 
     if not is_temp_file and is_supported_by_parser(fh.name):
         LOG.debug('not temp and a compatible file')
         path = fh.name
+        absolute_path = os.path.abspath(path)
+        SafetyContext().scanned_full_path.append(absolute_path)
         found = path
         file_type = None
 
@@ -62,36 +90,24 @@ def read_requirements(fh, resolve=True):
                             file_type=file_type)
     LOG.debug(f'Dependency file: {dependency_file.serialize()}')
     LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
-    for dep in dependency_file.resolved_dependencies:
-        pinned_spec = None
-        spec = dep.specs
 
-        try:
-            pinned_spec = next(iter(dep.specs))
-        except StopIteration:
-            spec = SpecifierSet('>=0')
+    reqs_pkg = defaultdict(list)
 
-        version = None
+    for req in dependency_file.resolved_dependencies:
+        reqs_pkg[canonicalize_name(req.name)].append(req)
 
-        if is_pinned_requirement(dep.specs):
-            version = pinned_spec.version
+    for pkg, reqs in reqs_pkg.items():
+        requirements = list(map(lambda req: parse_requirement(req, absolute_path), reqs))
+        version = find_version(requirements)
 
-        yield Package(name=dep.name, version=version,
-                      spec=spec,
+        yield Package(name=pkg, version=version,
+                      requirements=requirements,
                       found=found,
+                      absolute_path=absolute_path,
                       insecure_versions=[],
                       secure_versions=[], latest_version=None,
                       latest_version_without_known_vulnerabilities=None,
                       more_info_url=None)
-
-
-def is_pinned_requirement(spec: SpecifierSet) -> bool:
-    if not spec or len(spec) != 1:
-        return False
-
-    specifier = next(iter(spec))
-
-    return (specifier.operator == '==' and '*' != specifier.version[-1]) or specifier.operator == '==='
 
 
 def get_proxy_dict(proxy_protocol, proxy_host, proxy_port):
@@ -242,11 +258,19 @@ def output_exception(exception, exit_code_output=True):
     sys.exit(exit_code)
 
 
-def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=None):
+def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=None,
+                          project=None):
     if policy_file:
+        project_config = policy_file.get('project', {})
         security = policy_file.get('security', {})
         ctx = click.get_current_context()
         source = ctx.get_parameter_source("exit_code")
+
+        if not project:
+            project_id = project_config.get('id', None)
+            if not project_id:
+                project_id = None
+            project = project_id
 
         if ctx.get_parameter_source("ignore_unpinned_requirements") == click.core.ParameterSource.DEFAULT:
             ignore_unpinned_requirements = security.get('ignore-unpinned-requirements', None)
@@ -260,7 +284,7 @@ def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code,
         ignore_severity_rules = {'ignore-cvss-severity-below': ignore_cvss_below,
                                  'ignore-cvss-unknown-severity': ignore_cvss_unknown}
 
-    return ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements
+    return ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements, project
 
 
 def get_fix_options(policy_file, auto_remediation_limit):
@@ -657,6 +681,8 @@ class SafetyContext(metaclass=SingletonMeta):
     review = None
     params = {}
     safety_source = 'code'
+    local_announcements = []
+    scanned_full_path = []
 
 
 def sync_safety_context(f):
@@ -739,6 +765,17 @@ def get_requirements_content(files):
     return requirements_files
 
 
-def should_show_unpinned_messages(version):
+def is_ignore_unpinned_mode(version):
     ignore = SafetyContext().params.get('ignore_unpinned_requirements')
     return (ignore is None or ignore) and not version
+
+
+def get_remediations_count(remediations):
+    return sum((len(rem.keys()) for pkg, rem in remediations.items()))
+
+
+def get_hashes(dependency):
+    pattern = re.compile(HASH_REGEX_GROUPS)
+
+    return [{'method': method, 'hash': hsh} for method, hsh in
+               (pattern.match(d_hash).groups() for d_hash in dependency.hashes)]

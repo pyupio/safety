@@ -1,6 +1,6 @@
 from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_INVALID_API_KEY, EXIT_CODE_TOO_MANY_REQUESTS, \
     EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB, EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB, EXIT_CODE_MALFORMED_DB, \
-    EXIT_CODE_INVALID_PROVIDED_REPORT
+    EXIT_CODE_INVALID_PROVIDED_REPORT, EXIT_CODE_INVALID_REQUIREMENT
 
 
 class SafetyException(Exception):
@@ -55,6 +55,15 @@ class InvalidProvidedReportError(SafetyError):
 
     def get_exit_code(self):
         return EXIT_CODE_INVALID_PROVIDED_REPORT
+
+
+class InvalidRequirementError(SafetyError):
+    def __init__(self, message="Unable to parse the requirement: {line}", line=""):
+        self.message = message.format(line=line)
+        super().__init__(self.message)
+
+    def get_exit_code(self):
+        return EXIT_CODE_INVALID_REQUIREMENT
 
 
 class DatabaseFileNotFoundError(DatabaseFetchError):

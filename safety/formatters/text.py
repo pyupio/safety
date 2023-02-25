@@ -6,7 +6,8 @@ from safety.formatter import FormatterAPI
 from safety.output_utils import build_announcements_section_content, format_vulnerability, \
     build_report_brief_section, get_final_brief_license, add_empty_line, get_final_brief, build_remediation_section, \
     build_primary_announcement, format_unpinned_vulnerabilities
-from safety.util import get_primary_announcement, get_basic_announcements, should_show_unpinned_messages
+from safety.util import get_primary_announcement, get_basic_announcements, is_ignore_unpinned_mode, \
+    get_remediations_count
 
 
 class TextReport(FormatterAPI):
@@ -65,7 +66,7 @@ class TextReport(FormatterAPI):
                 total_ignored += 1
                 ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
 
-                if should_show_unpinned_messages(version=vuln.analyzed_version) and not full:
+                if is_ignore_unpinned_mode(version=vuln.analyzed_version) and not full:
                     unpinned_packages[vuln.package_name].append(vuln)
                     continue
 
@@ -75,7 +76,7 @@ class TextReport(FormatterAPI):
             build_report_brief_section(columns=80, primary_announcement=primary_announcement,
                                        vulnerabilities_found=max(0, len(vulnerabilities)-total_ignored),
                                        vulnerabilities_ignored=total_ignored,
-                                       remediations_recommended=len(remediations)))
+                                       remediations_recommended=remediations))
 
         table = [self.TEXT_REPORT_BANNER] + announcement_section + [
             report_brief_section,
@@ -96,9 +97,9 @@ class TextReport(FormatterAPI):
             for vuln in raw_vulns:
                 table.append('\n' + format_vulnerability(vuln, full, only_text=True, columns=80))
 
-            final_brief = click.unstyle(get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored,
+            final_brief = click.unstyle(get_final_brief(len(vulnerabilities), remediations, ignored, total_ignored,
                                                         kwargs={'columns': 80}))
-            table += [final_brief, add_empty_line(), self.SMALL_DIVIDER_SECTIONS] + remediation_section + end_content
+            table += [add_empty_line(), self.SMALL_DIVIDER_SECTIONS] + remediation_section + ['', final_brief, '', self.SMALL_DIVIDER_SECTIONS] + end_content
 
         else:
             table += [add_empty_line(), " No known security vulnerabilities found.", add_empty_line(),

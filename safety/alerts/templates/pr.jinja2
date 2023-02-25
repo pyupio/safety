@@ -1,7 +1,8 @@
-Vulnerability fix: This PR updates [{{ pkg }}]({{ remediation['more_info_url'] }}) from **{% if remediation['current_version'] %}{{ remediation['current_version'] }}{% else %}{{ remediation['current_spec'] }}{% endif %}** to **{{ remediation['recommended_version'] }}** to fix {{ vulns | length }} vulnerabilit{{ "y" if vulns|length == 1 else "ies" }}{% if overall_impact %}{{ " rated " + overall_impact if vulns|length == 1 else " with the highest rating being " + overall_impact }}{% endif %}.
+Vulnerability fix: This PR updates [{{ pkg }}]({{ remediation['more_info_url'] }}) from **{% if remediation['version'] %}{{ remediation['version'] }}{% else %}{{ remediation['requirement']['specifier'] }}{% endif %}** to **{{ remediation['recommended_version'] }}** to fix {{ vulns | length }} vulnerabilit{{ "y" if vulns|length == 1 else "ies" }}{% if overall_impact %}{{ " rated " + overall_impact if vulns|length == 1 else " with the highest CVSS severity rating being " + overall_impact }}{% endif %}.
 
 To read more about the impact of {{ "this vulnerability" if vulns|length == 1 else "these vulnerabilities" }} see [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}).
 
+{{ hint }}
 
 <details>
   <summary>Vulnerabilities Fixed</summary>
@@ -30,7 +31,7 @@ The full changelog is too long to post here. See [PyUp’s {{ pkg }} page]({{ re
 </details>
 
 <details>
-  <summary>Ignoring This Vulnerability</summary>
+  <summary>Ignoring {{ "This Vulnerability" if vulns|length == 1 else "These Vulnerabilities" }}</summary>
 
 If you wish to [ignore this vulnerability](https://docs.pyup.io/docs/safety-20-policy-file), you can add the following to `.safety-policy.yml` in this repo:
 

@@ -54,12 +54,12 @@
                                 </div>
                             </div>
                         </div>
-                        {% if json_data.remediations|length > 0 %}
+                        {% if json_data.report_meta.remediations_recommended > 0 %}
                             <div class="col-md-4">
                                 <div class="card bg-success bg-opacity-25 text-black">
                                     <div class="card-body">
                                         <p class="card-text">Remediations Suggested (<a href="#remediations-suggested">details &#8595;</a>)</p>
-                                        <h5 class="card-title fs-3">{{ json_data.remediations|length }}</h5>
+                                        <h5 class="card-title fs-3">{{ json_data.report_meta.remediations_recommended }}</h5>
                                     </div>
                                 </div>
                             </div>
@@ -121,15 +121,21 @@
                             <thead>
                             <tr>
                                 <th>Package name</th>
-                                <th>Found version/spec</th>
+                                <th>Found requirements</th>
                             </tr>
                             </thead>
                             <tbody>
                             {% for key, value in json_data.scanned_packages.items() %}
-                                <tr>
-                                    <td>{{value.name}}</td>
-                                    <td>{{value.spec}}</td>
-                                </tr>
+                            <tr>
+                                <td>{{value.name}}</td>
+                                <td>
+                                    <ul>
+                                        {% for req in value.requirements %}
+                                        <li>{{ req }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
                             {% endfor %}
                             </tbody>
                         </table>
@@ -152,6 +158,7 @@
                             <tr>
                                 <th>Vulnerability ID</th>
                                 <th>Package name</th>
+                                <th>Analyzed requirement</th>
                                 <th>Vulnerable spec</th>
                                 <th>All vulnerable specs</th>
                                 <th>Advisory</th>
@@ -165,6 +172,7 @@
                             <tr>
                                 <td><a href="{{ data.more_info_url }}" target="_blank">{{ data.vulnerability_id }}</a></td>
                                 <td>{{data.package_name}}</td>
+                                <td>{{data.analyzed_requirement}}</td>
                                 <td>{{data.vulnerable_spec}}</td>
                                 <td>{{data.all_vulnerable_specs}}</td>
                                 <td>{{data.advisory}}</td>
@@ -217,7 +225,7 @@
                                     {% if data.analyzed_version %}
                                         {{ data.analyzed_version }}
                                     {% else %}
-                                        {{ data.analyzed_spec }}
+                                        {{ data.analyzed_requirement }}
                                     {% endif %}
                                 </td>
                                 <td>{{data.ignored_reason|default("-", true)}}</td>
@@ -240,7 +248,7 @@
                                 <thead>
                                 <tr>
                                     <th>Package name</th>
-                                    <th>Version</th>
+                                    <th>Version/Requirements</th>
                                     <th>Location</th>
                                     <th>Insecure versions</th>
                                     <th>Latest version without known vulnerabilities</th>
@@ -255,10 +263,20 @@
                                         {% if value.version %}
                                             {{ value.version }}
                                         {% else %}
-                                            {{ value.spec }}
+                                        <ul>
+                                            {% for req in value.requirements %}
+                                            <li>{{ req }}</li>
+                                            {% endfor %}
+                                        </ul>
                                         {% endif %}
                                     </td>
-                                    <td>{{value.found}}</td>
+                                    <td style="max-width: 150px;">
+                                        <ul class="ps-3">
+                                            {% for req in value.requirements %}
+                                                <li style="word-wrap: break-word;">{{ req.found }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </td>
                                     <td>{{value.insecure_versions}}</td>
                                     <td>{{value.latest_version_without_known_vulnerabilities}}</td>
                                     <td>
@@ -288,7 +306,7 @@
                                 <thead>
                                 <tr>
                                     <th>Package name</th>
-                                    <th>Version/Spec</th>
+                                    <th>Version/Requirement</th>
                                     <th>Vulnerabilities reported</th>
                                     <th>Recommended versions</th>
                                     <th>Other recommended versions</th>
@@ -297,39 +315,41 @@
 
                                 </thead>
                                 <tbody>
-                                {% for key, value in json_data.remediations.items() %}
-                                <tr>
-                                    <td>{{ key }}</td>
-                                    <td>
-                                        {% if value.current_version %}
-                                            {{ value.current_version }}
-                                        {% else %}
-                                            {{ value.current_spec }}
-                                        {% endif %}
-                                    </td>
-                                    <td>{{value.vulnerabilities_found}}</td>
-                                    <td>
-                                        {% if not json_data.report_meta.api_key and not value.recommended_version %}
-                                            Use API Key (<a href="#use-api-key">?</a>)
-                                        {% else %}
-                                            {{value.recommended_version}}
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if not json_data.report_meta.api_key and value.other_recommended_versions|length==0 %}
-                                            Use API Key (<a href="#use-api-key">?</a>)
-                                        {% else %}
-                                            {{value.other_recommended_versions}}
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if value.more_info_url %}
-                                            <a href="{{ value.more_info_url }}" target="_blank">{{value.more_info_url}}</a>
-                                        {% else %}
-                                            Use API Key (<a href="#use-api-key">?</a>)
-                                        {% endif %}
-                                    </td>
-                                </tr>
+                                {% for package, remediation in json_data.remediations.items() %}
+                                    {% for req_rem, value in remediation.requirements.items() %}
+                                    <tr>
+                                        <td>{{ package }}</td>
+                                        <td>
+                                            {% if value.version %}
+                                                {{ value.version }}
+                                            {% else %}
+                                                {{ value.requirement }}
+                                            {% endif %}
+                                        </td>
+                                        <td>{{value.vulnerabilities_found}}</td>
+                                        <td>
+                                            {% if not json_data.report_meta.api_key and not value.recommended_version %}
+                                                Use API Key (<a href="#use-api-key">?</a>)
+                                            {% else %}
+                                                {{value.recommended_version}}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if not json_data.report_meta.api_key and value.other_recommended_versions|length==0 %}
+                                                Use API Key (<a href="#use-api-key">?</a>)
+                                            {% else %}
+                                                {{value.other_recommended_versions}}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if value.more_info_url %}
+                                                <a href="{{ value.more_info_url }}" target="_blank">{{value.more_info_url}}</a>
+                                            {% else %}
+                                                Use API Key (<a href="#use-api-key">?</a>)
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
                                 {% endfor %}
                                 </tbody>
                             </table>

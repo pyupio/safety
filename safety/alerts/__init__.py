@@ -1,3 +1,4 @@
+import logging
 import sys
 import json
 from typing import Any
@@ -7,6 +8,9 @@ from dataclasses import dataclass
 
 from . import github
 from safety.util import SafetyPolicyFile
+
+
+LOG = logging.getLogger(__name__)
 
 @dataclass
 class Alert:
@@ -24,11 +28,15 @@ class Alert:
                    "environment variable.", required=True)
 @click.pass_context
 def alert(ctx, check_report, policy_file, key):
+    LOG.info('alert started')
+    LOG.info(f'check_report is using stdin: {check_report == sys.stdin}')
+
     with check_report:
         # TODO: This breaks --help for subcommands
         try:
             safety_report = json.load(check_report)
         except json.decoder.JSONDecodeError as e:
+            LOG.info('Error in the JSON report.')
             click.secho("Error decoding input JSON: {}".format(e.msg), fg='red')
             sys.exit(1)
 

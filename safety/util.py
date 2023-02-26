@@ -1,24 +1,27 @@
-import json
+import itertools
 import logging
 import os
 import platform
-
+import re
 import sys
+from collections import defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock
-from typing import List
+from typing import List, Dict, Optional
 
 import click
 from click import BadParameter
 from dparse import parse, filetypes
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
+from packaging.specifiers import SpecifierSet
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
 
-from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK
-from safety.models import Package, RequirementFile
+from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK, HASH_REGEX_GROUPS
+from safety.errors import InvalidProvidedReportError
+from safety.models import Package, RequirementFile, is_pinned_requirement, SafetyRequirement
 
 LOG = logging.getLogger(__name__)
 
@@ -33,6 +36,30 @@ def is_supported_by_parser(path):
     return path.endswith(supported_types)
 
 
+def parse_requirement(dep, found):
+    req = SafetyRequirement(dep)
+    req.found = found
+
+    if req.specifier == SpecifierSet(''):
+        req.specifier = SpecifierSet('>=0')
+
+    return req
+
+
+def find_version(requirements):
+    ver = None
+
+    if len(requirements) != 1:
+        return ver
+
+    specs = requirements[0].specifier
+
+    if is_pinned_requirement(specs):
+        ver = next(iter(requirements[0].specifier)).version
+
+    return ver
+
+
 def read_requirements(fh, resolve=True):
     """
     Reads requirements from a file like object and (optionally) from referenced files.
@@ -44,10 +71,13 @@ def read_requirements(fh, resolve=True):
     path = None
     found = 'temp_file'
     file_type = filetypes.requirements_txt
+    absolute_path: Optional[str] = None
 
     if not is_temp_file and is_supported_by_parser(fh.name):
         LOG.debug('not temp and a compatible file')
         path = fh.name
+        absolute_path = os.path.abspath(path)
+        SafetyContext().scanned_full_path.append(absolute_path)
         found = path
         file_type = None
 
@@ -60,26 +90,24 @@ def read_requirements(fh, resolve=True):
                             file_type=file_type)
     LOG.debug(f'Dependency file: {dependency_file.serialize()}')
     LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
-    for dep in dependency_file.resolved_dependencies:
-        try:
-            spec = next(iter(dep.specs))._spec
-        except StopIteration:
-            click.secho(
-                f"Warning: unpinned requirement '{dep.name}' found in {path}, "
-                "unable to check.",
-                fg="yellow",
-                file=sys.stderr
-            )
-            continue
 
-        version = spec[1]
-        if spec[0] == '==':
-            yield Package(name=dep.name, version=version,
-                          found=found,
-                          insecure_versions=[],
-                          secure_versions=[], latest_version=None,
-                          latest_version_without_known_vulnerabilities=None,
-                          more_info_url=None)
+    reqs_pkg = defaultdict(list)
+
+    for req in dependency_file.resolved_dependencies:
+        reqs_pkg[canonicalize_name(req.name)].append(req)
+
+    for pkg, reqs in reqs_pkg.items():
+        requirements = list(map(lambda req: parse_requirement(req, absolute_path), reqs))
+        version = find_version(requirements)
+
+        yield Package(name=pkg, version=version,
+                      requirements=requirements,
+                      found=found,
+                      absolute_path=absolute_path,
+                      insecure_versions=[],
+                      secure_versions=[], latest_version=None,
+                      latest_version_without_known_vulnerabilities=None,
+                      more_info_url=None)
 
 
 def get_proxy_dict(proxy_protocol, proxy_host, proxy_port):
@@ -147,9 +175,10 @@ def get_primary_announcement(announcements):
     return None
 
 
-def get_basic_announcements(announcements):
+def get_basic_announcements(announcements, include_local: bool = True):
     return [announcement for announcement in announcements if
-            announcement.get('type', '').lower() != 'primary_announcement']
+            announcement.get('type', '').lower() != 'primary_announcement' and not announcement.get('local', False)
+            or (announcement.get('local', False) and include_local)]
 
 
 def filter_announcements(announcements, by_type='error'):
@@ -229,10 +258,22 @@ def output_exception(exception, exit_code_output=True):
     sys.exit(exit_code)
 
 
-def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code):
+def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=None,
+                          project=None):
     if policy_file:
+        project_config = policy_file.get('project', {})
         security = policy_file.get('security', {})
-        source = click.get_current_context().get_parameter_source("exit_code")
+        ctx = click.get_current_context()
+        source = ctx.get_parameter_source("exit_code")
+
+        if not project:
+            project_id = project_config.get('id', None)
+            if not project_id:
+                project_id = None
+            project = project_id
+
+        if ctx.get_parameter_source("ignore_unpinned_requirements") == click.core.ParameterSource.DEFAULT:
+            ignore_unpinned_requirements = security.get('ignore-unpinned-requirements', None)
 
         if not ignore:
             ignore = security.get('ignore-vulnerabilities', {})
@@ -243,7 +284,23 @@ def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code)
         ignore_severity_rules = {'ignore-cvss-severity-below': ignore_cvss_below,
                                  'ignore-cvss-unknown-severity': ignore_cvss_unknown}
 
-    return ignore, ignore_severity_rules, exit_code
+    return ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements, project
+
+
+def get_fix_options(policy_file, auto_remediation_limit):
+    auto_fix = []
+
+    source = click.get_current_context().get_parameter_source("auto_remediation_limit")
+    if source == click.core.ParameterSource.COMMANDLINE:
+        return auto_remediation_limit
+
+    if policy_file:
+        fix = policy_file.get('security-updates', {})
+        auto_fix = fix.get('auto-security-updates-limit', None)
+        if not auto_fix:
+            auto_fix = []
+
+    return auto_fix
 
 
 class MutuallyExclusiveOption(click.Option):
@@ -299,7 +356,10 @@ class DependentOption(click.Option):
         super(DependentOption, self).__init__(*args, **kwargs)
 
     def handle_parse_result(self, ctx, opts, args):
-        missing_required_arguments = self.required_options.difference(opts) and self.name in opts
+        missing_required_arguments = None
+
+        if self.name in opts:
+            missing_required_arguments = self.required_options.difference(opts)
 
         if missing_required_arguments:
             raise click.UsageError(
@@ -318,8 +378,15 @@ class DependentOption(click.Option):
 
 
 def transform_ignore(ctx, param, value):
+    ignored_default_dict = {'reason': '', 'expires': None}
     if isinstance(value, tuple):
-        return dict(zip(value, [{'reason': '', 'expires': None} for _ in range(len(value))]))
+        # Following code is required to support the 2 ways of providing 'ignore'
+        # --ignore=1234,567,789
+        # or, the historical way (supported for backward compatibility)
+        # -i 1234 -i 567
+        combined_value = ','.join(value)
+        ignore_ids = {vuln_id.strip() for vuln_id in combined_value.split(',')}
+        return {ignore_id: dict(ignored_default_dict) for ignore_id in ignore_ids}
 
     return {}
 
@@ -344,6 +411,11 @@ def active_color_if_needed(ctx, param, value):
 def json_alias(ctx, param, value):
     if value:
         os.environ['SAFETY_OUTPUT'] = 'json'
+        return value
+
+def html_alias(ctx, param, value):
+    if value:
+        os.environ['SAFETY_OUTPUT'] = 'html'
         return value
 
 
@@ -461,10 +533,8 @@ class SafetyPolicyFile(click.ParamType):
 
             security_config = safety_policy.get('security', {})
             security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
-                             'continue-on-vulnerability-error']
-            used_keys = security_config.keys()
-
-            self.fail_if_unrecognized_keys(used_keys, security_keys, param=param, ctx=ctx, msg=msg,
+                             'continue-on-vulnerability-error', 'ignore-unpinned-requirements']
+            self.fail_if_unrecognized_keys(security_config.keys(), security_keys, param=param, ctx=ctx, msg=msg,
                                            context_hint='"security" -> ')
 
             ignore_cvss_security_below = security_config.get('ignore-cvss-severity-below', None)
@@ -539,6 +609,16 @@ class SafetyPolicyFile(click.ParamType):
             else:
                 safety_policy['security']['ignore-vulnerabilities'] = {}
 
+            fix_config = safety_policy.get('fix', {})
+            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-security-updates-limit'], param=param, ctx=ctx, msg=msg,
+                                           context_hint='"fix" -> ')
+            auto_remediation_limit = fix_config.get('auto-security-updates-limit', None)
+
+            if auto_remediation_limit:
+                self.fail_if_unrecognized_keys(auto_remediation_limit, ['patch', 'minor', 'major'], param=param, ctx=ctx,
+                                               msg=msg,
+                                               context_hint='"auto-security-updates-limit" -> ')
+
             return safety_policy
         except BadParameter as expected_e:
             raise expected_e
@@ -585,7 +665,7 @@ class SingletonMeta(type):
 
 
 class SafetyContext(metaclass=SingletonMeta):
-    packages = None
+    packages = []
     key = False
     db_mirror = False
     cached = None
@@ -601,6 +681,8 @@ class SafetyContext(metaclass=SingletonMeta):
     review = None
     params = {}
     safety_source = 'code'
+    local_announcements = []
+    scanned_full_path = []
 
 
 def sync_safety_context(f):
@@ -667,3 +749,33 @@ def get_packages_licenses(packages=None, licenses_db=None):
         })
 
     return filtered_packages_licenses
+
+
+def get_requirements_content(files):
+    requirements_files = {}
+
+    for f in files:
+        try:
+            f.seek(0)
+            requirements_files[f.name] = f.read()
+            f.close()
+        except Exception as e:
+            raise InvalidProvidedReportError(message=f"Unable to read a requirement file scanned in the report. {e}")
+
+    return requirements_files
+
+
+def is_ignore_unpinned_mode(version):
+    ignore = SafetyContext().params.get('ignore_unpinned_requirements')
+    return (ignore is None or ignore) and not version
+
+
+def get_remediations_count(remediations):
+    return sum((len(rem.keys()) for pkg, rem in remediations.items()))
+
+
+def get_hashes(dependency):
+    pattern = re.compile(HASH_REGEX_GROUPS)
+
+    return [{'method': method, 'hash': hsh} for method, hsh in
+               (pattern.match(d_hash).groups() for d_hash in dependency.hashes)]

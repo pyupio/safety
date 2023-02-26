@@ -3,7 +3,7 @@ name: Safety Action Build And Publish
 on:
   push:
     tags:
-      - "^(\d+\.\d+(\.\d+)?)$"
+      - "^(\\d+\\.\\d+(\\.\\d+)?)$"
 
 env:
     DOCKER_BUILDKIT: 1

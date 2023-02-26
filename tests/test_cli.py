@@ -1,15 +1,18 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from datetime import datetime
+from packaging.version import Version
+from packaging.specifiers import SpecifierSet
 from unittest.mock import patch, Mock
 
 import click
 from click.testing import CliRunner
 
 from safety import cli
-from safety.models import Vulnerability, CVE, Severity
+from safety.models import Vulnerability, CVE, Severity, SafetyRequirement
 from safety.util import Package, SafetyContext
 
 
@@ -18,8 +21,9 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
     cve_kwargs = {} if cve_kwargs is None else cve_kwargs
     pkg_kwargs = {} if pkg_kwargs is None else pkg_kwargs
 
-    p_kwargs = {'name': 'django', 'version': '2.2', 'found': '/site-packages/django', 'insecure_versions': [],
-                'secure_versions': ['2.2'], 'latest_version_without_known_vulnerabilities': '2.2',
+    p_kwargs = {'name': 'django', 'version': '2.2', 'requirements': [SafetyRequirement('django==2.2')], 'found': '/site-packages/django',
+                'insecure_versions': [], 'secure_versions': ['2.2'],
+                'latest_version_without_known_vulnerabilities': '2.2',
                 'latest_version': '2.2', 'more_info_url': 'https://pyup.io/package/foo'}
     p_kwargs.update(pkg_kwargs)
 
@@ -32,10 +36,14 @@ def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
         severity = Severity(source=cve.name, cvssv2=cve.cvssv2, cvssv3=cve.cvssv3)
     pkg = Package(**p_kwargs)
 
+    vulnerable_spec = set()
+    vulnerable_spec.add(">0")
+
     v_kwargs = {'package_name': pkg.name, 'pkg': pkg, 'ignored': False, 'ignored_reason': '', 'ignored_expires': '',
-                'vulnerable_spec': ">0",
+                'vulnerable_spec': vulnerable_spec,
                 'all_vulnerable_specs': ['2.2'],
                 'analyzed_version': pkg.version,
+                'analyzed_requirement': pkg.requirements[0],
                 'advisory': '',
                 'vulnerability_id': 'PYUP-1234',
                 'is_transitive': False,
@@ -196,6 +204,28 @@ class TestSafetyCLI(unittest.TestCase):
         # TODO: Add test for the screen formatter, this only test that the command doesn't crash
         self.assertEqual(result.exit_code, 0)
 
+    @patch("safety.safety.check")
+    def test_check_ignore_format_backward_compatible(self, check):
+        runner = CliRunner()
+
+        check.return_value = []
+
+        dirname = os.path.dirname(__file__)
+        reqs_path = os.path.join(dirname, "reqs_4.txt")
+
+        _ = runner.invoke(cli.cli, ['check', '--file', reqs_path, '--ignore', "123,456", '--ignore', "789"])
+        try:
+            check_call_kwargs = check.call_args[1]  # Python < 3.8
+        except IndexError:
+            check_call_kwargs = check.call_args.kwargs
+
+        ignored_transformed = {
+            '123': {'expires': None, 'reason': ''},
+            '456': {'expires': None, 'reason': ''},
+            '789': {'expires': None, 'reason': ''}
+        }
+        self.assertEqual(check_call_kwargs['ignore_vulns'], ignored_transformed)
+
     def test_validate_with_unsupported_argument(self):
         result = self.runner.invoke(cli.cli, ['validate', 'safety_ci'])
         msg = 'This Safety version only supports "policy_file" validation. "safety_ci" is not supported.\n'
@@ -216,6 +246,7 @@ class TestSafetyCLI(unittest.TestCase):
         msg = 'The Safety policy file was successfully parsed with the following values:\n'
         parsed = json.dumps(
             {
+                "project-id": '',
                 "security": {
                     "ignore-cvss-severity-below": 0,
                     "ignore-cvss-unknown-severity": False,
@@ -243,7 +274,7 @@ class TestSafetyCLI(unittest.TestCase):
         cleaned_stdout = click.unstyle(result.stderr)
         msg_hint = 'HINT: "security" -> "transitive" is not a valid keyword. Valid keywords in this level are: ' \
                    'ignore-cvss-severity-below, ignore-cvss-unknown-severity, ignore-vulnerabilities, ' \
-                   'continue-on-vulnerability-error\n'
+                   'continue-on-vulnerability-error, ignore-unpinned-requirements\n'
         msg = f'Unable to load the Safety Policy file "{path}".\n{msg_hint}'
 
         self.assertEqual(msg, cleaned_stdout)
@@ -282,8 +313,168 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 
+    def test_check_with_fix_does_verify_api_key(self):
+        dirname = os.path.dirname(__file__)
+        req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
+        result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-security-updates'])
+        self.assertEqual(click.unstyle(result.stderr),
+                         "The --apply-security-updates option needs an API-KEY. See https://bit.ly/3OY2wEI.\n")
+        self.assertEqual(result.exit_code, 65)
 
+    def test_check_with_fix_only_works_with_files(self):
+        result = self.runner.invoke(cli.cli, ['check', '--key', 'TEST-API_KEY', '--apply-security-updates'])
+        self.assertEqual(click.unstyle(result.stderr),
+                         '--apply-security-updates only works with files; use the "-r" option to specify files to remediate.\n')
+        self.assertEqual(result.exit_code, 1)
 
+    @patch("safety.util.SafetyContext")
+    @patch("safety.safety.check")
+    @patch("safety.safety.calculate_remediations")
+    @patch("safety.cli.get_packages")
+    def test_check_with_fix(self, get_packages, calculate_remediations, check_func, ctx):
+        vulns = [get_vulnerability()]
+        packages = [pkg for pkg in {vuln.pkg.name: vuln.pkg for vuln in vulns}.values()]
+        get_packages.return_value = packages
+        provided_context = SafetyContext()
+        provided_context.command = 'check'
+        provided_context.packages = packages
+        ctx.return_value = provided_context
+        check_func.return_value = vulns, None
+        target = Version("1.9")
+        calculate_remediations.return_value = {
+            "django": {
+                "==1.8": {
+                    "version": "1.8",
+                    "vulnerabilities_found": 1,
+                    "recommended_version": target,
+                    "requirement": SafetyRequirement('django==1.8'),
+                    "secure_versions": [],
+                    "closest_secure_version": {"minor": None, "major": target},
+                    "more_info_url": "https://pyup.io/p/pypi/django/52d/"}
+            }}
 
+        dirname = os.path.dirname(__file__)
+        source_req = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
 
+        with tempfile.TemporaryDirectory() as tempdir:
+            req_file = os.path.join(tempdir, 'reqs_simple_minor.txt')
+            shutil.copy(source_req, req_file)
+
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY',
+                                             '--apply-security-updates'])
+
+            with open(req_file) as f:
+                self.assertEqual("django==1.8\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+                                         '--auto-security-updates-limit', 'minor'])
+
+            with open(req_file) as f:
+                self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+            target = Version("2.0")
+            calculate_remediations.return_value = {
+                "django": {
+                    "==1.9": {
+                        "version": "1.9",
+                        "vulnerabilities_found": 1,
+                        "recommended_version": target,
+                        "requirement": SafetyRequirement('django==1.9'),
+                        "secure_versions": [],
+                        "closest_secure_version": {"minor": None, "major": target},
+                        "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
+            }
+
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+                                         '-asul', 'minor', '--json'])
+            with open(req_file) as f:
+                self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+                                         '-asul', 'major', '--output', 'bare'])
+
+            with open(req_file) as f:
+                self.assertEqual("django==2.0\nsafety==2.3.0\nflask==0.87.0", f.read())
+
+    def test_check_ignore_unpinned_requirements(self):
+        dirname = os.path.dirname(__file__)
+        db = os.path.join(dirname, "test_db")
+        reqs_unpinned = os.path.join(dirname, "reqs_unpinned.txt")
+
+        # If not set (default None) then show local announcement and reported in group and ignored.
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'text'])
+
+        announcement = "\n\n ANNOUNCEMENTS\n\n  " \
+                       "* Warning: django and numpy are unpinned. Safety by default does not report \n  " \
+                       "  on potential vulnerabilities in unpinned packages. It is recommended to pin \n  " \
+                       "  your dependencies unless this is a library meant for distribution. To learn \n  " \
+                       "  more about reporting these, specifier range handling, and options for \n  " \
+                       "  scanning unpinned packages visit https://docs.pyup.io/docs/safety-range- \n  " \
+                       "  specs \n\n"
+        self.assertIn(announcement, result.stdout)
+
+        unpinned_vulns = "-> Warning: 2 known vulnerabilities match the django versions that could be \n" \
+                         "   installed from your specifier: django>=0 (unpinned). These vulnerabilities \n" \
+                         "   are not reported by default. To report these vulnerabilities set 'ignore- \n" \
+                         "   unpinned-requirements' to False under 'security' in your policy file. See \n" \
+                         "   https://docs.pyup.io/docs/safety-20-policy-file for more information. \n" \
+                         "   It is recommended to pin your dependencies unless this is a library meant \n" \
+                         "   for distribution. To learn more about reporting these, specifier range \n" \
+                         "   handling, and options for scanning unpinned packages visit \n" \
+                         "   https://docs.pyup.io/docs/safety-range-specs \n\n"
+
+        self.assertIn(unpinned_vulns, result.stdout)
+
+        # If true then
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--ignore-unpinned-requirements',
+                                              '--db', db, '--output', 'text'])
+
+        announcement = "\n\n ANNOUNCEMENTS\n\n  " \
+                       "* Warning: django and numpy are unpinned and potential vulnerabilities are \n  " \
+                       "  being ignored given `ignore-unpinned-requirements` is True in your config. \n  " \
+                       "  It is recommended to pin your dependencies unless this is a library meant \n  " \
+                       "  for distribution. To learn more about reporting these, specifier range \n  " \
+                       "  handling, and options for scanning unpinned packages visit \n  " \
+                       "  https://docs.pyup.io/docs/safety-range-specs \n\n"
+
+        self.assertIn(announcement, result.stdout)
+        self.assertIn(unpinned_vulns, result.stdout)
+
+        # If false then
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--check-unpinned-requirements', '--db', db,
+                                              '--output', 'text'])
+
+        self.assertNotIn("ANNOUNCEMENTS", result.stdout)
+        self.assertNotIn("-> Warning: 2 known vulnerabilities match the django versions", result.stdout)
+        self.assertIn("-> Vulnerability may be present given that your django install specifier is >=0", result.stdout)
+        self.assertIn("Scan was completed. 2 vulnerabilities were reported.", result.stdout)
+
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--json', '-i', 'some id',
+                                              '--check-unpinned-requirements'])
+
+        ignored = json.loads(result.stdout).get('ignored_vulnerabilities', [])
+        self.assertEqual(1, len(ignored), 'Unexpected size for the ignored vulnerabilities list.')
+
+        reason = ignored[0].get('ignored_reason', None)
+        self.assertEqual("", reason, "Reason should be empty as this was ignored without a message.")
+
+    def test_basic_html_output_pass(self):
+        dirname = os.path.dirname(__file__)
+        db = os.path.join(dirname, "test_db")
+        reqs_unpinned = os.path.join(dirname, "reqs_unpinned.txt")
+
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'html'])
+
+        ignored = "<p>Found vulnerabilities that were ignored: 2</p>"
+        announcement = "Warning: django and numpy are unpinned."
+        self.assertIn(ignored, result.stdout)
+        self.assertIn(announcement, result.stdout)
+        self.assertNotIn("remediations-suggested", result.stdout)
+
+        reqs_affected = os.path.join(dirname, "reqs_pinned_affected.txt")
+
+        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_affected, '--db', db, '--output', 'html'])
+
+        self.assertIn("remediations-suggested", result.stdout)
+        self.assertIn("Use API Key", result.stdout)
 

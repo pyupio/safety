@@ -7,12 +7,12 @@ from safety.util import get_basic_announcements
 class BareReport(FormatterAPI):
     """Bare report, for command line tools"""
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         parsed_announcements = []
 
         Announcement = namedtuple("Announcement", ["name"])
 
-        for announcement in get_basic_announcements(announcements):
+        for announcement in get_basic_announcements(announcements, include_local=False):
             normalized_message = "-".join(announcement.get('message', 'none').lower().split())
             parsed_announcements.append(Announcement(name=normalized_message))
 

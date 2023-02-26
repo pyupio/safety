@@ -7,7 +7,8 @@ from unittest.mock import patch, Mock
 import click as click
 
 from safety import util
-from safety.util import read_requirements, get_processed_options, SafetyPolicyFile
+from safety.models import SafetyRequirement
+from safety.util import read_requirements, get_processed_options, SafetyPolicyFile, transform_ignore
 
 
 class ReadRequirementsTestCase(unittest.TestCase):
@@ -28,20 +29,25 @@ class ReadRequirementsTestCase(unittest.TestCase):
         """
         https://github.com/pyupio/safety/issues/132
         """
-        # this should find 2 bad packages
+        # this should find 1 packages with two requirements found
         dirname = os.path.dirname(__file__)
         test_filename = os.path.join(dirname, "reqs_1.txt")
         with open(test_filename) as fh:
             result = list(read_requirements(fh, resolve=True))
-        self.assertEqual(len(result), 2)
+        self.assertEqual(len(result), 1)
+        found_pkg = result[0]
+        self.assertEqual(found_pkg.name, 'insecure-package')
+        self.assertEqual(found_pkg.version, None)
+        expected = [SafetyRequirement('insecure-package==0.1.0'), SafetyRequirement('insecure-package==0.1.1')]
+        self.assertListEqual(expected, found_pkg.requirements)
 
     def test_recursive_requirement_pinned_after_unpinned(self):
-        # this should find 3 packages, unpinned are ignored
+        # this should find 4 packages, unpinned aren't ignored.
         dirname = os.path.dirname(__file__)
         test_filename = os.path.join(dirname, "reqs_pinned_and_unpinned.txt")
         with open(test_filename) as fh:
             result = list(read_requirements(fh, resolve=True))
-        self.assertEqual(len(result), 3)
+        self.assertEqual(len(result), 4)
 
     @patch("safety.util.get_flags_from_context")
     @patch.object(sys, 'argv', ['safety/__main__.py', 'check', '--key=my-key', '-i', '3232', '-i', '3231', '--ignore',
@@ -66,8 +72,9 @@ class ReadRequirementsTestCase(unittest.TestCase):
         policy_file = SafetyPolicyFile().convert(value=path_pf, param=None, ctx=None)
 
         cli_ignores = {'1234': {'reason': '', 'expires': None}}
-        ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file=policy_file, ignore=cli_ignores,
-                                                                         ignore_severity_rules=None, exit_code=True)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages, project = get_processed_options(
+            policy_file=policy_file, ignore=cli_ignores,
+            ignore_severity_rules=None, exit_code=True)
 
         self.assertEqual(ignore, cli_ignores)
 
@@ -77,8 +84,9 @@ class ReadRequirementsTestCase(unittest.TestCase):
         path_pf = os.path.join(self.dirname, ".policy_full.yml")
         policy_file = SafetyPolicyFile().convert(value=path_pf, param=None, ctx=None)
 
-        ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file=policy_file, ignore={},
-                                                                         ignore_severity_rules=None, exit_code=True)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages, project = get_processed_options(
+            policy_file=policy_file, ignore={},
+            ignore_severity_rules=None, exit_code=True)
 
         self.assertEqual(exit_code, True)
 
@@ -89,8 +97,9 @@ class ReadRequirementsTestCase(unittest.TestCase):
         policy_file = SafetyPolicyFile().convert(value=path_pf, param=None, ctx=None)
 
         # Cli only passes the exit_code argument by commandline
-        ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file=policy_file, ignore={},
-                                                                         ignore_severity_rules=None, exit_code=True)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages, project = get_processed_options(
+            policy_file=policy_file, ignore={},
+            ignore_severity_rules=None, exit_code=True)
 
         security_pf = policy_file.get('security', {})
         severity_rules = {'ignore-cvss-severity-below': security_pf.get('ignore-cvss-severity-below', 0.0),
@@ -108,8 +117,9 @@ class ReadRequirementsTestCase(unittest.TestCase):
 
         # Cli only passes the ignores argument by commandline
         cli_ignores = {'1234': {'reason': '', 'expires': None}}
-        ignore, ignore_severity_rules, exit_code = get_processed_options(policy_file=policy_file, ignore=cli_ignores,
-                                                                         ignore_severity_rules=None, exit_code=True)
+        ignore, ignore_severity_rules, exit_code, ignore_unpinned_packages, project = get_processed_options(
+            policy_file=policy_file, ignore=cli_ignores,
+            ignore_severity_rules=None, exit_code=True)
 
         security_pf = policy_file.get('security', {})
         severity_rules = {'ignore-cvss-severity-below': security_pf.get('ignore-cvss-severity-below', 0.0),
@@ -122,5 +132,16 @@ class ReadRequirementsTestCase(unittest.TestCase):
         EXPECTED = not security_pf.get('continue-on-vulnerability-error')
         self.assertEqual(exit_code, EXPECTED)
 
+    def test_transform_ignore(self):
+        ignored_transformed = {'123': {'expires': None, 'reason': ''}, '456': {'expires': None, 'reason': ''}}
+        self.assertEqual(transform_ignore(None, None, value=("123", "456")), ignored_transformed)
+        self.assertEqual(transform_ignore(None, None, value=("123,456",)), ignored_transformed)
 
-
+    def test_transform_ignore_mixed_arguments(self):
+        # mix old and new way of providing --ignore
+        ignored_transformed = {
+            '123': {'expires': None, 'reason': ''},
+            '456': {'expires': None, 'reason': ''},
+            '789': {'expires': None, 'reason': ''}
+        }
+        self.assertEqual(transform_ignore(None, None, value=("123,456", "789")), ignored_transformed)

@@ -29,7 +29,7 @@ class environment:
         for arch, python in self.PYTHON_BINARIES[self.os].items():
             yield arch, python
 
-    WIN_BASE_PATH = "C:\\hostedtoolcache\\windows\\Python\\3.10.8"
+    WIN_BASE_PATH = "C:\\hostedtoolcache\\windows\\Python\\3.10.10"
 
     PYTHON_BINARIES = {
         WIN: {

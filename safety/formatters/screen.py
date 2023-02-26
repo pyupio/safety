@@ -4,8 +4,9 @@ from safety.formatter import FormatterAPI
 from safety.output_utils import build_announcements_section_content, format_long_text, \
     add_empty_line, format_vulnerability, get_final_brief, \
     build_report_brief_section, format_license, get_final_brief_license, build_remediation_section, \
-    build_primary_announcement
-from safety.util import get_primary_announcement, get_basic_announcements, get_terminal_size
+    build_primary_announcement, get_specifier_range_info, format_unpinned_vulnerabilities
+from safety.util import get_primary_announcement, get_basic_announcements, get_terminal_size, \
+    is_ignore_unpinned_mode
 
 
 class ScreenReport(FormatterAPI):
@@ -40,7 +41,7 @@ class ScreenReport(FormatterAPI):
 
         return announcements_section
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         announcements_section = self.__build_announcements_section(announcements)
         primary_announcement = get_primary_announcement(announcements)
         remediation_section = build_remediation_section(remediations)
@@ -55,38 +56,50 @@ class ScreenReport(FormatterAPI):
         ignored = {}
         total_ignored = 0
 
+        from collections import defaultdict
+        unpinned_packages = defaultdict(list)
+        styled_vulns = []
+
         for n, vuln in enumerate(vulnerabilities):
             if vuln.ignored:
                 total_ignored += 1
                 ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
-            table.append(format_vulnerability(vuln, full))
+                if is_ignore_unpinned_mode(version=vuln.analyzed_version) and not full:
+                    unpinned_packages[vuln.package_name].append(vuln)
+                    continue
+            styled_vulns.append(format_vulnerability(vuln, full))
+
+        table.extend(format_unpinned_vulnerabilities(unpinned_packages))
+        table.extend(styled_vulns)
 
         report_brief_section = build_report_brief_section(primary_announcement=primary_announcement, report_type=1,
                                                           vulnerabilities_found=max(0, len(vulnerabilities)-total_ignored),
                                                           vulnerabilities_ignored=total_ignored,
-                                                          remediations_recommended=len(remediations))
+                                                          remediations_recommended=remediations)
 
         if vulnerabilities:
+            # Add a space between warning and brief, when all the vulnerabilities are ignored.
+            if not styled_vulns:
+                table.append('')
 
-            final_brief = get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored)
+            final_brief = get_final_brief(len(vulnerabilities), remediations, ignored, total_ignored)
 
             return "\n".join(
                 [ScreenReport.REPORT_BANNER] + announcements_section + [report_brief_section,
                                                                         add_empty_line(),
                                                                         self.DIVIDER_SECTIONS,
                                                                         format_long_text(
-                                                                            click.style('VULNERABILITIES FOUND',
-                                                                                        bold=True, fg='red')),
+                                                                            click.style('VULNERABILITIES REPORTED',
+                                                                                        bold=True)),
                                                                         self.DIVIDER_SECTIONS,
                                                                         add_empty_line(),
                                                                         "\n\n".join(table),
-                                                                        final_brief,
                                                                         add_empty_line(),
                                                                         self.DIVIDER_SECTIONS] +
-                remediation_section + end_content
+                remediation_section + ['', final_brief, '', self.DIVIDER_SECTIONS] + end_content
             )
         else:
-            content = format_long_text(click.style("No known security vulnerabilities found.", bold=True, fg='green'))
+            content = format_long_text(click.style("No known security vulnerabilities reported.", bold=True, fg='green'))
             return "\n".join(
                 [ScreenReport.REPORT_BANNER] + announcements_section + [report_brief_section,
                                                                         self.DIVIDER_SECTIONS,

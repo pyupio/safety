@@ -1,0 +1,108 @@
+{
+    "report_meta": {
+        "scan_target": "files",
+        "scanned": [
+            "no_remediation.txt"
+        ],
+        "policy_file": ".safety-policy.yml",
+        "policy_file_source": "local",
+        "api_key": true,
+        "local_database_path": null,
+        "safety_version": "2.4.0.dev",
+        "timestamp": "2022-12-14 14:54:47",
+        "packages_found": 1,
+        "vulnerabilities_found": 1,
+        "vulnerabilities_ignored": 0,
+        "remediations_recommended": 1,
+        "telemetry": {
+            "os_type": "Linux",
+            "os_release": "100.0.0",
+            "os_description": "Linux",
+            "python_version": "3.11.0",
+            "safety_command": "check",
+            "safety_options": {
+                "key": {
+                    "--key": 1
+                },
+                "files": {
+                    "-r": 1
+                },
+                "save_json": {
+                    "--save-json": 1
+                }
+            },
+            "safety_version": "2.4.0.dev",
+            "safety_source": "cli"
+        },
+        "git": {
+            "branch": "feature/safety-fix",
+            "tag": "",
+            "commit": "ad0eeb92d9d50ec3d747e559e4309a4f27eeb837",
+            "dirty": true,
+            "origin": "git@github.com:pyupio/safety.git"
+        },
+        "project": null,
+        "json_version": 1
+    },
+    "scanned_packages": {
+        "insecure_package": {
+            "name": "insecure_package",
+            "version": "0.1.0"
+        }
+    },
+    "affected_packages": {
+        "insecure_package": {
+            "name": "insecure_package",
+            "version": "0.1.0",
+            "found": "no_remediation.txt",
+            "insecure_versions": [
+                "0.1.0"
+            ],
+            "secure_versions": [],
+            "latest_version_without_known_vulnerabilities": "",
+            "latest_version": "0.1.0",
+            "more_info_url": "https://pyup.io/p/pypi/insecure-package/52d/"
+        }
+    },
+    "announcements": [],
+    "vulnerabilities": [
+        {
+            "vulnerability_id": "25853",
+            "package_name": "insecure-package",
+            "ignored": false,
+            "ignored_reason": "",
+            "ignored_expires": "",
+            "vulnerable_spec": "<0.2.0",
+            "all_vulnerable_specs": [
+                "<0.2.0"
+            ],
+            "analyzed_version": "0.1.0",
+            "analyzed_requirement": "==0.1.0",
+            "advisory": "This is an insecure package with lots of exploitable security vulnerabilities.",
+            "is_transitive": false,
+            "published_date": "2021-Apr-14",
+            "fixed_versions": [],
+            "closest_versions_without_known_vulnerabilities": [],
+            "resources": [
+                "https://pyup.io/v/25853/52d",
+                "https://pypi.org/project/insecure-package"
+            ],
+            "CVE": null,
+            "severity": null,
+            "affected_versions": [
+                "0.1.0"
+            ],
+            "more_info_url": "https://pyup.io/v/25853/52d"
+        }
+    ],
+    "ignored_vulnerabilities": [],
+    "remediations": {
+        "insecure-package": {
+            "current_version": "0.1.0",
+            "vulnerabilities_found": 1,
+            "recommended_version": null,
+            "other_recommended_versions": [],
+            "more_info_url": "https://pyup.io/p/pypi/insecure-package/52d/?from=0.1.0"
+        }
+    }
+}

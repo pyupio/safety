@@ -1,10 +1,13 @@
+from collections import defaultdict
+
 import click
 
 from safety.formatter import FormatterAPI
 from safety.output_utils import build_announcements_section_content, format_vulnerability, \
     build_report_brief_section, get_final_brief_license, add_empty_line, get_final_brief, build_remediation_section, \
-    build_primary_announcement
-from safety.util import get_primary_announcement, get_basic_announcements
+    build_primary_announcement, format_unpinned_vulnerabilities
+from safety.util import get_primary_announcement, get_basic_announcements, is_ignore_unpinned_mode, \
+    get_remediations_count
 
 
 class TextReport(FormatterAPI):
@@ -34,15 +37,13 @@ class TextReport(FormatterAPI):
 
         if basic_announcements:
             announcements_content = click.unstyle(build_announcements_section_content(basic_announcements,
-                                                                                      columns=80,
-                                                                                      start_line_decorator=' ' * 2,
-                                                                                      end_line_decorator=''))
-            announcements_table = [add_empty_line(), 'ANNOUNCEMENTS', add_empty_line(),
+                                                                                      columns=80))
+            announcements_table = [add_empty_line(), ' ANNOUNCEMENTS', add_empty_line(),
                                    announcements_content, add_empty_line(), self.SMALL_DIVIDER_SECTIONS]
 
         return announcements_table
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages):
+    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
         primary_announcement = get_primary_announcement(announcements)
         remediation_section = [click.unstyle(rem) for rem in build_remediation_section(remediations, columns=80)]
         end_content = []
@@ -56,17 +57,26 @@ class TextReport(FormatterAPI):
 
         ignored = {}
         total_ignored = 0
+        unpinned_packages = defaultdict(list)
+
+        raw_vulns = []
 
         for n, vuln in enumerate(vulnerabilities):
             if vuln.ignored:
                 total_ignored += 1
                 ignored[vuln.package_name] = ignored.get(vuln.package_name, 0) + 1
 
+                if is_ignore_unpinned_mode(version=vuln.analyzed_version) and not full:
+                    unpinned_packages[vuln.package_name].append(vuln)
+                    continue
+
+            raw_vulns.append(vuln)
+
         report_brief_section = click.unstyle(
             build_report_brief_section(columns=80, primary_announcement=primary_announcement,
                                        vulnerabilities_found=max(0, len(vulnerabilities)-total_ignored),
                                        vulnerabilities_ignored=total_ignored,
-                                       remediations_recommended=len(remediations)))
+                                       remediations_recommended=remediations))
 
         table = [self.TEXT_REPORT_BANNER] + announcement_section + [
             report_brief_section,
@@ -77,12 +87,19 @@ class TextReport(FormatterAPI):
         if vulnerabilities:
             table += [" VULNERABILITIES FOUND", self.SMALL_DIVIDER_SECTIONS]
 
-            for vuln in vulnerabilities:
+            if unpinned_packages:
+                table.append('')
+
+            table.extend(map(click.unstyle, format_unpinned_vulnerabilities(unpinned_packages, columns=80)))
+            if not raw_vulns:
+                table.append('')
+
+            for vuln in raw_vulns:
                 table.append('\n' + format_vulnerability(vuln, full, only_text=True, columns=80))
 
-            final_brief = click.unstyle(get_final_brief(len(vulnerabilities), len(remediations), ignored, total_ignored,
+            final_brief = click.unstyle(get_final_brief(len(vulnerabilities), remediations, ignored, total_ignored,
                                                         kwargs={'columns': 80}))
-            table += [final_brief, add_empty_line(), self.SMALL_DIVIDER_SECTIONS] + remediation_section + end_content
+            table += [add_empty_line(), self.SMALL_DIVIDER_SECTIONS] + remediation_section + ['', final_brief, '', self.SMALL_DIVIDER_SECTIONS] + end_content
 
         else:
             table += [add_empty_line(), " No known security vulnerabilities found.", add_empty_line(),

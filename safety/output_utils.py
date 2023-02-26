@@ -3,18 +3,24 @@ import logging
 import os
 import textwrap
 from datetime import datetime
+from typing import List, Tuple, Dict, Optional
 
 import click
 
+from packaging.specifiers import SpecifierSet
 from safety.constants import RED, YELLOW
+from safety.models import Fix, is_pinned_requirement
 from safety.util import get_safety_version, Package, get_terminal_size, \
-    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror
+    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, get_remediations_count
+
+from jinja2 import Environment, PackageLoader
+
 
 LOG = logging.getLogger(__name__)
 
 
-def build_announcements_section_content(announcements, columns=get_terminal_size().columns,
-                                        start_line_decorator=' ', end_line_decorator=' '):
+def build_announcements_section_content(announcements, columns=get_terminal_size().columns, indent: str = ' ' * 2,
+                                        sub_indent: str = ' ' * 4):
     section = ''
 
     for i, announcement in enumerate(announcements):
@@ -25,10 +31,9 @@ def build_announcements_section_content(announcements, columns=get_terminal_size
         elif announcement.get('type') == 'warning':
             color = YELLOW
 
-        item = '{message}'.format(
-            message=format_long_text('* ' + announcement.get('message'), color, columns,
-                                                 start_line_decorator, end_line_decorator))
-        section += '{item}'.format(item=item)
+        message = f"* {announcement.get('message')}"
+        section += format_long_text(message, color, columns, indent=indent, sub_indent=sub_indent,
+                                    start_line_decorator='', end_line_decorator=' ')
 
         if i + 1 < len(announcements):
             section += '\n'
@@ -45,7 +50,7 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 
     for line in lines:
         styled_line = ''
-        left_padding = ' ' * line.get('left_padding', 0)
+        left_padding = ' ' * line.get('indent', 0)
 
         for i, word in enumerate(line.get('words', [])):
             if word.get('style', {}):
@@ -63,21 +68,25 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
 
         styled_text += format_long_text(styled_line, columns=columns, start_line_decorator=start_line,
                                         end_line_decorator=end_line,
-                                        left_padding=left_padding, **line.get('format', {})) + '\n'
+                                        indent=left_padding, **line.get('format', {})) + '\n'
 
     return styled_text
 
 
 def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_terminal_size().columns):
 
-    common_format = {'left_padding': 3, 'format': {'sub_indent': ' ' * 3, 'max_lines': None}}
+    common_format = {'indent': 3, 'format': {'sub_indent': ' ' * 3, 'max_lines': None}}
 
     styled_vulnerability = [
-        {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '}, {'value': vulnerability.vulnerability_id}]},
+        {'words': [{'style': {'bold': True}, 'value': 'Vulnerability ID: '},
+                   {'value': vulnerability.vulnerability_id}]},
     ]
 
     vulnerability_spec = [
-        {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '}, {'value': vulnerability.vulnerable_spec}]}]
+        {'words': [{'style': {'bold': True}, 'value': 'Affected spec: '},
+                   {'value': ', '.join(vulnerability.vulnerable_spec)}]}]
+
+    is_pinned_req = is_pinned_requirement(vulnerability.analyzed_requirement.specifier)
 
     cve = vulnerability.CVE
 
@@ -90,8 +99,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
             s = cve.cvssv2.get("impact_score", "-")
             v = cve.cvssv2.get("vector_string", "-")
 
-            # Reset sub_indent as the left_margin is going to be applied in this case
-            cvssv2_line = {'format': {'sub_indent': ''}, 'words': [
+            cvssv2_line = {'words': [
                 {'value': f'CVSS v2, BASE SCORE {b}, IMPACT SCORE {s}, VECTOR STRING {v}'},
             ]}
 
@@ -138,7 +146,7 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
             {'value': vulnerability.advisory.replace('\n', '')}]}
     ]
 
-    if SafetyContext().key:
+    if is_using_api_key():
         fixed_version_line = {'words': [
             {'style': {'bold': True}, 'value': 'Fixed versions: '},
             {'value': ', '.join(vulnerability.fixed_versions) if vulnerability.fixed_versions else 'No known fix'}
@@ -146,18 +154,30 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
         basic_vuln_data_lines.append(fixed_version_line)
 
-    more_info_line = [{'words': [{'style': {'bold': True}, 'value': 'For more information, please visit '},
-                       {'value': click.style(vulnerability.more_info_url)}]}]
+    more_info_line = [
+        {'words': [{'style': {'bold': True}, 'value': 'For more information about this vulnerability, visit '},
+                   {'value': click.style(vulnerability.more_info_url)}]}
+    ]
 
-    vuln_title = f'-> Vulnerability found in {vulnerability.package_name} version {vulnerability.analyzed_version}\n'
+    if not is_pinned_req and not vulnerability.ignored:
+        more_info_line.insert(0, {'words': [
+            {'style': {'bold': True}, 'value': f'This vulnerability is present in your install specifier range.'},
+            {'value': f' {get_specifier_range_info()}'}
+        ]})
 
-    styled_text = click.style(vuln_title, fg='red')
+    vuln_title = f'-> Vulnerability found in {vulnerability.package_name} version {vulnerability.analyzed_version}'
 
+    if not is_pinned_req:
+        vuln_title = f'-> Vulnerability may be present given that your {vulnerability.package_name} install specifier' \
+                     f' is {vulnerability.analyzed_requirement.specifier}'
+
+    title_color: str = 'red'
     to_print = styled_vulnerability
 
     if not vulnerability.ignored:
         to_print += vulnerability_spec + basic_vuln_data_lines + cve_lines
     else:
+        title_color = ''
         generic_reason = 'This vulnerability is being ignored'
         if vulnerability.ignored_expires:
             generic_reason += f" until {vulnerability.ignored_expires.strftime('%Y-%m-%d %H:%M:%S UTC')}. " \
@@ -176,12 +196,26 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
 
         to_print += expire_section
 
-    if cve:
-        to_print += more_info_line
+    to_print += more_info_line
+
+    if not vulnerability.ignored:
+        ignore_help_line = [
+            {'words': [
+                {
+                    'value': f'To ignore this vulnerability, use PyUp vulnerability id {vulnerability.vulnerability_id}'
+                             f' in safety’s ignore command-line argument or add the ignore to your safety policy file.'
+                    }
+            ]}
+        ]
+
+        to_print += ignore_help_line
 
     to_print = [{**common_format, **line} for line in to_print]
 
-    content = style_lines(to_print, columns, styled_text, start_line='', end_line='', )
+    styled_text = format_long_text(vuln_title, title_color, columns, start_line_decorator='', end_line_decorator='',
+                                   sub_indent=' ' * 3) + '\n'
+
+    content = style_lines(to_print, columns - 3, styled_text, start_line='', end_line='')
 
     return click.unstyle(content) if only_text else content
 
@@ -200,14 +234,69 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
     return click.unstyle(content) if only_text else content
 
 
+def get_fix_hint_for_unpinned(remediation):
+    secure_options: List[str] = [str(fix) for fix in remediation.get('other_recommended_versions', [])]
+    fixes_hint = f'Version {remediation.get("recommended_version")} has no known vulnerabilities and falls' \
+                 f' within your current specifier range.'
+
+    if len(secure_options) > 0:
+        other_options_msg = build_other_options_msg(fix_version=remediation.get("recommended_version"), is_spec=True,
+                                                    secure_options=secure_options)
+        fixes_hint += f' {other_options_msg}'
+
+    return fixes_hint
+
+
+def get_unpinned_hint(pkg: str):
+    return f"We recommend either pinning {pkg} to one of the versions above or updating your " \
+                                f"install specifier to ensure a vulnerable version cannot be installed."
+
+
+def get_specifier_range_info(style: bool = True, pin_hint: bool = False) -> str:
+    hint = ''
+
+    if pin_hint:
+        hint = 'It is recommended to pin your dependencies unless this is a library meant for distribution. '
+
+    msg = f'{hint}To learn more about reporting these, specifier range handling, and options for scanning unpinned' \
+          f' packages visit'
+    link = 'https://docs.pyup.io/docs/safety-range-specs'
+
+    if style:
+        msg = click.style(msg, bold=True)
+
+    return f'{msg} {link}'
+
+
+def build_other_options_msg(fix_version: Optional[str], is_spec: bool, secure_options: [str]) -> str:
+    other_options_msg = ''
+    raw_pre_other_options = ''
+    outside = ''
+
+    if fix_version:
+        raw_pre_other_options = 'other '
+    elif is_spec:
+        outside = 'outside of your current specified range '
+
+    if secure_options:
+        if len(secure_options) == 1:
+            raw_pre_other_options += f'version without known vulnerabilities {outside}is'
+        else:
+            raw_pre_other_options += f'versions without known vulnerabilities {outside}are:'
+
+        other_options_msg = f"{raw_pre_other_options} {', '.join(secure_options)}".capitalize()
+
+    return other_options_msg
+
+
 def build_remediation_section(remediations, only_text=False, columns=get_terminal_size().columns, kwargs=None):
     columns -= 2
-    left_padding = ' ' * 3
+    indent = ' ' * 3
 
     if not kwargs:
         # Reset default params in the format_long_text func
-        kwargs = {'left_padding': '', 'columns': columns, 'start_line_decorator': '', 'end_line_decorator': '',
-                  'sub_indent': left_padding}
+        kwargs = {'indent': indent, 'columns': columns, 'start_line_decorator': '', 'end_line_decorator': '',
+                  'sub_indent': indent}
 
     END_SECTION = '+' + '=' * columns + '+'
 
@@ -219,70 +308,114 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     total_packages = len(remediations.keys())
 
     for pkg in remediations.keys():
-        total_vulns += remediations[pkg]['vulns_found']
-        upgrade_to = remediations[pkg]['closest_secure_version']['major']
-        downgrade_to = remediations[pkg]['closest_secure_version']['minor']
-        fix_version = None
+        for req, rem in remediations[pkg].items():
+            total_vulns += rem['vulnerabilities_found']
+            version = rem['version']
+            spec = rem['requirement']
+            is_spec = not version and spec
+            secure_options: List[str] = [str(fix) for fix in rem.get('other_recommended_versions', [])]
+    
+            fix_version = None
+            new_line = '\n'
+            spec_info = []
+    
+            vuln_word = 'vulnerability'
+            pronoun_word = 'this'
+    
+            if rem['vulnerabilities_found'] > 1:
+                vuln_word = 'vulnerabilities'
+                pronoun_word = 'these'
+    
+            if rem.get('recommended_version', None):
+                fix_version = str(rem.get('recommended_version'))
+    
+            other_options_msg = build_other_options_msg(fix_version=fix_version, is_spec=is_spec,
+                                                        secure_options=secure_options)
+    
+            spec_hint = ''
+    
+            if secure_options or fix_version and is_spec:                
+                raw_spec_info = get_unpinned_hint(pkg)
+    
+                spec_hint = f"{click.style(raw_spec_info, bold=True, fg='green')}" \
+                            f" {get_specifier_range_info()}"
+    
+            if fix_version:
+                fix_v: str = click.style(fix_version, bold=True)
+                closest_msg = f'The closest version with no known vulnerabilities is {fix_v}'
+    
+                if is_spec:
+                    closest_msg = f'Version {fix_v} has no known vulnerabilities and falls within your current specifier ' \
+                                  f'range'
+    
+                raw_recommendation = f"We recommend updating to version {fix_version} of {pkg}."
+    
+                remediation_styled = click.style(f'{raw_recommendation} {other_options_msg}', bold=True,
+                                                 fg='green')
+    
+                # Spec case
+                if is_spec:
+                    closest_msg += f'. {other_options_msg}'
+                    remediation_styled = spec_hint
+    
+                remediation_content = [
+                    closest_msg,
+                    new_line,
+                    remediation_styled
+                ]
+    
+            else:
+                no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word}.'
+    
+                if is_spec and secure_options:
+                    no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word} in the current specified ' \
+                                       f'range ({spec}).'
+    
+                no_fix_msg_styled = f"{click.style(no_known_fix_msg, bold=True, fg='yellow')} " \
+                                    f"{click.style(other_options_msg, bold=True, fg='green')}"
+    
+                remediation_content = [new_line, no_fix_msg_styled]
+    
+                if spec_hint:
+                    remediation_content.extend([new_line, spec_hint])
+    
+            # Pinned
+            raw_rem_title = f"-> {pkg} version {version} was found, " \
+                            f"which has {rem['vulnerabilities_found']} {vuln_word}"
+    
+            # Range
+            if is_spec:
+                # Spec remediation copy
+                raw_rem_title = f"-> {pkg} with install specifier {spec} was found, " \
+                                f"which has {rem['vulnerabilities_found']} {vuln_word}"
+    
+            remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
+            content += new_line + format_long_text(remediation_title,
+                                                   **{**kwargs, **{'indent': '', 'sub_indent': ' ' * 3}}) + new_line
+    
+            pre_content = remediation_content + spec_info + [new_line,
+                                                             f"For more information about the {pkg} package and update "
+                                                             f"options, visit {rem['more_info_url']}",
+                                                             f'Always check for breaking changes when updating packages.',
+                                                             new_line]
+    
+            for i, element in enumerate(pre_content):
+                content += format_long_text(element, **kwargs)
+    
+                if i + 1 < len(pre_content):
+                    content += '\n'
 
-        if upgrade_to:
-            fix_version = str(upgrade_to)
-        elif downgrade_to:
-            fix_version = str(downgrade_to)
-
-        new_line = '\n'
-
-        other_options = [str(fix) for fix in remediations[pkg].get('secure_versions', []) if str(fix) != fix_version]
-        raw_recommendation = f"We recommend upgrading to version {upgrade_to} of {pkg}."
-
-        if other_options:
-            raw_other_options = ', '.join(other_options)
-            raw_pre_other_options = 'Other versions without known vulnerabilities are:'
-            if len(other_options) == 1:
-                raw_pre_other_options = 'Other version without known vulnerabilities is'
-            raw_recommendation = f"{raw_recommendation} {raw_pre_other_options} " \
-                                 f"{raw_other_options}"
-
-        remediation_content = [
-            f'{left_padding}The closest version with no known vulnerabilities is ' + click.style(upgrade_to, bold=True),
-            new_line,
-            click.style(f'{left_padding}{raw_recommendation}', bold=True, fg='green')
-        ]
-
-        if not fix_version:
-            remediation_content = [new_line,
-                click.style(f'{left_padding}There is no known fix for this vulnerability.', bold=True, fg='yellow')]
-
-        text = 'vulnerabilities' if remediations[pkg]['vulns_found'] > 1 else 'vulnerability'
-
-        raw_rem_title = f"-> {pkg} version {remediations[pkg]['version']} was found, " \
-                        f"which has {remediations[pkg]['vulns_found']} {text}"
-
-        remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
-
-        content += new_line + format_long_text(remediation_title, **kwargs) + new_line
-
-        pre_content = remediation_content + [
-                          f"{left_padding}For more information, please visit {remediations[pkg]['more_info_url']}",
-                          f'{left_padding}Always check for breaking changes when upgrading packages.',
-                          new_line]
-
-        for i, element in enumerate(pre_content):
-            content += format_long_text(element, **kwargs)
-
-            if i + 1 < len(pre_content):
-                content += '\n'
-
-    title = format_long_text(click.style(f'{left_padding}REMEDIATIONS', fg='green', bold=True), **kwargs)
+    title = format_long_text(click.style('REMEDIATIONS', fg='green', bold=True), **kwargs)
 
     body = [content]
 
     if not is_using_api_key():
         vuln_text = 'vulnerabilities were' if total_vulns != 1 else 'vulnerability was'
         pkg_text = 'packages' if total_packages > 1 else 'package'
-        msg = "{0} {1} found in {2} {3}. " \
+        msg = "{0} {1} reported in {2} {3}. " \
               "For detailed remediation & fix recommendations, upgrade to a commercial license."\
             .format(total_vulns, vuln_text, total_packages, pkg_text)
-        content = '\n' + format_long_text(msg, left_padding=' ', columns=columns) + '\n'
+        content = '\n' + format_long_text(msg, indent=' ', sub_indent=' ', columns=columns) + '\n'
         body = [content]
 
     body.append(END_SECTION)
@@ -295,10 +428,11 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     return content
 
 
-def get_final_brief(total_vulns_found, total_remediations, ignored, total_ignored, kwargs=None):
+def get_final_brief(total_vulns_found, remediations, ignored, total_ignored, kwargs=None):
     if not kwargs:
         kwargs = {}
 
+    rem_count: int = get_remediations_count(remediations)
     total_vulns = max(0, total_vulns_found - total_ignored)
 
     vuln_text = 'vulnerabilities' if total_ignored > 1 else 'vulnerability'
@@ -306,9 +440,9 @@ def get_final_brief(total_vulns_found, total_remediations, ignored, total_ignore
 
     policy_file_text = ' using a safety policy file' if is_using_a_safety_policy_file() else ''
 
-    vuln_brief = f" {total_vulns} vulnerabilit{'y was' if total_vulns == 1 else 'ies were'} found."
+    vuln_brief = f" {total_vulns} vulnerabilit{'y was' if total_vulns == 1 else 'ies were'} reported."
     ignored_text = f' {total_ignored} {vuln_text} from {len(ignored.keys())} {pkg_text} ignored.' if ignored else ''
-    remediation_text = f" {total_remediations} remediation{' was' if total_remediations == 1 else 's were'} " \
+    remediation_text = f" {rem_count} remediation{' was' if rem_count == 1 else 's were'} " \
                        f"recommended." if is_using_api_key() else ''
 
     raw_brief = f"Scan was completed{policy_file_text}.{vuln_brief}{ignored_text}{remediation_text}"
@@ -328,7 +462,7 @@ def get_final_brief_license(licenses, kwargs=None):
     return format_long_text("{0}".format(licenses_text), start_line_decorator=' ', **kwargs)
 
 
-def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', left_padding='', max_lines=None, styling=None, indent='', sub_indent=''):
+def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', max_lines=None, styling=None, indent='', sub_indent=''):
     if not styling:
         styling = {}
 
@@ -344,12 +478,10 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
         if line == '':
             empty_line = base_format.format(" ")
             formatted_lines.append("{0}{1}{2}".format(start_line_decorator, empty_line, end_line_decorator))
-        wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, initial_indent=indent, subsequent_indent=sub_indent, placeholder='...')
+        wrapped_lines = textwrap.wrap(line, width=columns, max_lines=max_lines, initial_indent=indent,
+                                      subsequent_indent=sub_indent, placeholder='...')
         for wrapped_line in wrapped_lines:
-            try:
-                new_line = left_padding + wrapped_line.encode('utf-8')
-            except TypeError:
-                new_line = left_padding + wrapped_line
+            new_line = f'{wrapped_line}'
 
             if styling:
                 new_line = click.style(new_line, **styling)
@@ -366,7 +498,7 @@ def get_printable_list_of_scanned_items(scanning_target):
     scanned_items_data = []
 
     if scanning_target == 'environment':
-        locations = set([pkg.found for pkg in context.packages if isinstance(pkg, Package)])
+        locations = set(SafetyContext().scanned_full_path)
 
         for path in locations:
             result.append([{'styled': False, 'value': '-> ' + path}])
@@ -433,7 +565,7 @@ def build_report_brief_section(columns=None, primary_announcement=None, report_t
             ln += processed_words
 
         styled_brief_lines.append(format_long_text(ln, color='', columns=columns, start_line_decorator='',
-                                                   left_padding=padding, end_line_decorator='', sub_indent=' ' * 2))
+                                                   indent=padding, end_line_decorator='', sub_indent=' ' * 2))
 
     return "\n".join([add_empty_line(), REPORT_HEADING, add_empty_line(), '\n'.join(styled_brief_lines)])
 
@@ -503,7 +635,7 @@ def build_using_sentence(key, db):
         else:
             db_name = f"local file {db}"
     else:
-        db_name = 'non-commercial'
+        db_name = 'open-source vulnerability'
 
     database_sentence = [{'style': True, 'value': db_name + ' database'}]
 
@@ -569,6 +701,9 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['scanned'] = data
     nl = [{'style': False, 'value': ''}]
 
+    brief_data['scanned_full_path'] = SafetyContext().scanned_full_path
+    brief_data['target_languages'] = ['python']
+
     action_executed = [
         {'style': True, 'value': scanning_types.get(context.command, {}).get('action', '')},
         {'style': False, 'value': ' in your '},
@@ -583,7 +718,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
 
     if policy_file and policy_file.get('filename', False):
         safety_policy_used = [
-            {'style': False, 'value': '\nScanning using a security policy file'},
+            {'style': False, 'value': '\nScan configuration using a security policy file'},
             {'style': True, 'value': ' {0}'.format(policy_file.get('filename', '-'))},
         ]
 
@@ -594,6 +729,10 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
             {'style': False, 'value': '\nLogging scan results to'},
             {'style': True, 'value': ' {0}'.format(logged_url)},
         ]
+        brief_data['audit_and_monitor'] = logged_url
+    else:
+        brief_data['audit_and_monitor'] = False
+
 
     current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
@@ -611,13 +750,13 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
 
         additional_data = [
             [{'style': True, 'value': str(brief_data['vulnerabilities_found'])},
-             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_found"] == 1 else "ies"} found'}],
+             {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_found"] == 1 else "ies"} reported'}],
             [{'style': True, 'value': str(brief_data['vulnerabilities_ignored'])},
              {'style': True, 'value': f' vulnerabilit{"y" if brief_data["vulnerabilities_ignored"] == 1 else "ies"} ignored'}],
         ]
 
         if is_using_api_key():
-            brief_data['remediations_recommended'] = kwargs.get('remediations_recommended', 0)
+            brief_data['remediations_recommended'] = get_remediations_count(kwargs.get('remediations_recommended', {}))
             additional_data.extend(
                 [[{'style': True, 'value': str(brief_data['remediations_recommended'])},
                  {'style': True, 'value':
@@ -635,10 +774,16 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     brief_data['git'] = build_git_data()
     brief_data['project'] = context.params.get('project', None)
 
-    brief_data['json_version'] = 1
+    brief_data['json_version'] = "1.1"
 
     using_sentence = build_using_sentence(key, db)
-    using_sentence_section = [nl] if not using_sentence else [nl] + [build_using_sentence(key, db)]
+    sentence_array = []
+    for section in using_sentence:
+        sentence_array.append(section['value'])
+    brief_using_sentence = ' '.join(sentence_array)
+    brief_data['using_sentence'] = brief_using_sentence
+
+    using_sentence_section = [nl] if not using_sentence else [nl] + [using_sentence]
     scanned_count_sentence = build_scanned_count_sentence(packages)
 
     timestamp = [{'style': False, 'value': 'Timestamp '}, {'style': True, 'value': current_time}]
@@ -691,3 +836,120 @@ def should_add_nl(output, found_vulns):
 
     return True
 
+
+def get_skip_reason(fix: Fix) -> str:
+    range_msg = ''
+
+    if not fix.updated_version and fix.other_options:
+        range_msg = f' in your current install range ({fix.previous_spec}). Please read the remediation output ' \
+                    f'for more details and how to update this spec'
+
+    reasons = {"AUTOMATICALLY_SKIPPED_NO_RECOMMENDED_VERSION": f"there is no secure version{range_msg}.",
+               "MANUALLY_SKIPPED": "it was manually discarded.",
+               "AUTOMATICALLY_SKIPPED_UNABLE_TO_CONFIRM": "not able to confirm."
+               }
+
+    return reasons.get(fix.status, 'unknown.')
+
+
+def get_applied_msg(fix, mode="auto") -> str:
+    return f"Applied {mode} fix for {fix.package} from {fix.previous_spec} to =={fix.updated_version}."
+
+
+def get_skipped_msg(fix) -> str:
+    return f'{fix.package} remediation was skipped because {get_skip_reason(fix)}'
+
+
+def get_fix_opt_used_msg() -> str:
+    fix_options = SafetyContext().params.get('auto_remediation_limit', [])
+    msg = "no automatic"
+
+    if fix_options:
+        msg = f"automatic {', '.join(fix_options)} update"
+
+    if SafetyContext().params.get('accept_all', False):
+        msg += ' and force'
+
+    return msg
+
+
+def print_service(output: List[Tuple[str, Dict]], out_format: str, format_text: Optional[dict] = None):
+    formats = ['text', 'screen']
+
+    if out_format not in formats:
+        raise ValueError(f"Print is only allowed for {', '.join(formats)}")
+
+    if not format_text:
+        format_text = {'start_line_decorator': '', 'sub_indent': ' ' * 5, 'indent': ' ' * 3}
+        if out_format == 'text':
+            format_text['columns'] = 80
+
+    while output:
+        line, kwargs = output.pop(0)
+        line = format_long_text(line, **{**format_text, **kwargs})
+
+        if out_format == 'screen':
+            click.secho(line)
+        else:
+            click.echo(click.unstyle(line))
+
+
+def prompt_service(output: Tuple[str, Dict], out_format: str, format_text: Optional[dict] = None) -> bool:
+    formats = ['text', 'screen']
+
+    if out_format not in formats:
+        raise ValueError(f"Prompt is only allowed for {', '.join(formats)}")
+
+    if not format_text:
+        format_text = {'start_line_decorator': '', 'sub_indent': ' ' * 5, 'indent': ' ' * 3}
+        if out_format == 'text':
+            format_text['columns'] = 80
+
+    line, kwargs = output
+    msg = format_long_text(line, **{**format_text, **kwargs})
+
+    if out_format == 'text':
+        msg = click.unstyle(msg)
+
+    return click.prompt(msg)
+
+
+def parse_html(json_data):
+    file_loader = PackageLoader('safety', 'templates')
+    env = Environment(loader=file_loader)
+    template = env.get_template("index.html")
+    return template.render(json_data=json_data)
+
+
+def format_unpinned_vulnerabilities(unpinned_packages, columns=None):
+    lines = []
+
+    if not unpinned_packages:
+        return lines
+
+    for pkg_name, vulns in unpinned_packages.items():
+        total = {vuln.vulnerability_id for vuln in vulns}
+        pkg = vulns[0].pkg
+        doc_msg: str = get_specifier_range_info(style=False, pin_hint=True)
+
+        match_text = 'vulnerabilities match' if len(total) > 1 else 'vulnerability matches'
+        reqs = ', '.join([str(r) for r in pkg.get_unpinned_req()])
+
+        msg = f"-> Warning: {len(total)} known {match_text} the {pkg.name} versions that could be " \
+              f"installed from your specifier{'s' if len(pkg.requirements) > 1 else ''}: {reqs} (unpinned). These vulnerabilities are not " \
+              f"reported by default. To report these vulnerabilities set 'ignore-unpinned-requirements' to False " \
+              f"under 'security' in your policy file. " \
+              f"See https://docs.pyup.io/docs/safety-20-policy-file for more information."
+
+        kwargs = {'color': 'yellow', 'indent': '', 'sub_indent': ' ' * 3, 'start_line_decorator': '',
+                  'end_line_decorator': ' '}
+
+        if columns:
+            kwargs.update({'columns': columns})
+
+        msg = format_long_text(text=msg, **kwargs)
+        doc_msg = format_long_text(text=doc_msg, **{**kwargs, **{'indent': ' ' * 3}})
+
+        lines.append(f'{msg}\n{doc_msg}')
+
+    return lines

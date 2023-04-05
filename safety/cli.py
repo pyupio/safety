@@ -18,8 +18,10 @@ from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities, process_fixes
 from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, get_safety_version, json_alias, bare_alias, html_alias, SafetyContext, is_a_remote_mirror, \
+    get_processed_options, get_safety_version, json_alias, bare_alias, html_alias, spdx_alias, SafetyContext, is_a_remote_mirror, \
     filter_announcements, get_fix_options
+
+from spdx.writer.json.json_writer import write_document
 
 LOG = logging.getLogger(__name__)
 
@@ -59,9 +61,9 @@ def clean_check_command(f):
     """
     @wraps(f)
     def inner(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output,
-              json, html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, save_json, save_html,
-              audit_and_monitor, project, apply_remediations, auto_remediation_limit, no_prompt, json_version,
-              *args, **kwargs):
+              json, html, bare, spdx, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, save_json,
+              save_html, save_spdx_document, audit_and_monitor, project, apply_remediations, auto_remediation_limit,
+              no_prompt, json_version, *args, **kwargs):
 
         if ctx.get_parameter_source("json_version") != click.core.ParameterSource.DEFAULT and not (
                 save_json or json or output == 'json'):
@@ -93,9 +95,9 @@ def clean_check_command(f):
             output_exception(exception, exit_code_output=exit_code)
 
         return f(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
-                 html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor,
-                 project, save_json, save_html, apply_remediations, auto_remediation_limit, no_prompt, json_version,
-                 *args, **kwargs)
+                 html, bare, spdx, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor,
+                 project, save_json, save_html, save_spdx_document, apply_remediations, auto_remediation_limit, no_prompt,
+                 json_version, *args, **kwargs)
 
     return inner
 
@@ -108,7 +110,7 @@ def clean_check_command(f):
               help="Path to a local or remote vulnerability database. Default: empty")
 @click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption,
               mutually_exclusive=["output", "json", "bare"],
-              with_values={"output": ['json', 'bare'], "json": [True, False], "html": [True, False], "bare": [True, False]},
+              with_values={"output": ['json', 'bare'], "json": [True, False], "html": [True, False], "bare": [True, False], "spdx": [True, False]},
               help='Full reports include a security advisory (if available). Default: --short-report')
 @click.option("--cache", is_flag=False, flag_value=60, default=0,
               help="Cache requests to the vulnerability database locally. Default: 0 seconds",
@@ -123,15 +125,18 @@ def clean_check_command(f):
 @click.option("ignore_unpinned_requirements", "--ignore-unpinned-requirements/--check-unpinned-requirements", "-iur",
               default=None, help="Check or ignore unpinned requirements found.")
 @click.option('--json', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
-              with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=json_alias,
+              with_values={"output": ['screen', 'text', 'bare', 'json', 'html', 'spdx'], "bare": [True, False]}, callback=json_alias,
               hidden=True, is_flag=True, show_default=True)
 @click.option('--html', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
-              with_values={"output": ['screen', 'text', 'bare', 'json', 'html'], "bare": [True, False]}, callback=html_alias,
+              with_values={"output": ['screen', 'text', 'bare', 'json', 'html', 'spdx'], "bare": [True, False]}, callback=html_alias,
               hidden=True, is_flag=True, show_default=True)
 @click.option('--bare', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "json"],
               with_values={"output": ['screen', 'text', 'bare', 'json'], "json": [True, False]}, callback=bare_alias,
               hidden=True, is_flag=True, show_default=True)
-@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare', 'html'], case_sensitive=False),
+@click.option('--spdx', default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output", "bare"],
+              with_values={"output": ['screen', 'text', 'bare', 'json', 'html', 'spdx'], "bare": [True, False]}, callback=spdx_alias,
+              hidden=True, is_flag=True, show_default=True)
+@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare', 'html', 'spdx'], case_sensitive=False),
               default='screen', callback=active_color_if_needed, envvar='SAFETY_OUTPUT')
 @click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption,
               required_options=['proxy_host'],
@@ -156,6 +161,9 @@ def clean_check_command(f):
 @click.option("--save-html", default="", help="Path to where the output file will be placed; if the path is a"
                                               " directory, Safety will use safety-report.html as the main file. "
                                               "Default: empty")
+@click.option("--save-spdx-document", default="", help="Path to where the output file will be placed; if the path is a"
+                                              " directory, Safety will use safety-report-spdx.json as the filename. "
+                                              "Default: empty")
 @click.option("apply_remediations", "--apply-security-updates", "-asu", default=False, is_flag=True,
               help="Apply security updates in your requirement files.")
 @click.option("auto_remediation_limit", "--auto-security-updates-limit", "-asul", multiple=True,
@@ -167,12 +175,14 @@ def clean_check_command(f):
               show_default=True)
 @click.option('json_version', '--json-output-format', type=click.Choice(['0.5', '1.1']), default="1.1",
               help="Select the JSON version to be used in the output", show_default=True)
+@click.option('spdx_version', '--spdx-documert-version', type=click.Choice(['2.2', '2.3']), default="2.3",
+              help="Select the spdx version to be used in the output", show_default=True)
 @click.pass_context
 @clean_check_command
 def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
-          html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project,
-          save_json, save_html, apply_remediations,
-          auto_remediation_limit, no_prompt, json_version):
+          html, bare, spdx, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project,
+          save_json, save_html, save_spdx_document, apply_remediations,
+          auto_remediation_limit, no_prompt, json_version, spdx_version):
     """
     Find vulnerabilities in Python dependencies at the target provided.
 
@@ -184,6 +194,11 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
     is_silent_output = output in silent_outputs
     prompt_mode = bool(not non_interactive and not stdin and not is_silent_output) and not no_prompt
     kwargs = {'version': json_version} if output == 'json' else {}
+    kwargs = {}
+    if output == 'json':
+        kwargs['version'] = json_version
+    elif output == 'spdx':
+        kwargs['version'] = spdx_version
 
     try:
         packages = get_packages(files, stdin)
@@ -268,6 +283,12 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
                 announcements, vulns, remediations, full_report, packages, fixes)
 
             safety.save_report(save_html, 'safety-report.html', html_report)
+        
+        if save_spdx_document:
+            spdx_document = output_report if output == 'spdx' else SafetyFormatter(output='spdx', version=spdx_version).render_vulnerabilities(
+                announcements, vulns, remediations, full_report, packages, fixes)
+            write_document(spdx_document, 'safety-report-spdx.json', validate=True)
+            # safety.save_report(save_spdx_document, 'safety-report-spdx.json', spdx_report)
 
         if exit_code and found_vulns:
             LOG.info('Exiting with default code for vulnerabilities found')

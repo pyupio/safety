@@ -181,6 +181,7 @@ Safety can output the scan results in a variety of formats and outputs. This inc
 ```--output json``` will output JSON for further processing and analysis.
 ```--output text``` can be used to save the scan to file to later auditing.
 ```--output bare``` simply prints out the packages that have known vulnerabilities
+```--output spdx``` will output SPDX format
 
 ### Exit codes
 

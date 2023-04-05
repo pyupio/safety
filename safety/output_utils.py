@@ -14,6 +14,11 @@ from safety.util import get_safety_version, Package, get_terminal_size, \
     SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, get_remediations_count
 
 from jinja2 import Environment, PackageLoader
+from spdx.model.actor import Actor, ActorType
+from spdx.model.document import CreationInfo, Document
+from spdx.model.package import Package, ExternalPackageRef, ExternalPackageRefCategory
+from spdx.model.relationship import Relationship, RelationshipType
+from spdx.model.spdx_no_assertion import SpdxNoAssertion
 
 
 LOG = logging.getLogger(__name__)
@@ -953,3 +958,90 @@ def format_unpinned_vulnerabilities(unpinned_packages, columns=None):
         lines.append(f'{msg}\n{doc_msg}')
 
     return lines
+
+
+def generate_spdx_creation_info(version):
+    doc_creator = Actor(
+        ActorType.TOOL,
+        "pyup.io-safety-cli",
+        None
+    )
+    creation_info = CreationInfo(
+        f"SPDX-{version}",
+        "SPDXRef-DOCUMENT",
+        "",
+        "https://github.com/pyupio/safety/",
+        [doc_creator],
+        datetime.now(),
+        ""
+    )
+    return creation_info
+
+
+def create_pkg_ext_ref(package, version):
+    pkg_ref = ExternalPackageRef(
+        ExternalPackageRefCategory.PACKAGE_MANAGER,
+        "purl",
+        f"pkg:pypi/{package['name']}@{version}",
+    )
+    return pkg_ref
+
+
+def create_packages(packages) -> list:
+    doc_pkgs = []
+    for _, package in packages.items():
+        is_pinned = is_pinned_requirement(package['requirements'][0].specifier)
+        version = package['version']
+        # Removes dev hash for some  like (spdx-tools-0.7.2.dev377+gac9e62f) could be in beta
+        if 'dev' in version:
+            version = version.rsplit('.', 1)[0]
+        pkg_ref = create_pkg_ext_ref(package, version)
+        # Include version number for pinned packages
+        pkg_id = f"SPDXRef-pip-{package['name']}-{version}" if is_pinned else f"SPDXRef-pip-{package['name']}"
+        pkg_version = version if is_pinned else f">={version}"
+        pkg = Package(
+            pkg_id,
+            f"pip:{package['name']}",
+            SpdxNoAssertion(),
+            pkg_version,
+            "",
+            SpdxNoAssertion(),
+            None,
+            False,
+            None,
+            None,
+            None,
+            None,
+            SpdxNoAssertion(),
+            None,
+            SpdxNoAssertion(),
+            None,
+            None,
+            None,
+            None, 
+            None,
+            [pkg_ref],
+        )
+        doc_pkgs.append(pkg)
+    return doc_pkgs
+
+
+def create_spdx_document(report, version):
+    creation_info = generate_spdx_creation_info(version)
+    packages = create_packages(report["scanned_packages"])
+    # Requirement for document to have atleast one relationship
+    relationship = Relationship(
+        "SPDXRef-DOCUMENT",
+        RelationshipType.DESCRIBES,
+        "SPDXRef-DOCUMENT"
+    )
+    spdx_doc = Document(
+        creation_info,
+        packages,
+        [],
+        [],
+        [],
+        [relationship],
+        []
+    )
+    return spdx_doc

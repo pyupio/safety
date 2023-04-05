@@ -52,6 +52,7 @@ class SafetyFormatter(FormatterAPI):
         from safety.formatters.json import JsonReport
         from safety.formatters.bare import BareReport
         from safety.formatters.html import HTMLReport
+        from safety.formatters.spdx import SPDXReport
 
         self.format = ScreenReport(**kwargs)
 
@@ -63,3 +64,5 @@ class SafetyFormatter(FormatterAPI):
             self.format = BareReport(**kwargs)
         elif output == 'text':
             self.format = TextReport(**kwargs)
+        elif output == 'spdx':
+            self.format = SPDXReport(**kwargs)

@@ -424,6 +424,11 @@ def bare_alias(ctx, param, value):
         os.environ['SAFETY_OUTPUT'] = 'bare'
         return value
 
+def spdx_alias(ctx, param, value):
+    if value:
+        os.environ['SAFETY_OUTPUT'] = 'spdx'
+        return value
+
 
 def get_terminal_size():
     from shutil import get_terminal_size as t_size

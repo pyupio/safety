@@ -4,7 +4,7 @@ name: Safety Action Insecure Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, image-ci]
 
 jobs:
   matrix:
@@ -16,7 +16,7 @@ jobs:
       - id: set-matrix
         run: |
           TASKS=$(echo $(cat .github/workflows/gh-action-integration-matrix.json) | sed 's/ //g' )
-          echo "::set-output name=matrix::$TASKS"
+          echo "matrix=$TASKS" >> $GITHUB_OUTPUT
 
   ##### Auto mode tests
   ### File scanning

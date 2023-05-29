@@ -203,12 +203,11 @@ exec 5>&1
 output=$(python -m safety check -r "${SAFETY_ACTION_REQUIREMENTS}" --output="${SAFETY_ACTION_OUTPUT_FORMAT}" ${SAFETY_ACTION_CONTINUE_ON_ERROR} ${SAFETY_ACTION_ARGS} | tee >(cat - >&5))
 exit_code=$?
 
-# https://github.community/t/set-output-truncates-multiline-strings/16852/3
-output="${output//'%'/'%25'}"
-output="${output//$'\n'/'%0A'}"
-output="${output//$'\r'/'%0D'}"
+echo "exit-code=$exit_code" >> $GITHUB_OUTPUT
 
-echo "::set-output name=exit-code::$exit_code"
-echo "::set-output name=cli-output::$output"
+EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+echo "cli-output<<$EOF" >> $GITHUB_OUTPUT
+echo "$output" >> $GITHUB_OUTPUT
+echo "$EOF" >> $GITHUB_OUTPUT
 
 exit $exit_code

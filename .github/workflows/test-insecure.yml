@@ -4,7 +4,7 @@ name: Safety Action Insecure Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, image-ci]
 
 jobs:
   matrix:

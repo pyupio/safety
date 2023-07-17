@@ -379,7 +379,7 @@ class DependentOption(click.Option):
 
 def transform_ignore(ctx, param, value):
     ignored_default_dict = {'reason': '', 'expires': None}
-    if isinstance(value, tuple):
+    if value and isinstance(value, tuple):
         # Following code is required to support the 2 ways of providing 'ignore'
         # --ignore=1234,567,789
         # or, the historical way (supported for backward compatibility)

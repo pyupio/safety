@@ -266,6 +266,24 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(msg + parsed, cleaned_stdout)
         self.assertEqual(result.exit_code, 0)
 
+    @patch("safety.safety.check")
+    def test_check_with_basic_policy_file(self, check):
+        dirname = os.path.dirname(__file__)
+        policy_path = os.path.join(dirname, "test_policy_file", "default_policy_file.yml")
+        reqs_path = os.path.join(dirname, "reqs_4.txt")
+
+        _ = self.runner.invoke(cli.cli, ["check", "--policy-file", policy_path, "--file", reqs_path])
+
+        try:
+            check_call_kwargs = check.call_args[1]  # Python < 3.8
+        except IndexError:
+            check_call_kwargs = check.call_args.kwargs
+
+        ignored = {
+            "25853": {"expires": datetime(2022, 10, 21), "reason": "we don't use the vulnerable function"},
+        }
+        self.assertEqual(check_call_kwargs["ignore_vulns"], ignored)
+
     def test_validate_with_policy_file_using_invalid_keyword(self):
         dirname = os.path.dirname(__file__)
         filename = 'default_policy_file_using_invalid_keyword.yml'

@@ -145,3 +145,6 @@ class ReadRequirementsTestCase(unittest.TestCase):
             '789': {'expires': None, 'reason': ''}
         }
         self.assertEqual(transform_ignore(None, None, value=("123,456", "789")), ignored_transformed)
+
+    def test_transform_empty(self):
+        self.assertEqual(transform_ignore(None, None, value=tuple()), {})

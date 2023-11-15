@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [2.4.0b2] - 2023-11-15
+- Removed the upper clause restriction for the packaging dependency
+
 ## [2.4.0b1] - 2022-02-26
 - Added support for coma separated ignore (--ignore=123,456) on top of existing --ignore=123 --ignore=456
 - Added support for requirements per package. Safety can check, report, suggest, and apply remediations for unpinned requirements.

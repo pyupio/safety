@@ -105,7 +105,7 @@ class environment:
             artifact_path = os.path.join(
                 os.getcwd(),
                 "dist",
-                f"safety-{self.os}-{'i686' if arch == 32 else 'x86_64'}"
+                f"safety-{self.os}-{'i386' if arch == 32 else 'x86_64'}"
             )
             binary_path = os.path.join(os.getcwd(), build_path, "safety")
             if self.os == self.WIN:

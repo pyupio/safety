@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        python-version: [ "3.6", "3.7", "3.8", "3.9", "3.10", "3.11" ]
+        python-version: [ "3.7", "3.8", "3.9", "3.10", "3.11", "3.12" ]
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
@@ -33,7 +33,7 @@ jobs:
     needs: test
     runs-on: ubuntu-20.04
 
-    if: contains(fromJson('["refs/heads/main", "refs/heads/develop", "refs/heads/binaries-fixes"]'), github.ref) || startsWith(github.ref, 'refs/tags')
+    if: contains(fromJson('["refs/heads/main", "refs/heads/binaries-fixes"]'), github.ref) || startsWith(github.ref, 'refs/tags')
     
     steps:
       - name: Slack trigger
@@ -44,8 +44,6 @@ jobs:
   build-binaries:
     needs: test
     runs-on: ${{ matrix.os }}
-
-    if: contains(fromJson('["refs/heads/main", "refs/heads/develop", "refs/heads/binaries-fixes"]'), github.ref) || startsWith(github.ref, 'refs/tags')
 
     strategy:
       matrix:

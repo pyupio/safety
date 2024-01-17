@@ -23,11 +23,6 @@ jobs:
       - name: Test with pytest
         run: |
           pytest --cov=./ --cov-report=xml
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          fail_ci_if_error: false
-        if: matrix.python-version == '3.11'
 
   notify:
     needs: test
@@ -65,8 +60,8 @@ jobs:
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.os == 'windows-latest' }}
         with:
-          name: safety-win-i686.exe
-          path: dist/safety-win-i686.exe
+          name: safety-win-i386.exe
+          path: dist/safety-win-i386.exe
           if-no-files-found: error
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.os == 'windows-latest' }}
@@ -77,8 +72,8 @@ jobs:
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.os == 'ubuntu-20.04' }}
         with:
-          name: safety-linux-i686
-          path: dist/safety-linux-i686
+          name: safety-linux-i386
+          path: dist/safety-linux-i386
           if-no-files-found: error
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.os == 'ubuntu-20.04' }}

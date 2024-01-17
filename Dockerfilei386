@@ -1,7 +1,7 @@
 #
 # This dockerfile is used to build the 32bit linux binary
 #
-FROM i386/python:3.6-buster
+FROM i386/python:3.12-bullseye
 
 RUN apt-get update
 

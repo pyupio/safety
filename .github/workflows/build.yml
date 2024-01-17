@@ -1,28 +1,66 @@
-name: Safety Action Build And Publish
+name: Publish Docker image
 
 on:
-  push:
-    tags:
-      - "^(\\d+\\.\\d+(\\.\\d+)?)$"
-    branches: [image-builds]
-
-env:
-    DOCKER_BUILDKIT: 1
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-20.04
-    environment: main
+  build-and-push:
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-      - name: Build image
-        run: docker build -t pyupio/safety-v2-beta:latest .
+    - uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+        cache: "pip"
+    
+    - name: Safety Version
+      run: |
+        pip install packaging
+        package_version=$(cat safety/VERSION)
+        echo $package_version
+        echo "SAFETY_VERSION=$package_version" >> $GITHUB_ENV
 
-      - name: Upload image
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin &&
-             docker push pyupio/safety-v2-beta:latest
+    - name: Extract Major and Minor Version
+      run: |
+        python scripts/extract_version.py
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          image=moby/buildkit:v0.10.6
+
+    - name: Log into registry
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ghcr.io/pyupio/safety
+        tags: |
+          type=raw,value=${{ env.SAFETY_VERSION }},suffix=-{{ sha }}
+          type=raw,value=${{ env.SAFETY_VERSION }}
+          type=raw,value=${{ env.SAFETY_MAJOR_VERSION }}.${{ env.SAFETY_MINOR_VERSION }}
+          type=raw,value=${{ env.SAFETY_MAJOR_VERSION }}
+          type=raw,value=latest
+        labels: |
+          org.opencontainers.image.title=Safety CLI
+          org.opencontainers.image.description=Safety CLI is a Python dependency vulnerability scanner that enhances software supply chain security at every stage of development.
+          org.opencontainers.image.vendor=Safety Cybersecurity
+          org.opencontainers.image.licenses=MIT
+
+    - name: Build and Push image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: SAFETY_VERSION=${{ env.SAFETY_VERSION }} 
+

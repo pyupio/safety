@@ -22,13 +22,15 @@ import click as click
 from packaging.version import parse
 from packaging.specifiers import SpecifierSet
 from requests.exceptions import RequestException
+from safety.auth import build_client_session
+from safety.constants import DB_CACHE_FILE
 
-from safety import util, safety
-from safety.errors import MalformedDatabase
+from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, MalformedDatabase, InvalidCredentialError, TooManyRequestsError
 from safety.formatter import SafetyFormatter
 from safety.models import CVE, Package, SafetyRequirement
-from safety.safety import ignore_vuln_if_needed, get_closest_ver, precompute_remediations, compute_sec_ver, \
-    calculate_remediations, read_vulnerabilities
+from safety.safety import get_announcements, ignore_vuln_if_needed, get_closest_ver, precompute_remediations, compute_sec_ver, \
+    calculate_remediations, read_vulnerabilities, check, get_licenses, review
+from safety.util import get_packages_licenses, read_requirements
 from tests.resources import VALID_REPORT, VULNS, SCANNED_PACKAGES, REMEDIATIONS
 from tests.test_cli import get_vulnerability
 
@@ -36,6 +38,7 @@ from tests.test_cli import get_vulnerability
 class TestSafety(unittest.TestCase):
 
     def setUp(self) -> None:
+        self.session, _ = build_client_session()
         self.maxDiff = None
         self.dirname = os.path.dirname(__file__)
         self.report = VALID_REPORT
@@ -52,11 +55,11 @@ class TestSafety(unittest.TestCase):
 
     def test_check_from_file(self):
         reqs = StringIO("Django==1.8.1")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
-        vulns, _ = safety.check(
+        vulns, _ = check(
+            session=self.session,
             packages=packages,
-            key=None,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
@@ -71,14 +74,14 @@ class TestSafety(unittest.TestCase):
 
     def test_check_ignores(self):
         reqs = StringIO("Django==1.8.1")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
         # Second that ignore works
         ignored_vulns = {'some id': {'expires': None, 'reason': ''}}
 
-        vulns, _ = safety.check(
+        vulns, _ = check(
+            session=self.session,
             packages=packages,
-            key=None,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
@@ -95,11 +98,11 @@ class TestSafety(unittest.TestCase):
     def test_check_from_file_with_hash_pins(self):
         reqs = StringIO(("Django==1.8.1 "
                          "--hash=sha256:c6c7e7a961e2847d050d214ca96dc3167bb5f2b25cd5c6cb2eea96e1717f4ade"))
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
-        vulns, _ = safety.check(
+        vulns, _ = check(
+            session=self.session,
             packages=packages,
-            key=None,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
@@ -113,13 +116,13 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(len(vulns), 2)
 
     def test_multiple_versions(self):
-        # Probably used for external tools using safety.check directly
+        # Probably used for external tools using check directly
         reqs = StringIO("Django==1.8.1\n\rDjango==1.7.0")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
-        vulns, _ = safety.check(
+        vulns, _ = check(
+            session=self.session,
             packages=packages,
-            key=None,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
@@ -134,11 +137,11 @@ class TestSafety(unittest.TestCase):
 
     def test_check_live(self):
         reqs = StringIO("insecure-package==0.1")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
-        vulns, _ = safety.check(
+        vulns, _ = check(
+            session=self.session,            
             packages=packages,
-            key=None,
             db_mirror=False,
             cached=0,
             ignore_vulns={},
@@ -150,21 +153,21 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(len(vulns), 1)
 
     def test_check_live_cached(self):
-        from safety.constants import CACHE_FILE
+        from safety.constants import DB_CACHE_FILE
 
         # lets clear the cache first
         try:
-            with open(CACHE_FILE, 'w') as f:
+            with open(DB_CACHE_FILE, 'w') as f:
                 f.write(json.dumps({}))
         except Exception:
             pass
 
         reqs = StringIO("insecure-package==0.1")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
-        vulns, _ = safety.check(
+        vulns, _ = check(
+            session=self.session,
             packages=packages,
-            key=None,
             db_mirror=False,
             cached=60 * 60,
             ignore_vulns={},
@@ -175,11 +178,11 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(len(vulns), 1)
 
         reqs = StringIO("insecure-package==0.1")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
         # make a second call to use the cache
-        vulns, _ = safety.check(
+        vulns, _ = check(
+            session=self.session,
             packages=packages,
-            key=None,
             db_mirror=False,
             cached=60 * 60,
             ignore_vulns={},
@@ -191,15 +194,15 @@ class TestSafety(unittest.TestCase):
 
     def test_get_packages_licenses(self):
         reqs = StringIO("Django==1.8.1\n\rinvalid==1.0.0")
-        packages = util.read_requirements(reqs)
-        licenses_db = safety.get_licenses(
+        packages = read_requirements(reqs)
+
+        licenses_db = get_licenses(
+            session=self.session,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
             cached=0,
-            key="foobarqux",
-            proxy={},
             telemetry=False
         )
         self.assertIn("licenses", licenses_db)
@@ -207,7 +210,7 @@ class TestSafety(unittest.TestCase):
         self.assertIn("BSD-3-Clause", licenses_db['licenses'])
         self.assertIn("django", licenses_db['packages'])
 
-        pkg_licenses = util.get_packages_licenses(packages, licenses_db)
+        pkg_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
 
         self.assertIsInstance(pkg_licenses, list)
         for pkg_license in pkg_licenses:
@@ -225,89 +228,83 @@ class TestSafety(unittest.TestCase):
                 )
 
     def test_get_packages_licenses_without_api_key(self):
-        from safety.errors import InvalidKeyError
-
         # without providing an API-KEY
-        with self.assertRaises(InvalidKeyError) as error:
-            safety.get_licenses(
+        with self.assertRaises(InvalidCredentialError) as error:
+            get_licenses(
+                session=self.session,
                 db_mirror=False,
                 cached=0,
-                proxy={},
-                key=None,
                 telemetry=False
             )
         db_generic_exception = error.exception
         self.assertEqual(str(db_generic_exception), 'The API-KEY was not provided.')
 
-    @patch("safety.safety.session")
-    def test_get_packages_licenses_with_invalid_api_key(self, requests_session):
-        from safety.errors import InvalidKeyError
 
+    def test_get_packages_licenses_with_invalid_api_key(self):
+        session = Mock()
+        api_key = "INVALID"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
         mock = Mock()
         mock.status_code = 403
-        requests_session.get.return_value = mock
+        session.get.return_value = mock
 
         # proving an invalid API-KEY
-        with self.assertRaises(InvalidKeyError):
-            safety.get_licenses(
+        with self.assertRaises(InvalidCredentialError):
+            get_licenses(
+                session=session,
                 db_mirror=False,
                 cached=0,
-                proxy={},
-                key="INVALID",
                 telemetry=False
             )
 
-    @patch("safety.safety.session")
-    def test_get_packages_licenses_db_fetch_error(self, requests_session):
-        from safety.errors import DatabaseFetchError
-
+    def test_get_packages_licenses_db_fetch_error(self):
+        session = Mock()
+        api_key = "MY-VALID-KEY"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
         mock = Mock()
         mock.status_code = 500
-        requests_session.get.return_value = mock
+        session.get.return_value = mock
 
         with self.assertRaises(DatabaseFetchError):
-            safety.get_licenses(
+            get_licenses(
+                session=session,
                 db_mirror=False,
                 cached=0,
-                proxy={},
-                key="MY-VALID-KEY",
                 telemetry=False
             )
 
     def test_get_packages_licenses_with_invalid_db_file(self):
-        from safety.errors import DatabaseFileNotFoundError
 
         with self.assertRaises(DatabaseFileNotFoundError):
-            safety.get_licenses(
+            get_licenses(
+                session=self.session,
                 db_mirror='/my/invalid/path',
                 cached=0,
-                proxy={},
-                key=None,
                 telemetry=False
             )
 
-    @patch("safety.safety.session")
-    def test_get_packages_licenses_very_often(self, requests_session):
-        from safety.errors import TooManyRequestsError
-
+    def test_get_packages_licenses_very_often(self):
         # if the request is made too often, an 429 error is raise by PyUp.io
+        session = Mock()
+        api_key = "MY-VALID-KEY"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
         mock = Mock()
         mock.status_code = 429
-        requests_session.get.return_value = mock
+        session.get.return_value = mock
 
         with self.assertRaises(TooManyRequestsError):
-            safety.get_licenses(
+            get_licenses(
+                session=session,
                 db_mirror=False,
                 cached=0,
-                proxy={},
-                key="MY-VALID-KEY",
                 telemetry=False
             )
 
-    @patch("safety.safety.session")
-    def test_get_cached_packages_licenses(self, requests_session):
+    def test_get_cached_packages_licenses(self):
         import copy
-        from safety.constants import CACHE_FILE
 
         licenses_db = {
             "licenses": {
@@ -324,24 +321,27 @@ class TestSafety(unittest.TestCase):
         }
         original_db = copy.deepcopy(licenses_db)
 
+        session = Mock()
+        api_key = "MY-VALID-KEY"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
         mock = Mock()
-        mock.json.return_value = licenses_db
         mock.status_code = 200
-        requests_session.get.return_value = mock
+        mock.json.return_value = licenses_db
+        session.get.return_value = mock
 
         # lets clear the cache first
         try:
-            with open(CACHE_FILE, 'w') as f:
+            with open(DB_CACHE_FILE, 'w') as f:
                 f.write(json.dumps({}))
         except Exception:
             pass
 
         # In order to cache the db (and get), we must set cached as True
-        response = safety.get_licenses(
+        response = get_licenses(
+            session=session,
             db_mirror=False,
             cached=60 * 60,  # Cached for one hour
-            proxy={},
-            key="MY-VALID-KEY",
             telemetry=False
         )
         self.assertEqual(response, licenses_db)
@@ -350,11 +350,10 @@ class TestSafety(unittest.TestCase):
         # changing the "live" db to test if we are getting the cached db
         licenses_db['licenses']['BSD-3-Clause'] = 123
 
-        resp = safety.get_licenses(
+        resp = get_licenses(
+            session=session,
             db_mirror=False,
             cached=60 * 60,  # Cached for one hour
-            proxy={},
-            key="MY-VALID-KEY",
             telemetry=False
         )
 
@@ -363,21 +362,20 @@ class TestSafety(unittest.TestCase):
 
     def test_report_licenses_bare(self):
         reqs = StringIO("Django==1.8.1\n\rinexistent==1.0.0")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
         # Using DB: test.test_db.licenses.json
-        licenses_db = safety.get_licenses(
+        licenses_db = get_licenses(
+            session=self.session,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
             cached=0,
-            key=None,
-            proxy={},
             telemetry=False
         )
 
-        pkgs_licenses = util.get_packages_licenses(packages, licenses_db)
+        pkgs_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
         output_report = SafetyFormatter(output='bare').render_licenses([], pkgs_licenses)
 
         self.assertEqual(output_report, "BSD-3-Clause unknown")
@@ -392,21 +390,20 @@ class TestSafety(unittest.TestCase):
                                               'safety_version': '2.0.0.dev6'}
 
         reqs = StringIO("Django==1.8.1\n\rinexistent==1.0.0")
-        packages = util.read_requirements(reqs)
+        packages = read_requirements(reqs)
 
         # Using DB: test.test_db.licenses.json
-        licenses_db = safety.get_licenses(
+        licenses_db = get_licenses(
+            session=self.session,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)),
                 "test_db"
             ),
             cached=0,
-            key=None,
-            proxy={},
             telemetry=False
         )
 
-        pkgs_licenses = util.get_packages_licenses(packages, licenses_db)
+        pkgs_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
         output_report = SafetyFormatter(output='json').render_licenses([], pkgs_licenses)
 
         expected_result = json.dumps(
@@ -438,17 +435,19 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(output_report.rstrip(), expected_result)
 
     @patch("safety.util.get_used_options")
-    @patch("safety.safety.session")
     @patch.object(click, 'get_current_context', Mock(command=Mock(name=Mock(return_value='check'))))
-    def test_get_announcements_catch_request_exceptions(self, requests_session, get_used_options):
+    def test_get_announcements_catch_request_exceptions(self, get_used_options):
         get_used_options.return_value = {'key': {'--key': 1}, 'output': {'--output': 1}}
-        requests_session.get.side_effect = RequestException()
-        self.assertEqual(safety.get_announcements('somekey', {}), [])
+        session = Mock()
+        api_key = "somekey"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
+        session.get.side_effect = RequestException()
+        self.assertEqual(get_announcements(session), [])
 
     @patch("safety.util.get_used_options")
-    @patch("safety.safety.session")
     @patch.object(click, 'get_current_context', Mock(command=Mock(name=Mock(return_value='check'))))
-    def test_get_announcements_catch_unhandled_http_codes(self, requests_session, get_used_options):
+    def test_get_announcements_catch_unhandled_http_codes(self, get_used_options):
         get_used_options.return_value = {'key': {'--key': 1}, 'output': {'--output': 1}}
 
         unhandled_status = [status for status in HTTPStatus if status != HTTPStatus.OK]
@@ -456,23 +455,26 @@ class TestSafety(unittest.TestCase):
         for http_status in unhandled_status:
             mock = Mock()
             mock.status_code = http_status.value
-            requests_session.get.return_value = mock
+            session = Mock()
+            api_key = "somekey"
+            session.api_key = api_key
+            session.headers = {'X-Api-Key': api_key}
+            session.get.return_value = mock          
 
-            self.assertEqual(safety.get_announcements('somekey', {}), [])
+            self.assertEqual(get_announcements(session), [])
 
     @patch("safety.util.get_used_options")
-    @patch("safety.safety.session")
     @patch.object(click, 'get_current_context', Mock(command=Mock(name=Mock(return_value='check'))))
-    def test_get_announcements_http_ok(self, requests_session, get_used_options):
+    def test_get_announcements_http_ok(self, get_used_options):
 
         announcements = {
             "announcements": [{
                 "type": "notice",
-                "message": "You are using an outdated version of Safety. Please upgrade to Safety version 1.2.3"
+                "message": "You are using an outdated version of  Please upgrade to Safety version 1.2.3"
                 },
                 {
                 "type": "error",
-                "message": "You are using an vulnerable version of Safety. Please upgrade now"
+                "message": "You are using an vulnerable version of  Please upgrade now"
                 }]
         }
 
@@ -481,35 +483,47 @@ class TestSafety(unittest.TestCase):
         mock = Mock()
         mock.status_code = HTTPStatus.OK.value
         mock.json.return_value = announcements
-        requests_session.post.return_value = mock
+        session = Mock()
+        api_key = "somekey"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
+        session.post.return_value = mock
 
-        self.assertEqual(safety.get_announcements('somekey', {}), expected)
+        self.assertEqual(get_announcements(session), expected)
 
     @patch("safety.util.get_used_options")
-    @patch("safety.safety.session")
     @patch.object(click, 'get_current_context', Mock(command=Mock(name=Mock(return_value='check'))))
-    def test_get_announcements_wrong_json_response_handling(self, requests_session, get_used_options):
+    def test_get_announcements_wrong_json_response_handling(self, get_used_options):
         # wrong JSON structure
         announcements = {
                 "type": "notice",
-                "message": "You are using an outdated version of Safety. Please upgrade to Safety version 1.2.3"
+                "message": "You are using an outdated version of  Please upgrade to Safety version 1.2.3"
         }
 
         mock = Mock()
         mock.status_code = HTTPStatus.OK.value
         mock.json.return_value = announcements
-        requests_session.get.return_value = mock
 
-        self.assertEqual(safety.get_announcements('somekey', {}), [])
+        session = Mock()
+        api_key = "somekey"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
+        session.get.return_value = mock        
+
+        self.assertEqual(get_announcements(session), [])
 
         # JSONDecodeError
 
         mock = Mock()
         mock.status_code = HTTPStatus.OK.value
         mock.json.side_effect = JSONDecodeError(msg='Expecting value', doc='', pos=0)
-        requests_session.get.return_value = mock
+        session = Mock()
+        api_key = "somekey"
+        session.api_key = api_key
+        session.headers = {'X-Api-Key': api_key}
+        session.get.return_value = mock        
 
-        self.assertEqual(safety.get_announcements('somekey', {}), [])
+        self.assertEqual(get_announcements(session), [])
 
     def test_ignore_vulns_by_unknown_severity(self):
         cve_no_cvss = CVE(name='PYUP-123', cvssv2=None, cvssv3=None)
@@ -691,7 +705,7 @@ class TestSafety(unittest.TestCase):
         with open(os.path.join(self.dirname, "test_db", "report_invalid_decode_error.json")) as f:
             self.assertRaises(MalformedDatabase, lambda: read_vulnerabilities(f))
 
-    @patch("safety.safety.json.load")
+    @patch("json.load")
     def test_read_vulnerabilities_type_error(self, json_load):
         json_load.side_effect = TypeError('foobar')
         with open(os.path.join(self.dirname, "test_db", "report.json")) as f:
@@ -702,7 +716,7 @@ class TestSafety(unittest.TestCase):
             self.assertDictEqual(self.report, read_vulnerabilities(f))
 
     def test_review_without_recommended_fix(self):
-        vulns, remediations, packages = safety.review(self.report)
+        vulns, remediations, packages = review(report=self.report)
         self.assertListEqual(packages, list(self.report_packages.values()))
         self.assertDictEqual(remediations, self.report_remediations)
         self.assertListEqual(vulns, self.report_vulns)
@@ -716,5 +730,5 @@ class TestSafety(unittest.TestCase):
                         'more_info_url': 'https://pyup.io/packages/pypi/django/?from=4.0.1&to=4.0.4'}}}
 
         with open(os.path.join(self.dirname, "test_db", "report_with_recommended_fix.json")) as f:
-            vulns, remediations, packages = safety.review(read_vulnerabilities(f))
+            vulns, remediations, packages = review(report=read_vulnerabilities(f))
             self.assertDictEqual(remediations, REMEDIATIONS_WITH_FIX)

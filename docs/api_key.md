@@ -4,11 +4,11 @@ This is a step by step guide on how to get an API key that can be used for safet
 with safety gives you access to the latest vulnerabilities. The freely available database
 is synced only once per month.
 
-In order to get an API Key you need a subscription on [pyup.io](https://pyup.io).
+In order to get an API Key you need a subscription on [safetycli.com](https://safetycli.com).
 
 ## Step 1 - Sign Up
 
-Go to [pyup.io](https://pyup.io) and click on `sign up`.
+Go to [safetycli.com](https://safetycli.com) and click on `sign up`.
 
 ## Step 2 - Start your free trial 
 

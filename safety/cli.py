@@ -1,56 +1,79 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
+import configparser
+from dataclasses import asdict
+from enum import Enum
 
 import json
 import logging
 import os
+from pathlib import Path
+import platform
 import sys
 from functools import wraps
+from typing import Dict, Optional
 
 import click
+import typer
 
 from safety import safety
+from safety.console import main_console as console
 from safety.alerts import alert
-from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
-from safety.errors import SafetyException, SafetyError, InvalidKeyError
+from safety.auth import auth, inject_session, proxy_options, auth_options
+from safety.auth.models import Organization
+from safety.scan.constants import CLI_MAIN_INTRODUCTION, CLI_DEBUG_HELP, CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP, \
+    DEFAULT_EPILOG, DEFAULT_SPINNER, CLI_CHECK_COMMAND_HELP, CLI_CHECK_UPDATES_HELP, CLI_CONFIGURE_HELP, CLI_GENERATE_HELP, \
+    CLI_CONFIGURE_PROXY_TIMEOUT, CLI_CONFIGURE_PROXY_REQUIRED, CLI_CONFIGURE_ORGANIZATION_ID, CLI_CONFIGURE_ORGANIZATION_NAME, \
+    CLI_CONFIGURE_SAVE_TO_SYSTEM, CLI_CONFIGURE_PROXY_HOST_HELP, CLI_CONFIGURE_PROXY_PORT_HELP, CLI_CONFIGURE_PROXY_PROTOCOL_HELP, \
+    CLI_GENERATE_PATH
+from .cli_util import SafetyCLICommand, SafetyCLILegacyGroup, SafetyCLILegacyCommand, SafetyCLISubGroup, SafetyCLIUtilityCommand, handle_cmd_exception
+from safety.constants import CONFIG_FILE_USER, CONFIG_FILE_SYSTEM, EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
+from safety.errors import InvalidCredentialError, SafetyException, SafetyError
 from safety.formatter import SafetyFormatter
+from safety.models import SafetyCLI
 from safety.output_utils import should_add_nl
 from safety.safety import get_packages, read_vulnerabilities, process_fixes
-from safety.util import get_proxy_dict, get_packages_licenses, output_exception, \
+from safety.util import get_packages_licenses, initializate_config_dirs, output_exception, \
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
     get_processed_options, get_safety_version, json_alias, bare_alias, html_alias, SafetyContext, is_a_remote_mirror, \
     filter_announcements, get_fix_options
+from safety.scan.command import scan_project_app, scan_system_app
+from safety.auth.cli import auth_app
+from safety_schemas.models import ConfigModel, Stage
+
+try:
+    from typing import Annotated
+except ImportError:
+    from typing_extensions import Annotated
+
 
 LOG = logging.getLogger(__name__)
 
-
-@click.group()
-@click.option('--debug/--no-debug', default=False)
-@click.option('--telemetry/--disable-telemetry', default=True, hidden=True)
-@click.option('--disable-optional-telemetry-data', default=False, cls=MutuallyExclusiveOption,
-              mutually_exclusive=["telemetry", "disable-telemetry"], is_flag=True, show_default=True)
+@click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
+@auth_options()
+@proxy_options
+@click.option('--disable-optional-telemetry', default=False, is_flag=True, show_default=True, help=CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP)
+@click.option('--debug', default=False, help=CLI_DEBUG_HELP)
 @click.version_option(version=get_safety_version())
 @click.pass_context
-def cli(ctx, debug, telemetry, disable_optional_telemetry_data):
+@inject_session
+def cli(ctx, debug, disable_optional_telemetry):
     """
-    Safety checks Python dependencies for known security vulnerabilities and suggests the proper
-    remediations for vulnerabilities detected. Safety can be run on developer machines, in CI/CD pipelines and
-    on production systems.
+    Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.
     """
     SafetyContext().safety_source = 'cli'
-    ctx.telemetry = telemetry and not disable_optional_telemetry_data
+    telemetry = not disable_optional_telemetry
+    ctx.obj.config = ConfigModel(telemetry_enabled=telemetry)
     level = logging.CRITICAL
     if debug:
         level = logging.DEBUG
 
     logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)
 
-    LOG.info(f'Telemetry enabled: {ctx.telemetry}')
+    LOG.info(f'Telemetry enabled: {ctx.obj.config.telemetry_enabled}')
 
-    @ctx.call_on_close
-    def clean_up_on_close():
-        LOG.debug('Calling clean up on close function.')
-        safety.close_session()
+    # Before any command make sure that the parent dirs for Safety config are present.
+    initializate_config_dirs()
 
 
 def clean_check_command(f):
@@ -58,31 +81,47 @@ def clean_check_command(f):
     Main entry point for validation.
     """
     @wraps(f)
-    def inner(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output,
-              json, html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, save_json, save_html,
-              audit_and_monitor, project, apply_remediations, auto_remediation_limit, no_prompt, json_version,
-              *args, **kwargs):
+    def inner(ctx, *args, **kwargs):
 
+        save_json = kwargs["save_json"]
+        output = kwargs["output"]
+        authenticated: bool = ctx.obj.auth.client.is_using_auth_credentials()
+        files = kwargs["files"]
+        policy_file = kwargs["policy_file"]
+        auto_remediation_limit = kwargs["auto_remediation_limit"]
+        audit_and_monitor = kwargs["audit_and_monitor"]
+        exit_code = kwargs["exit_code"]
+
+        # This is handled in the custom subgroup Click class
+        # TODO: Remove this soon, for now it keeps a legacy behavior
+        kwargs.pop("key", None)
+        kwargs.pop('proxy_protocol', None)
+        kwargs.pop('proxy_host', None)
+        kwargs.pop('proxy_port', None)
+        
         if ctx.get_parameter_source("json_version") != click.core.ParameterSource.DEFAULT and not (
                 save_json or json or output == 'json'):
             raise click.UsageError(
-                f"Illegal usage: `--json-version` only works with JSON related outputs."
+                "Illegal usage: `--json-version` only works with JSON related outputs."
             )
 
         try:
-            proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
             if ctx.get_parameter_source("apply_remediations") != click.core.ParameterSource.DEFAULT:
-                if not key:
-                    raise InvalidKeyError(message="The --apply-security-updates option needs an API-KEY. See {link}.")
+                if not authenticated:
+                    raise InvalidCredentialError(message="The --apply-security-updates option needs authentication. See {link}.")
                 if not files:
                     raise SafetyError(message='--apply-security-updates only works with files; use the "-r" option to '
                                               'specify files to remediate.')
 
             auto_remediation_limit = get_fix_options(policy_file, auto_remediation_limit)
-            policy_file, server_audit_and_monitor = safety.get_server_policies(key=key, policy_file=policy_file,
-                                                                               proxy_dictionary=proxy_dictionary)
+            policy_file, server_audit_and_monitor = safety.get_server_policies(ctx.obj.auth.client, policy_file=policy_file,
+                                                                               proxy_dictionary=None)
             audit_and_monitor = (audit_and_monitor and server_audit_and_monitor)
+
+            kwargs.update({"auto_remediation_limit": auto_remediation_limit, 
+                           "policy_file":policy_file, 
+                           "audit_and_monitor": audit_and_monitor})
 
         except SafetyError as e:
             LOG.exception('Expected SafetyError happened: %s', e)
@@ -92,18 +131,14 @@ def clean_check_command(f):
             exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
             output_exception(exception, exit_code_output=exit_code)
 
-        return f(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
-                 html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor,
-                 project, save_json, save_html, apply_remediations, auto_remediation_limit, no_prompt, json_version,
-                 *args, **kwargs)
+        return f(ctx, *args, **kwargs)
 
     return inner
 
 
-@cli.command()
-@click.option("--key", default="", envvar="SAFETY_API_KEY",
-              help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
-                   "environment variable. Default: empty")
+@cli.command(cls=SafetyCLILegacyCommand, utility_command=True, help=CLI_CHECK_COMMAND_HELP)
+@proxy_options
+@auth_options(stage=False)
 @click.option("--db", default="",
               help="Path to a local or remote vulnerability database. Default: empty")
 @click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption,
@@ -133,22 +168,14 @@ def clean_check_command(f):
               hidden=True, is_flag=True, show_default=True)
 @click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare', 'html'], case_sensitive=False),
               default='screen', callback=active_color_if_needed, envvar='SAFETY_OUTPUT')
-@click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption,
-              required_options=['proxy_host'],
-              help="Proxy protocol (https or http) --proxy-protocol")
-@click.option("--proxy-host", "-ph", multiple=False, type=str, default=None,
-              help="Proxy host IP or DNS --proxy-host")
-@click.option("--proxy-port", "-pp", multiple=False, type=int, default=80, cls=DependentOption,
-              required_options=['proxy_host'],
-              help="Proxy port number --proxy-port")
 @click.option("--exit-code/--continue-on-error", default=True,
               help="Output standard exit codes. Default: --exit-code")
 @click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
               help="Define the policy file to be used")
 @click.option("--audit-and-monitor/--disable-audit-and-monitor", default=True,
-              help="Send results back to pyup.io for viewing on your dashboard. Requires an API key.")
+              help="Send results back to safetycli.com for viewing on your dashboard. Requires an API key.")
 @click.option("project", "--project-id", "--project", default=None,
-              help="Project to associate this scan with on pyup.io. "
+              help="Project to associate this scan with on safetycli.com. "
                    "Defaults to a canonicalized github style name if available, otherwise unknown")
 @click.option("--save-json", default="", help="Path to where the output file will be placed; if the path is a"
                                               " directory, Safety will use safety-report.json as filename."
@@ -169,13 +196,12 @@ def clean_check_command(f):
               help="Select the JSON version to be used in the output", show_default=True)
 @click.pass_context
 @clean_check_command
-def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
-          html, bare, proxy_protocol, proxy_host, proxy_port, exit_code, policy_file, audit_and_monitor, project,
+def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
+          html, bare, exit_code, policy_file, audit_and_monitor, project,
           save_json, save_html, apply_remediations,
           auto_remediation_limit, no_prompt, json_version):
     """
-    Find vulnerabilities in Python dependencies at the target provided.
-
+    [underline][DEPRECATED][/underline] `check` has been replaced by the `scan` command, and will be unsupported beyond 1 May 2024.Find vulnerabilities at a target file or enviroment.
     """
     LOG.info('Running check command')
 
@@ -187,7 +213,6 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
 
     try:
         packages = get_packages(files, stdin)
-        proxy_dictionary = get_proxy_dict(proxy_protocol, proxy_host, proxy_port)
 
         ignore_severity_rules = None
         ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements, project = \
@@ -203,9 +228,9 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
                   'ignore_unpinned_requirements': ignore_unpinned_requirements}
 
         LOG.info('Calling the check function')
-        vulns, db_full = safety.check(packages=packages, key=key, db_mirror=db, cached=cache, ignore_vulns=ignore,
-                                      ignore_severity_rules=ignore_severity_rules, proxy=proxy_dictionary,
-                                      include_ignored=True, is_env_scan=is_env_scan, telemetry=ctx.parent.telemetry,
+        vulns, db_full = safety.check(session=ctx.obj.auth.client, packages=packages, db_mirror=db, cached=cache, ignore_vulns=ignore,
+                                      ignore_severity_rules=ignore_severity_rules, proxy=None,
+                                      include_ignored=True, is_env_scan=is_env_scan, telemetry=ctx.obj.config.telemetry_enabled,
                                       params=params)
         LOG.debug('Vulnerabilities returned: %s', vulns)
         LOG.debug('full database returned is None: %s', db_full is None)
@@ -217,7 +242,7 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
         announcements = []
         if not db or is_a_remote_mirror(db):
             LOG.info('Not local DB used, Getting announcements')
-            announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
+            announcements = safety.get_announcements(ctx.obj.auth.client, telemetry=ctx.obj.config.telemetry_enabled)
 
         announcements.extend(safety.add_local_notifications(packages, ignore_unpinned_requirements))
 
@@ -260,7 +285,6 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
                                                                                             remediations, full_report,
                                                                                             packages, fixes)
 
-            safety.push_audit_and_monitor(key, proxy_dictionary, audit_and_monitor, json_report, policy_file)
             safety.save_report(save_json, 'safety-report.json', json_report)
 
         if save_html:
@@ -284,102 +308,12 @@ def check(ctx, key, db, full_report, stdin, files, cache, ignore, ignore_unpinne
         output_exception(exception, exit_code_output=exit_code)
 
 
-@cli.command()
-@click.option("--full-report/--short-report", default=False, cls=MutuallyExclusiveOption, mutually_exclusive=["output"], with_values={"output": ['json', 'bare']},
-              help='Full reports include a security advisory (if available). Default: '
-                   '--short-report')
-@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
-              default='screen', callback=active_color_if_needed)
-@click.option("file", "--file", "-f", type=click.File(), required=True,
-              help="Read input from an insecure report file. Default: empty")
-@click.pass_context
-def review(ctx, full_report, output, file):
-    """
-    Show an output from a previous exported JSON report.
-    """
-    LOG.info('Running check command')
-    report = {}
-
-    try:
-        report = read_vulnerabilities(file)
-    except SafetyError as e:
-        LOG.exception('Expected SafetyError happened: %s', e)
-        output_exception(e, exit_code_output=True)
-    except Exception as e:
-        LOG.exception('Unexpected Exception happened: %s', e)
-        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
-        output_exception(exception, exit_code_output=True)
-
-    params = {'file': file}
-    vulns, remediations, packages = safety.review(report, params=params)
-
-    announcements = safety.get_announcements(key=None, proxy=None, telemetry=ctx.parent.telemetry)
-    output_report = SafetyFormatter(output=output).render_vulnerabilities(announcements, vulns, remediations,
-                                                                          full_report, packages)
-
-    found_vulns = list(filter(lambda v: not v.ignored, vulns))
-    click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
-    sys.exit(EXIT_CODE_OK)
-
-
-@cli.command()
-@click.option("--key", envvar="SAFETY_API_KEY",
-              help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
-                   "environment variable. Default: empty")
-@click.option("--db", default="",
-              help="Path to a local license database. Default: empty")
-@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
-              default='screen')
-@click.option("--cache", default=0,
-              help='Whether license database file should be cached.'
-                   'Default: 0 seconds')
-@click.option("files", "--file", "-r", multiple=True, type=click.File(),
-              help="Read input from one (or multiple) requirement files. Default: empty")
-@click.option("proxyhost", "--proxy-host", "-ph", multiple=False, type=str, default=None,
-              help="Proxy host IP or DNS --proxy-host")
-@click.option("proxyport", "--proxy-port", "-pp", multiple=False, type=int, default=80,
-              help="Proxy port number --proxy-port")
-@click.option("proxyprotocol", "--proxy-protocol", "-pr", multiple=False, type=str, default='http',
-              help="Proxy protocol (https or http) --proxy-protocol")
-@click.pass_context
-def license(ctx, key, db, output, cache, files, proxyprotocol, proxyhost, proxyport):
-    """
-    Find the open source licenses used by your Python dependencies.
-    """
-    LOG.info('Running license command')
-    packages = get_packages(files, False)
-
-    proxy_dictionary = get_proxy_dict(proxyprotocol, proxyhost, proxyport)
-    licenses_db = {}
-
-    try:
-        licenses_db = safety.get_licenses(key=key, db_mirror=db, cached=cache, proxy=proxy_dictionary,
-                                          telemetry=ctx.parent.telemetry)
-    except SafetyError as e:
-        LOG.exception('Expected SafetyError happened: %s', e)
-        output_exception(e, exit_code_output=False)
-    except Exception as e:
-        LOG.exception('Unexpected Exception happened: %s', e)
-        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
-        output_exception(exception, exit_code_output=False)
-
-    filtered_packages_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
-
-    announcements = []
-    if not db:
-        announcements = safety.get_announcements(key=key, proxy=proxy_dictionary, telemetry=ctx.parent.telemetry)
-
-    output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
-
-    click.secho(output_report, nl=True)
-
-
-@cli.command()
-@click.option("--path", default=".", help="Path where the generated file will be saved. Default: current directory")
-@click.argument('name')
+@cli.command(cls=SafetyCLILegacyCommand, utility_command=True, help=CLI_GENERATE_HELP)
+@click.option("--path", default=".", help=CLI_GENERATE_PATH)
+@click.argument('name', required=True)
 @click.pass_context
 def generate(ctx, name, path):
-    """Create a boilerplate supported file type.
+    """Create a boilerplate Safety CLI policy file
 
     NAME is the name of the file type to generate. Valid values are: policy_file
     """
@@ -390,36 +324,38 @@ def generate(ctx, name, path):
 
     LOG.info('Running generate %s', name)
 
-    if not os.path.exists(path):
+    path = Path(path)
+    if not path.exists():
         click.secho(f'The path "{path}" does not exist.', fg='red',
                     file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
 
-    policy = os.path.join(path, '.safety-policy.yml')
-    ROOT = os.path.dirname(os.path.abspath(__file__))
+    policy = path / '.safety-policy.yml'
+
+    default_config = ConfigModel()
 
     try:
-        with open(policy, "w") as f:
-            f.write(open(os.path.join(ROOT, 'safety-policy-template.yml')).read())
-            LOG.debug('Safety created the policy file.')
-            msg = f'A default Safety policy file has been generated! Review the file contents in the path {path} in the ' \
-                  'file: .safety-policy.yml'
-            click.secho(msg, fg='green')
+        default_config.save_policy_file(policy)
+        LOG.debug('Safety created the policy file.')
+        msg = f'A default Safety policy file has been generated! Review the file contents in the path {path} in the ' \
+               'file: .safety-policy.yml'
+        click.secho(msg, fg='green')
     except Exception as exc:
         if isinstance(exc, OSError):
             LOG.debug('Unable to generate %s because: %s', name, exc.errno)
 
-        click.secho(f'Unable to generate {name}, because: {str(exc)} error.', fg='red',
+        click.secho(f'{str(exc)} error.', fg='red',
                     file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
 
 
-@cli.command()
+@cli.command(cls=SafetyCLILegacyCommand, utility_command=True)
 @click.option("--path", default=".safety-policy.yml", help="Path where the generated file will be saved. Default: current directory")
 @click.argument('name')
+@click.argument('version', required=False)
 @click.pass_context
-def validate(ctx, name, path):
-    """Verify the validity of a supported file type.
+def validate(ctx, name, version, path):
+    """Verify that a local policy file is valid
 
     NAME is the name of the file type to validate. Valid values are: policy_file
     """
@@ -433,21 +369,281 @@ def validate(ctx, name, path):
     if not os.path.exists(path):
         click.secho(f'The path "{path}" does not exist.', fg='red', file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
-
-    try:
-        values = SafetyPolicyFile().convert(path, None, None)
-    except Exception as e:
+    
+    if version not in ["3.0", "2.0", None]:
+        click.secho(f'Version "{version}" is not a valid value, allowed values are 3.0 and 2.0. Use --path to specify the target file.', fg='red', file=sys.stderr)
+        sys.exit(EXIT_CODE_FAILURE)
+    
+    def fail_validation(e):
         click.secho(str(e).lstrip(), fg='red', file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
 
-    del values['raw']
+    if not version:
+        version = "3.0"
+    
+    result = ""
 
-    click.secho(f'The Safety policy file was successfully parsed with the following values:', fg='green')
-    click.secho(json.dumps(values, indent=4, default=str))
+    if version == "3.0":
+        policy = None
 
+        try:
+            from .scan.main import load_policy_file
+            policy = load_policy_file(Path(path))
+        except Exception as e:
+            fail_validation(e)
+        
+        click.secho(f"The Safety policy ({version}) file " \
+                    "(Used for scan and system-scan commands) " \
+                    "was successfully parsed " \
+                    "with the following values:", fg="green")
+        if policy and policy.config:
+            result = policy.config.as_v30().json()
+    else:
+        try:
+            values = SafetyPolicyFile().convert(path, None, None)
+        except Exception as e:
+            click.secho(str(e).lstrip(), fg='red', file=sys.stderr)
+            sys.exit(EXIT_CODE_FAILURE)
+
+        del values['raw']
+        
+        result = json.dumps(values, indent=4, default=str)
+
+        click.secho("The Safety policy file " \
+                    "(Valid only for the check command) " \
+                    "was successfully parsed with the " \
+                    "following values:", fg="green")
+    
+    console.print_json(result)
+
+
+@cli.command(cls=SafetyCLILegacyCommand, 
+             help=CLI_CONFIGURE_HELP,
+             utility_command=True)
+@click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption,
+              required_options=['proxy_host'],
+              help=CLI_CONFIGURE_PROXY_PROTOCOL_HELP)
+@click.option("--proxy-host", "-ph", multiple=False, type=str, default=None,
+              help=CLI_CONFIGURE_PROXY_HOST_HELP)
+@click.option("--proxy-port", "-pp", multiple=False, type=int, default=80,
+              cls=DependentOption,
+              required_options=['proxy_host'],
+              help=CLI_CONFIGURE_PROXY_PORT_HELP)
+@click.option("--proxy-timeout", "-pt", multiple=False, type=int, default=None,
+              help=CLI_CONFIGURE_PROXY_TIMEOUT)
+@click.option('--proxy-required', default=False,
+              help=CLI_CONFIGURE_PROXY_REQUIRED)
+@click.option("--organization-id", "-org-id", multiple=False, default=None,
+              cls=DependentOption,
+              required_options=['organization_name'],
+              help=CLI_CONFIGURE_ORGANIZATION_ID)
+@click.option("--organization-name", "-org-name", multiple=False, default=None,
+              cls=DependentOption,
+              required_options=['organization_id'],
+              help=CLI_CONFIGURE_ORGANIZATION_NAME)
+@click.option("--stage", "-stg", multiple=False, default=Stage.development.value,
+              type=click.Choice([stage.value for stage in Stage]),
+              help="The project development stage to be tied to the current device.")
+@click.option("--save-to-system/--save-to-user", default=False, is_flag=True,
+              help=CLI_CONFIGURE_SAVE_TO_SYSTEM)
+@click.pass_context
+def configure(ctx, proxy_protocol, proxy_host, proxy_port, proxy_timeout, 
+              proxy_required, organization_id, organization_name, stage, 
+              save_to_system):
+    """
+    Configure global settings, like proxy settings and organization details
+    """
+
+    config = configparser.ConfigParser()
+    if save_to_system:
+        if not CONFIG_FILE_SYSTEM:
+            click.secho(
+                f"Unable to determine the system wide config path. You can set the SAFETY_SYSTEM_CONFIG_PATH env var")
+            sys.exit(1)
+
+        CONFIG_FILE = CONFIG_FILE_SYSTEM
+    else:
+        CONFIG_FILE = CONFIG_FILE_USER
+
+    config.read(CONFIG_FILE)
+
+    PROXY_SECTION_NAME: str = 'proxy'
+    PROXY_TIMEOUT_KEY: str = 'timeout'
+    PROXY_REQUIRED_KEY: str = 'required'
+
+    if organization_id:
+        config['organization'] = asdict(Organization(id=organization_id,
+                                                     name=organization_name))
+
+    DEFAULT_PROXY_TIMEOUT: int = 500
+
+    if not proxy_timeout:
+        try:
+            proxy_timeout = int(config['proxy']['timeout'])
+        except Exception:
+            proxy_timeout = DEFAULT_PROXY_TIMEOUT
+
+    new_proxy_config = {}
+    new_proxy_config.setdefault(PROXY_TIMEOUT_KEY, str(proxy_timeout))
+    new_proxy_config.setdefault(PROXY_REQUIRED_KEY, str(proxy_required))
+
+    if proxy_host:
+        new_proxy_config.update({
+            'protocol': proxy_protocol,
+            'host': proxy_host,
+            'port': str(proxy_port)
+        })
+        
+    if not config.has_section(PROXY_SECTION_NAME):
+        config.add_section(PROXY_SECTION_NAME)
+
+    proxy_config = dict(config.items(PROXY_SECTION_NAME))
+    proxy_config.update(new_proxy_config)
+
+    for key, value in proxy_config.items():
+        config.set(PROXY_SECTION_NAME, key, value)
+
+    if stage:
+        config['host'] = {'stage': "development" if stage == "dev" else stage}
+
+    try:
+        with open(CONFIG_FILE, 'w') as configfile:
+            config.write(configfile)
+    except Exception as e:
+        if (isinstance(e, OSError) and e.errno == 2 or e is PermissionError) and save_to_system:
+            click.secho("Unable to save the configuration: writing to system-wide Safety configuration file requires admin privileges")
+        else:
+            click.secho(f"Unable to save the configuration, error: {e}")
+        sys.exit(1)
+
+
+cli_app = typer.Typer(rich_markup_mode="rich", cls=SafetyCLISubGroup)
+typer.rich_utils.STYLE_HELPTEXT = ""
+
+def print_check_updates_header(console):
+    VERSION = get_safety_version()
+    console.print(
+        f"Safety {VERSION} checking for Safety version and configuration updates:")
+
+class Output(str, Enum):
+    SCREEN = "screen"
+    JSON = "json"
+
+@cli_app.command(
+        cls=SafetyCLIUtilityCommand,
+        help=CLI_CHECK_UPDATES_HELP,
+        name="check-updates", epilog=DEFAULT_EPILOG,
+        context_settings={"allow_extra_args": True,
+                          "ignore_unknown_options": True},
+                          )
+@handle_cmd_exception
+def check_updates(ctx: typer.Context,
+         version: Annotated[
+             int,
+             typer.Option(min=1),
+         ] = 1,
+         output: Annotated[Output,
+                         typer.Option(
+                            help="The main output generated by Safety CLI.")
+                         ] = Output.SCREEN):
+    """
+    Check for Safety CLI version updates
+    """
+
+    if output is Output.JSON:
+        console.quiet = True
+
+    print_check_updates_header(console)
+
+    wait_msg = "Authenticating and checking for Safety CLI updates"
+
+    VERSION = get_safety_version()
+    PYTHON_VERSION = platform.python_version()
+    OS_TYPE = platform.system()
+
+    authenticated = ctx.obj.auth.client.is_using_auth_credentials()
+    data = None
+
+    console.print()
+    with console.status(wait_msg, spinner=DEFAULT_SPINNER):
+        try:
+            data = ctx.obj.auth.client.check_updates(version=1,
+                                                     safety_version=VERSION,
+                                                     python_version=PYTHON_VERSION,
+                                                     os_type=OS_TYPE,
+                                                     os_release=platform.release(),
+                                                     os_description=platform.platform())
+        except InvalidCredentialError as e:
+            authenticated = False
+        except Exception as e:
+            LOG.exception(f'Failed to check updates, reason: {e}')
+            raise e
+
+    if not authenticated:
+        if console.quiet:
+            console.quiet = False
+            response = {
+                "status": 401,
+                "message": "Authenticated failed, please authenticate Safety and try again",
+                "data": {}
+            }
+            console.print_json(json.dumps(response))
+        else:
+            console.print()
+            console.print("[red]Safety is not authenticated, please first authenticate and try again.[/red]")
+            console.print()
+            console.print("To authenticate, use the `auth` command: `safety auth login` Or for more help: `safety auth —help`")
+        sys.exit(1)
+
+    if not data:
+        raise SafetyException("No data found.")
+    
+    console.print("[green]Safety CLI is authenticated:[/green]")
+
+    from rich.padding import Padding
+    organization = data.get("organization", "-")
+    account = data.get("user_email", "-")
+    current_version = f"Current version: {VERSION} (Python {PYTHON_VERSION} on {OS_TYPE})"
+    latest_available_version = data.get("safety_updates", {}).get("stable_version", "-")
+
+    details = [f"Organization: {organization}",
+               f"Account: {account}",
+               current_version,
+               f"Latest available version: {latest_available_version}"
+               ]
+
+    for msg in details:
+        console.print(Padding(msg, (0, 0, 0, 1)), emoji=True)
+
+    console.print()
+
+    if latest_available_version:
+        console.print(f"Update available: Safety version {latest_available_version}")
+        console.print()
+        console.print(
+            f"If Safety was installed from a requirements file, update Safety to version {latest_available_version} in that requirements file."
+        )
+        console.print()
+        # `pip -i <source_url> install safety=={latest_available_version}` OR 
+        console.print(f"Pip: To install the updated version of Safety directly via pip, run: `pip install safety=={latest_available_version}`")
+
+    if console.quiet:
+        console.quiet = False
+        response = {
+            "status": 200,
+            "message": "",
+            "data": data
+        }
+        console.print_json(json.dumps(response))
+
+
+cli.add_command(typer.main.get_command(cli_app), "check-updates")
+cli.add_command(typer.main.get_command(scan_project_app), "scan")
+cli.add_command(typer.main.get_command(scan_system_app), "system-scan")
+
+cli.add_command(typer.main.get_command(auth_app), "auth")
 
 cli.add_command(alert)
 
-
-if __name__ == "__main__":
+if __name__ == "__main__":    
     cli()

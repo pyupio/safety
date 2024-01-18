@@ -17,7 +17,7 @@ class HTMLReport(FormatterAPI):
             f'remediations with full_report: {full}')
         report = build_json_report(announcements, vulnerabilities, remediations, packages)
 
-        return parse_html(report)
+        return parse_html(kwargs={"json_data": report})
 
     def render_licenses(self, announcements, licenses):
         pass

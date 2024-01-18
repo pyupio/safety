@@ -12,8 +12,11 @@ from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 
 from packaging.version import Version
+from safety_schemas.models import ConfigModel
 
 from safety.errors import InvalidRequirementError
+from safety_schemas.models import MetadataModel, ReportSchemaVersion, TelemetryModel, \
+    PolicyFileModel
 
 try:
     from packaging.version import LegacyVersion as legacyType
@@ -74,6 +77,21 @@ class SafetyRequirement(Requirement):
 
     def __eq__(self, other):
         return str(self) == str(other)
+    
+    def to_dict(self, **kwargs):
+        specifier_obj = self.specifier
+        if not "specifier_obj" in kwargs:
+            specifier_obj = str(self.specifier)
+
+        return   {
+                        'raw': self.raw,
+                        'extras': list(self.extras),
+                        'marker': str(self.marker) if self.marker else None,
+                        'name': self.name,
+                        'specifier': specifier_obj,
+                        'url': self.url,
+                        'found': self.found
+                    }
 
 
 def is_pinned_requirement(spec: SpecifierSet) -> bool:
@@ -89,7 +107,7 @@ def is_pinned_requirement(spec: SpecifierSet) -> bool:
 class Package(DictConverter):
     name: str
     version: Optional[str]
-    requirements: [SafetyRequirement]
+    requirements: List[SafetyRequirement]
     found: Optional[str] = None
     absolute_path: Optional[str] = None
     insecure_versions: List[str] = field(default_factory=lambda: [])
@@ -211,15 +229,7 @@ class Severity(severity_nmt, DictConverter):
 class SafetyEncoder(json.JSONEncoder):
     def default(self, value):
         if isinstance(value, SafetyRequirement):
-            return {
-                        'raw': value.raw,
-                        'extras': list(value.extras),
-                        'marker': str(value.marker) if value.marker else None,
-                        'name': value.name,
-                        'specifier': str(value.specifier),
-                        'url': value.url,
-                        'found': value.found
-                    }
+            return value.to_dict()
         elif isinstance(value, Version) or (legacyType and isinstance(value, legacyType)):
             return str(value)
         else:
@@ -260,3 +270,44 @@ class Vulnerability(vulnerability_nmt):
 
     def get_advisory(self):
         return self.advisory.replace('\r', '') if self.advisory else "No advisory found for this vulnerability."
+    
+    def to_model_dict(self):
+        try:
+            affected_spec = next(iter(self.vulnerable_spec))
+        except Exception:
+            affected_spec = ""
+
+        repr = {
+            "id": self.vulnerability_id,
+            "package_name": self.package_name,
+            "vulnerable_spec": affected_spec,
+            "analyzed_specification": self.analyzed_requirement.raw
+        }
+
+        if self.ignored:
+            repr["ignored"] = {"reason": self.ignored_reason, 
+                               "expires": self.ignored_expires}
+
+        return repr
+
+
+@dataclass
+class Safety:
+    client: Any
+    keys: Any
+
+
+from safety.auth.models import Auth
+from rich.console import Console
+
+@dataclass
+class SafetyCLI:
+    auth: Optional[Auth] = None
+    telemetry: Optional[TelemetryModel] = None
+    metadata: Optional[MetadataModel] = None
+    schema: Optional[ReportSchemaVersion] = None
+    project = None
+    config: Optional[ConfigModel] = None
+    console: Optional[Console] = None
+    system_scan_policy: Optional[PolicyFileModel] = None
+    platform_enabled: bool = False

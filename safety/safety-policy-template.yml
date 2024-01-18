@@ -5,6 +5,9 @@
 # To validate and review your policy file, run the validate command: `safety validate policy_file --path <path-to-this-file>`
 project: # Project to associate the scans with on pyup.io.
     id: ''
+organization:
+    id: ''
+    name: ''
 security: # configuration for the `safety check` command
     ignore-unpinned-requirements: True # This will ignore dependencies found in requirement files without a pinned specification. Like requests or requests>=0 or django>=2.2
     ignore-cvss-severity-below: 0 # A severity number between 0 and 10. Some helpful reference points: 9=ignore all vulnerabilities except CRITICAL severity. 7=ignore all vulnerabilities except CRITICAL & HIGH severity. 4=ignore all vulnerabilities except CRITICAL, HIGH & MEDIUM severity.

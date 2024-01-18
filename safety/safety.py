@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
+from dataclasses import asdict
 import errno
 import itertools
 import json
 import logging
 import os
+from pathlib import Path
+import random
 import sys
 import tempfile
 import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List, Union
+from typing import Dict, Optional, List
 
 import click
 import requests
@@ -17,40 +20,44 @@ from requests.models import PreparedRequest
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
+from pydantic.json import pydantic_encoder
 
-from .constants import (API_MIRRORS, CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, API_BASE_URL, JSON_SCHEMA_VERSION,
+from safety_schemas.models import Ecosystem, FileType
+
+
+
+from .constants import (API_MIRRORS, DB_CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, DATA_API_BASE_URL, JSON_SCHEMA_VERSION,
                         IGNORE_UNPINNED_REQ_REASON)
-from .errors import (DatabaseFetchError, DatabaseFileNotFoundError,
-                     InvalidKeyError, TooManyRequestsError, NetworkConnectionError,
+from .errors import (DatabaseFetchError, DatabaseFileNotFoundError, InvalidCredentialError,
+                     TooManyRequestsError, NetworkConnectionError,
                      RequestTimeoutError, ServerError, MalformedDatabase)
 from .models import Vulnerability, CVE, Severity, Fix, is_pinned_requirement, SafetyRequirement
 from .output_utils import print_service, get_applied_msg, prompt_service, get_skipped_msg, get_fix_opt_used_msg, \
     is_using_api_key, get_specifier_range_info
-from .util import RequirementFile, read_requirements, Package, build_telemetry_data, sync_safety_context, \
+from .util import build_remediation_info_url, pluralize, read_requirements, Package, build_telemetry_data, sync_safety_context, \
     SafetyContext, validate_expiration_date, is_a_remote_mirror, get_requirements_content, SafetyPolicyFile, \
     get_terminal_size, is_ignore_unpinned_mode, get_hashes
-
-session = requests.session()
 
 LOG = logging.getLogger(__name__)
 
 
-def get_from_cache(db_name, cache_valid_seconds=0):
-    LOG.debug('Trying to get from cache...')
-    if os.path.exists(CACHE_FILE):
-        LOG.info('Cache file path: %s', CACHE_FILE)
-        with open(CACHE_FILE) as f:
+def get_from_cache(db_name, cache_valid_seconds=0, skip_time_verification=False):
+    if os.path.exists(DB_CACHE_FILE):
+        with open(DB_CACHE_FILE) as f:
             try:
                 data = json.loads(f.read())
-                LOG.debug('Trying to get the %s from the cache file', db_name)
-                LOG.debug('Databases in CACHE file: %s', ', '.join(data))
                 if db_name in data:
-                    LOG.debug('db_name %s', db_name)
 
                     if "cached_at" in data[db_name]:
-                        if data[db_name]["cached_at"] + cache_valid_seconds > time.time():
+                        if data[db_name]["cached_at"] + cache_valid_seconds > time.time() or skip_time_verification:
                             LOG.debug('Getting the database from cache at %s, cache setting: %s',
                                       data[db_name]["cached_at"], cache_valid_seconds)
+                            
+                            try:
+                                data[db_name]["db"]["meta"]["base_domain"] = "https://data.safetycli.com"
+                            except KeyError as e:
+                                pass
+
                             return data[db_name]["db"]
 
                         LOG.debug('Cached file is too old, it was cached at %s', data[db_name]["cached_at"])
@@ -77,10 +84,10 @@ def write_to_cache(db_name, data):
     #       "db": {}
     #   },
     # }
-    if not os.path.exists(os.path.dirname(CACHE_FILE)):
+    if not os.path.exists(os.path.dirname(DB_CACHE_FILE)):
         try:
-            os.makedirs(os.path.dirname(CACHE_FILE))
-            with open(CACHE_FILE, "w") as _:
+            os.makedirs(os.path.dirname(DB_CACHE_FILE))
+            with open(DB_CACHE_FILE, "w") as _:
                 _.write(json.dumps({}))
                 LOG.debug('Cache file created')
         except OSError as exc:  # Guard against race condition
@@ -88,14 +95,14 @@ def write_to_cache(db_name, data):
             if exc.errno != errno.EEXIST:
                 raise
 
-    with open(CACHE_FILE, "r") as f:
+    with open(DB_CACHE_FILE, "r") as f:
         try:
             cache = json.loads(f.read())
         except json.JSONDecodeError:
             LOG.debug('JSONDecodeError in the local cache, dumping the full cache file.')
             cache = {}
 
-    with open(CACHE_FILE, "w") as f:
+    with open(DB_CACHE_FILE, "w") as f:
         cache[db_name] = {
             "cached_at": time.time(),
             "db": data
@@ -104,26 +111,25 @@ def write_to_cache(db_name, data):
         LOG.debug('Safety updated the cache file for %s database.', db_name)
 
 
-def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
-    headers = {'schema-version': JSON_SCHEMA_VERSION}
+def fetch_database_url(session, mirror, db_name, cached, telemetry=True,
+                       ecosystem: Ecosystem = Ecosystem.PYTHON, from_cache=True):
+    headers = {'schema-version': JSON_SCHEMA_VERSION, 'ecosystem': ecosystem.value}    
 
-    if key:
-        headers["X-Api-Key"] = key
-
-    if not proxy:
-        proxy = {}
-
-    if cached:
+    if cached and from_cache:
         cached_data = get_from_cache(db_name=db_name, cache_valid_seconds=cached)
         if cached_data:
             LOG.info('Database %s returned from cache.', db_name)
             return cached_data
     url = mirror + db_name
 
-    telemetry_data = {'telemetry': json.dumps(build_telemetry_data(telemetry=telemetry))}
+    
+    telemetry_data = {
+        'telemetry': json.dumps(build_telemetry_data(telemetry=telemetry), 
+                                default=pydantic_encoder)}
 
     try:
-        r = session.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy, params=telemetry_data)
+        r = session.get(url=url, timeout=REQUEST_TIMEOUT, 
+                        headers=headers, params=telemetry_data)
     except requests.exceptions.ConnectionError:
         raise NetworkConnectionError()
     except requests.exceptions.Timeout:
@@ -132,7 +138,7 @@ def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
         raise DatabaseFetchError()
 
     if r.status_code == 403:
-        raise InvalidKeyError(key=key, reason=r.text)
+        raise InvalidCredentialError(credential=session.get_credential(), reason=r.text)
 
     if r.status_code == 429:
         raise TooManyRequestsError(reason=r.text)
@@ -152,35 +158,22 @@ def fetch_database_url(mirror, db_name, key, cached, proxy, telemetry=True):
     return data
 
 
-def fetch_policy(key, proxy):
-    url = f"{API_BASE_URL}policy/"
-    headers = {"X-Api-Key": key}
-
-    if not proxy:
-        proxy = {}
+def fetch_policy(session):
+    url = f"{DATA_API_BASE_URL}policy/"
 
     try:
         LOG.debug(f'Getting policy')
-        r = session.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy)
+        r = session.get(url=url, timeout=REQUEST_TIMEOUT)
         LOG.debug(r.text)
         return r.json()
     except Exception:
         LOG.exception("Error fetching policy")
-        click.secho(
-            "Warning: couldn't fetch policy from pyup.io.",
-            fg="yellow",
-            file=sys.stderr
-        )
 
         return {"safety_policy": "", "audit_and_monitor": False}
 
 
-def post_results(key, proxy, safety_json, policy_file):
-    url = f"{API_BASE_URL}result/"
-    headers = {"X-Api-Key": key}
-
-    if not proxy:
-        proxy = {}
+def post_results(session, safety_json, policy_file):
+    url = f"{DATA_API_BASE_URL}result/"
 
     # safety_json is in text form already. policy_file is a text YAML
     audit_report = {
@@ -191,14 +184,14 @@ def post_results(key, proxy, safety_json, policy_file):
     try:
         LOG.debug(f'Posting results to: {url}')
         LOG.debug(f'Posting results: {audit_report}')
-        r = session.post(url=url, timeout=REQUEST_TIMEOUT, headers=headers, proxies=proxy, json=audit_report)
+        r = session.post(url=url, timeout=REQUEST_TIMEOUT, json=audit_report)
         LOG.debug(r.text)
 
         return r.json()
     except:
         LOG.exception("Error posting results")
         click.secho(
-            "Warning: couldn't upload results to pyup.io.",
+            "Warning: couldn't upload results to safetycli.com.",
             fg="yellow",
             file=sys.stderr
         )
@@ -206,7 +199,7 @@ def post_results(key, proxy, safety_json, policy_file):
         return {}
 
 
-def fetch_database_file(path, db_name):
+def fetch_database_file(path, db_name, ecosystem: Ecosystem = Ecosystem.PYTHON):
     full_path = os.path.join(path, db_name)
     if not os.path.exists(full_path):
         raise DatabaseFileNotFoundError(db=path)
@@ -224,8 +217,9 @@ def is_valid_database(db) -> bool:
     return False
 
 
-def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, telemetry=True):
-    if key:
+def fetch_database(session, full=False, db=False, cached=0, telemetry=True, 
+                   ecosystem: Ecosystem = Ecosystem.PYTHON, from_cache=True):
+    if session.is_using_auth_credentials():
         mirrors = API_MIRRORS
     elif db:
         mirrors = [db]
@@ -236,9 +230,10 @@ def fetch_database(full=False, key=False, db=False, cached=0, proxy=None, teleme
     for mirror in mirrors:
         # mirror can either be a local path or a URL
         if is_a_remote_mirror(mirror):
-            data = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached, proxy=proxy, telemetry=telemetry)
+            data = fetch_database_url(session, mirror, db_name=db_name, cached=cached, 
+                                      telemetry=telemetry, ecosystem=ecosystem, from_cache=from_cache)
         else:
-            data = fetch_database_file(mirror, db_name=db_name)
+            data = fetch_database_file(mirror, db_name=db_name, ecosystem=ecosystem)
         if data:
             if is_valid_database(data):
                 return data
@@ -357,17 +352,26 @@ def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_sever
 def is_vulnerable(vulnerable_spec: SpecifierSet, requirement, package):
 
     if is_pinned_requirement(requirement.specifier):
-        return vulnerable_spec.contains(next(iter(requirement.specifier)).version)
+        try:
+            return vulnerable_spec.contains(next(iter(requirement.specifier)).version)
+        except Exception:
+            # Ugly for now...
+            message = f'Version {requirement.specifier} for {package.name} is invalid and is ignored by Safety. Please See PEP 440.'
+            if message not in [a['message'] for a in SafetyContext.local_announcements]:
+                SafetyContext.local_announcements.append(
+                    {'message': message,
+                    'type': 'warning', 'local': True})
+            return False
 
     return any(requirement.specifier.filter(vulnerable_spec.filter(package.insecure_versions, prereleases=True),
                                             prereleases=True))
 
 
 @sync_safety_context
-def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
+def check(*, session=None, packages=[], db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
           include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None):
     SafetyContext().command = 'check'
-    db = fetch_database(key=key, db=db_mirror, cached=cached, proxy=proxy, telemetry=telemetry)
+    db = fetch_database(session, db=db_mirror, cached=cached, telemetry=telemetry)
     db_full = None
     vulnerable_packages = frozenset(db.get('vulnerable_packages', []))
     vulnerabilities = []
@@ -387,7 +391,7 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
 
         if not pkg.version:
             if not db_full:
-                db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy,
+                db_full = fetch_database(session, full=True, db=db_mirror, cached=cached,
                                          telemetry=telemetry)
             pkg.refresh_from(db_full)
 
@@ -398,7 +402,7 @@ def check(packages, key=False, db_mirror=False, cached=0, ignore_vulns=None, ign
 
                 if is_vulnerable(spec_set, req, pkg):
                     if not db_full:
-                        db_full = fetch_database(full=True, key=key, db=db_mirror, cached=cached, proxy=proxy,
+                        db_full = fetch_database(session, full=True, db=db_mirror, cached=cached,
                                                  telemetry=telemetry)
                     if not pkg.latest_version:
                         pkg.refresh_from(db_full)
@@ -516,24 +520,6 @@ def compute_sec_ver_for_user(package: Package, secure_vulns_by_user, db_full):
     return sorted(sec_ver_for_user, key=lambda ver: parse_version(ver), reverse=True)
 
 
-def build_remediation_info_url(base_url: str, version: Optional[str], spec: str,
-                               target_version: Optional[str] = ''):
-
-    if not is_using_api_key():
-        return base_url
-
-    params = {'from': version, 'to': target_version}
-
-    # No pinned version
-    if not version:
-        params = {'spec': spec}
-
-    req = PreparedRequest()
-    req.prepare_url(base_url, params)
-
-    return req.url
-
-
 def compute_sec_ver(remediations, packages: Dict[str, Package], secure_vulns_by_user, db_full):
     """
     Compute the secure_versions and the closest_secure_version for each remediation using the affected_versions
@@ -580,9 +566,9 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], secure_vulns_by_
             # Refresh the URL with the recommended version.
 
             spec = str(rem['requirement'].specifier)
-            base_url = rem['more_info_url']
-            rem['more_info_url'] = \
-                build_remediation_info_url(base_url=base_url, version=version,
+            if is_using_api_key():
+                rem['more_info_url'] = \
+                    build_remediation_info_url(base_url=rem['more_info_url'], version=version,
                                            spec=spec,
                                            target_version=recommended_version)
 
@@ -641,6 +627,59 @@ def process_fixes(files, remediations, auto_remediation_limit, output, no_output
     req_remediations = itertools.chain.from_iterable(rem.values() for pkg_name, rem in remediations.items())
     requirements = compute_fixes_per_requirements(files, req_remediations, auto_remediation_limit, prompt=prompt)
     fixes = apply_fixes(requirements, output, no_output, prompt)
+    return fixes
+
+
+def process_fixes_scan(file_to_fix, to_fix_spec, auto_remediation_limit, output, no_output=True, prompt=False):
+    to_fix_remediations =  []
+    
+    def get_remmediation_from(spec):
+        upper = None
+        lower = None
+        recommended = None
+        
+        try:
+            upper = Version(spec.remediation.closest_secure.upper) if spec.remediation.closest_secure.upper else None
+        except Exception as e:
+            LOG.error(f'Error getting upper remediation version, ignoring', exc_info=True)
+
+        try:
+            lower = Version(spec.remediation.closest_secure.lower) if spec.remediation.closest_secure.lower else None
+        except Exception as e:
+            LOG.error(f'Error getting lower remediation version, ignoring', exc_info=True)
+
+        try:
+            recommended = Version(spec.remediation.recommended)
+        except Exception as e:
+            LOG.error(f'Error getting recommended version for remediation, ignoring', exc_info=True)            
+
+        return {
+            "vulnerabilities_found": spec.remediation.vulnerabilities_found,
+            "version": next(iter(spec.specifier)).version if spec.is_pinned() else None,
+            "requirement": spec,
+            "more_info_url": spec.remediation.more_info_url,
+            "closest_secure_version": {
+                'upper': upper, 
+                'lower': lower
+                },
+            "recommended_version": recommended,
+            "other_recommended_versions": spec.remediation.other_recommended
+        }
+
+    req_remediations = iter(get_remmediation_from(spec) for spec in to_fix_spec)
+    SUPPORTED_FILE_TYPES = [FileType.REQUIREMENTS_TXT]
+
+    if file_to_fix.file_type in SUPPORTED_FILE_TYPES:
+        files = (open(file_to_fix.location),)
+        requirements = compute_fixes_per_requirements(files, req_remediations, auto_remediation_limit, prompt=prompt)
+    else:
+        requirements = {
+            'files': {str(file_to_fix.location): {'content': None, 'fixes': {'TO_SKIP': [], 'TO_APPLY': [], 'TO_CONFIRM': []}, 'supported': False, 'filename': file_to_fix.location.name}},
+            'dependencies': defaultdict(dict),
+        }
+    
+    fixes = apply_fixes(requirements, output, no_output, prompt, scan_flow=True, auto_remediation_limit=auto_remediation_limit)
+
     return fixes
 
 
@@ -749,7 +788,7 @@ def compute_fixes_per_requirements(files, req_remediations, auto_remediation_lim
     return requirements
 
 
-def apply_fixes(requirements, out_type, no_output, prompt):
+def apply_fixes(requirements, out_type, no_output, prompt, scan_flow=False, auto_remediation_limit=None):
 
     from dparse.updater import RequirementsTXTUpdater
 
@@ -760,84 +799,98 @@ def apply_fixes(requirements, out_type, no_output, prompt):
     brief = []
 
     if not no_output:
-        brief.append((f"Safety fix running with {get_fix_opt_used_msg()} fix policy.", {}))
+        style_kwargs = {}
+
+        if not scan_flow:
+            brief.append(('', {}))
+            brief.append((f"Safety fix running", style_kwargs))
         print_service(brief, out_type)
 
     for name, data in requirements['files'].items():
         output = [('', {}),
-                  (f"Analyzing {name}...", {'styling': {'bold': True}, 'start_line_decorator': '->', 'indent': ' '})]
-
-        new_content = data['content']
-
+                  (f"Analyzing {name}... [{get_fix_opt_used_msg(auto_remediation_limit)} limit]", {'styling': {'bold': True}, 'start_line_decorator': '->', 'indent': ' '})]
+        
         r_skip = data['fixes']['TO_SKIP']
         r_apply = data['fixes']['TO_APPLY']
         r_confirm = data['fixes']['TO_CONFIRM']
 
-        updated: bool = False
+        if data.get('supported', True):
+            new_content = data['content']
 
-        for f in r_apply:
-            new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
-                                                        dependency=f.dependency, hashes=get_hashes(f.dependency))
-            f.status = 'APPLIED'
-            updated = True
-            output.append((f'- {get_applied_msg(f, mode="auto")}', {}))
+            updated: bool = False
 
-        for f in r_skip:
-            output.append((f'- {get_skipped_msg(f)}', {}))
+            for f in r_apply:
+                new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
+                                                            dependency=f.dependency, hashes=get_hashes(f.dependency))
+                f.status = 'APPLIED'
+                updated = True
+                output.append(('', {}))
+                output.append((f'- {get_applied_msg(f, mode="auto")}', {}))
 
-        if not no_output:
-            print_service(output, out_type)
+            for f in r_skip:
+                output.append(('', {}))
+                output.append((f'- {get_skipped_msg(f)}', {}))
 
-        if prompt and not no_output:
-            for f in r_confirm:
-                changelog_detail = f'Changelogs notes: {f.more_info_url}'
-                options = [f"({index}) =={option}" for index, option in enumerate(f.other_options)]
-                other_options = ''
-                input_hint = '[y/n]'
+            if not no_output:
+                print_service(output, out_type)
 
-                if len(options) > 0:
-                    other_options = f' Other secure options: {", ".join(options)}.'
-                    input_hint = '[y/n/index]'
+            if prompt and not no_output:
+                for f in r_confirm:
+                    options = [f"({index}) =={option}" for index, option in enumerate(f.other_options)]
+                    input_hint = f'Enter “y” to update to {f.package}=={f.updated_version}, “n” to skip this package upgrade'
 
-                confirmed: str = prompt_service(
-                    (f'- Do you want to update {f.package} from {f.previous_spec} to =={f.updated_version}? '
-                     f'({changelog_detail}).{other_options} {input_hint}', {}),
-                    out_type
-                ).lower()
+                    if len(options) > 0:
+                        input_hint += f', or enter the index from these secure versions to upgrade to that version: {", ".join(options)}'
 
-                try:
-                    index: int = int(confirmed)
-                    if index <= len(f.other_options):
-                        confirmed = 'y'
-                except ValueError:
-                    index = -1
+                    print_service([('', {})], out_type)
+                    confirmed: str = prompt_service(
+                        (f'- {f.package}{f.previous_spec} requires at least a {f.update_type} version update. Do you want to update {f.package} from {f.previous_spec} to =={f.updated_version}, which is the closest secure version? {input_hint}', {}),
+                        out_type
+                    ).lower()
 
-                if confirmed == 'y' or index > -1:
-                    f.status = 'APPLIED'
-                    updated = True
+                    try:
+                        index: int = int(confirmed)
+                        if index <= len(f.other_options):
+                            confirmed = 'y'
+                    except ValueError:
+                        index = -1
 
-                    if index > -1:
-                        f.updated_version = f.other_options[index]
+                    if confirmed == 'y' or index > -1:
+                        f.status = 'APPLIED'
+                        updated = True
 
-                    new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
-                                                                dependency=f.dependency,
-                                                                hashes=get_hashes(f.dependency))
-                    output.append((get_applied_msg(f, mode="manual"), {'indent': ' ' * 5}))
-                else:
-                    f.status = 'MANUALLY_SKIPPED'
-                    output.append((get_skipped_msg(f), {'indent': ' ' * 5}))
+                        if index > -1:
+                            f.updated_version = f.other_options[index]
 
-                if not no_output:
-                    print_service(output, out_type)
+                        new_content = RequirementsTXTUpdater.update(content=new_content, version=f.updated_version,
+                                                                    dependency=f.dependency,
+                                                                    hashes=get_hashes(f.dependency))
+                        output.append((get_applied_msg(f, mode="manual"), {'indent': ' ' * 5}))
+                    else:
+                        f.status = 'MANUALLY_SKIPPED'
+                        output.append((get_skipped_msg(f), {'indent': ' ' * 5}))
 
-        if updated:
-            output.append((f"Updating {name}...", {}))
-            with open(name, mode="w") as r_file:
-                r_file.write(new_content)
+                    if not no_output:
+                        print_service(output, out_type)
 
-            output.append((f"Changes applied to {name}.", {}))
+            if updated:
+                output.append(('', {}))
+                output.append((f"Updating {name}...", {}))
+                with open(name, mode="w") as r_file:
+                    r_file.write(new_content)
+                output.append((f"Changes applied to {name}.", {}))
+                count = len(r_apply) + len([1 for fix in r_confirm if fix.status == 'APPLIED'])
+                output.append((f"{count} package {pluralize('version', count)} {pluralize('has', count)} been updated to secure versions in {Path(name).name}", {}))
+                output.append(("Always check for breaking changes after updating packages.", {}))
+            else:
+                output.append((f"No fixes to be made in {name}.", {}))
+                output.append(('', {}))
         else:
-            output.append((f"No fixes to be made in {name}.", {}))
+            not_supported_filename = data.get('filename', name)
+            output.append(
+                (f"{not_supported_filename} updates not supported: Please update these dependencies using your package manager.", 
+                 {'start_line_decorator': ' -', 'indent': ' '}))
+            output.append(('', {}))
 
         if not no_output:
             print_service(output, out_type)
@@ -846,7 +899,8 @@ def apply_fixes(requirements, out_type, no_output, prompt):
         apply.extend(r_apply)
         confirm.extend(r_confirm)
 
-    if not no_output:
+    # The scan flow will handle the header and divider, because the scan flow can be called multiple times.
+    if not no_output and not scan_flow:
         divider = f'{"=" * 78}' if out_type == 'text' else f'{"=" * (get_terminal_size().columns - 2)}'
         format_text = {'start_line_decorator': '+', 'end_line_decorator': '+', 'indent': ''}
         print_service([(divider, {})], out_type, format_text=format_text)
@@ -854,15 +908,18 @@ def apply_fixes(requirements, out_type, no_output, prompt):
     return skip + apply + confirm
 
 
-def find_vulnerabilities_fixed(vulnerabilities: Dict, fixes):
+def find_vulnerabilities_fixed(vulnerabilities: Dict, fixes) -> List[Vulnerability]:
     fixed_specs = set(fix.previous_spec for fix in fixes)
+
+    if not fixed_specs:
+        return []
 
     return [vulnerability for vulnerability in vulnerabilities if
             str(vulnerability['analyzed_requirement'].specifier) in fixed_specs]
 
 
 @sync_safety_context
-def review(report=None, params=None):
+def review(*, report=None, params=None):
     SafetyContext().command = 'review'
     vulnerable = []
     vulnerabilities = report.get('vulnerabilities', []) + report.get('ignored_vulnerabilities', [])
@@ -928,11 +985,12 @@ def review(report=None, params=None):
 
 
 @sync_safety_context
-def get_licenses(key=False, db_mirror=False, cached=0, proxy=None, telemetry=True):
-    key = key if key else os.environ.get("SAFETY_API_KEY", False)
+def get_licenses(*, session=None, db_mirror=False, cached=0, telemetry=True):
+    # key = key if key else os.environ.get("SAFETY_API_KEY", False)
+    key = session.api_key
 
     if not key and not db_mirror:
-        raise InvalidKeyError(message="The API-KEY was not provided.")
+        raise InvalidCredentialError(message="The API-KEY was not provided.")
     if db_mirror:
         mirrors = [db_mirror]
     else:
@@ -943,7 +1001,7 @@ def get_licenses(key=False, db_mirror=False, cached=0, proxy=None, telemetry=Tru
     for mirror in mirrors:
         # mirror can either be a local path or a URL
         if is_a_remote_mirror(mirror):
-            licenses = fetch_database_url(mirror, db_name=db_name, key=key, cached=cached, proxy=proxy,
+            licenses = fetch_database_url(session, mirror, db_name=db_name, cached=cached,
                                           telemetry=telemetry)
         else:
             licenses = fetch_database_file(mirror, db_name=db_name)
@@ -982,19 +1040,16 @@ def add_local_notifications(packages: List[Package],
     return announcements
 
 
-def get_announcements(key, proxy, telemetry=True):
+def get_announcements(session, telemetry=True, with_telemetry=None):
     LOG.info('Getting announcements')
 
     announcements = []
-    headers = {}
 
-    if key:
-        headers["X-Api-Key"] = key
-
-    url = f"{API_BASE_URL}announcements/"
+    url = f"{DATA_API_BASE_URL}announcements/"
     method = 'post'
-    data = build_telemetry_data(telemetry=telemetry)
-    request_kwargs = {'headers': headers, 'proxies': proxy, 'timeout': 3}
+    telemetry_data = with_telemetry if with_telemetry else build_telemetry_data(telemetry=telemetry)
+    data = asdict(telemetry_data)
+    request_kwargs = {'timeout': 3}
     data_keyword = 'json'
 
     source = os.environ.get('SAFETY_ANNOUNCEMENTS_URL', None)
@@ -1084,9 +1139,9 @@ def read_vulnerabilities(fh):
     return data
 
 
-def get_server_policies(key: str, policy_file, proxy_dictionary: Dict):
-    if key:
-        server_policies = fetch_policy(key=key, proxy=proxy_dictionary)
+def get_server_policies(session, policy_file, proxy_dictionary: Dict):
+    if session.api_key:
+        server_policies = fetch_policy(session)
         server_audit_and_monitor = server_policies["audit_and_monitor"]
         server_safety_policy = server_policies["safety_policy"]
     else:
@@ -1122,16 +1177,170 @@ def save_report(path: str, default_name: str, report: str):
             report_file.write(report)
 
 
-def push_audit_and_monitor(key, proxy, audit_and_monitor, json_report, policy_file):
-    if audit_and_monitor:
-        policy_contents = ''
-        if policy_file:
-            policy_contents = policy_file.get('raw', '')
+import os
+import subprocess
 
-        r = post_results(key=key, proxy=proxy, safety_json=json_report, policy_file=policy_contents)
-        SafetyContext().params['audit_and_monitor_url'] = r.get('url')
+def walklevel(path, depth = 1, deny_list = []):
+    """It works just like os.walk, but you can pass it a level parameter
+       that indicates how deep the recursion will go.
+       If depth is 1, the current directory is listed.
+       If depth is 0, nothing is returned.
+       If depth is -1 (or less than 0), the full depth is walked.
+    """
+
+    # If depth is negative, just walk
+    # Not using yield from for python2 compat
+    # and copy dirs to keep consistant behavior for depth = -1 and depth = inf
+    if depth < 0:
+        for root, dirs, files in os.walk(path):
+            yield root, dirs[:], files
+        return
+    elif depth == 0:
+        return
+
+    # path.count(os.path.sep) is safe because
+    # - On Windows "\\" is never allowed in the name of a file or directory
+    # - On UNIX "/" is never allowed in the name of a file or directory
+    # - On MacOS a literal "/" is quitely translated to a ":" so it is still
+    #   safe to count "/".
+    base_depth = path.rstrip(os.path.sep).count(os.path.sep)
+    for root, dirs, files in os.walk(path):
+        for idx, directory in enumerate(dirs):
+            if f"{root}{directory}" in deny_list:
+                # print(f"Not scanning {root}{directory}")
+                del dirs[idx]
+        yield root, dirs[:], files
+        cur_depth = root.count(os.path.sep)
+        if base_depth + depth <= cur_depth:
+            del dirs[:]
+
+def scan_directory(directory, timeout=None, max_depth=0, current_path=None):
+    virtual_envs = []
+    python_interpreters = []
+    requirements_files = []
+
+    deny_list = {
+        # Windows directories
+        "C:\\Windows",
+        "C:\\Program Files",
+        "C:\\Program Files (x86)",
+        "C:\\ProgramData",
+        
+        # Linux and macOS directories
+        "/usr",
+        "/usr/local",
+        "/opt",
+        "/var",
+        "/etc",
+        "/Library",
+        "/System",
+        "/Applications",
+        "~/Library",
+        "/proc",
+        "/dev"
+    }
+    
+    go_up = ''
+
+    for root, dirs, files in walklevel(directory, max_depth, deny_list):
+        # Skip symbolic links, /proc, and /dev directories
+        # if os.path.islink(root) or root.startswith('/proc') or root.startswith('/dev'):
+        #     continue
+
+        status = f'Scanning: {root.strip()}...'
+        found = f'Python items found: {len(python_interpreters) + len(requirements_files)}'
+        status_pad = ' ' * (get_terminal_size().columns - len(status))
+        found_pad = ' ' * (get_terminal_size().columns - len(found))
+
+        click.echo('{}{}\r{}'.format(go_up, f"{status}{status_pad}\n", f"{found}{found_pad}"), nl=False, err=True)
+
+        if not go_up:
+            go_up = "\033[F"
+
+        # Look for Python interpreters and requirements
+        for file_name in files:            
+            file_path = os.path.join(root, file_name)
+
+            if file_name.endswith('requirements.txt'):
+                file_name_randomizer = round(random.random()*100000000)
+                filepath = f"{root}/{str(file_name)}"
+                requirements_files.append(file_path)
+                os.system(f"safety check -r {filepath} --cache 100 --output json >> {current_path}/requirements/{file_name_randomizer}-scan.json")
+            
+            if file_name.startswith('python'):
+                try:
+
+                    p = file_path
+
+                    # Check if the path is a symbolic link
+                    # if os.path.islink(file_path):
+                    #     p = os.path.realpath(file_path)
+                    #     if os.path.islink(p):
+                    #         p = os.path.realpath(p)
+                    #         if os.path.islink(p):
+                    #             p = os.path.realpath(p)
+
+                    output = subprocess.check_output(
+                        [file_path, '--version', '--version'],
+                        stderr=subprocess.STDOUT, timeout=timeout)                    
+                    result = output.decode('utf-8')
+
+                    if result.startswith('Python'):
+                        output = subprocess.check_output([p, '-m', 'pip', 'freeze'], stderr=subprocess.STDOUT, timeout=timeout)
+                        requirements += output.decode('utf-8') + '\n'     
+        
+                        # Command to run
+                        cmd = ['safety', 'check', '--cache', '100', '--output', 'json' '--stdin']
+
+                        if not requirements:
+                            continue
+
+                        # click.secho("Safety check is running...")
+                        # Run the command and pass the string as stdin
+                        result = subprocess.run(cmd, input=requirements, text=True, capture_output=True)
+                        file_name_randomizer = round(random.random()*100000000)
+                        with open(f"{current_path}/environments/{file_name_randomizer}-scan.json", "w") as outfile:
+                            outfile.write(result.stdout)
 
 
-def close_session():
-    LOG.debug('Closing requests session.')
-    session.close()
+                        # output = subprocess.check_output(
+                        #     [file_path, '--version', '--version'],
+                        #     stderr=subprocess.STDOUT, timeout=timeout)                    
+                        # result = output.decode('utf-8')
+
+                        # if result.startswith('Python'):
+                            # parts = result.split()
+                            # # Extract the version number
+                            # version = parts[1]
+
+                            # # Extract the date and time
+                            # date = re.findall(r'\(.*?\)', result)[0].strip('()')
+
+                            # # Extract the compiler information
+                            # compiler = re.findall(r'\[.*?\]', result)[0].strip('[]')
+
+                            python_interpreters.append(file_path)
+                except Exception:
+                    pass
+
+    requirements = ""
+    
+    click.secho(f"Results are save in {current_path}/...")
+
+    # for interp in python_interpreters:
+    #     output = subprocess.check_output(
+    #     [interp, '-m', 'pip', 'freeze'], stderr=subprocess.STDOUT, timeout=timeout)   
+    #     requirements += output.decode('utf-8') + '\n'     
+    
+    # # Command to run
+    # cmd = ['safety', 'check', '--stdin']
+
+    # if not requirements:
+    #     click.secho("No packages found.")
+
+    # click.secho("Safety check is running...")
+    # # Run the command and pass the string as stdin
+    # result = subprocess.run(cmd, input=requirements, text=True, capture_output=True)
+
+    # click.secho(result.stdout)
+    # click.secho(result.stderr)

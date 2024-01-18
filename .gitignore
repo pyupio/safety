@@ -62,6 +62,7 @@ docs/_build/
 
 # PyBuilder
 target/
+dev-release.sh
 
 # pyenv python configuration file
 .python-version
@@ -74,3 +75,6 @@ sandbox.py
 # Virtual Env
 venv/
 .venv/
+
+# Mac OS
+.DS_Store

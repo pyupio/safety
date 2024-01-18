@@ -1,4 +1,5 @@
-from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_INVALID_API_KEY, EXIT_CODE_TOO_MANY_REQUESTS, \
+from typing import Optional
+from safety.constants import EXIT_CODE_EMAIL_NOT_VERIFIED, EXIT_CODE_FAILURE, EXIT_CODE_INVALID_API_KEY, EXIT_CODE_TOO_MANY_REQUESTS, \
     EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB, EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB, EXIT_CODE_MALFORMED_DB, \
     EXIT_CODE_INVALID_PROVIDED_REPORT, EXIT_CODE_INVALID_REQUIREMENT
 
@@ -15,8 +16,9 @@ class SafetyException(Exception):
 
 class SafetyError(Exception):
 
-    def __init__(self, message="Unhandled Safety generic error"):
+    def __init__(self, message="Unhandled Safety generic error", error_code=None):
         self.message = message
+        self.error_code = error_code
         super().__init__(self.message)
 
     def get_exit_code(self):
@@ -77,12 +79,12 @@ class DatabaseFileNotFoundError(DatabaseFetchError):
         return EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB
 
 
-class InvalidKeyError(DatabaseFetchError):
+class InvalidCredentialError(DatabaseFetchError):
 
-    def __init__(self, key=None, message="Your API Key '{key}' is invalid. See {link}.", reason=None):
-        self.key = key
+    def __init__(self, credential: Optional[str] = None, message="Your authentication credential '{credential}' is invalid. See {link}.", reason=None):
+        self.credential = credential
         self.link = 'https://bit.ly/3OY2wEI'
-        self.message = message.format(key=key, link=self.link) if key else message.format(link=self.link)
+        self.message = message.format(credential=self.credential, link=self.link) if self.credential else message.format(link=self.link)
         info = f" Reason: {reason}"
         self.message = self.message + (info if reason else "")
         super().__init__(self.message)
@@ -90,6 +92,13 @@ class InvalidKeyError(DatabaseFetchError):
     def get_exit_code(self):
         return EXIT_CODE_INVALID_API_KEY
 
+class NotVerifiedEmailError(SafetyError):
+    def __init__(self, message="email is not verified"):
+        self.message = message
+        super().__init__(self.message)
+
+    def get_exit_code(self):
+        return EXIT_CODE_EMAIL_NOT_VERIFIED
 
 class TooManyRequestsError(DatabaseFetchError):
 

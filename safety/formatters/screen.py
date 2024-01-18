@@ -23,7 +23,7 @@ class ScreenReport(FormatterAPI):
          |_______/  \_______/|__/     \_______/   \___/   \____  $$
                                                           /$$  | $$
                                                          |  $$$$$$/
-  by pyup.io                                              \______/
+  by safetycli.com                                        \______/
 
 """ + DIVIDER_SECTIONS
 

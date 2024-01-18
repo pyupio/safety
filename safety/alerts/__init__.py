@@ -6,9 +6,11 @@ import click
 
 from dataclasses import dataclass
 
+from safety.cli_util import SafetyCLILegacyGroup
+
 from . import github
 from safety.util import SafetyPolicyFile
-
+from safety.scan.constants import CLI_ALERT_COMMAND_HELP
 
 LOG = logging.getLogger(__name__)
 
@@ -19,13 +21,13 @@ class Alert:
     policy: Any = None
     requirements_files: Any = None
 
-@click.group(help="Send alerts based on the results of a Safety scan.")
-@click.option('--check-report', help='JSON output of Safety Check to work with.', type=click.File('r'), default=sys.stdin)
+@click.group(cls=SafetyCLILegacyGroup, help=CLI_ALERT_COMMAND_HELP, deprecated=True, utility_command=True)
+@click.option('--check-report', help='JSON output of Safety Check to work with.', type=click.File('r'), default=sys.stdin, required=True)
+@click.option("--key", envvar="SAFETY_API_KEY",
+              help="API Key for safetycli.com's vulnerability database. Can be set as SAFETY_API_KEY "
+                   "environment variable.", required=True)
 @click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
               help="Define the policy file to be used")
-@click.option("--key", envvar="SAFETY_API_KEY",
-              help="API Key for pyup.io's vulnerability database. Can be set as SAFETY_API_KEY "
-                   "environment variable.", required=True)
 @click.pass_context
 def alert(ctx, check_report, policy_file, key):
     LOG.info('alert started')

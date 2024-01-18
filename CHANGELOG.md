@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.0.0] - 2024-01-17
+
+### Safety 3.0.0 major version release!
+- Safety 3.0.0 is a significant update to Safety CLI from 2.x versions, including enhancements to core features, new capabilities, and breaking changes from 2.x.
+- See our [Blog article announcing Safety CLI 3](https://safetycli.com/research/safety-cli-3-vulnerability-scanning-for-secure-python-development) for more details on Safety 3 and these changes
+- See [Migrating from Safety 2.x to Safety CLI 3](https://docs.safetycli.com/safety-docs/safety-cli-3/migrating-from-safety-cli-2.x-to-safety-cli-3.x) for notes and steps to migrating from Safety 2 to Safety 3
+
+### Main updates
+- Added scan command, which scans a project’s directory for all Python dependencies and includes many improvements over the `check` command, including automatic Python project scanning, native support for Poetry and Pipenv files, Python virtual environment folders, and more granular configuration options.
+- Added auth commands, enabling new browser-based authentication of Safety CLI. 
+- An updated safety policy file schema to support new scan and system-scan commands. This policy file schema is a breaking change from the policy schema used for `safety check`. To migrate a Safety 2.x policy, see  [Migrating from Safety 2.x to Safety CLI 3](https://docs.safetycli.com/safety-docs/safety-cli-3/migrating-from-safety-cli-2.x-to-safety-cli-3.x).
+- Updated screen output to modern interactive interface, with new help interfaces.
+- Updated to new JSON output structure to support new scan command, other ecosystems, and other security findings. 
+- Added a supporting [safety-schemas project dependency](https://pypi.org/project/safety-schemas/), also published and maintained by Safety, which defines Safety vulnerability database file, Safety CLI policy file, and Safety CLI JSON output schemas as pydantic models, formalizing these into testable and versioned schemas.
+
+### New scan command:
+- New scan command: scans a Python project directory for Python dependencies and security vulnerabilities. Safety scan replaces `safety check` with a more powerful and easier to use command. The scan command:
+- Finds and scans Python dependency files and virtual environments inside the target directory without needing to specify file or environment locations.
+- Adds native scanning and reporting for Poetry and Pipenv manifest files, and Python virtual environment folders.
+- Adds configuration of scanning rules to; 
+    -  exclude files and folders from the scan using Unix shell-style wildcards only
+    - Include files to be scanned
+    - Max folder depth setting
+- Reporting configuration rules
+    -  Reporting rules defining which types and specific vulnerabilities to include or ignore stay the same as safety 2.x, although now in a slightly different structure. 
+- Failing rules
+    - Adds ability to configure rules for when safety should return a non-zero (failing) exit code, which can be different from reporting rules under the `report` field.
+- Auto-updating rules
+    - Adds ability to easily update insecure package versions in pip requirements files.
+
+### Other new commands:
+- Added auth command: manages Safety CLI’s authentication in development environments, allowing easy authentication via the browser.
+    - auth login - adds ability to authenticate safety cli via the browser
+    - auth register - adds ability to register for a Safety account via the CLI, and get scanning within minutes
+    - auth status - 
+    - auth logout - 
+    - `safety check` command can still be used with the API key --key argument, and scan and system-scan commands should also be 
+- Added configure command: configures safety cli using a config.ini file, either saved to the user settings or system settings. This can be used to configure safety’s authentication methods and global proxy details.
+- Added system-scan command (beta): Adds the system-scan command, which scans a machine for Python files and environments, reporting these to screen output. system-scan is an experimental beta feature that can scan an entire drive or machine for Python dependency files and Python virtual environments, reporting on packages found and their associated security vulnerabilities.
+- Added check-updates command: Check for version updates to Safety CLI, and supports screen and JSON format outputs. Can be used in organizations to test and rollout new version updates as recommended by Safety Cybersecurity.
+
+### New policy file schema for scan and system-scan commands
+- New policy file schema to support safety scan and safety system-scan.
+Adds scanning-settings root property, which contains settings to configure rules and settings for how safety traverses the directory and subdirectories being scanned, including “exclude” rules, “include” rules, the max directory depth to scan and which root directories safety system-scan should start from.
+- Adds report root property, which defines which vulnerability findings safety should auto-ignore (exclude) in its reporting. Supports excluding vulnerability IDs manually, as well as vulnerability groups to ignore based on CVSS severity score. 
+- Adds new fail-scan-with-exit-code root property, which defines when safety should exit with a failing exit code. This separates safety’s reporting rules from its failing exit code rules, which is a departure from Safety 2.x which had combined rulesets for these. Failing exit codes can be configured based on CVSS severity score.
+- Note that the old `safety check` command still supports and relies on the policy schema from safety 2.3.5 and below, meaning no changes are required when migrating to safety 2.x to Safety 3.0.0 when only using the `safety check` command.
+
+### New global options and configurations
+- Added global --stage option, to set the development lifecycle stage for the `scan` and `system-scan` commands. 
+- Added global --key option, to set a Safety API key for any command, including scan, system-scan and check. 
+
+### Other
+- Safety now requires Python>=3.7. Python 3.7 doesn't have active security support from the Python foundation, and we recommend upgrading to at least Python >= 3.8 whenever possible. Safety’s 3.0.0 Docker image can still be used to scan and secure all Python projects, regardless of Python version. Refer to our [Documentation](https://docs.safetycli.com) for details.
+- Dropped support for the license command. This legacy command is being replaced by the scan command. Users relying on the license command should continue to use Safety 2.3.5 or 2.4.0b2 until Safety 3 adds license support in an upcoming 3.0.x release.
+- Add deprecation notice to `safety check` command, since this is now replaced by `safety scan`, a more comprehensive scanning command. The check command will continue receiving maintenance support until June 2024.
+- Add deprecation notice to `safety alert` command, which works in tandem with the `safety check` command. Safety alert functionality is replaced by [Safety Platform](https://safetycli.com/product/safety-platform). The alert command will continue receiving maintenance support until June 2024.
+- `safety validate` will assume 3.0 policy file version by default.
+
+
+### Small updates/ bug fixes
+- Fixes [a bug](https://github.com/pyupio/safety/issues/488) related to ignoring vulnerability IDs in Safety’s policy file.
+- https://github.com/pyupio/safety/issues/480
+- https://github.com/pyupio/safety/issues/478
+- https://github.com/pyupio/safety/issues/455
+- https://github.com/pyupio/safety/issues/447
+
 ## [2.4.0b2] - 2023-11-15
 - Removed the upper clause restriction for the packaging dependency
 

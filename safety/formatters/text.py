@@ -26,7 +26,7 @@ class TextReport(FormatterAPI):
              |_______/  \_______/|__/     \_______/   \___/   \____  $$
                                                               /$$  | $$
                                                              |  $$$$$$/
-      by pyup.io                                              \______/
+      by safetycli.com                                        \______/
 
 """ + SMALL_DIVIDER_SECTIONS
 

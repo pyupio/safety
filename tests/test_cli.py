@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import shutil
 import tempfile
 import unittest
@@ -69,15 +70,15 @@ class TestSafetyCLI(unittest.TestCase):
         self.output_options = ['screen', 'text', 'json', 'bare']
         self.dirname = os.path.dirname(__file__)
 
-    def test_command_line_interface(self):
+    def test_command_line_interface(self):        
         runner = CliRunner()
         result = runner.invoke(cli.cli)
-        assert result.exit_code == 0
-        assert 'Usage:' in result.output
+        expected = "Usage: cli [OPTIONS] COMMAND [ARGS]..."
 
-        help_result = runner.invoke(cli.cli, ['--help'])
-        assert help_result.exit_code == 0
-        assert '--help' in help_result.output
+        for option in [[], ["--help"]]:
+            result = runner.invoke(cli.cli, option)
+            self.assertEqual(result.exit_code, 0)
+            self.assertIn(expected, click.unstyle(result.output))
 
     @patch("safety.safety.check")
     def test_check_vulnerabilities_found_default(self, check_func):
@@ -135,74 +136,6 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertTrue('ANNOUNCEMENTS' in result.stderr)
         self.assertTrue(message in result.stderr)
 
-    @patch("safety.safety.get_announcements")
-    def test_review_pass(self, mocked_announcements):
-        mocked_announcements.return_value = []
-        runner = CliRunner()
-        dirname = os.path.dirname(__file__)
-        path_to_report = os.path.join(dirname, "test_db", "report.json")
-        result = runner.invoke(cli.cli, ['review', '--output', 'bare', '--file', path_to_report])
-        self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.output, u'insecure-package\n')
-
-    @patch("safety.util.SafetyContext")
-    @patch("safety.safety.check")
-    @patch("safety.cli.get_packages")
-    def test_chained_review_pass(self, get_packages, check_func, ctx):
-        expires = datetime.strptime('2022-10-21', '%Y-%m-%d')
-        vulns = [get_vulnerability(), get_vulnerability(vuln_kwargs={'vulnerability_id': '25853', 'ignored': True,
-                                                                     'ignored_reason': 'A basic reason',
-                                                                     'ignored_expires': expires})]
-        packages = [pkg for pkg in {vuln.pkg.name: vuln.pkg for vuln in vulns}.values()]
-        get_packages.return_value = packages
-        provided_context = SafetyContext()
-        provided_context.command = 'check'
-        provided_context.packages = packages
-        ctx.return_value = provided_context
-        check_func.return_value = vulns, None
-
-        with tempfile.TemporaryDirectory() as tempdir:
-            for output in self.output_options:
-                path_to_report = os.path.join(tempdir, f'report_{output}.json')
-
-                pre_result = self.runner.invoke(cli.cli, [
-                    'check', '--key', 'foo', '-o', output,
-                    '--save-json', path_to_report])
-
-                self.assertEqual(pre_result.exit_code, 64)
-
-            for output in self.output_options:
-                filename = f'report_{output}.json'
-                path_to_report = os.path.join(tempdir, filename)
-                result = self.runner.invoke(cli.cli, ['review', '--output', output, '--file', path_to_report])
-                self.assertEqual(result.exit_code, 0, f'Unable to load the previous saved report: {filename}')
-
-    @patch("safety.safety.session")
-    def test_license_with_file(self, requests_session):
-        licenses_db = {
-            "licenses": {
-                "BSD-3-Clause": 2
-            },
-            "packages": {
-                "django": [
-                    {
-                        "start_version": "0.0",
-                        "license_id": 2
-                    }
-                ]
-            }
-        }
-
-        mock = Mock()
-        mock.json.return_value = licenses_db
-        mock.status_code = 200
-        requests_session.get.return_value = mock
-
-        dirname = os.path.dirname(__file__)
-        test_filename = os.path.join(dirname, "reqs_4.txt")
-        result = self.runner.invoke(cli.cli, ['license', '--key', 'foo', '--file', test_filename])
-        # TODO: Add test for the screen formatter, this only test that the command doesn't crash
-        self.assertEqual(result.exit_code, 0)
 
     @patch("safety.safety.check")
     def test_check_ignore_format_backward_compatible(self, check):
@@ -233,17 +166,18 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
 
     def test_validate_with_wrong_path(self):
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '--path', 'imaginary/path'])
-        msg = 'The path "imaginary/path" does not exist.\n'
+        p = Path('imaginary/path')
+        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '--path', str(p)])
+        msg = f'The path "{str(p)}" does not exist.\n'
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 
     def test_validate_with_basic_policy_file(self):
         dirname = os.path.dirname(__file__)
         path = os.path.join(dirname, "test_policy_file", "default_policy_file.yml")
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '--path', path])
+        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stdout)
-        msg = 'The Safety policy file was successfully parsed with the following values:\n'
+        msg = 'The Safety policy file (Valid only for the check command) was successfully parsed with the following values:\n'
         parsed = json.dumps(
             {
                 "project-id": '',
@@ -260,17 +194,77 @@ class TestSafetyCLI(unittest.TestCase):
                 },
                 "filename": path
             },
-            indent=4
+            indent=2
         ) + '\n'
 
         self.assertEqual(msg + parsed, cleaned_stdout)
         self.assertEqual(result.exit_code, 0)
 
+        path = os.path.join(dirname, "test_policy_file", "v3_0", "default_policy_file.yml")
+        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
+        cleaned_stdout = click.unstyle(result.stdout)
+        msg = 'The Safety policy (3.0) file (Used for scan and system-scan commands) was successfully parsed with the following values:\n'
+        parsed = json.dumps(
+            {
+            "version": "3.0",
+            "scan": {
+                "max_depth": 6,
+                "exclude": [],
+                "include_files": [],
+                "system": {
+                "targets": []
+                }
+            },
+            "report": {
+                "dependency_vulnerabilities": {
+                "enabled": True,
+                "auto_ignore": {
+                    "python": {
+                    "ignore_environment_results": True,
+                    "ignore_unpinned_requirements": True
+                    },
+                    "vulnerabilities": None,
+                    "cvss_severity": []
+                }
+                }
+            },
+            "fail_scan": {
+                "dependency_vulnerabilities": {
+                "enabled": True,
+                "fail_on_any_of": {
+                    "cvss_severity": [
+                    "critical",
+                    "high",
+                    "medium"
+                    ],
+                    "exploitability": [
+                    "critical",
+                    "high",
+                    "medium"
+                    ]
+                }
+                }
+            },
+            "security_updates": {
+                "dependency_vulnerabilities": {
+                "auto_security_updates_limit": [
+                    "patch"
+                ]
+                }
+            }
+            },
+            indent=2
+        ) + '\n'
+
+        self.assertEqual(msg + parsed, cleaned_stdout)
+        self.assertEqual(result.exit_code, 0)        
+
+
     def test_validate_with_policy_file_using_invalid_keyword(self):
         dirname = os.path.dirname(__file__)
         filename = 'default_policy_file_using_invalid_keyword.yml'
         path = os.path.join(dirname, "test_policy_file", filename)
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '--path', path])
+        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stderr)
         msg_hint = 'HINT: "security" -> "transitive" is not a valid keyword. Valid keywords in this level are: ' \
                    'ignore-cvss-severity-below, ignore-cvss-unknown-severity, ignore-vulnerabilities, ' \
@@ -280,11 +274,22 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(msg, cleaned_stdout)
         self.assertEqual(result.exit_code, 1)
 
+        path = os.path.join(dirname, "test_policy_file", "v3_0", filename)
+        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
+        cleaned_stdout = click.unstyle(result.stderr)
+        msg_hint = 'report -> dependency-vulnerabilities -> transitive\n' \
+                   '  extra fields not permitted (type=value_error.extra)\n'
+        msg = f'Unable to load the Safety Policy file ("{path}"), this command only supports version 3.0, details: 1 validation error for Config\n{msg_hint}'
+
+        self.assertEqual(msg, cleaned_stdout)
+        self.assertEqual(result.exit_code, 1)
+
+
     def test_validate_with_policy_file_using_invalid_typo_keyword(self):
         dirname = os.path.dirname(__file__)
         filename = 'default_policy_file_using_invalid_typo_keyword.yml'
         path = os.path.join(dirname, "test_policy_file", filename)
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '--path', path])
+        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stderr)
         msg_hint = 'HINT: "security" -> "ignore-vunerabilities" is not a valid keyword. Maybe you meant: ' \
                    'ignore-vulnerabilities\n'
@@ -308,8 +313,9 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
 
     def test_generate_with_wrong_path(self):
-        result = self.runner.invoke(cli.cli, ['generate', 'policy_file', '--path', 'imaginary/path'])
-        msg = 'The path "imaginary/path" does not exist.\n'
+        p = Path('imaginary/path')
+        result = self.runner.invoke(cli.cli, ['generate', 'policy_file', '--path', str(p)])
+        msg = f'The path "{str(p)}" does not exist.\n'
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 
@@ -318,7 +324,7 @@ class TestSafetyCLI(unittest.TestCase):
         req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
         result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-security-updates'])
         self.assertEqual(click.unstyle(result.stderr),
-                         "The --apply-security-updates option needs an API-KEY. See https://bit.ly/3OY2wEI.\n")
+                         "The --apply-security-updates option needs authentication. See https://bit.ly/3OY2wEI.\n")
         self.assertEqual(result.exit_code, 65)
 
     def test_check_with_fix_only_works_with_files(self):
@@ -477,4 +483,3 @@ class TestSafetyCLI(unittest.TestCase):
 
         self.assertIn("remediations-suggested", result.stdout)
         self.assertIn("Use API Key", result.stdout)
-

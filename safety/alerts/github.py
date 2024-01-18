@@ -35,9 +35,9 @@ def delete_branch(repo, branch):
 @utils.require_files_report
 def github_pr(obj, repo, token, base_url):
     """
-    Create a GitHub PR to fix any vulnerabilities using PyUp's remediation data.
+    Create a GitHub PR to fix any vulnerabilities using Safety's remediation data.
 
-    Normally, this is run by a GitHub action. If you're running this manually, ensure that your local repo is up to date and on HEAD - otherwise you'll see strange results.
+    This is usally run by a GitHub action. If you're running this manually, ensure that your local repo is up to date and on HEAD - otherwise you'll see strange results.
     """
     if pygithub is None:
         click.secho("pygithub is not installed. Did you install Safety with GitHub support? Try pip install safety[github]", fg='red')

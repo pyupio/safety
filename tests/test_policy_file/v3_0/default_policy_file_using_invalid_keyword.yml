@@ -1,0 +1,38 @@
+version: '3.0'
+
+scanning-settings:
+  max-depth: 6
+  exclude: []
+  include-files: []
+  system:
+    targets: []
+
+
+report:
+  dependency-vulnerabilities:
+    enabled: true
+    auto-ignore-in-report:
+      python:
+        environment-results: true
+        unpinned-requirements: true
+      cvss-severity: []
+    transitive: True
+
+
+fail-scan-with-exit-code:
+  dependency-vulnerabilities:
+    enabled: true
+    fail-on-any-of:
+      cvss-severity:
+        - critical
+        - high
+        - medium
+      exploitability:
+        - critical
+        - high
+        - medium
+
+security-updates:
+  dependency-vulnerabilities:
+    auto-security-updates-limit:
+      - patch

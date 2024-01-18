@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import json
 import logging
 import os
@@ -598,7 +599,8 @@ def build_report_for_review_vuln_report(as_dict=False):
         scanned_items.append([{'styled': False, 'value': '-> ' + name}])
 
     nl = [{'style': False, 'value': ''}]
-    using_sentence = build_using_sentence(report_from_file.get('api_key', None),
+    using_sentence = build_using_sentence(None,
+                                          report_from_file.get('api_key', None),
                                           report_from_file.get('local_database_path_used', None))
     scanned_count_sentence = build_scanned_count_sentence(packages)
     old_timestamp = report_from_file.get('timestamp', None)
@@ -618,15 +620,18 @@ def build_report_for_review_vuln_report(as_dict=False):
     return brief_info
 
 
-def build_using_sentence(key, db):
+def build_using_sentence(account, key, db):
     key_sentence = []
     custom_integration = os.environ.get('SAFETY_CUSTOM_INTEGRATION',
                                         'false').lower() == 'true'
 
-    if key:
-        key_sentence = [{'style': True, 'value': 'an API KEY'},
+    if key or account:
+        t = {'style': True, 'value': 'an API KEY'}
+        if not key:
+            t = {'style': True, 'value': f'the account {account}'}
+        key_sentence = [t,
                         {'style': False, 'value': ' and the '}]
-        db_name = 'PyUp Commercial'
+        db_name = 'Safety Commercial'
     elif db:
         if is_a_remote_mirror(db):
             if custom_integration:
@@ -681,6 +686,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
         review = build_report_for_review_vuln_report(as_dict)
         return review
 
+    account = context.account
     key = context.key
     db = context.db_mirror
 
@@ -724,7 +730,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
 
     audit_and_monitor = []
     if context.params.get('audit_and_monitor'):
-        logged_url = context.params.get('audit_and_monitor_url') if context.params.get('audit_and_monitor_url') else "https://pyup.io"
+        logged_url = context.params.get('audit_and_monitor_url') if context.params.get('audit_and_monitor_url') else "https://safetycli.com"
         audit_and_monitor = [
             {'style': False, 'value': '\nLogging scan results to'},
             {'style': True, 'value': ' {0}'.format(logged_url)},
@@ -737,6 +743,7 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     current_time = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     brief_data['api_key'] = bool(key)
+    brief_data['account'] = account
     brief_data['local_database_path'] = db if db else None
     brief_data['safety_version'] = get_safety_version()
     brief_data['timestamp'] = current_time
@@ -769,14 +776,14 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
              {'style': True, 'value': f' license {"type" if brief_data["licenses_found"] == 1 else "types"} found'}],
         ]
 
-    brief_data['telemetry'] = build_telemetry_data()
+    brief_data['telemetry'] = asdict(build_telemetry_data())
 
     brief_data['git'] = build_git_data()
     brief_data['project'] = context.params.get('project', None)
 
     brief_data['json_version'] = "1.1"
 
-    using_sentence = build_using_sentence(key, db)
+    using_sentence = build_using_sentence(account, key, db)
     sentence_array = []
     for section in using_sentence:
         sentence_array.append(section['value'])
@@ -823,7 +830,7 @@ def build_primary_announcement(primary_announcement, columns=None, only_text=Fal
 
 
 def is_using_api_key():
-    return bool(SafetyContext().key)
+    return bool(SafetyContext().key) or bool(SafetyContext().account)
 
 
 def is_using_a_safety_policy_file():
@@ -853,15 +860,18 @@ def get_skip_reason(fix: Fix) -> str:
 
 
 def get_applied_msg(fix, mode="auto") -> str:
-    return f"Applied {mode} fix for {fix.package} from {fix.previous_spec} to =={fix.updated_version}."
+    return f"{fix.package}{fix.previous_spec} has a {fix.update_type} version fix available: {mode} updating to =={fix.updated_version}."
 
 
 def get_skipped_msg(fix) -> str:
     return f'{fix.package} remediation was skipped because {get_skip_reason(fix)}'
 
 
-def get_fix_opt_used_msg() -> str:
-    fix_options = SafetyContext().params.get('auto_remediation_limit', [])
+def get_fix_opt_used_msg(fix_options=None) -> str:
+
+    if not fix_options:
+        fix_options = SafetyContext().params.get('auto_remediation_limit', [])
+
     msg = "no automatic"
 
     if fix_options:
@@ -914,11 +924,11 @@ def prompt_service(output: Tuple[str, Dict], out_format: str, format_text: Optio
     return click.prompt(msg)
 
 
-def parse_html(json_data):
+def parse_html(*, kwargs, template='index.html'):
     file_loader = PackageLoader('safety', 'templates')
     env = Environment(loader=file_loader)
-    template = env.get_template("index.html")
-    return template.render(json_data=json_data)
+    template = env.get_template(template)
+    return template.render(**kwargs)
 
 
 def format_unpinned_vulnerabilities(unpinned_packages, columns=None):

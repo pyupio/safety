@@ -1,4 +1,3 @@
-import itertools
 import logging
 import os
 import platform
@@ -8,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock
-from typing import List, Dict, Optional
+from typing import List, Optional
 
 import click
 from click import BadParameter
@@ -16,12 +15,14 @@ from dparse import parse, filetypes
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 from packaging.specifiers import SpecifierSet
+from requests import PreparedRequest
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
 
-from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK, HASH_REGEX_GROUPS
+from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK, HASH_REGEX_GROUPS, SYSTEM_CONFIG_DIR, USER_CONFIG_DIR
 from safety.errors import InvalidProvidedReportError
 from safety.models import Package, RequirementFile, is_pinned_requirement, SafetyRequirement
+from safety_schemas.models import TelemetryModel
 
 LOG = logging.getLogger(__name__)
 
@@ -186,7 +187,9 @@ def filter_announcements(announcements, by_type='error'):
             announcement.get('type', '').lower() == by_type]
 
 
-def build_telemetry_data(telemetry=True):
+def build_telemetry_data(telemetry = True, 
+                         command: Optional[str] = None, 
+                         subcommand: Optional[str] = None) -> TelemetryModel:
     context = SafetyContext()
 
     body = {
@@ -194,16 +197,19 @@ def build_telemetry_data(telemetry=True):
         'os_release': os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
         'os_description': os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
         'python_version': platform.python_version(),
-        'safety_command': context.command,
+        'safety_command': command if command else context.command,
         'safety_options': get_used_options()
     } if telemetry else {}
 
     body['safety_version'] = get_safety_version()
     body['safety_source'] = os.environ.get("SAFETY_SOURCE", None) or context.safety_source
 
+    if not 'safety_options' in body:
+        body['safety_options'] = {}
+
     LOG.debug(f'Telemetry body built: {body}')
 
-    return body
+    return TelemetryModel(**body)
 
 
 def build_git_data():
@@ -257,6 +263,19 @@ def output_exception(exception, exit_code_output=True):
 
     sys.exit(exit_code)
 
+def build_remediation_info_url(base_url: str, version: Optional[str], spec: str,
+                               target_version: Optional[str] = ''):
+
+    params = {'from': version, 'to': target_version}
+
+    # No pinned version
+    if not version:
+        params = {'spec': spec}
+
+    req = PreparedRequest()
+    req.prepare_url(base_url, params)
+
+    return req.url
 
 def get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements=None,
                           project=None):
@@ -350,8 +369,7 @@ class DependentOption(click.Option):
         if self.required_options:
             ex_str = ', '.join(self.required_options)
             kwargs['help'] = help + (
-                ' NOTE: This argument requires the following flags '
-                ' [' + ex_str + '].'
+                f" Requires: [ {ex_str} ]"
             )
         super(DependentOption, self).__init__(*args, **kwargs)
 
@@ -379,7 +397,7 @@ class DependentOption(click.Option):
 
 def transform_ignore(ctx, param, value):
     ignored_default_dict = {'reason': '', 'expires': None}
-    if isinstance(value, tuple):
+    if isinstance(value, tuple) and any(value):
         # Following code is required to support the 2 ways of providing 'ignore'
         # --ignore=1234,567,789
         # or, the historical way (supported for backward compatibility)
@@ -433,6 +451,14 @@ def get_terminal_size():
     lines = t_size().lines or 24
 
     return os.terminal_size((columns, lines))
+
+
+def clean_project_id(input_string):
+    input_string = re.sub(r'[^a-zA-Z0-9]+', '-', input_string)
+    input_string = input_string.strip('-')
+    input_string = input_string.lower()
+
+    return input_string
 
 
 def validate_expiration_date(expiration_date):
@@ -528,8 +554,17 @@ class SafetyPolicyFile(click.ParamType):
                 self.fail(msg.format(name=value, hint=hint), param, ctx)
 
             if not safety_policy or not isinstance(safety_policy, dict) or not safety_policy.get('security', None):
+                hint = "you are missing the security root tag"
+                try:
+                    version = safety_policy["version"]
+                    if version:
+                        hint = f"{filename} is a policy file version {version}. " \
+                            "Legacy policy file parser only accepts versions minor than 3.0" \
+                            "\nNote: `safety check` command accepts policy file versions <= 2.0. Versions >= 2.0 are not supported."
+                except Exception:
+                    pass
                 self.fail(
-                    msg.format(hint='you are missing the security root tag'), param, ctx)
+                    msg.format(hint=hint), param, ctx)
 
             security_config = safety_policy.get('security', {})
             security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
@@ -625,7 +660,8 @@ class SafetyPolicyFile(click.ParamType):
         except Exception as e:
             # Don't fail in the default case
             if ctx and isinstance(e, OSError):
-                source = ctx.get_parameter_source("policy_file")
+                default = ctx.get_parameter_source
+                source = default("policy_file") if default("policy_file") else default("policy_file_path")
                 if e.errno == 2 and source == click.core.ParameterSource.DEFAULT and value == '.safety-policy.yml':
                     return None
 
@@ -677,21 +713,32 @@ class SafetyContext(metaclass=SingletonMeta):
     files = None
     stdin = None
     is_env_scan = None
-    command = None
+    command: Optional[str] = None
+    subcommand: Optional[str] = None
     review = None
     params = {}
     safety_source = 'code'
     local_announcements = []
     scanned_full_path = []
+    account = None
+
 
 
 def sync_safety_context(f):
     def new_func(*args, **kwargs):
         ctx = SafetyContext()
 
+        legacy_key_added = False
+        if "session" in kwargs:
+            legacy_key_added = True
+            kwargs["key"] = kwargs.get("session").api_key
+
         for attr in dir(ctx):
             if attr in kwargs:
                 setattr(ctx, attr, kwargs.get(attr))
+
+        if legacy_key_added:
+            kwargs.pop("key")
 
         return f(*args, **kwargs)
 
@@ -699,7 +746,7 @@ def sync_safety_context(f):
 
 
 @sync_safety_context
-def get_packages_licenses(packages=None, licenses_db=None):
+def get_packages_licenses(*, packages=None, licenses_db=None):
     """Get the licenses for the specified packages based on their version.
 
     :param packages: packages list
@@ -779,3 +826,34 @@ def get_hashes(dependency):
 
     return [{'method': method, 'hash': hsh} for method, hsh in
                (pattern.match(d_hash).groups() for d_hash in dependency.hashes)]
+
+
+def pluralize(word: str, count: int = 0) -> str:
+    if count == 1:
+        return word
+    
+    default = {"was": "were", "this": "these", "has": "have"}
+
+    if word in default:
+        return default[word]
+
+    if word.endswith("s") or word.endswith("x") or word.endswith("z") \
+        or word.endswith("ch") or word.endswith("sh"):
+        return word + "es"
+
+    if word.endswith("y"):
+        if word[-2] in "aeiou":
+            return word + "s"
+        else:
+            return word[:-1] + "ies"
+
+    return word + "s"
+
+
+def initializate_config_dirs():
+    USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    try:
+        SYSTEM_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        pass

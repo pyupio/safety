@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"
+          integrity="sha256-wLz3iY/cO4e6vKZ4zRmo4+9XDpMcgKOvv/zEU3OMlRo=" crossorigin="anonymous">
+    <title>Safety Check Report</title>
+</head>
+<body>
+<div class="container">
+
+    {% if announcements|length > 0 %}
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card my-3">
+                <div class="card-body">
+                    <h3 class="card-title">Announcements</h3>
+                    <ul class="list-group list-group-flush">
+                        {% for announcement in announcements %}
+                        {% set color = "#DC3545" if announcement.type == "error" else "#8B4000" if
+                        announcement.type == "warning" else "#6C757D" %}
+                        <li class="list-group-item p-0" style="color: {{ color }}">{{ announcement.message }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <h1 class="text-center mb-3 mt-5">Safety Scan Report</h1>
+
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card my-2">
+                <div class="card-body">
+                    <h4 class="card-title mb-3">Scan Summary</h4>
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="card bg-secondary bg-opacity-25 text-black">
+                                <div class="card-body">
+                                    <p class="card-text">Packages Found (<a href="#scanned-packages">details &#8595;</a>)</p>
+                                    <h5 class="card-title fs-3">{{ summary.scanned_packages }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card {{ 'bg-danger' if summary.vulnerabilities > 0 else 'bg-success' }}  bg-opacity-25 text-black">
+                                <div class="card-body">
+                                    <p class="card-text">Vulnerabilities Reported (<a href="#vulnerabilities-found">details &#8595;</a>)</p>
+                                    <h5 class="card-title fs-3">{{ summary.vulnerabilities }}</h5>
+                                    {% if summary.ignored_vulnerabilities > 0 %}
+                                        <p>Found vulnerabilities that were ignored: {{ summary.ignored_vulnerabilities }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% if summary.remediations_recommended > 0 %}
+                            <div class="col-md-4">
+                                <div class="card bg-success bg-opacity-25 text-black">
+                                    <div class="card-body">
+                                        <p class="card-text">Remediations Suggested (<a href="#remediations-suggested">details &#8595;</a>)</p>
+                                        <h5 class="card-title fs-3">{{ summary.remediations_recommended }}</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-3 card bg-secondary bg-opacity-10">
+                        <div class="card-body fs-sm">
+                            <h5 class="mb-2">Meta-data</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="my-1"><span class="fw-bold">Time</span>: {{report.metadata.timestamp}}</p>
+                                    <p class="my-1"><span class="fw-bold">Safety version</span>: {{report.metadata.telemetry.safety_version}}</p>
+                                    <p class="my-1">
+                                        {% if report.metadata.authenticated %}
+                                            <span class="fw-bold">{{report.metadata.authentication_type|title}} authentication using the Safety's proprietary vulnerability database</span>
+                                        {% else %}
+                                            <span class="fw-bold">No authenticated using the Safety's free vulnerability database</span>
+                                        {% endif %}                                        
+                                    </p>
+                                    <p class="my-1">
+                                        <span class="fw-bold">Configuration file: </span>
+                                        {% if project and project.policy %}
+                                            {{ project.policy.id }} (source: {{project.policy.source.value|title}})
+                                        {% else %}
+                                            None
+                                        {% endif%}
+                                    </p>
+                                    {% if settings.audit_and_monitor %}
+                                        <p class="my-1"><span class="fw-bold">Audit and monitor: </span>Enabled. Logging scan results to <a href="{{ settings.platform_url }}">Safety Platform &#8594;</a></p>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="my-1"><span class="fw-bold">Scan ecosystems</span>:</p>
+                                        <ul>
+                                            {% for ecosystem, file_types in settings.ecosystems %}
+                                            <li><span class="fw-bold">{{ ecosystem }}</span>: {{file_types | join (', ')}}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    <p class="my-1"><span class="fw-bold">Scan paths</span>: <br/></p>
+                                        <ul>
+                                            {% for location in report.metadata.scan_locations %}
+                                            <li>{{location}}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% if project and project.git %}
+                                        <p class="my-1"><span class="fw-bold">Scan git context</span></p>
+                                        <p class="my-1"><span class="fw-bold"> &nbsp; origin: </span> {{ project.git.origin }}</p>
+                                        <p class="my-1"><span class="fw-bold"> &nbsp; branch: </span> {{ project.git.branch }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% for file in project.files %}
+        <div class="card mt-5">
+            <h2 class="mt-5 mb-3 px-4">{{ file.file_type.human_name() }}: <small class="text-muted">{{ file.location }}</small></h2> 
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12" id="scanned-packages">
+                        <h4 class="mt-2 mb-3 px-2">Scanned Packages [ <a href="#scanned-packages">#</a> ]</h4>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                <tr>
+                                    <th>Package name</th>
+                                    <th>Found requirements</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    {% for dependency in file.results.dependencies %}
+                                        <tr>
+                                            <td>{{dependency.name}}</td>
+                                            <td>
+                                                <ul>
+                                                    {% for spec in dependency.specifications %}
+                                                    <li>{{ spec }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12" id="vulnerabilities-found">
+                        <h4 class="mt-2 mb-3 px-2">Vulnerabilities Reported [ <a href="#vulnerabilities-found">#</a> ]</h4>
+                        {% if vulns_per_file[file.location] > 0 %}
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                    <tr>
+                                        <th>Vulnerability ID</th>
+                                        <th>Package name</th>
+                                        <th>Analyzed requirement</th>
+                                        <th>Vulnerable spec</th>
+                                        <th>All vulnerable specs</th>
+                                        <th>Advisory</th>
+                                        <th>Published date</th>
+                                        <th>CVE</th>
+                                        <th>severity</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for dependency in file.results.dependencies %}
+                                        {% for spec in dependency.specifications %}
+                                            {% for vulnerability in spec.vulnerabilities %}
+                                                <tr>
+                                                    <td><a href="{{ vulnerability.more_info_url }}" target="_blank">{{ vulnerability.vulnerability_id }}</a></td>
+                                                    <td>{{vulnerability.package_name}}</td>
+                                                    <td>{{vulnerability.analyzed_requirement}}</td>
+                                                    <td>{{vulnerability.vulnerable_spec}}</td>
+                                                    <td>{{vulnerability.all_vulnerable_specs}}</td>
+                                                    <td>{{vulnerability.advisory}}</td>
+                                                    <td>{{vulnerability.published_date}}</td>                                        
+                                                    <td>{% if vulnerability.CVE %}{{vulnerability.CVE.name}}{% else %}No CVE{% endif %}</td>
+                                                    <td>
+                                                        {% if not report.metadata.authenticated and not vulnerability.severity %}
+                                                            Use a Safety account (<a href="#use-api-key">?</a>)
+                                                        {% else %}
+                                                            {{vulnerability.severity}}
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        {% endfor %}
+                                    {% endfor %}    
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="mx-2">
+                                No known security vulnerabilities were found.
+                                {% if not report.metadata.authenticated %}
+                                    Vulnerabilities may be missing. For comprehensive vulnerability scanning, <a href="#use-api-key">use a Safety account</a>
+                                {% endif %}
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if file.results.ignored_vulns_data|length > 0 %}
+                    <div class="row">
+                        <div class="col-12" id="vulnerabilities-ignored">
+                            <h4 class="mt-4 mb-3 px-2">Vulnerabilities ignored [ <a href="#vulnerabilities-ignored">#</a> ]</h4>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                    <tr>
+                                        <th>Vulnerability ID</th>
+                                        <th>Package name</th>
+                                        <th>Version/Spec</th>
+                                        <th>Notes</th>
+                                        <th>Expires</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for vuln_id, data in file.results.ignored_vulns_data.items() %}
+                                        <tr>
+                                            <td><a href="{{ data.more_info_url }}" target="_blank">{{ data.vulnerability_id }}</a></td>
+                                            <td>{{ data.package_name }}</td>
+                                            <td>
+                                                {% if data.analyzed_version %}
+                                                    {{ data.analyzed_version }}
+                                                {% else %}
+                                                    {{ data.analyzed_requirement }}
+                                                {% endif %}
+                                            </td>
+                                            <td>{{data.ignored_reason|default("-", true)}}</td>
+                                            <td>{{data.ignored_expires|default("-", true)}}</td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if vulns_per_file[file.location] > 0 %}
+                    <div class="row">
+                        <div class="col-12" id="affectied-packages">
+                            <h4 class="mt-2 mb-2 px-2">Affected Packages [ <a href="#affectied-packages">#</a> ]</h4>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                    <tr>
+                                        <th>Package name</th>
+                                        <th>Version/Requirements</th>
+                                        <th>Location</th>
+                                        <th>Insecure versions</th>
+                                        <th>Latest version without known vulnerabilities</th>
+                                        <th>More info</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for affected_dep in file.results.get_affected_dependencies() %}
+                                        <tr>
+                                            <td>{{affected_dep.name}}</td>
+                                            <td>
+                                                {% if affected_dep.version %}
+                                                    {{ affected_dep.version }}
+                                                {% else %}
+                                                <ul>
+                                                    {% for spec in affected_dep.specifications %}
+                                                    <li>{{ spec }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                                {% endif %}
+                                            </td>
+                                            <td style="max-width: 150px;">
+                                                <ul class="ps-3">
+                                                    {% for spec in affected_dep.specifications %}
+                                                        <li style="word-wrap: break-word;">{{ spec.found }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </td>
+                                            <td>{{affected_dep.insecure_versions}}</td>
+                                            <td>{{affected_dep.latest_version_without_known_vulnerabilities}}</td>
+                                            <td>
+                                                <a class="btn btn-primary" href="{{affected_dep.more_info_url}}" target="_blank">More Info</a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if vulns_per_file[file.location] > 0 %}
+                    <div class="row">
+                        <div class="col-12" id="remediations-suggested">
+                            <h4 class="mt-2 mb-3 px-2">Remediations suggested [ <a href="#remediations-suggested">#</a> ]</h4>
+
+                            {% if remed_per_file[file.location] > 0 %}
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                        <tr>
+                                            <th>Package name</th>
+                                            <th>Version/Requirement</th>
+                                            <th>Vulnerabilities reported</th>
+                                            <th>Recommended versions</th>
+                                            <th>Other recommended versions</th>
+                                            <th>More info</th>
+                                        </tr>
+
+                                        </thead>
+                                        <tbody>
+                                        {% for affected_spec in file.results.get_affected_specifications() %}
+                                            {% with remediation = affected_spec.remediation %}
+                                                <tr>
+                                                    <td>
+                                                        {{ affected_spec.name }}
+                                                    </td>
+                                                    <td>
+                                                        {{ affected_spec.specifier }}
+                                                    </td>
+                                                    <td>
+                                                        {{ remediation.vulnerabilities_found }}
+                                                    </td>
+                                                    <td>
+                                                        {% if not report.metadata.authenticated and not remediation.recommended %}
+                                                            Use an account or API key (<a href="#use-api-key">?</a>)
+                                                        {% else %}
+                                                            {{ remediation.recommended }}
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if not report.metadata.authenticated and remediation.other_recommended|length==0 %}
+                                                            Use an account or API key (<a href="#use-api-key">?</a>)
+                                                        {% else %}
+                                                            {{ remediation.other_recommended }}
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if remediation.more_info_url %}
+                                                            <a href="{{ remediation.more_info_url }}" target="_blank">{{ remediation.more_info_url }}</a>
+                                                        {% else %}
+                                                            Use an account or API key (<a href="#use-api-key">?</a>)
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                            {% endwith %}
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <p>Use an account or API key to get remediation recommendations (<a href="#use-api-key">?</a>)</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+
+            </div>
+        </div>
+
+
+    {% endfor %}
+
+    {% if not report.metadata.authenticated %}
+    <div class="card my-5">
+        <div class="card-body"> 
+            <div class="my-2" id="use-api-key">
+                <p class="mx-3"><span class="fw-bold">Use an account or API Key</span>: Running Safety using an account or API Key uses a more comprehensive commercial vulnerability database and adds other features such as remediation suggestions and enhanced vulnerability and package information. <a href="https://safetycli.com">Learn more and get a free account or API Key</a></p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="my-5 text-center text-secondary fst-italic">
+        <p>Safety Scanner and vulnerability data proudly maintained by <a href="https://safetycli.com" target="_blank">Safety Cybersecurity</a></p>
+    </div>
+
+    <div style="height:400px;">
+        &nbsp;
+    </div>
+
+</div>
+</body>
+</html>

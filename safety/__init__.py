@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-__author__ = """pyup.io"""
-__email__ = 'support@pyup.io'
+__author__ = """safetycli.com"""
+__email__ = 'support@safetycli.com'
 
 import os
 

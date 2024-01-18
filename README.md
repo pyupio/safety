@@ -18,8 +18,8 @@ Leveraging the industry's most comprehensive database of vulnerabilities and mal
 # Getting Started
 ## GitHub Action
 
-- Test Safety CLI in CI/CD using our [GitHub Action](https://github.com/pyupio/safety-actions).
-- Full documentation on the [GitHub Action](https://github.com/pyupio/safety-actions) is available on our [Documentation Hub](https://docs.safetycli.com).
+- Test Safety CLI in CI/CD using our [GitHub Action](https://github.com/pyupio/safety-action).
+- Full documentation on the [GitHub Action](https://github.com/pyupio/safety-action) is available on our [Documentation Hub](https://docs.safetycli.com).
 
 ## Command Line Interface
 

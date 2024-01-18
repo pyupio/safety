@@ -42,10 +42,6 @@ class environment:
         # up the current working directory.
         LINUX: OrderedDict([
             (64, "python3"),
-            (32,
-             f"docker run --platform linux/386 -t "
-             f"-v {os.getcwd()}:/app 32-bit-linux "
-             f"python3"),
         ]),
 
         MACOS: {
@@ -76,13 +72,6 @@ class environment:
         """
         Install required dependencies
         """
-        # special case:
-        # - build the 32 bit binary for linux on docker
-        # - create dist/ path to circumvent permission errors
-        if self.os == self.LINUX:
-            self.run("docker build --platform linux/386 "
-                     "-t 32-bit-linux -f Dockerfilei386 .")
-
         for arch, python in self.python:
             self.run(f"{python} -m pip install pyinstaller")
             self.run(f"{python} -m pip install -r test_requirements.txt")
@@ -105,7 +94,7 @@ class environment:
             artifact_path = os.path.join(
                 os.getcwd(),
                 "dist",
-                f"safety-{self.os}-{'i386' if arch == 32 else 'x86_64'}"
+                f"safety-{self.os}-{'i686' if arch == 32 else 'x86_64'}"
             )
             binary_path = os.path.join(os.getcwd(), build_path, "safety")
             if self.os == self.WIN:

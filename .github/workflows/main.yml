@@ -60,20 +60,14 @@ jobs:
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.os == 'windows-latest' }}
         with:
-          name: safety-win-i386.exe
-          path: dist/safety-win-i386.exe
+          name: safety-win-i686.exe
+          path: dist/safety-win-i686.exe
           if-no-files-found: error
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.os == 'windows-latest' }}
         with:
           name: safety-win-x86_64.exe
           path: dist/safety-win-x86_64.exe
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v3
-        if: ${{ matrix.os == 'ubuntu-20.04' }}
-        with:
-          name: safety-linux-i386
-          path: dist/safety-linux-i386
           if-no-files-found: error
       - uses: actions/upload-artifact@v3
         if: ${{ matrix.os == 'ubuntu-20.04' }}

@@ -540,7 +540,7 @@ class SafetyCLILegacyGroup(UtilityCommandMixin, click.Group):
         # Workaround for legacy check options, that now are global options
         subcommand_args = set(args)
         PROXY_HOST_OPTIONS = set(["--proxy-host", "-ph"])
-        if "check" in ctx.protected_args and (bool(PROXY_HOST_OPTIONS.intersection(subcommand_args) or "--key" in subcommand_args)) :
+        if "check" in ctx.protected_args or "license" in ctx.protected_args and (bool(PROXY_HOST_OPTIONS.intersection(subcommand_args) or "--key" in subcommand_args)) :
             proxy_options, key = self.parse_legacy_args(args)
             if proxy_options:
                 ctx.params.update(proxy_options)

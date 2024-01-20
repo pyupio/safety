@@ -21,7 +21,7 @@ from safety.console import main_console as console
 from safety.alerts import alert
 from safety.auth import auth, inject_session, proxy_options, auth_options
 from safety.auth.models import Organization
-from safety.scan.constants import CLI_MAIN_INTRODUCTION, CLI_DEBUG_HELP, CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP, \
+from safety.scan.constants import CLI_LICENSES_COMMAND_HELP, CLI_MAIN_INTRODUCTION, CLI_DEBUG_HELP, CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP, \
     DEFAULT_EPILOG, DEFAULT_SPINNER, CLI_CHECK_COMMAND_HELP, CLI_CHECK_UPDATES_HELP, CLI_CONFIGURE_HELP, CLI_GENERATE_HELP, \
     CLI_CONFIGURE_PROXY_TIMEOUT, CLI_CONFIGURE_PROXY_REQUIRED, CLI_CONFIGURE_ORGANIZATION_ID, CLI_CONFIGURE_ORGANIZATION_NAME, \
     CLI_CONFIGURE_SAVE_TO_SYSTEM, CLI_CONFIGURE_PROXY_HOST_HELP, CLI_CONFIGURE_PROXY_PORT_HELP, CLI_CONFIGURE_PROXY_PROTOCOL_HELP, \
@@ -306,6 +306,69 @@ def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_req
         LOG.exception('Unexpected Exception happened: %s', e)
         exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
         output_exception(exception, exit_code_output=exit_code)
+
+
+def clean_license_command(f):
+    """
+    Main entry point for validation.
+    """
+    @wraps(f)
+    def inner(ctx, *args, **kwargs):
+        # TODO: Remove this soon, for now it keeps a legacy behavior
+        kwargs.pop("key", None)
+        kwargs.pop('proxy_protocol', None)
+        kwargs.pop('proxy_host', None)
+        kwargs.pop('proxy_port', None)
+
+        return f(ctx, *args, **kwargs)
+
+    return inner
+
+
+@cli.command(cls=SafetyCLILegacyCommand, utility_command=True, help=CLI_LICENSES_COMMAND_HELP)
+@proxy_options
+@auth_options(stage=False)
+@click.option("--db", default="",
+              help="Path to a local license database. Default: empty")
+@click.option('--output', "-o", type=click.Choice(['screen', 'text', 'json', 'bare'], case_sensitive=False),
+              default='screen')
+@click.option("--cache", default=0,
+              help='Whether license database file should be cached.'
+                   'Default: 0 seconds')
+@click.option("files", "--file", "-r", multiple=True, type=click.File(),
+              help="Read input from one (or multiple) requirement files. Default: empty")
+@click.pass_context
+@clean_license_command
+def license(ctx, db, output, cache, files):
+    """
+    Find the open source licenses used by your Python dependencies.
+    """
+    LOG.info('Running license command')
+    packages = get_packages(files, False)
+    licenses_db = {}
+
+    SafetyContext().params = ctx.params
+
+    try:
+        licenses_db = safety.get_licenses(session=ctx.obj.auth.client, db_mirror=db, cached=cache,
+                                          telemetry=ctx.obj.config.telemetry_enabled)
+    except SafetyError as e:
+        LOG.exception('Expected SafetyError happened: %s', e)
+        output_exception(e, exit_code_output=False)
+    except Exception as e:
+        LOG.exception('Unexpected Exception happened: %s', e)
+        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
+        output_exception(exception, exit_code_output=False)
+
+    filtered_packages_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
+
+    announcements = []
+    if not db:
+        announcements = safety.get_announcements(session=ctx.obj.auth.client, telemetry=ctx.obj.config.telemetry_enabled)
+
+    output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
+
+    click.secho(output_report, nl=True)
 
 
 @cli.command(cls=SafetyCLILegacyCommand, utility_command=True, help=CLI_GENERATE_HELP)

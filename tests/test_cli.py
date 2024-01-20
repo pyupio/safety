@@ -483,3 +483,28 @@ class TestSafetyCLI(unittest.TestCase):
 
         self.assertIn("remediations-suggested", result.stdout)
         self.assertIn("Use API Key", result.stdout)
+
+    @patch('safety.safety.fetch_database_url')
+    def test_license_with_file(self, fetch_database_url):
+        licenses_db = {
+            "licenses": {
+                "BSD-3-Clause": 2
+            },
+            "packages": {
+                "django": [
+                    {
+                        "start_version": "0.0",
+                        "license_id": 2
+                    }
+                ]
+            }
+        }
+
+        mock = Mock()
+        mock.return_value = licenses_db
+
+        dirname = os.path.dirname(__file__)
+        test_filename = os.path.join(dirname, "reqs_4.txt")
+        result = self.runner.invoke(cli.cli, ['license', '--key', 'foo', '--file', test_filename])
+        print(result.stdout)
+        self.assertEqual(result.exit_code, 0)

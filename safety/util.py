@@ -771,6 +771,14 @@ def get_packages_licenses(*, packages=None, licenses_db=None):
         pkg_name = canonicalize_name(pkg.name)
         # packages may have different licenses depending their version.
         pkg_licenses = packages_licenses_db.get(pkg_name, [])
+        if not pkg.version:
+            for req in pkg.requirements:
+                if is_pinned_requirement(req.specifier):
+                    pkg.version = next(iter(req.specifier)).version
+                    break
+            
+            if not pkg.version:
+                continue
         version_requested = parse_version(pkg.version)
         license_id = None
         license_name = None

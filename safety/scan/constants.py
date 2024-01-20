@@ -25,6 +25,8 @@ CLI_SYSTEM_SCAN_COMMAND_HELP = "\\[beta] Run a comprehensive scan for packages a
 
 CLI_CHECK_COMMAND_HELP = "\\[deprecated] Find vulnerabilities at target files or enviroments. Now replaced by [bold]safety scan[/bold], and will be unsupported beyond 1 May 2024." \
 "\n[bold]Example: safety check -r requirements.txt[/bold]"
+CLI_LICENSES_COMMAND_HELP = "\\[deprecated] Find licenses at target files or enviroments. This command will be replaced by [bold]safety scan[/bold], and will be unsupported beyond 1 May 2024." \
+"\n[bold]Example: safety license -r requirements.txt[/bold]"
 
 
 CLI_ALERT_COMMAND_HELP = "\\[deprecated] Create GitHub pull requests or GitHub issues using a `safety check` json report file. Being replaced by newer features." \

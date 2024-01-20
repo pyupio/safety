@@ -237,7 +237,7 @@ class TestSafety(unittest.TestCase):
                 telemetry=False
             )
         db_generic_exception = error.exception
-        self.assertEqual(str(db_generic_exception), 'The API-KEY was not provided.')
+        self.assertEqual(str(db_generic_exception), 'Your authentication credential is invalid. See https://bit.ly/3OY2wEI.')
 
 
     def test_get_packages_licenses_with_invalid_api_key(self):

@@ -81,10 +81,10 @@ class DatabaseFileNotFoundError(DatabaseFetchError):
 
 class InvalidCredentialError(DatabaseFetchError):
 
-    def __init__(self, credential: Optional[str] = None, message="Your authentication credential '{credential}' is invalid. See {link}.", reason=None):
+    def __init__(self, credential: Optional[str] = None, message="Your authentication credential{credential}is invalid. See {link}.", reason=None):
         self.credential = credential
         self.link = 'https://bit.ly/3OY2wEI'
-        self.message = message.format(credential=self.credential, link=self.link) if self.credential else message.format(link=self.link)
+        self.message = message.format(credential=f" '{self.credential}' ", link=self.link) if self.credential else message.format(credential=' ', link=self.link)
         info = f" Reason: {reason}"
         self.message = self.message + (info if reason else "")
         super().__init__(self.message)

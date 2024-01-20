@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.0.1] - 2024-01-19
+- fix: add back the license legacy cmd (#498)
+- perf: unpin authlib and remove jwt
+
 ## [3.0.0] - 2024-01-17
 
 ### Safety 3.0.0 major version release!

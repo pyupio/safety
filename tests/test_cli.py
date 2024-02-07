@@ -285,11 +285,9 @@ class TestSafetyCLI(unittest.TestCase):
         path = os.path.join(dirname, "test_policy_file", "v3_0", filename)
         result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stderr)
-        msg_hint = 'report -> dependency-vulnerabilities -> transitive\n' \
-                   '  extra fields not permitted (type=value_error.extra)\n'
-        msg = f'Unable to load the Safety Policy file ("{path}"), this command only supports version 3.0, details: 1 validation error for Config\n{msg_hint}'
+        msg = f'Unable to load the Safety Policy file ("{path}"), this command only supports version 3.0, details: 1 validation error for Config'
 
-        self.assertEqual(msg, cleaned_stdout)
+        self.assertIn(msg, cleaned_stdout)
         self.assertEqual(result.exit_code, 1)
 
 

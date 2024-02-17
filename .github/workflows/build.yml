@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: "3.10"
         cache: "pip"
@@ -54,7 +54,7 @@ jobs:
           org.opencontainers.image.licenses=MIT
 
     - name: Build and Push image
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v5
       with:
         context: .
         push: true

@@ -28,7 +28,7 @@ class TestSafetyAuthCLI(unittest.TestCase):
         get_authorization_data.assert_called_once()
         process_browser_callback.assert_called_once_with(auth_data[0], 
                                                          initial_state=auth_data[1], 
-                                                         ctx=ANY)
+                                                         ctx=ANY, headless=False)
         
         expected = [
             "",

@@ -1,4 +1,5 @@
 import http.server
+import json
 import logging
 import socket
 import sys
@@ -13,6 +14,8 @@ from safety.console import main_console as console
 
 from safety.auth.constants import AUTH_SERVER_URL, CLI_AUTH_SUCCESS, CLI_LOGOUT_SUCCESS, HOST
 from safety.auth.main import save_auth_config
+from authlib.integrations.base_client.errors import OAuthError
+from rich.prompt import Prompt
 
 LOG = logging.getLogger(__name__)
 
@@ -33,40 +36,49 @@ def find_available_port():
 
     return None
 
+def auth_process(code: str, state: str, initial_state: str, code_verifier, client):
+    err = None
+
+    if initial_state is None or initial_state != state:
+        err = "The state parameter value provided does not match the expected " \
+                "value. The state parameter is used to protect against Cross-Site " \
+                "Request Forgery (CSRF) attacks. For security reasons, the " \
+                "authorization process cannot proceed with an invalid state " \
+                "parameter value. Please try again, ensuring that the state " \
+                "parameter value provided in the authorization request matches " \
+                "the value returned in the callback."
+
+    if err:
+        click.secho(f'Error: {err}', fg='red')
+        sys.exit(1)
+    
+    try:
+        tokens = client.fetch_token(url=f'{AUTH_SERVER_URL}/oauth/token',
+                                        code_verifier=code_verifier,
+                                        client_id=client.client_id,
+                                        grant_type='authorization_code', code=code)
+
+        save_auth_config(access_token=tokens['access_token'], 
+                            id_token=tokens['id_token'], 
+                            refresh_token=tokens['refresh_token'])
+        return client.fetch_user_info()
+
+    except Exception as e:
+        LOG.exception(e)
+        sys.exit(1)
 
 class CallbackHandler(http.server.BaseHTTPRequestHandler):
     def auth(self, code: str, state: str, err, error_description):
         initial_state = self.server.initial_state
         ctx = self.server.ctx
 
-        if initial_state is None or initial_state != state:
-            err = "The state parameter value provided does not match the expected" \
-                    "value. The state parameter is used to protect against Cross-Site " \
-                    "Request Forgery (CSRF) attacks. For security reasons, the " \
-                    "authorization process cannot proceed with an invalid state " \
-                    "parameter value. Please try again, ensuring that the state " \
-                    "parameter value provided in the authorization request matches " \
-                    "the value returned in the callback."
-
-        if err:
-            click.secho(f'Error: {err}', fg='red')
-            sys.exit(1)
+        result = auth_process(code=code, 
+                              state=state, 
+                              initial_state=initial_state, 
+                              code_verifier=ctx.obj.auth.code_verifier,
+                              client=ctx.obj.auth.client)
         
-        try:
-            tokens = ctx.obj.auth.client.fetch_token(url=f'{AUTH_SERVER_URL}/oauth/token',
-                                            code_verifier=ctx.obj.auth.code_verifier,
-                                            client_id=ctx.obj.auth.client.client_id,
-                                            grant_type='authorization_code', code=code)
-
-            save_auth_config(access_token=tokens['access_token'], 
-                             id_token=tokens['id_token'], 
-                             refresh_token=tokens['refresh_token'])
-            self.server.callback = ctx.obj.auth.client.fetch_user_info()
-
-        except Exception as e:
-            LOG.exception(e)
-            sys.exit(1)
-
+        self.server.callback = result
         self.do_redirect(location=CLI_AUTH_SUCCESS, params={})
 
     def logout(self):
@@ -132,27 +144,52 @@ def process_browser_callback(uri, **kwargs) -> Any:
         sys.exit(1)
     
     try:
-        server = ThreadedHTTPServer((HOST, PORT), CallbackHandler)
-        server.initial_state = kwargs.get("initial_state", None)
-        server.timeout = kwargs.get("timeout", 600)
-        # timeout = kwargs.get("timeout", None)
-        # timeout = float(timeout) if timeout else None
-        server.ctx = kwargs.get("ctx", None)
-        server_thread = threading.Thread(target=server.handle_request)
-        server_thread.start()
+        headless = kwargs.get("headless", False)
+        initial_state = kwargs.get("initial_state", None)
+        ctx = kwargs.get("ctx", None)
 
-        target = f"{uri}&port={PORT}"
-        console.print(f"If the browser does not automatically open in 5 seconds, " \
-                      "copy and paste this url into your browser: " \
-                      f"[link={target}]{target}[/link]")
-        click.echo()
+        message = "Copy and paste this url into your browser:"
 
-        wait_msg = "waiting for browser authentication"
-        
-        with console.status(wait_msg, spinner="bouncingBar"):
-            time.sleep(2)
-            click.launch(target)
-            server_thread.join()
+
+        if not headless:
+            server = ThreadedHTTPServer((HOST, PORT), CallbackHandler)
+            server.initial_state = initial_state
+            server.timeout = kwargs.get("timeout", 600)
+            server.ctx = ctx
+            server_thread = threading.Thread(target=server.handle_request)
+            server_thread.start()
+            message = f"If the browser does not automatically open in 5 seconds, " \
+                        "copy and paste this url into your browser:"            
+
+        target = uri if headless else f"{uri}&port={PORT}"
+        console.print(f"{message} [link={target}]{target}[/link]")
+        console.print()
+
+        if headless:
+            
+            exchange_data = None
+            while not exchange_data:
+                auth_code_text = Prompt.ask("Paste the response here", default=None, console=console)
+                try:
+                    exchange_data = json.loads(auth_code_text)
+                    state = exchange_data["state"]
+                    code = exchange_data["code"]
+                except Exception as e:
+                    code = state = None             
+
+            return auth_process(code=code, 
+                                        state=state, 
+                                        initial_state=initial_state, 
+                                        code_verifier=ctx.obj.auth.code_verifier,
+                                        client=ctx.obj.auth.client)
+        else:
+
+            wait_msg = "waiting for browser authentication"
+            
+            with console.status(wait_msg, spinner="bouncingBar"):
+                time.sleep(2)
+                click.launch(target)
+                server_thread.join()
 
     except OSError as e:
         if e.errno == socket.errno.EADDRINUSE:

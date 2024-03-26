@@ -96,7 +96,7 @@ def render_successful_login(auth: Auth,
 
 
 @auth_app.command(name=CMD_LOGIN_NAME, help=CLI_AUTH_LOGIN_HELP)
-def login(ctx: typer.Context):
+def login(ctx: typer.Context, headless: bool = False):
     """
     Authenticate Safety CLI with your safetycli.com account using your default browser.
     """
@@ -105,22 +105,28 @@ def login(ctx: typer.Context):
     fail_if_authenticated(ctx, with_msg=MSG_FAIL_LOGIN_AUTHED)
 
     console.print()
+    
+    info = None
+    
     brief_msg: str = "Redirecting your browser to log in; once authenticated, " \
-          "return here to start using Safety"    
-    
-    uri, initial_state = get_authorization_data(client=ctx.obj.auth.client,
-                                                code_verifier=ctx.obj.auth.code_verifier,
-                                                organization=ctx.obj.auth.org)
-    
-    if ctx.obj.auth.org:
+            "return here to start using Safety"
+        
+    if ctx.obj.auth.org:        
         console.print(f"Logging into [bold]{ctx.obj.auth.org.name}[/bold] " \
                       "organization.")
-    
+        
+    if headless:
+        brief_msg = "Running in headless mode. Please copy and open the following URL in a browser"
+
+
+    uri, initial_state = get_authorization_data(client=ctx.obj.auth.client,
+                                                code_verifier=ctx.obj.auth.code_verifier,
+                                                organization=ctx.obj.auth.org, headless=headless)
     click.secho(brief_msg)
     click.echo()
 
-    info = process_browser_callback(uri, 
-                                    initial_state=initial_state, ctx=ctx)
+    info = process_browser_callback(uri, initial_state=initial_state, ctx=ctx, headless=headless)
+        
 
     if info:
         if info.get("email", None):
@@ -128,6 +134,9 @@ def login(ctx: typer.Context):
             if ctx.obj.auth.org and ctx.obj.auth.org.name:
                 organization = ctx.obj.auth.org.name
             ctx.obj.auth.refresh_from(info)
+            if headless:
+                console.print()
+
             render_successful_login(ctx.obj.auth, organization=organization)
 
             console.print()
@@ -149,7 +158,7 @@ def login(ctx: typer.Context):
         else:
             msg += "Error logging into Safety."
 
-        msg += " Please try again, or use [bold]`safety auth –help`[/bold] " \
+        msg += " Please try again, or use [bold]`safety auth -–help`[/bold] " \
             "for more information[/red]"
         
         console.print(msg, emoji=True)

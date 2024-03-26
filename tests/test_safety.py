@@ -466,6 +466,7 @@ class TestSafety(unittest.TestCase):
     @patch("safety.util.get_used_options")
     @patch.object(click, 'get_current_context', Mock(command=Mock(name=Mock(return_value='check'))))
     def test_get_announcements_http_ok(self, get_used_options):
+        get_used_options.return_value = {}
 
         announcements = {
             "announcements": [{

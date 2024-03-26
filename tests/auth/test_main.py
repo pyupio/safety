@@ -30,7 +30,8 @@ class TestMain(unittest.TestCase):
              "sign_up": False,
              "locale": "en",
              "ensure_auth": False,
-             "organization": org_id
+             "organization": org_id,
+             "headless": False
         }
 
         client.create_authorization_url.assert_called_once_with(
@@ -42,7 +43,8 @@ class TestMain(unittest.TestCase):
         kwargs = {
              "sign_up": False,
              "locale": "en",
-             "ensure_auth":False
+             "ensure_auth":False,
+             "headless": False             
         }
 
         client.create_authorization_url.assert_called_once_with(

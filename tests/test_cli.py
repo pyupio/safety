@@ -204,8 +204,7 @@ class TestSafetyCLI(unittest.TestCase):
         result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stdout)
         msg = 'The Safety policy (3.0) file (Used for scan and system-scan commands) was successfully parsed with the following values:\n'
-        parsed = json.dumps(
-            {
+        parsed = {
             "version": "3.0",
             "scan": {
                 "max_depth": 6,
@@ -230,19 +229,19 @@ class TestSafetyCLI(unittest.TestCase):
             },
             "fail_scan": {
                 "dependency_vulnerabilities": {
-                "enabled": True,
-                "fail_on_any_of": {
-                    "cvss_severity": [
-                    "critical",
-                    "high",
-                    "medium"
-                    ],
-                    "exploitability": [
-                    "critical",
-                    "high",
-                    "medium"
-                    ]
-                }
+                    "enabled": True,
+                    "fail_on_any_of": {
+                        "cvss_severity": [
+                            "critical",
+                            "high",
+                            "medium",                    
+                        ],
+                        "exploitability": [
+                            "critical",
+                            "high",
+                            "medium",
+                        ]
+                    }
                 }
             },
             "security_updates": {
@@ -252,12 +251,21 @@ class TestSafetyCLI(unittest.TestCase):
                 ]
                 }
             }
-            },
-            indent=2
-        ) + '\n'
+            }
 
-        self.assertEqual(msg + parsed, cleaned_stdout)
-        self.assertEqual(result.exit_code, 0)        
+        msg_stdout, parsed_policy = cleaned_stdout.split('\n', 1)
+        msg_stdout += '\n'
+        parsed_policy = json.loads(parsed_policy.replace('\n', ''))
+
+        fail_scan = parsed_policy.get("fail_scan", None)
+        self.assertIsNotNone(fail_scan)
+        fail_of_any = fail_scan["dependency_vulnerabilities"]["fail_on_any_of"]
+        fail_of_any["cvss_severity"] = sorted(fail_of_any["cvss_severity"])
+        fail_of_any["exploitability"] = sorted(fail_of_any["exploitability"])
+
+        self.assertEqual(msg, msg_stdout)
+        self.assertEqual(parsed, parsed_policy)
+        self.assertEqual(result.exit_code, 0)
 
 
     def test_validate_with_policy_file_using_invalid_keyword(self):

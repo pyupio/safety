@@ -1,5 +1,5 @@
-pytest
-pytest-cov
+pytest==7.4.4
+pytest-cov==4.1.0
 setuptools>=65.5.1; python_version>="3.7"
 setuptools; python_version=="3.6"
 Click>=8.0.2

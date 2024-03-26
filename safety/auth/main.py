@@ -2,6 +2,7 @@ import configparser
 import json
 
 from typing import Any, Dict, Optional, Tuple, Union
+from urllib.parse import urlencode
 
 from authlib.oidc.core import CodeIDToken
 from authlib.jose import jwt
@@ -17,9 +18,9 @@ from safety.util import get_proxy_dict
 
 def get_authorization_data(client, code_verifier: str,
                            organization: Optional[Organization] = None, 
-                           sign_up: bool = False, ensure_auth: bool = False) -> Tuple[str, str]:
+                           sign_up: bool = False, ensure_auth: bool = False, headless: bool = False) -> Tuple[str, str]:
     
-    kwargs = {'sign_up': sign_up, 'locale': 'en', 'ensure_auth': ensure_auth}
+    kwargs = {'sign_up': sign_up, 'locale': 'en', 'ensure_auth': ensure_auth, 'headless': headless}
     if organization:
         kwargs['organization'] = organization.id
 

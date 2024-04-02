@@ -1,4 +1,8 @@
 [![safety](https://cdn.safetycli.com/images/cli_readme_header.png)](https://docs.safetycli.com/)
+
+> [!NOTE]
+> [Come and join us at SafetyCLI](https://apply.workable.com/safety/). We are hiring for various roles.
+
 # Introduction
 Safety CLI is a Python dependency vulnerability scanner designed to enhance software supply chain security by detecting packages with known vulnerabilities and malicious packages in local development environments, CI/CD, and production systems. 
 Safety CLI can be deployed in minutes and provides clear, actionable recommendations for remediation of detected vulnerabilities.
@@ -114,6 +118,7 @@ We maintain a policy of supporting all maintained and secure versions of Python,
 - [Safety Cybersecurity website](https://safetycli.com)
 - [Safety Login Page](https://safetycli.com/login)
 - [Documentation](https://docs.safetycli.com)
+- [Careers/Hiring](https://apply.workable.com/safety/)
 - [Security Research and Blog](https://safetycli.com/blog)
 - [GitHub Action](https://github.com/safetycli/action)
 - [Support](mailto:support@safetycli.com)

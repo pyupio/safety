@@ -1,21 +1,21 @@
-pytest == 7.4.4
-pytest-cov == 4.1.0
-setuptools >= 65.5.1; python_version >= "3.7"
-setuptools; python_version == "3.6"
+Authlib >= 1.2.0
 Click >= 8.0.2
-urllib3 >= 1.26.5
-requests
-packaging >= 21.0, <= 23.0
-dparse >= 0.6.2
-ruamel.yaml >= 0.17.21
 dataclasses == 0.8; python_version == "3.6"
+dparse >= 0.6.2
 jinja2; python_version == "3.6"
 jinja2 >= 3.1.0; python_version >= "3.7"
 marshmallow; python_version == "3.6"
 marshmallow >= 3.15.0; python_version >= "3.7"
-Authlib >= 1.2.0
-rich
-typer == 0.12.3
+packaging >= 21.0, <= 23.0
 pydantic >= 1.10.12
+pytest == 7.4.4
+pytest-cov == 4.1.0
+requests
+rich
+ruamel.yaml >= 0.17.21
 safety_schemas >= 0.0.2
+setuptools; python_version == "3.6"
+setuptools >= 65.5.1; python_version >= "3.7"
+typer == 0.12.3
 typing-extensions >= 4.7.1
+urllib3 >= 1.26.5

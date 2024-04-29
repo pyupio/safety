@@ -396,7 +396,7 @@ def render_scan_html(report: ReportModel, obj) -> str:
                         "vulns_per_file": vulns_per_file,
                         "remed_per_file": remed_per_file}
     
-    return parse_html(kwargs=template_context, template="scan/index.html")
+    return parse_html(kwargs=template_context, template="scan.html")
 
 
 def generate_spdx_creation_info(*, spdx_version: str, project_identifier: str) -> Any:

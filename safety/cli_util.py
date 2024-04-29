@@ -101,6 +101,16 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
                     )
                     panel_to_commands[panel_name].append(command)
 
+            # Identify the longest command name in all panels
+            max_cmd_len = max(
+                [
+                    len(command.name or "")
+                    for commands in panel_to_commands.values()
+                    for command in commands
+                ],
+                default=0,
+            )
+
             # Print each command group panel
             default_commands = panel_to_commands.get(COMMANDS_PANEL_TITLE, [])
             _print_commands_panel(
@@ -108,6 +118,7 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
                 commands=default_commands,
                 markup_mode=markup_mode,
                 console=console,
+                cmd_len=max_cmd_len,
             )
             for panel_name, commands in panel_to_commands.items():
                 if panel_name == COMMANDS_PANEL_TITLE:
@@ -118,6 +129,7 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
                     commands=commands,
                     markup_mode=markup_mode,
                     console=console,
+                    cmd_len=max_cmd_len,
                 )        
 
         panel_to_arguments: DefaultDict[str, List[click.Argument]] = defaultdict(list)

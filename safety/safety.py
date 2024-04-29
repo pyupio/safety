@@ -374,6 +374,8 @@ def check(*, session=None, packages=[], db_mirror=False, cached=0, ignore_vulns=
     SafetyContext().command = 'check'
     if session is None:
         (session, _) = build_client_session()
+    if ignore_vulns is None:
+        ignore_vulns = {}
     db = fetch_database(session, db=db_mirror, cached=cached, telemetry=telemetry)
     db_full = None
     vulnerable_packages = frozenset(db.get('vulnerable_packages', []))

@@ -199,12 +199,21 @@ def post_results(session, safety_json, policy_file):
         return {}
 
 
-def fetch_database_file(path, db_name, ecosystem: Ecosystem = Ecosystem.PYTHON):
-    full_path = os.path.join(path, db_name)
-    if not os.path.exists(full_path):
+def fetch_database_file(path: str, db_name: str, cached = 0,
+                        ecosystem: Optional[Ecosystem] = None):
+    full_path = (Path(path) / (ecosystem.value if ecosystem else '') / db_name).expanduser().resolve()
+
+    if not full_path.exists():
         raise DatabaseFileNotFoundError(db=path)
+    
     with open(full_path) as f:
-        return json.loads(f.read())
+        data = json.loads(f.read())
+    
+    if cached:
+        LOG.info('Writing %s to cache because cached value was %s', db_name, cached)
+        write_to_cache(db_name, data)
+
+    return data
 
 
 def is_valid_database(db) -> bool:
@@ -218,7 +227,8 @@ def is_valid_database(db) -> bool:
 
 
 def fetch_database(session, full=False, db=False, cached=0, telemetry=True, 
-                   ecosystem: Ecosystem = Ecosystem.PYTHON, from_cache=True):
+                   ecosystem: Optional[Ecosystem] = None, from_cache=True):
+
     if session.is_using_auth_credentials():
         mirrors = API_MIRRORS
     elif db:
@@ -230,10 +240,13 @@ def fetch_database(session, full=False, db=False, cached=0, telemetry=True,
     for mirror in mirrors:
         # mirror can either be a local path or a URL
         if is_a_remote_mirror(mirror):
+            if ecosystem is None:
+                ecosystem = Ecosystem.PYTHON
             data = fetch_database_url(session, mirror, db_name=db_name, cached=cached, 
                                       telemetry=telemetry, ecosystem=ecosystem, from_cache=from_cache)
         else:
-            data = fetch_database_file(mirror, db_name=db_name, ecosystem=ecosystem)
+            data = fetch_database_file(mirror, db_name=db_name, cached=cached,
+                                       ecosystem=ecosystem)
         if data:
             if is_valid_database(data):
                 return data
@@ -1000,7 +1013,7 @@ def get_licenses(*, session=None, db_mirror=False, cached=0, telemetry=True):
             licenses = fetch_database_url(session, mirror, db_name=db_name, cached=cached,
                                           telemetry=telemetry)
         else:
-            licenses = fetch_database_file(mirror, db_name=db_name)
+            licenses = fetch_database_file(mirror, db_name=db_name, ecosystem=None)
         if licenses:
             return licenses
     raise DatabaseFetchError()

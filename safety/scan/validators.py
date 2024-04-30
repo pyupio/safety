@@ -1,4 +1,5 @@
 
+import os
 from pathlib import Path
 from typing import Optional, Tuple
 import typer
@@ -41,6 +42,9 @@ def fail_if_not_allowed_stage(ctx: typer.Context):
     
     stage = ctx.obj.auth.stage
     auth_type: AuthenticationType = ctx.obj.auth.client.get_authentication_type()
+
+    if os.getenv("SAFETY_DB_DIR"):
+        return
 
     if not auth_type.is_allowed_in(stage):
         raise typer.BadParameter(f"'{auth_type.value}' auth type isn't allowed with " \

@@ -3,7 +3,7 @@
 block_cipher = None
 
 a = Analysis(
-    ['safety/cli.py'],
+    ['safety/__main__.py'],
     pathex=['.'],
     binaries=[],
     datas=[('safety/VERSION', './safety')],

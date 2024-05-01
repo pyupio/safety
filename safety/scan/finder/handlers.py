@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import os
 from pathlib import Path
 from types import MappingProxyType
 from typing import Dict, List, Optional, Tuple
@@ -49,12 +50,17 @@ class PythonFileHandler(FileHandler):
         
     def download_required_assets(self, session):
         from safety.safety import fetch_database
+        
+        SAFETY_DB_DIR = os.getenv("SAFETY_DB_DIR")
 
-        fetch_database(session=session, full=False, db=False, cached=True,
+        db = False if SAFETY_DB_DIR is None else SAFETY_DB_DIR
+
+
+        fetch_database(session=session, full=False, db=db, cached=True,
                        telemetry=True, ecosystem=Ecosystem.PYTHON, 
                        from_cache=False)
                 
-        fetch_database(session=session, full=True, db=False, cached=True,
+        fetch_database(session=session, full=True, db=db, cached=True,
                                 telemetry=True, ecosystem=Ecosystem.PYTHON, 
                                 from_cache=False)
 

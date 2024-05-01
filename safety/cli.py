@@ -49,11 +49,20 @@ except ImportError:
 
 LOG = logging.getLogger(__name__)
 
+
+def configure_logger(ctx, param, debug):
+    level = logging.CRITICAL
+    
+    if debug:
+        level = logging.DEBUG
+
+    logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)    
+
 @click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
 @auth_options()
 @proxy_options
 @click.option('--disable-optional-telemetry', default=False, is_flag=True, show_default=True, help=CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP)
-@click.option('--debug', default=False, help=CLI_DEBUG_HELP)
+@click.option('--debug', default=False, help=CLI_DEBUG_HELP, callback=configure_logger)
 @click.version_option(version=get_safety_version())
 @click.pass_context
 @inject_session

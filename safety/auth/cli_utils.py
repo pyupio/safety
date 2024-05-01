@@ -54,7 +54,7 @@ def build_client_session(api_key=None, proxies=None, headers=None):
     try:
         openid_config = client_session.get(url=OPENID_CONFIG_URL, timeout=REQUEST_TIMEOUT).json()
     except Exception as e:
-        LOG.exception('Unable to load the openID config: %s', e)
+        LOG.debug('Unable to load the openID config: %s', e)
         openid_config = {}
 
     client_session.metadata["token_endpoint"] = openid_config.get("token_endpoint", 

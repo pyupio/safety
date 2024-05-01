@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.2.0] - 2024-05-01
+- feat: add SAFETY_DB_DIR env var to the scan command (#523)
+- fix: update pyinstaller target (#522)
+- docs: added note on hiring and added careers page link (#510)
+
 ## [3.1.0] - 2024-03-25
 - fix: ensure compatibility with Pydantic version 2.0 (#509)
 - feat: introduce --headless flag to enable an alternative login mechanism that bypasses the need for a local web server. (#508)

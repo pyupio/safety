@@ -39,9 +39,11 @@ class Auth:
         return bool(self.client.token and self.email_verified)
 
     def refresh_from(self, info):
+        from safety.auth.utils import is_email_verified
+
         self.name = info.get("name")
         self.email = info.get("email")
-        self.email_verified = info.get("email_verified", False)
+        self.email_verified = is_email_verified(info)
 
 class XAPIKeyAuth(BaseOAuth):
     def __init__(self, api_key):

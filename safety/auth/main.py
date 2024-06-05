@@ -54,15 +54,17 @@ def get_organization() -> Optional[Organization]:
     return org
 
 def get_auth_info(ctx):
+    from safety.auth.utils import is_email_verified
+    
     info = None
     if ctx.obj.auth.client.token:
         try:
             info = get_token_data(get_token(name='id_token'), keys=ctx.obj.auth.keys)
 
-            verified = info.get("email_verified", False)
+            verified = is_email_verified(info)
             if not verified:
                 user_info = ctx.obj.auth.client.fetch_user_info()
-                verified = user_info.get("email_verified", False)
+                verified = is_email_verified(user_info)
 
                 if verified:
                     # refresh only if needed 

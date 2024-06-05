@@ -5,7 +5,8 @@ from authlib.integrations.requests_client import OAuth2Session
 from authlib.integrations.base_client.errors import OAuthError
 import requests
 from requests.adapters import HTTPAdapter
-from safety.auth.constants import AUTH_SERVER_URL
+from safety.auth.constants import AUTH_SERVER_URL, CLAIM_EMAIL_VERIFIED_API, \
+    CLAIM_EMAIL_VERIFIED_AUTH_SERVER
 from safety.auth.main import get_auth_info, get_token_data
 from safety.constants import PLATFORM_API_CHECK_UPDATES_ENDPOINT, PLATFORM_API_INITIALIZE_SCAN_ENDPOINT, PLATFORM_API_POLICY_ENDPOINT, \
     PLATFORM_API_PROJECT_CHECK_ENDPOINT, PLATFORM_API_PROJECT_ENDPOINT, PLATFORM_API_PROJECT_SCAN_REQUEST_ENDPOINT, \
@@ -19,10 +20,16 @@ from safety.errors import InvalidCredentialError, NetworkConnectionError, \
 
 LOG = logging.getLogger(__name__)
 
+
 def get_keys(client_session, openid_config):
     if "jwks_uri" in openid_config:
         return client_session.get(url=openid_config["jwks_uri"], bearer=False).json()
     return None
+
+
+def is_email_verified(info) -> bool:
+    return info.get(CLAIM_EMAIL_VERIFIED_API) or info.get(CLAIM_EMAIL_VERIFIED_AUTH_SERVER)
+
 
 def parse_response(func):
     def wrapper(*args, **kwargs):

@@ -9,7 +9,7 @@ from authlib.common.security import generate_token
 from safety.auth.constants import CLIENT_ID, OPENID_CONFIG_URL
 
 from safety.auth.models import Organization, Auth
-from safety.auth.utils import S3PresignedAdapter, SafetyAuthSession, get_keys
+from safety.auth.utils import S3PresignedAdapter, SafetyAuthSession, get_keys, is_email_verified
 from safety.constants import REQUEST_TIMEOUT
 from safety.scan.constants import CLI_KEY_HELP, CLI_PROXY_HOST_HELP, CLI_PROXY_PORT_HELP, CLI_PROXY_PROTOCOL_HELP, CLI_STAGE_HELP
 from safety.scan.util import Stage
@@ -176,7 +176,7 @@ def inject_session(func):
         if info:
             ctx.obj.auth.name = info.get("name")
             ctx.obj.auth.email = info.get("email")
-            ctx.obj.auth.email_verified = info.get("email_verified", False)
+            ctx.obj.auth.email_verified = is_email_verified(info)
             SafetyContext().account = info["email"]
         else:
             SafetyContext().account = ""

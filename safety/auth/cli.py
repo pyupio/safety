@@ -3,6 +3,7 @@ import logging
 import sys
 from safety.auth.models import Auth
 
+from safety.auth.utils import is_email_verified
 from safety.console import main_console as console
 from safety.constants import MSG_FINISH_REGISTRATION_TPL, MSG_VERIFICATION_HINT
 
@@ -207,7 +208,7 @@ def status(ctx: typer.Context, ensure_auth: bool = False,
         console.print()
 
     if info:
-        verified = info.get("email_verified", False)
+        verified = is_email_verified(info)
         email_status = " [red](email not verified)[/red]" if not verified else ""
 
         console.print(f'[green]Authenticated as {info["email"]}[/green]{email_status}')    

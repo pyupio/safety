@@ -5,9 +5,9 @@ include README.md
 include README.old
 include safety/VERSION
 include safety/safety-policy-template.yml
-include safety/templates/*
 include safety/alerts/templates/*
 
+recursive-include safety/templates *
 recursive-include tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]

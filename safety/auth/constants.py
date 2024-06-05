@@ -14,6 +14,9 @@ SAFETY_PLATFORM_URL = get_config_setting("SAFETY_PLATFORM_URL")
 
 OPENID_CONFIG_URL = f"{AUTH_SERVER_URL}/.well-known/openid-configuration"
 
+CLAIM_EMAIL_VERIFIED_API = "https://api.safetycli.com/email_verified"
+CLAIM_EMAIL_VERIFIED_AUTH_SERVER = "email_verified"
+
 CLI_AUTH = f'{SAFETY_PLATFORM_URL}/cli/auth'
 CLI_AUTH_SUCCESS = f'{SAFETY_PLATFORM_URL}/cli/auth/success'
 CLI_AUTH_LOGOUT = f'{SAFETY_PLATFORM_URL}/cli/logout'

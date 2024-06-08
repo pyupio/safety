@@ -1,6 +1,6 @@
-
 from datetime import datetime
 import itertools
+import logging
 from typing import List
 from safety_schemas.models import FileType, PythonDependency, ClosestSecureVersion, \
     ConfigModel, PythonSpecification, RemediationModel, DependencyResultModel, \
@@ -24,6 +24,9 @@ from ..base import InspectableFile, Remediable
 from packaging.version import parse as parse_version
 from packaging.utils import canonicalize_name
 from packaging.specifiers import SpecifierSet
+
+
+LOG = logging.getLogger(__name__)
 
 
 def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType, 
@@ -75,15 +78,46 @@ def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType,
             code=IgnoreCodes.unpinned_specification, reason=reason, 
             specifications=specifications)
 
-def should_fail(config: ConfigModel, vulnerability: Vulnerability) -> bool:
-    if config.depedendency_vulnerability.fail_on.enabled and vulnerability.severity:
-        if vulnerability.severity.cvssv3 and vulnerability.severity.cvssv3.get("base_severity", None):
-            severity_label = VulnerabilitySeverityLabels(
-                vulnerability.severity.cvssv3["base_severity"].lower())
-            if severity_label in config.depedendency_vulnerability.fail_on.cvss_severity:
-                return True
 
-    return False
+def should_fail(config: ConfigModel, vulnerability: Vulnerability) -> bool:
+    if not config.depedendency_vulnerability.fail_on.enabled:
+        return False
+
+    # If Severity is None type, it will be considered as UNKNOWN and NONE
+    # They are not the same, but we are handling like the same when a 
+    # vulnerability does not have a severity value.
+    severities = [VulnerabilitySeverityLabels.NONE,
+                  VulnerabilitySeverityLabels.UNKNOWN]
+
+    if vulnerability.severity and vulnerability.severity.cvssv3:
+        base_severity = vulnerability.severity.cvssv3.get(
+            "base_severity")
+
+        if base_severity:
+            base_severity = base_severity.lower()
+
+        # A vulnerability only has a single severity value, this is just
+        # to handle cases where the severity value is not in the expected
+        # format and fallback to the default severity values [None, unknown].
+        matched_severities = [
+            label
+            for label in VulnerabilitySeverityLabels
+            if label.value == base_severity
+        ]
+
+        if matched_severities:
+            severities = matched_severities
+        else:
+            LOG.warning(
+                f"Unexpected base severity value {base_severity} for "
+                f"{vulnerability.vulnerability_id}"
+            )
+
+    return any(
+        severity in config.depedendency_vulnerability.fail_on.cvss_severity
+        for severity in severities
+    )
+
 
 def get_vulnerability(vuln_id: str, cve,
                       data, specifier,
@@ -336,4 +370,3 @@ class PythonFile(InspectableFile, Remediable):
                                                    closest_secure=closest_secure if recommended else None, 
                                                    recommended=recommended, 
                                                    other_recommended=other_recommended)
-

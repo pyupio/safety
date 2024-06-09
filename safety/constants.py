@@ -98,7 +98,7 @@ API_MIRRORS = [
     DATA_API_BASE_URL
 ]
 
-REQUEST_TIMEOUT = 5
+REQUEST_TIMEOUT = 30
 
 # Colors
 YELLOW = 'yellow'

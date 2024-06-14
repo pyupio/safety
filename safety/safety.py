@@ -26,6 +26,7 @@ from safety_schemas.models import Ecosystem, FileType
 
 
 
+from .auth.cli_utils import build_client_session
 from .constants import (API_MIRRORS, DB_CACHE_FILE, OPEN_MIRRORS, REQUEST_TIMEOUT, DATA_API_BASE_URL, JSON_SCHEMA_VERSION,
                         IGNORE_UNPINNED_REQ_REASON)
 from .errors import (DatabaseFetchError, DatabaseFileNotFoundError, InvalidCredentialError,
@@ -384,6 +385,10 @@ def is_vulnerable(vulnerable_spec: SpecifierSet, requirement, package):
 def check(*, session=None, packages=[], db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
           include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None):
     SafetyContext().command = 'check'
+    if session is None:
+        (session, _) = build_client_session()
+    if ignore_vulns is None:
+        ignore_vulns = {}
     db = fetch_database(session, db=db_mirror, cached=cached, telemetry=telemetry)
     db_full = None
     vulnerable_packages = frozenset(db.get('vulnerable_packages', []))

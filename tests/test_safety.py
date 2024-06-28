@@ -19,19 +19,35 @@ from json import JSONDecodeError
 from unittest.mock import Mock, patch
 
 import click as click
-from packaging.version import parse
 from packaging.specifiers import SpecifierSet
+from packaging.version import parse
 from requests.exceptions import RequestException
+
 from safety.auth import build_client_session
 from safety.constants import DB_CACHE_FILE
-
-from safety.errors import DatabaseFetchError, DatabaseFileNotFoundError, MalformedDatabase, InvalidCredentialError, TooManyRequestsError
+from safety.errors import (
+    DatabaseFetchError,
+    DatabaseFileNotFoundError,
+    InvalidCredentialError,
+    MalformedDatabase,
+    TooManyRequestsError,
+)
 from safety.formatter import SafetyFormatter
 from safety.models import CVE, Package, SafetyRequirement
-from safety.safety import get_announcements, ignore_vuln_if_needed, get_closest_ver, precompute_remediations, compute_sec_ver, \
-    calculate_remediations, read_vulnerabilities, check, get_licenses, review
+from safety.safety import (
+    calculate_remediations,
+    check,
+    compute_sec_ver,
+    get_announcements,
+    get_closest_ver,
+    get_licenses,
+    ignore_vuln_if_needed,
+    precompute_remediations,
+    read_vulnerabilities,
+    review,
+)
 from safety.util import get_packages_licenses, read_requirements
-from tests.resources import VALID_REPORT, VULNS, SCANNED_PACKAGES, REMEDIATIONS
+from tests.resources import REMEDIATIONS, SCANNED_PACKAGES, VALID_REPORT, VULNS
 from tests.test_cli import get_vulnerability
 
 
@@ -140,7 +156,7 @@ class TestSafety(unittest.TestCase):
         packages = read_requirements(reqs)
 
         vulns, _ = check(
-            session=self.session,            
+            session=self.session,
             packages=packages,
             db_mirror=False,
             cached=0,
@@ -237,7 +253,7 @@ class TestSafety(unittest.TestCase):
                 telemetry=False
             )
         db_generic_exception = error.exception
-        self.assertEqual(str(db_generic_exception), 'Your authentication credential is invalid. See https://bit.ly/3OY2wEI.')
+        self.assertEqual(str(db_generic_exception), 'Your authentication credential is invalid. See https://docs.safetycli.com/safety-docs/support/invalid-api-key-error.')
 
 
     def test_get_packages_licenses_with_invalid_api_key(self):
@@ -459,7 +475,7 @@ class TestSafety(unittest.TestCase):
             api_key = "somekey"
             session.api_key = api_key
             session.headers = {'X-Api-Key': api_key}
-            session.get.return_value = mock          
+            session.get.return_value = mock
 
             self.assertEqual(get_announcements(session), [])
 
@@ -511,7 +527,7 @@ class TestSafety(unittest.TestCase):
         api_key = "somekey"
         session.api_key = api_key
         session.headers = {'X-Api-Key': api_key}
-        session.get.return_value = mock        
+        session.get.return_value = mock
 
         self.assertEqual(get_announcements(session), [])
 
@@ -524,7 +540,7 @@ class TestSafety(unittest.TestCase):
         api_key = "somekey"
         session.api_key = api_key
         session.headers = {'X-Api-Key': api_key}
-        session.get.return_value = mock        
+        session.get.return_value = mock
 
         self.assertEqual(get_announcements(session), [])
 

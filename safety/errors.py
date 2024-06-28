@@ -1,7 +1,16 @@
 from typing import Optional
-from safety.constants import EXIT_CODE_EMAIL_NOT_VERIFIED, EXIT_CODE_FAILURE, EXIT_CODE_INVALID_API_KEY, EXIT_CODE_TOO_MANY_REQUESTS, \
-    EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB, EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB, EXIT_CODE_MALFORMED_DB, \
-    EXIT_CODE_INVALID_PROVIDED_REPORT, EXIT_CODE_INVALID_REQUIREMENT
+
+from safety.constants import (
+    EXIT_CODE_EMAIL_NOT_VERIFIED,
+    EXIT_CODE_FAILURE,
+    EXIT_CODE_INVALID_API_KEY,
+    EXIT_CODE_INVALID_PROVIDED_REPORT,
+    EXIT_CODE_INVALID_REQUIREMENT,
+    EXIT_CODE_MALFORMED_DB,
+    EXIT_CODE_TOO_MANY_REQUESTS,
+    EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB,
+    EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB,
+)
 
 
 class SafetyException(Exception):
@@ -83,7 +92,7 @@ class InvalidCredentialError(DatabaseFetchError):
 
     def __init__(self, credential: Optional[str] = None, message="Your authentication credential{credential}is invalid. See {link}.", reason=None):
         self.credential = credential
-        self.link = 'https://bit.ly/3OY2wEI'
+        self.link = 'https://docs.safetycli.com/safety-docs/support/invalid-api-key-error'
         self.message = message.format(credential=f" '{self.credential}' ", link=self.link) if self.credential else message.format(credential=' ', link=self.link)
         info = f" Reason: {reason}"
         self.message = self.message + (info if reason else "")

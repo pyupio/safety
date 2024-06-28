@@ -47,6 +47,9 @@ except ImportError:
     from typing_extensions import Annotated
 
 
+
+
+
 LOG = logging.getLogger(__name__)
 
 def configure_logger(ctx, param, value):
@@ -725,7 +728,6 @@ cli.add_command(typer.main.get_command(scan_system_app), "system-scan")
 cli.add_command(typer.main.get_command(auth_app), "auth")
 
 cli.add_command(alert)
-
 
 if __name__ == "__main__":
     cli()

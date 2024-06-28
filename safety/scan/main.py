@@ -1,20 +1,27 @@
 import configparser
 import logging
-from pathlib import Path
 import re
 import time
-from typing import Any, Dict, Generator, Optional, Set, Tuple, Union
-from pydantic import ValidationError
+from pathlib import Path
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
+
 import typer
+from pydantic import ValidationError
+from safety_schemas.models import (
+    ConfigModel,
+    FileType,
+    PolicyFileModel,
+    PolicySource,
+    ProjectModel,
+    ScanType,
+    Stage,
+)
+
 from ..auth.utils import SafetyAuthSession
 from ..errors import SafetyError
 from .ecosystems.base import InspectableFile
 from .ecosystems.target import InspectableFileContext
 from .models import ScanExport, UnverifiedProjectModel
-
-from safety_schemas.models import FileType, PolicyFileModel, PolicySource, \
-    ConfigModel, Stage, ProjectModel, ScanType
-
 
 LOG = logging.getLogger(__name__)
 
@@ -25,11 +32,11 @@ PROJECT_CONFIG_URL = "url"
 PROJECT_CONFIG_NAME = "name"
 
 
-def download_policy(session: SafetyAuthSession, 
-                    project_id: str, 
-                    stage: Stage, 
+def download_policy(session: SafetyAuthSession,
+                    project_id: str,
+                    stage: Stage,
                     branch: Optional[str]) -> Optional[PolicyFileModel]:
-    result = session.download_policy(project_id=project_id, stage=stage, 
+    result = session.download_policy(project_id=project_id, stage=stage,
                                      branch=branch)
 
     if result and "uuid" in result and result["uuid"]:
@@ -62,7 +69,7 @@ def download_policy(session: SafetyAuthSession,
                                 source=PolicySource.cloud,
                                 location=None,
                                 config=config)
-    
+
     return None
 
 
@@ -73,13 +80,13 @@ def load_unverified_project_from_config(project_root: Path) -> UnverifiedProject
     id = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_ID, fallback=None)
     id = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_ID, fallback=None)
     url = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_URL, fallback=None)
-    name = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_NAME, fallback=None)    
+    name = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_NAME, fallback=None)
     created = True
     if id:
         created = False
-    
-    return UnverifiedProjectModel(id=id, url_path=url, 
-                                  name=name, project_path=project_path, 
+
+    return UnverifiedProjectModel(id=id, url_path=url,
+                                  name=name, project_path=project_path,
                                   created=created)
 
 
@@ -95,9 +102,9 @@ def save_project_info(project: ProjectModel, project_path: Path):
         config[PROJECT_CONFIG_SECTION][PROJECT_CONFIG_URL] = project.url_path
     if project.name:
         config[PROJECT_CONFIG_SECTION][PROJECT_CONFIG_NAME] = project.name
-    
+
     with open(project_path, 'w') as configfile:
-        config.write(configfile)    
+        config.write(configfile)
 
 
 def load_policy_file(path: Path) -> Optional[PolicyFileModel]:
@@ -118,13 +125,13 @@ def load_policy_file(path: Path) -> Optional[PolicyFileModel]:
         LOG.error(f"Wrong YML file for policy file {path}.", exc_info=True)
         raise SafetyError(f"{err}, details: {e}")
 
-    return PolicyFileModel(id=str(path), source=PolicySource.local, 
+    return PolicyFileModel(id=str(path), source=PolicySource.local,
                            location=path, config=config)
 
 
-def resolve_policy(local_policy: Optional[PolicyFileModel], 
+def resolve_policy(local_policy: Optional[PolicyFileModel],
                    cloud_policy: Optional[PolicyFileModel]) \
-                    -> Optional[PolicyFileModel]:    
+                    -> Optional[PolicyFileModel]:
     policy = None
 
     if cloud_policy:
@@ -136,7 +143,7 @@ def resolve_policy(local_policy: Optional[PolicyFileModel],
 
 
 def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, report: Any):
-        tag = int(time.time()) 
+        tag = int(time.time())
 
         if at.is_dir():
             at = at / Path(
@@ -145,12 +152,34 @@ def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, repor
         with open(at, 'w+') as report_file:
             report_file.write(report)
 
+def check_license_compliance(file_path: Path) -> Tuple[str, List[str], str]:
+    # Implement the actual logic to check license compliance
+    # For this example, we'll just use some dummy logic
 
-def process_files(paths: Dict[str, Set[Path]], 
+    if not file_path.exists() or not file_path.is_file():
+        return "no license found", [], ""
+
+    with open(file_path, 'r') as f:
+        license_content = f.read()
+
+    # Example check: let's say we recognize GPL licenses
+    if "GNU GENERAL PUBLIC LICENSE" in license_content:
+        compliance_status = "compliant"
+        compliant_versions = ["0.110.1", "0.110.0", "0.109.2"]
+        license_url = "https://www.gnu.org/licenses/gpl-3.0.en.html"
+    else:
+        compliance_status = "non-compliant"
+        compliant_versions = []
+        license_url = ""
+
+    return compliance_status, compliant_versions, license_url
+
+def process_files(paths: Dict[str, Set[Path]],
                   config: Optional[ConfigModel] = None) -> \
                     Generator[Tuple[Path, InspectableFile], None, None]:
     if not config:
         config = ConfigModel()
+
 
     for file_type_key, f_paths in paths.items():
         file_type = FileType(file_type_key)
@@ -158,7 +187,17 @@ def process_files(paths: Dict[str, Set[Path]],
             continue
         for f_path in f_paths:
             with InspectableFileContext(f_path, file_type=file_type) as inspectable_file:
-                if inspectable_file and inspectable_file.file_type:                    
+                if inspectable_file and inspectable_file.file_type:
                     inspectable_file.inspect(config=config)
                     inspectable_file.remediate()
                     yield f_path, inspectable_file
+
+    # Process license files
+    for license_file in paths.get('license', []):
+        compliance_status, compliant_versions, license_url = check_license_compliance(license_file)
+        LOG.info(f"{license_file.name}: {compliance_status}")
+        if compliance_status == "compliant":
+            LOG.info(f"Compliant versions: {', '.join(compliant_versions)}")
+            LOG.info(f"Learn more: {license_url}")
+        else:
+            LOG.warning(f"No license found for {license_file.name}")

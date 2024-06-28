@@ -1,95 +1,53 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
-
 import configparser
+from dataclasses import asdict
+from enum import Enum
+
 import json
 import logging
 import os
+from pathlib import Path
 import platform
 import sys
-from dataclasses import asdict
-from enum import Enum
 from functools import wraps
-from pathlib import Path
 from typing import Dict, Optional
 
 import click
 import typer
-from safety_schemas.models import ConfigModel, Stage
 
 from safety import safety
-from safety.alerts import alert
-from safety.auth import auth, auth_options, inject_session, proxy_options
-from safety.auth.cli import auth_app
-from safety.auth.models import Organization
 from safety.console import main_console as console
-from safety.constants import (
-    CONFIG_FILE_SYSTEM,
-    CONFIG_FILE_USER,
-    EXIT_CODE_FAILURE,
-    EXIT_CODE_OK,
-    EXIT_CODE_VULNERABILITIES_FOUND,
-)
-from safety.errors import InvalidCredentialError, SafetyError, SafetyException
+from safety.alerts import alert
+from safety.auth import auth, inject_session, proxy_options, auth_options
+from safety.auth.models import Organization
+from safety.scan.constants import CLI_LICENSES_COMMAND_HELP, CLI_MAIN_INTRODUCTION, CLI_DEBUG_HELP, CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP, \
+    DEFAULT_EPILOG, DEFAULT_SPINNER, CLI_CHECK_COMMAND_HELP, CLI_CHECK_UPDATES_HELP, CLI_CONFIGURE_HELP, CLI_GENERATE_HELP, \
+    CLI_CONFIGURE_PROXY_TIMEOUT, CLI_CONFIGURE_PROXY_REQUIRED, CLI_CONFIGURE_ORGANIZATION_ID, CLI_CONFIGURE_ORGANIZATION_NAME, \
+    CLI_CONFIGURE_SAVE_TO_SYSTEM, CLI_CONFIGURE_PROXY_HOST_HELP, CLI_CONFIGURE_PROXY_PORT_HELP, CLI_CONFIGURE_PROXY_PROTOCOL_HELP, \
+    CLI_GENERATE_PATH
+from .cli_util import SafetyCLICommand, SafetyCLILegacyGroup, SafetyCLILegacyCommand, SafetyCLISubGroup, SafetyCLIUtilityCommand, handle_cmd_exception
+from safety.constants import CONFIG_FILE_USER, CONFIG_FILE_SYSTEM, EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
+from safety.errors import InvalidCredentialError, SafetyException, SafetyError
 from safety.formatter import SafetyFormatter
 from safety.models import SafetyCLI
 from safety.output_utils import should_add_nl
-from safety.safety import get_packages, process_fixes, read_vulnerabilities
+from safety.safety import get_packages, read_vulnerabilities, process_fixes
+from safety.util import get_packages_licenses, initializate_config_dirs, output_exception, \
+    MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
+    get_processed_options, get_safety_version, json_alias, bare_alias, html_alias, SafetyContext, is_a_remote_mirror, \
+    filter_announcements, get_fix_options
 from safety.scan.command import scan_project_app, scan_system_app
-from safety.scan.constants import (
-    CLI_CHECK_COMMAND_HELP,
-    CLI_CHECK_UPDATES_HELP,
-    CLI_CONFIGURE_HELP,
-    CLI_CONFIGURE_ORGANIZATION_ID,
-    CLI_CONFIGURE_ORGANIZATION_NAME,
-    CLI_CONFIGURE_PROXY_HOST_HELP,
-    CLI_CONFIGURE_PROXY_PORT_HELP,
-    CLI_CONFIGURE_PROXY_PROTOCOL_HELP,
-    CLI_CONFIGURE_PROXY_REQUIRED,
-    CLI_CONFIGURE_PROXY_TIMEOUT,
-    CLI_CONFIGURE_SAVE_TO_SYSTEM,
-    CLI_DEBUG_HELP,
-    CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP,
-    CLI_GENERATE_HELP,
-    CLI_GENERATE_PATH,
-    CLI_LICENSES_COMMAND_HELP,
-    CLI_MAIN_INTRODUCTION,
-    DEFAULT_EPILOG,
-    DEFAULT_SPINNER,
-)
-from safety.util import (
-    DependentOption,
-    MutuallyExclusiveOption,
-    SafetyContext,
-    SafetyPolicyFile,
-    active_color_if_needed,
-    bare_alias,
-    filter_announcements,
-    get_fix_options,
-    get_packages_licenses,
-    get_processed_options,
-    get_safety_version,
-    html_alias,
-    initializate_config_dirs,
-    is_a_remote_mirror,
-    json_alias,
-    output_exception,
-    transform_ignore,
-)
-
-from .cli_util import (
-    SafetyCLICommand,
-    SafetyCLILegacyCommand,
-    SafetyCLILegacyGroup,
-    SafetyCLISubGroup,
-    SafetyCLIUtilityCommand,
-    handle_cmd_exception,
-)
+from safety.auth.cli import auth_app
+from safety_schemas.models import ConfigModel, Stage
 
 try:
     from typing import Annotated
 except ImportError:
     from typing_extensions import Annotated
+
+
+
 
 
 LOG = logging.getLogger(__name__)

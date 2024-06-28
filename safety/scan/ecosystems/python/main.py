@@ -29,19 +29,19 @@ from packaging.specifiers import SpecifierSet
 LOG = logging.getLogger(__name__)
 
 
-def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType, 
+def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType,
                           vuln_id: str, cve, ignore_vulns,
                           ignore_unpinned: bool, ignore_environment: bool,
                           specification: PythonSpecification,
                           ignore_severity: List[VulnerabilitySeverityLabels] = []):
-    
-    vuln_ignored: bool = vuln_id in ignore_vulns 
+
+    vuln_ignored: bool = vuln_id in ignore_vulns
 
     if vuln_ignored and ignore_vulns[vuln_id].code is IgnoreCodes.manual:
-        if (not ignore_vulns[vuln_id].expires 
+        if (not ignore_vulns[vuln_id].expires
                       or ignore_vulns[vuln_id].expires > datetime.utcnow().date()):
             return
-        
+
         del ignore_vulns[vuln_id]
 
     if ignore_environment and file_type is FileType.VIRTUAL_ENVIRONMENT:
@@ -56,7 +56,7 @@ def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType,
         if cve.cvssv3 and cve.cvssv3.get("base_severity", None):
             severity_label = VulnerabilitySeverityLabels(
                 cve.cvssv3["base_severity"].lower())
-            
+
     if severity_label in ignore_severity:
         reason = f"{severity_label.value.capitalize()} severity ignored by rule in policy file."
         ignore_vulns[vuln_id] = IgnoredItemDetail(
@@ -75,7 +75,7 @@ def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType,
         specifications = set()
         specifications.add(str(specification.specifier))
         ignore_vulns[vuln_id] = IgnoredItemDetail(
-            code=IgnoreCodes.unpinned_specification, reason=reason, 
+            code=IgnoreCodes.unpinned_specification, reason=reason,
             specifications=specifications)
 
 
@@ -84,7 +84,7 @@ def should_fail(config: ConfigModel, vulnerability: Vulnerability) -> bool:
         return False
 
     # If Severity is None type, it will be considered as UNKNOWN and NONE
-    # They are not the same, but we are handling like the same when a 
+    # They are not the same, but we are handling like the same when a
     # vulnerability does not have a severity value.
     severities = [VulnerabilitySeverityLabels.NONE,
                   VulnerabilitySeverityLabels.UNKNOWN]
@@ -127,7 +127,7 @@ def get_vulnerability(vuln_id: str, cve,
     unpinned_ignored = ignore_vulns[vuln_id].specifications \
         if vuln_id in ignore_vulns.keys() else None
     should_ignore = not unpinned_ignored or str(affected.specifier) in unpinned_ignored
-    ignored: bool = bool(ignore_vulns and 
+    ignored: bool = bool(ignore_vulns and
                      vuln_id in ignore_vulns and
                      should_ignore)
     more_info_url = f"{base_domain}{data.get('more_info_path', '')}"
@@ -175,13 +175,13 @@ def get_vulnerability(vuln_id: str, cve,
     )
 
 class PythonFile(InspectableFile, Remediable):
-        
+
     def __init__(self, file_type: FileType, file: FileTextWrite) -> None:
         super().__init__(file=file)
         self.ecosystem = file_type.ecosystem
         self.file_type = file_type
 
-    def __find_dependency_vulnerabilities__(self, dependencies: List[PythonDependency], 
+    def __find_dependency_vulnerabilities__(self, dependencies: List[PythonDependency],
                                             config: ConfigModel):
         ignored_vulns_data = {}
         ignore_vulns = {} \
@@ -191,8 +191,11 @@ class PythonFile(InspectableFile, Remediable):
         ignore_severity = config.depedendency_vulnerability.ignore_cvss_severity
         ignore_unpinned = config.depedendency_vulnerability.python_ignore.unpinned_specifications
         ignore_environment = config.depedendency_vulnerability.python_ignore.environment_results
-        
+
         db = get_from_cache(db_name="insecure.json", skip_time_verification=True)
+        if not db:
+            LOG.debug("Cache data for insecure.json is not available or is invalid.")
+            return
         db_full = None
         vulnerable_packages = frozenset(db.get('vulnerable_packages', []))
         found_dependencies = {}
@@ -214,8 +217,11 @@ class PythonFile(InspectableFile, Remediable):
 
             if not dependency.version:
                 if not db_full:
-                    db_full = get_from_cache(db_name="insecure_full.json", 
+                    db_full = get_from_cache(db_name="insecure_full.json",
                                              skip_time_verification=True)
+                    if not db_full:
+                        LOG.debug("Cache data for insecure_full.json is not available or is invalid.")
+                        return
                 dependency.refresh_from(db_full)
 
             if name in vulnerable_packages:
@@ -225,8 +231,11 @@ class PythonFile(InspectableFile, Remediable):
 
                     if spec.is_vulnerable(spec_set, dependency.insecure_versions):
                         if not db_full:
-                            db_full = get_from_cache(db_name="insecure_full.json", 
+                            db_full = get_from_cache(db_name="insecure_full.json",
                                              skip_time_verification=True)
+                            if not db_full:
+                                LOG.debug("Cache data for insecure_full.json is not available or is invalid.")
+                                return
                         if not dependency.latest_version:
                             dependency.refresh_from(db_full)
 
@@ -247,23 +256,23 @@ class PythonFile(InspectableFile, Remediable):
                                                   vuln_id=vuln_id, cve=cve,
                                                   ignore_vulns=ignore_vulns,
                                                   ignore_severity=ignore_severity,
-                                                  ignore_unpinned=ignore_unpinned, 
-                                                  ignore_environment=ignore_environment, 
+                                                  ignore_unpinned=ignore_unpinned,
+                                                  ignore_environment=ignore_environment,
                                                   specification=spec)
 
                             include_ignored = True
-                            vulnerability = get_vulnerability(vuln_id, cve, data, 
+                            vulnerability = get_vulnerability(vuln_id, cve, data,
                                                                    specifier, db_full,
                                                                    name, ignore_vulns, spec)
 
-                            should_add_vuln = not (vulnerability.is_transitive and 
-                                                   dependency.found and 
+                            should_add_vuln = not (vulnerability.is_transitive and
+                                                   dependency.found and
                                                    dependency.found.parts[-1] == FileType.VIRTUAL_ENVIRONMENT.value)
-                            
+
                             if vulnerability.ignored:
                                 ignored_vulns_data[
                                     vulnerability.vulnerability_id] = vulnerability
-                            
+
                             if not self.dependency_results.failed and not vulnerability.ignored:
                                 self.dependency_results.failed = should_fail(config, vulnerability)
 
@@ -277,16 +286,16 @@ class PythonFile(InspectableFile, Remediable):
         self.dependency_results.dependencies = [dep for _, dep in found_dependencies.items()]
         self.dependency_results.ignored_vulns = ignore_vulns
         self.dependency_results.ignored_vulns_data = ignored_vulns_data
-    
+
     def inspect(self, config: ConfigModel):
-        
+
         # We only support vulnerability checking for now
         dependencies = get_dependencies(self)
 
         if not dependencies:
             self.results = []
-        
-        self.__find_dependency_vulnerabilities__(dependencies=dependencies, 
+
+        self.__find_dependency_vulnerabilities__(dependencies=dependencies,
                                                  config=config)
 
     def __get_secure_specifications_for_user__(self, dependency: PythonDependency, db_full,
@@ -309,26 +318,26 @@ class PythonFile(InspectableFile, Remediable):
         sec_ver_for_user = list(versions.difference(affected_v))
 
         return sorted(sec_ver_for_user, key=lambda ver: parse_version(ver), reverse=True)
-    
+
     def remediate(self):
-        db_full = get_from_cache(db_name="insecure_full.json", 
+        db_full = get_from_cache(db_name="insecure_full.json",
                                  skip_time_verification=True)
         if not db_full:
             return
 
         for dependency in self.dependency_results.get_affected_dependencies():
             secure_versions = dependency.secure_versions
-            
+
             if not secure_versions:
                 secure_versions = []
 
             secure_vulns_by_user = set(self.dependency_results.ignored_vulns.keys())
             if not secure_vulns_by_user:
-                secure_v = sorted(secure_versions, key=lambda ver: parse_version(ver), 
+                secure_v = sorted(secure_versions, key=lambda ver: parse_version(ver),
                                   reverse=True)
             else:
                 secure_v = self.__get_secure_specifications_for_user__(
-                    dependency=dependency, db_full=db_full, 
+                    dependency=dependency, db_full=db_full,
                     secure_vulns_by_user=secure_vulns_by_user)
 
             for specification in dependency.specifications:
@@ -338,35 +347,35 @@ class PythonFile(InspectableFile, Remediable):
                 version = None
                 if is_pinned_requirement(specification.specifier):
                     version = next(iter(specification.specifier)).version
-                closest_secure = {key: str(value) if value else None for key, value in 
-                                  get_closest_ver(secure_v, 
-                                                  version, 
+                closest_secure = {key: str(value) if value else None for key, value in
+                                  get_closest_ver(secure_v,
+                                                  version,
                                                   specification.specifier).items()}
                 closest_secure = ClosestSecureVersion(**closest_secure)
                 recommended = None
-        
+
                 if closest_secure.upper:
                     recommended = closest_secure.upper
                 elif closest_secure.lower:
                     recommended = closest_secure.lower
-        
+
                 other_recommended = [other_v for other_v in secure_v if other_v != str(recommended)]
 
                 remed_more_info_url = dependency.more_info_url
 
                 if remed_more_info_url:
                     remed_more_info_url = build_remediation_info_url(
-                        base_url=remed_more_info_url, version=version, 
+                        base_url=remed_more_info_url, version=version,
                         spec=str(specification.specifier),
                         target_version=recommended)
-                    
+
                 if not remed_more_info_url:
                     remed_more_info_url = "-"
 
                 vulns_found = sum(1 for vuln in specification.vulnerabilities if not vuln.ignored)
 
-                specification.remediation = RemediationModel(vulnerabilities_found=vulns_found, 
-                                                   more_info_url=remed_more_info_url, 
-                                                   closest_secure=closest_secure if recommended else None, 
-                                                   recommended=recommended, 
+                specification.remediation = RemediationModel(vulnerabilities_found=vulns_found,
+                                                   more_info_url=remed_more_info_url,
+                                                   closest_secure=closest_secure if recommended else None,
+                                                   recommended=recommended,
                                                    other_recommended=other_recommended)

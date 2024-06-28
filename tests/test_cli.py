@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 import tempfile
@@ -69,6 +70,8 @@ class TestSafetyCLI(unittest.TestCase):
         self.runner = CliRunner(mix_stderr=False)
         self.output_options = ['screen', 'text', 'json', 'bare']
         self.dirname = os.path.dirname(__file__)
+        # Set up logging to capture debug output for tests
+        logging.basicConfig(level=logging.DEBUG, format='%(name)s - %(levelname)s - %(message)s')
 
     def test_command_line_interface(self):
         runner = CliRunner()
@@ -514,3 +517,21 @@ class TestSafetyCLI(unittest.TestCase):
         result = self.runner.invoke(cli.cli, ['license', '--key', 'foo', '--file', test_filename])
         print(result.stdout)
         self.assertEqual(result.exit_code, 0)
+
+    @patch('builtins.input', lambda *args: '')
+    def test_debug_flag(self):
+        result = self.runner.invoke(cli.cli, ['--debug', 'scan'])
+        print(result.output)
+        assert "for known security issues using default" in result.output
+
+    @patch('builtins.input', lambda *args: '')
+    def test_debug_flag_with_value_1(self):
+        result = self.runner.invoke(cli.cli, ['--debug', '1', 'scan'])
+        print(result.output)
+        assert "for known security issues using default" in result.output
+
+    @patch('builtins.input', lambda *args: '')
+    def test_debug_flag_with_value_true(self):
+        result = self.runner.invoke(cli.cli, ['--debug', 'true', 'scan'])
+        print(result.output)
+        assert "for known security issues using default" in result.output

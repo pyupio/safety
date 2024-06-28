@@ -127,14 +127,6 @@ def cli(ctx, debug, disable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.
     """
-    # Check if '--debug' is followed by '1' or 'true' and adjust the arguments
-    if '--debug' in sys.argv:
-        index = sys.argv.index('--debug')
-        if len(sys.argv) > index + 1:
-            next_arg = sys.argv[index + 1]
-            if next_arg in ('1', 'true'):
-                sys.argv[index] = '--debug'  # Keep --debug
-                sys.argv.pop(index + 1)  # Remove the next argument (1 or true)
 
     SafetyContext().safety_source = 'cli'
     telemetry = not disable_optional_telemetry

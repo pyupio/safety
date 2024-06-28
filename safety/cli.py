@@ -47,22 +47,37 @@ except ImportError:
     from typing_extensions import Annotated
 
 
+
+
+
 LOG = logging.getLogger(__name__)
 
+def preprocess_args():
+    # Preprocess the arguments before Click processes them
+    if '--debug' in sys.argv:
+        index = sys.argv.index('--debug')
+        if len(sys.argv) > index + 1:
+            next_arg = sys.argv[index + 1]
+            if next_arg in ('1', 'true'):
+                sys.argv[index] = '--debug'  # Keep --debug
+                sys.argv.pop(index + 1)  # Remove the next argument (1 or true)
 
-def configure_logger(ctx, param, debug):
+preprocess_args()
+
+
+def configure_logger(ctx, param, value):
     level = logging.CRITICAL
-    
-    if debug:
+    if value:
         level = logging.DEBUG
+    logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)
+    return value
 
-    logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)    
 
 @click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
 @auth_options()
 @proxy_options
 @click.option('--disable-optional-telemetry', default=False, is_flag=True, show_default=True, help=CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP)
-@click.option('--debug', default=False, help=CLI_DEBUG_HELP, callback=configure_logger)
+@click.option('--debug', is_flag=True, help=CLI_DEBUG_HELP, callback=configure_logger)
 @click.version_option(version=get_safety_version())
 @click.pass_context
 @inject_session
@@ -70,6 +85,7 @@ def cli(ctx, debug, disable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.
     """
+
     SafetyContext().safety_source = 'cli'
     telemetry = not disable_optional_telemetry
     ctx.obj.config = ConfigModel(telemetry_enabled=telemetry)
@@ -107,7 +123,7 @@ def clean_check_command(f):
         kwargs.pop('proxy_protocol', None)
         kwargs.pop('proxy_host', None)
         kwargs.pop('proxy_port', None)
-        
+
         if ctx.get_parameter_source("json_version") != click.core.ParameterSource.DEFAULT and not (
                 save_json or json or output == 'json'):
             raise click.UsageError(
@@ -128,8 +144,8 @@ def clean_check_command(f):
                                                                                proxy_dictionary=None)
             audit_and_monitor = (audit_and_monitor and server_audit_and_monitor)
 
-            kwargs.update({"auto_remediation_limit": auto_remediation_limit, 
-                           "policy_file":policy_file, 
+            kwargs.update({"auto_remediation_limit": auto_remediation_limit,
+                           "policy_file":policy_file,
                            "audit_and_monitor": audit_and_monitor})
 
         except SafetyError as e:
@@ -441,18 +457,18 @@ def validate(ctx, name, version, path):
     if not os.path.exists(path):
         click.secho(f'The path "{path}" does not exist.', fg='red', file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
-    
+
     if version not in ["3.0", "2.0", None]:
         click.secho(f'Version "{version}" is not a valid value, allowed values are 3.0 and 2.0. Use --path to specify the target file.', fg='red', file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
-    
+
     def fail_validation(e):
         click.secho(str(e).lstrip(), fg='red', file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
 
     if not version:
         version = "3.0"
-    
+
     result = ""
 
     if version == "3.0":
@@ -463,7 +479,7 @@ def validate(ctx, name, version, path):
             policy = load_policy_file(Path(path))
         except Exception as e:
             fail_validation(e)
-        
+
         click.secho(f"The Safety policy ({version}) file " \
                     "(Used for scan and system-scan commands) " \
                     "was successfully parsed " \
@@ -478,18 +494,18 @@ def validate(ctx, name, version, path):
             sys.exit(EXIT_CODE_FAILURE)
 
         del values['raw']
-        
+
         result = json.dumps(values, indent=4, default=str)
 
         click.secho("The Safety policy file " \
                     "(Valid only for the check command) " \
                     "was successfully parsed with the " \
                     "following values:", fg="green")
-    
+
     console.print_json(result)
 
 
-@cli.command(cls=SafetyCLILegacyCommand, 
+@cli.command(cls=SafetyCLILegacyCommand,
              help=CLI_CONFIGURE_HELP,
              utility_command=True)
 @click.option("--proxy-protocol", "-pr", type=click.Choice(['http', 'https']), default='https', cls=DependentOption,
@@ -519,8 +535,8 @@ def validate(ctx, name, version, path):
 @click.option("--save-to-system/--save-to-user", default=False, is_flag=True,
               help=CLI_CONFIGURE_SAVE_TO_SYSTEM)
 @click.pass_context
-def configure(ctx, proxy_protocol, proxy_host, proxy_port, proxy_timeout, 
-              proxy_required, organization_id, organization_name, stage, 
+def configure(ctx, proxy_protocol, proxy_host, proxy_port, proxy_timeout,
+              proxy_required, organization_id, organization_name, stage,
               save_to_system):
     """
     Configure global settings, like proxy settings and organization details
@@ -565,7 +581,7 @@ def configure(ctx, proxy_protocol, proxy_host, proxy_port, proxy_timeout,
             'host': proxy_host,
             'port': str(proxy_port)
         })
-        
+
     if not config.has_section(PROXY_SECTION_NAME):
         config.add_section(PROXY_SECTION_NAME)
 
@@ -669,7 +685,7 @@ def check_updates(ctx: typer.Context,
 
     if not data:
         raise SafetyException("No data found.")
-    
+
     console.print("[green]Safety CLI is authenticated:[/green]")
 
     from rich.padding import Padding
@@ -696,7 +712,7 @@ def check_updates(ctx: typer.Context,
             f"If Safety was installed from a requirements file, update Safety to version {latest_available_version} in that requirements file."
         )
         console.print()
-        # `pip -i <source_url> install safety=={latest_available_version}` OR 
+        # `pip -i <source_url> install safety=={latest_available_version}` OR
         console.print(f"Pip: To install the updated version of Safety directly via pip, run: `pip install safety=={latest_available_version}`")
 
     if console.quiet:
@@ -717,5 +733,5 @@ cli.add_command(typer.main.get_command(auth_app), "auth")
 
 cli.add_command(alert)
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     cli()

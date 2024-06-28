@@ -1,19 +1,19 @@
 import json
 import os
-from pathlib import Path
 import shutil
 import tempfile
 import unittest
 from datetime import datetime
-from packaging.version import Version
-from packaging.specifiers import SpecifierSet
-from unittest.mock import patch, Mock
+from pathlib import Path
+from unittest.mock import Mock, patch
 
 import click
 from click.testing import CliRunner
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 
 from safety import cli
-from safety.models import Vulnerability, CVE, Severity, SafetyRequirement
+from safety.models import CVE, SafetyRequirement, Severity, Vulnerability
 from safety.util import Package, SafetyContext
 
 
@@ -70,7 +70,7 @@ class TestSafetyCLI(unittest.TestCase):
         self.output_options = ['screen', 'text', 'json', 'bare']
         self.dirname = os.path.dirname(__file__)
 
-    def test_command_line_interface(self):        
+    def test_command_line_interface(self):
         runner = CliRunner()
         result = runner.invoke(cli.cli)
         expected = "Usage: cli [OPTIONS] COMMAND [ARGS]..."
@@ -234,7 +234,7 @@ class TestSafetyCLI(unittest.TestCase):
                         "cvss_severity": [
                             "critical",
                             "high",
-                            "medium",                    
+                            "medium",
                         ],
                         "exploitability": [
                             "critical",
@@ -330,7 +330,7 @@ class TestSafetyCLI(unittest.TestCase):
         req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
         result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-security-updates'])
         self.assertEqual(click.unstyle(result.stderr),
-                         "The --apply-security-updates option needs authentication. See https://bit.ly/3OY2wEI.\n")
+                         "The --apply-security-updates option needs authentication. See https://docs.safetycli.com/safety-docs/support/invalid-api-key-error.\n")
         self.assertEqual(result.exit_code, 65)
 
     def test_check_with_fix_only_works_with_files(self):

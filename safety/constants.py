@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import configparser
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Optional
-
 
 JSON_SCHEMA_VERSION = '2.0.0'
 
@@ -15,8 +15,8 @@ OPEN_MIRRORS = [
 DIR_NAME = ".safety"
 
 def get_system_dir() -> Path:
-    import sys
     import os
+    import sys
     raw_dir = os.getenv("SAFETY_SYSTEM_CONFIG_PATH")
     app_data = os.environ.get('ALLUSERSPROFILE', None)
 
@@ -98,7 +98,8 @@ API_MIRRORS = [
     DATA_API_BASE_URL
 ]
 
-REQUEST_TIMEOUT = 30
+# Fetch the REQUEST_TIMEOUT from the environment variable, defaulting to 30 if not set
+REQUEST_TIMEOUT = int(os.getenv("SAFETY_REQUEST_TIMEOUT", 30))
 
 # Colors
 YELLOW = 'yellow'
@@ -122,19 +123,19 @@ MSG_NO_AUTHD_CICD_PROD_STG = "Enter your Safety API key to scan projects in CI/C
 MSG_NO_AUTHD_CICD_PROD_STG_ORG = \
 f"""
 Login to get your API key
-    
+
 To log in: [link]{{LOGIN_URL}}[/link]
-    
+
 Read more at: [link]{DOCS_API_KEY_URL}[/link]
 """
 
 MSG_NO_AUTHD_NOTE_CICD_PROD_STG_TPL = \
 f"""
 Login or register for a free account to get your API key
-    
+
 To log in: [link]{{LOGIN_URL}}[/link]
 To register: [link]{{SIGNUP_URL}}[/link]
-    
+
 Read more at: [link]{DOCS_API_KEY_URL}[/link]
 """
 

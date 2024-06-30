@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from packaging.version import parse as parse_version
 from packaging.specifiers import SpecifierSet
 import requests
+from typing import Any, Optional, Generator
 
 from datetime import datetime
 from dparse import parse, parser, updater, filetypes
@@ -11,7 +12,15 @@ from dparse.parser import setuptools_parse_requirements_backport as parse_requir
 
 
 class RequirementFile(object):
-    def __init__(self, path, content, sha=None):
+    """
+    Class representing a requirements file with its content and metadata.
+
+    Attributes:
+        path (str): The file path.
+        content (str): The content of the file.
+        sha (Optional[str]): The SHA of the file.
+    """
+    def __init__(self, path: str, content: str, sha: Optional[str] = None):
         self.path = path
         self.content = content
         self.sha = sha
@@ -22,7 +31,7 @@ class RequirementFile(object):
         self.is_pipfile_lock = False
         self.is_setup_cfg = False
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "RequirementFile(path='{path}', sha='{sha}', content='{content}')".format(
             path=self.path,
             content=self.content[:30] + "[truncated]" if len(self.content) > 30 else self.content,
@@ -30,52 +39,109 @@ class RequirementFile(object):
         )
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> Optional[bool]:
+        """
+        Checks if the requirements file is valid by parsing it.
+
+        Returns:
+            bool: True if the file is valid, False otherwise.
+        """
         if self._is_valid is None:
             self._parse()
         return self._is_valid
 
     @property
-    def requirements(self):
+    def requirements(self) -> Optional[list]:
+        """
+        Returns the list of requirements parsed from the file.
+
+        Returns:
+            list: The list of requirements.
+        """
         if not self._requirements:
             self._parse()
         return self._requirements
 
     @property
-    def other_files(self):
+    def other_files(self) -> Optional[list]:
+        """
+        Returns the list of other files resolved from the requirements file.
+
+        Returns:
+            list: The list of other files.
+        """
         if not self._other_files:
             self._parse()
         return self._other_files
 
     @staticmethod
-    def parse_index_server(line):
+    def parse_index_server(line: str) -> Optional[str]:
+        """
+        Parses the index server from a given line.
+
+        Args:
+            line (str): The line to parse.
+
+        Returns:
+            str: The parsed index server.
+        """
         return parser.Parser.parse_index_server(line)
 
-    def _hash_parser(self, line):
+    def _hash_parser(self, line: str) -> Optional[tuple[str, list[str]]]:
+        """
+        Parses the hashes from a given line.
+
+        Args:
+            line (str): The line to parse.
+
+        Returns:
+            list: The list of parsed hashes.
+        """
         return parser.Parser.parse_hashes(line)
 
-    def _parse_requirements_txt(self):
+    def _parse_requirements_txt(self) -> None:
+        """
+        Parses the requirements.txt file format.
+        """
         self.parse_dependencies(filetypes.requirements_txt)
 
-    def _parse_conda_yml(self):
+    def _parse_conda_yml(self) -> None:
+        """
+        Parses the conda.yml file format.
+        """
         self.parse_dependencies(filetypes.conda_yml)
 
-    def _parse_tox_ini(self):
+    def _parse_tox_ini(self) -> None:
+        """
+        Parses the tox.ini file format.
+        """
         self.parse_dependencies(filetypes.tox_ini)
 
-    def _parse_pipfile(self):
+    def _parse_pipfile(self) -> None:
+        """
+        Parses the Pipfile format.
+        """
         self.parse_dependencies(filetypes.pipfile)
         self.is_pipfile = True
 
-    def _parse_pipfile_lock(self):
+    def _parse_pipfile_lock(self) -> None:
+        """
+        Parses the Pipfile.lock format.
+        """
         self.parse_dependencies(filetypes.pipfile_lock)
         self.is_pipfile_lock = True
 
-    def _parse_setup_cfg(self):
+    def _parse_setup_cfg(self) -> None:
+        """
+        Parses the setup.cfg format.
+        """
         self.parse_dependencies(filetypes.setup_cfg)
         self.is_setup_cfg = True
 
-    def _parse(self):
+    def _parse(self) -> None:
+        """
+        Parses the requirements file to extract dependencies and other files.
+        """
         self._requirements, self._other_files = [], []
         if self.path.endswith('.yml') or self.path.endswith(".yaml"):
             self._parse_conda_yml()
@@ -91,7 +157,13 @@ class RequirementFile(object):
             self._parse_requirements_txt()
         self._is_valid = len(self._requirements) > 0 or len(self._other_files) > 0
 
-    def parse_dependencies(self, file_type):
+    def parse_dependencies(self, file_type: str) -> None:
+        """
+        Parses the dependencies from the content based on the file type.
+
+        Args:
+            file_type (str): The type of the file.
+        """
         result = parse(
             self.content,
             path=self.path,
@@ -118,17 +190,47 @@ class RequirementFile(object):
             self._requirements.append(req)
         self._other_files = result.resolved_files
 
-    def iter_lines(self, lineno=0):
+    def iter_lines(self, lineno: int = 0) -> Generator[str, None, None]:
+        """
+        Iterates over lines in the content starting from a specific line number.
+
+        Args:
+            lineno (int): The line number to start from.
+
+        Yields:
+            str: The next line in the content.
+        """
         for line in self.content.splitlines()[lineno:]:
             yield line
 
     @classmethod
-    def resolve_file(cls, file_path, line):
+    def resolve_file(cls, file_path: str, line: str) -> str:
+        """
+        Resolves a file path from a given line.
+
+        Args:
+            file_path (str): The file path to resolve.
+            line (str): The line containing the file path.
+
+        Returns:
+            str: The resolved file path.
+        """
         return parser.Parser.resolve_file(file_path, line)
 
 
 class Requirement(object):
-    def __init__(self, name, specs, line, lineno, extras, file_type):
+    """
+    Class representing a single requirement.
+
+    Attributes:
+        name (str): The name of the requirement.
+        specs (SpecifierSet): The version specifiers for the requirement.
+        line (str): The line containing the requirement.
+        lineno (int): The line number of the requirement.
+        extras (list): The extras for the requirement.
+        file_type (str): The type of the file containing the requirement.
+    """
+    def __init__(self, name: str, specs: SpecifierSet, line: str, lineno: int, extras: list, file_type: str):
         self.name = name
         self.key = name.lower()
         self.specs = specs
@@ -149,6 +251,7 @@ class Requirement(object):
         self._is_insecure = None
         self._changelog = None
 
+        # Convert compatible releases to a range of versions
         if len(self.specs._specs) == 1 and next(iter(self.specs._specs))._spec[0] == "~=":
             # convert compatible releases to something more easily consumed,
             # e.g. '~=1.2.3' is equivalent to '>=1.2.3,<1.3.0', while '~=1.2'
@@ -161,43 +264,76 @@ class Requirement(object):
 
             self.specs = SpecifierSet('>=%s,<%s' % (min_version, max_version))
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, Requirement) and
             self.hashCmp == other.hashCmp
         )
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self == other
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Requirement.parse({line}, {lineno})".format(line=self.line, lineno=self.lineno)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     @property
-    def is_pinned(self):
+    def is_pinned(self) -> bool:
+        """
+        Checks if the requirement is pinned to a specific version.
+
+        Returns:
+            bool: True if pinned, False otherwise.
+        """
         if len(self.specs._specs) == 1 and next(iter(self.specs._specs))._spec[0] == "==":
             return True
         return False
 
     @property
-    def is_open_ranged(self):
+    def is_open_ranged(self) -> bool:
+        """
+        Checks if the requirement has an open range of versions.
+
+        Returns:
+            bool: True if open ranged, False otherwise.
+        """
         if len(self.specs._specs) == 1 and next(iter(self.specs._specs))._spec[0] == ">=":
             return True
         return False
 
     @property
-    def is_ranged(self):
+    def is_ranged(self) -> bool:
+        """
+        Checks if the requirement has a range of versions.
+
+        Returns:
+            bool: True if ranged, False otherwise.
+        """
         return len(self.specs._specs) >= 1 and not self.is_pinned
 
     @property
-    def is_loose(self):
+    def is_loose(self) -> bool:
+        """
+        Checks if the requirement has no version specifiers.
+
+        Returns:
+            bool: True if loose, False otherwise.
+        """
         return len(self.specs._specs) == 0
 
     @staticmethod
-    def convert_semver(version):
+    def convert_semver(version: str) -> dict:
+        """
+        Converts a version string to a semantic version dictionary.
+
+        Args:
+            version (str): The version string.
+
+        Returns:
+            dict: The semantic version dictionary.
+        """
         semver = {'major': 0, "minor": 0, "patch": 0}
         version = version.split(".")
         # don't be overly clever here. repitition makes it more readable and works exactly how
@@ -211,7 +347,13 @@ class Requirement(object):
         return semver
 
     @property
-    def can_update_semver(self):
+    def can_update_semver(self) -> bool:
+        """
+        Checks if the requirement can be updated based on semantic versioning rules.
+
+        Returns:
+            bool: True if it can be updated, False otherwise.
+        """
         # return early if there's no update filter set
         if "pyup: update" not in self.line:
             return True
@@ -229,6 +371,12 @@ class Requirement(object):
 
     @property
     def filter(self):
+        """
+        Returns the filter for the requirement if specified.
+
+        Returns:
+            Optional[SpecifierSet]: The filter specifier set, or None if not specified.
+        """
         rqfilter = False
         if "rq.filter:" in self.line:
             rqfilter = self.line.split("rq.filter:")[1].strip().split("#")[0]
@@ -255,7 +403,13 @@ class Requirement(object):
         return False
 
     @property
-    def version(self):
+    def version(self) -> Optional[str]:
+        """
+        Returns the current version of the requirement.
+
+        Returns:
+            Optional[str]: The current version, or None if not pinned.
+        """
         if self.is_pinned:
             return next(iter(self.specs._specs))._spec[1]
 
@@ -270,7 +424,16 @@ class Requirement(object):
             prereleases=self.prereleases
         )
 
-    def get_hashes(self, version):
+    def get_hashes(self, version: str) -> list:
+        """
+        Retrieves the hashes for a specific version from PyPI.
+
+        Args:
+            version (str): The version to retrieve hashes for.
+
+        Returns:
+            list: A list of hashes for the specified version.
+        """
         r = requests.get('https://pypi.org/pypi/{name}/{version}/json'.format(
             name=self.key,
             version=version
@@ -284,7 +447,18 @@ class Requirement(object):
                 hashes.append({"hash": sha256, "method": "sha256"})
         return hashes
 
-    def update_version(self, content, version, update_hashes=True):
+    def update_version(self, content: str, version: str, update_hashes: bool = True) -> str:
+        """
+        Updates the version of the requirement in the content.
+
+        Args:
+            content (str): The original content.
+            version (str): The new version to update to.
+            update_hashes (bool): Whether to update the hashes as well.
+
+        Returns:
+            str: The updated content.
+        """
         if self.file_type == filetypes.tox_ini:
             updater_class = updater.ToxINIUpdater
         elif self.file_type == filetypes.conda_yml:
@@ -322,7 +496,18 @@ class Requirement(object):
         )
 
     @classmethod
-    def parse(cls, s, lineno, file_type=filetypes.requirements_txt):
+    def parse(cls, s: str, lineno: int, file_type: str = filetypes.requirements_txt) -> 'Requirement':
+        """
+        Parses a requirement from a line of text.
+
+        Args:
+            s (str): The line of text.
+            lineno (int): The line number.
+            file_type (str): The type of the file containing the requirement.
+
+        Returns:
+            Requirement: The parsed requirement.
+        """
         # setuptools requires a space before the comment. If this isn't the case, add it.
         if "\t#" in s:
             parsed, = parse_requirements(s.replace("\t#", "\t #"))

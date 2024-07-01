@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from packaging.version import parse as parse_version
 from packaging.specifiers import SpecifierSet
 import requests
-from typing import Any, Optional, Generator
+from typing import Any, Optional, Generator, Tuple, List
 
 from datetime import datetime
 from dparse import parse, parser, updater, filetypes
@@ -51,24 +51,24 @@ class RequirementFile(object):
         return self._is_valid
 
     @property
-    def requirements(self) -> Optional[list]:
+    def requirements(self) -> Optional[List]:
         """
         Returns the list of requirements parsed from the file.
 
         Returns:
-            list: The list of requirements.
+            List: The list of requirements.
         """
         if not self._requirements:
             self._parse()
         return self._requirements
 
     @property
-    def other_files(self) -> Optional[list]:
+    def other_files(self) -> Optional[List]:
         """
         Returns the list of other files resolved from the requirements file.
 
         Returns:
-            list: The list of other files.
+            List: The list of other files.
         """
         if not self._other_files:
             self._parse()
@@ -87,7 +87,7 @@ class RequirementFile(object):
         """
         return parser.Parser.parse_index_server(line)
 
-    def _hash_parser(self, line: str) -> Optional[tuple[str, list[str]]]:
+    def _hash_parser(self, line: str) -> Optional[Tuple[str, List[str]]]:
         """
         Parses the hashes from a given line.
 
@@ -95,7 +95,7 @@ class RequirementFile(object):
             line (str): The line to parse.
 
         Returns:
-            list: The list of parsed hashes.
+            List: The list of parsed hashes.
         """
         return parser.Parser.parse_hashes(line)
 
@@ -227,10 +227,10 @@ class Requirement(object):
         specs (SpecifierSet): The version specifiers for the requirement.
         line (str): The line containing the requirement.
         lineno (int): The line number of the requirement.
-        extras (list): The extras for the requirement.
+        extras (List): The extras for the requirement.
         file_type (str): The type of the file containing the requirement.
     """
-    def __init__(self, name: str, specs: SpecifierSet, line: str, lineno: int, extras: list, file_type: str):
+    def __init__(self, name: str, specs: SpecifierSet, line: str, lineno: int, extras: List, file_type: str):
         self.name = name
         self.key = name.lower()
         self.specs = specs
@@ -424,7 +424,7 @@ class Requirement(object):
             prereleases=self.prereleases
         )
 
-    def get_hashes(self, version: str) -> list:
+    def get_hashes(self, version: str) -> List:
         """
         Retrieves the hashes for a specific version from PyPI.
 
@@ -432,7 +432,7 @@ class Requirement(object):
             version (str): The version to retrieve hashes for.
 
         Returns:
-            list: A list of hashes for the specified version.
+            List: A list of hashes for the specified version.
         """
         r = requests.get('https://pypi.org/pypi/{name}/{version}/json'.format(
             name=self.key,

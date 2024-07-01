@@ -4,7 +4,7 @@ import logging
 import socket
 import sys
 import time
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, Tuple
 import urllib.parse
 import threading
 import click
@@ -188,12 +188,12 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
     """
 
     class ThreadedHTTPServer(http.server.HTTPServer):
-        def __init__(self, server_address: tuple, RequestHandlerClass: Any) -> None:
+        def __init__(self, server_address: Tuple, RequestHandlerClass: Any) -> None:
             """
             Initialize the ThreadedHTTPServer.
 
             Args:
-                server_address (tuple): The server address as a tuple (host, port).
+                server_address (Tuple): The server address as a tuple (host, port).
                 RequestHandlerClass (Any): The request handler class.
             """
             super().__init__(server_address, RequestHandlerClass)

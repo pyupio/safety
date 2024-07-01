@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Optional, Dict, Callable
+from typing import Any, Optional, Dict, Callable, Tuple
 from authlib.integrations.requests_client import OAuth2Session
 from authlib.integrations.base_client.errors import OAuthError
 import requests
@@ -162,7 +162,7 @@ class SafetyAuthSession(OAuth2Session):
 
         return AuthenticationType.none
 
-    def request(self, method: str, url: str, withhold_token: bool = False, auth: Optional[tuple] = None, bearer: bool = True, **kwargs: Any) -> requests.Response:
+    def request(self, method: str, url: str, withhold_token: bool = False, auth: Optional[Tuple] = None, bearer: bool = True, **kwargs: Any) -> requests.Response:
         """
         Make an HTTP request with the appropriate authentication.
 
@@ -172,7 +172,7 @@ class SafetyAuthSession(OAuth2Session):
             method (str): The HTTP method.
             url (str): The URL to request.
             withhold_token (bool): Whether to withhold the token.
-            auth (Optional[tuple]): The authentication tuple.
+            auth (Optional[Tuple]): The authentication tuple.
             bearer (bool): Whether to use bearer authentication.
             **kwargs (Any): Additional keyword arguments.
 

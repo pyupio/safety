@@ -1,5 +1,7 @@
 import json
+import logging
 import os
+import sys
 import shutil
 import tempfile
 import unittest
@@ -69,6 +71,8 @@ class TestSafetyCLI(unittest.TestCase):
         self.runner = CliRunner(mix_stderr=False)
         self.output_options = ['screen', 'text', 'json', 'bare']
         self.dirname = os.path.dirname(__file__)
+        # Set up logging to capture debug output for tests
+        logging.basicConfig(level=logging.DEBUG, format='%(name)s - %(levelname)s - %(message)s')
 
     def test_command_line_interface(self):
         runner = CliRunner()
@@ -514,3 +518,41 @@ class TestSafetyCLI(unittest.TestCase):
         result = self.runner.invoke(cli.cli, ['license', '--key', 'foo', '--file', test_filename])
         print(result.stdout)
         self.assertEqual(result.exit_code, 0)
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch('safety.auth.cli.is_email_verified', return_value=True)
+    @patch('builtins.input', lambda *args: '')
+    def test_debug_flag(self, mock_get_auth_info, mock_is_email_verified):
+        result = self.runner.invoke(cli.cli, ['--debug', 'scan'])
+        assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
+        assert "for known security issues using default" in result.output
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch('safety.auth.cli.is_email_verified', return_value=True)
+    @patch('builtins.input', lambda *args: '')
+    def test_debug_flag_with_value_1(self, mock_get_auth_info, mock_is_email_verified):
+        # Simulate the command line arguments including the preprocessing
+        sys.argv = ['safety', '--debug', '1', 'scan']
+        cli.preprocess_args()  # Run the preprocess function to adjust the arguments
+
+        # Extract the preprocessed arguments from sys.argv
+        preprocessed_args = sys.argv[1:]  # Exclude the script name 'safety'
+
+        result = self.runner.invoke(cli.cli, preprocessed_args)
+        assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
+        assert "for known security issues using default" in result.output
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})  # Patch the auth info retrieval method
+    @patch('safety.auth.cli.is_email_verified', return_value=True)  # Patch the email verification check method
+    @patch('builtins.input', lambda *args: '')
+    def test_debug_flag_with_value_true(self, mock_get_auth_info, mock_is_email_verified):
+        # Simulate the command line arguments including the preprocessing
+        sys.argv = ['safety', '--debug', 'true', 'scan']
+        cli.preprocess_args()  # Run the preprocess function to adjust the arguments
+
+        # Extract the preprocessed arguments from sys.argv
+        preprocessed_args = sys.argv[1:]  # Exclude the script name 'safety'
+
+        result = self.runner.invoke(cli.cli, preprocessed_args)
+        assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
+        assert "for known security issues using default" in result.output

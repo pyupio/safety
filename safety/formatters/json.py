@@ -1,10 +1,7 @@
 import logging
-
 import json as json_parser
 from collections import defaultdict
-from typing import Iterable
-
-from requests.models import PreparedRequest
+from typing import Iterable, List, Dict, Any
 
 from safety.formatter import FormatterAPI
 from safety.formatters.schemas import VulnerabilitySchemaV05
@@ -16,7 +13,20 @@ from safety.util import get_basic_announcements, SafetyContext
 LOG = logging.getLogger(__name__)
 
 
-def build_json_report(announcements, vulnerabilities, remediations, packages):
+def build_json_report(announcements: List[Dict], vulnerabilities: List[Dict], remediations: Dict[str, Any],
+                      packages: List[Any]) -> Dict[str, Any]:
+    """
+    Build a JSON report for vulnerabilities, remediations, and packages.
+
+    Args:
+        announcements (List[Dict]): List of announcements.
+        vulnerabilities (List[Dict]): List of vulnerabilities.
+        remediations (Dict[str, Any]): Remediation data.
+        packages (List[Any]): List of packages.
+
+    Returns:
+        Dict[str, Any]: JSON report.
+    """
     vulns_ignored = [vuln.to_dict() for vuln in vulnerabilities if vuln.ignored]
     vulns = [vuln.to_dict() for vuln in vulnerabilities if not vuln.ignored]
 
@@ -56,10 +66,31 @@ class JsonReport(FormatterAPI):
     VERSIONS = ("0.5", "1.1")
 
     def __init__(self, version="1.1", **kwargs):
+        """
+        Initialize JsonReport with the specified version.
+
+        Args:
+            version (str): Report version.
+        """
         super().__init__(**kwargs)
         self.version: str = version if version in self.VERSIONS else "1.1"
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
+    def render_vulnerabilities(self, announcements: List[Dict], vulnerabilities: List[Dict],
+                               remediations: Dict[str, Any], full: bool, packages: List[Any], fixes: Iterable = ()) -> str:
+        """
+        Render vulnerabilities in JSON format.
+
+        Args:
+            announcements (List[Dict]): List of announcements.
+            vulnerabilities (List[Dict]): List of vulnerabilities.
+            remediations (Dict[str, Any]): Remediation data.
+            full (bool): Flag indicating full output.
+            packages (List[Any]): List of packages.
+            fixes (Iterable, optional): Iterable of fixes.
+
+        Returns:
+            str: Rendered JSON vulnerabilities report.
+        """
         if self.version == '0.5':
             return json_parser.dumps(VulnerabilitySchemaV05().dump(obj=vulnerabilities, many=True), indent=4)
 
@@ -72,7 +103,17 @@ class JsonReport(FormatterAPI):
 
         return json_parser.dumps(template, indent=4, cls=SafetyEncoder)
 
-    def render_licenses(self, announcements, licenses):
+    def render_licenses(self, announcements: List[Dict], licenses: List[Dict]) -> str:
+        """
+        Render licenses in JSON format.
+
+        Args:
+            announcements (List[Dict]): List of announcements.
+            licenses (List[Dict]): List of licenses.
+
+        Returns:
+            str: Rendered JSON licenses report.
+        """
         unique_license_types = set([lic['license'] for lic in licenses])
         report = get_report_brief_info(as_dict=True, report_type=2, licenses_found=len(unique_license_types))
 
@@ -84,10 +125,29 @@ class JsonReport(FormatterAPI):
 
         return json_parser.dumps(template, indent=4)
 
-    def render_announcements(self, announcements):
+    def render_announcements(self, announcements: List[Dict]) -> str:
+        """
+        Render announcements in JSON format.
+
+        Args:
+            announcements (List[Dict]): List of announcements.
+
+        Returns:
+            str: Rendered JSON announcements.
+        """
         return json_parser.dumps({"announcements": get_basic_announcements(announcements)}, indent=4)
 
-    def __render_fixes(self, scan_template, fixes: Iterable):
+    def __render_fixes(self, scan_template: Dict[str, Any], fixes: Iterable) -> Dict[str, Any]:
+        """
+        Render fixes and update the scan template with remediations information.
+
+        Args:
+            scan_template (Dict[str, Any]): Initial scan template.
+            fixes (Iterable): Iterable of fixes.
+
+        Returns:
+            Dict[str, Any]: Updated scan template with remediations.
+        """
 
         applied = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         skipped = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))

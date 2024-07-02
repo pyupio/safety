@@ -8,7 +8,7 @@ from safety.output_utils import build_announcements_section_content, format_long
 from safety.util import get_primary_announcement, get_basic_announcements, get_terminal_size, \
     is_ignore_unpinned_mode
 from collections import defaultdict
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Any, Tuple
 
 class ScreenReport(FormatterAPI):
     DIVIDER_SECTIONS = '+' + '=' * (get_terminal_size().columns - 2) + '+'

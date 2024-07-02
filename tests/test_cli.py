@@ -524,7 +524,7 @@ class TestSafetyCLI(unittest.TestCase):
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
     @patch('builtins.input', lambda *args: '')
-    @patch('safety.safety.fetch_database')
+    @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
         result = self.runner.invoke(cli.cli, ['--debug', 'scan'])
         assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
@@ -534,7 +534,7 @@ class TestSafetyCLI(unittest.TestCase):
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
     @patch('builtins.input', lambda *args: '')
-    @patch('safety.safety.fetch_database')
+    @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag_with_value_1(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
         # Simulate the command line arguments including the preprocessing
         sys.argv = ['safety', '--debug', '1', 'scan']
@@ -551,7 +551,7 @@ class TestSafetyCLI(unittest.TestCase):
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
     @patch('builtins.input', lambda *args: '')
-    @patch('safety.safety.fetch_database')
+    @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag_with_value_true(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
         # Simulate the command line arguments including the preprocessing
         sys.argv = ['safety', '--debug', 'true', 'scan']

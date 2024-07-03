@@ -171,6 +171,9 @@ class TestSafety(unittest.TestCase):
     def test_check_live_cached(self):
         from safety.constants import DB_CACHE_FILE
 
+        # Ensure the cache directory and file exist
+        os.makedirs(os.path.dirname(DB_CACHE_FILE), exist_ok=True)
+
         # lets clear the cache first
         try:
             with open(DB_CACHE_FILE, 'w') as f:

@@ -6,7 +6,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import random
 import sys
 import tempfile
 import time
@@ -16,7 +15,6 @@ from typing import Dict, Optional, List
 
 import click
 import requests
-from requests.models import PreparedRequest
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
@@ -52,7 +50,7 @@ def get_from_cache(db_name, cache_valid_seconds=0, skip_time_verification=False)
                         if data[db_name]["cached_at"] + cache_valid_seconds > time.time() or skip_time_verification:
                             LOG.debug('Getting the database from cache at %s, cache setting: %s',
                                       data[db_name]["cached_at"], cache_valid_seconds)
-                            
+
                             try:
                                 data[db_name]["db"]["meta"]["base_domain"] = "https://data.safetycli.com"
                             except KeyError as e:
@@ -113,7 +111,7 @@ def write_to_cache(db_name, data):
 
 def fetch_database_url(session, mirror, db_name, cached, telemetry=True,
                        ecosystem: Ecosystem = Ecosystem.PYTHON, from_cache=True):
-    headers = {'schema-version': JSON_SCHEMA_VERSION, 'ecosystem': ecosystem.value}    
+    headers = {'schema-version': JSON_SCHEMA_VERSION, 'ecosystem': ecosystem.value}
 
     if cached and from_cache:
         cached_data = get_from_cache(db_name=db_name, cache_valid_seconds=cached)
@@ -122,13 +120,13 @@ def fetch_database_url(session, mirror, db_name, cached, telemetry=True,
             return cached_data
     url = mirror + db_name
 
-    
+
     telemetry_data = {
-        'telemetry': json.dumps(build_telemetry_data(telemetry=telemetry), 
+        'telemetry': json.dumps(build_telemetry_data(telemetry=telemetry),
                                 default=pydantic_encoder)}
 
     try:
-        r = session.get(url=url, timeout=REQUEST_TIMEOUT, 
+        r = session.get(url=url, timeout=REQUEST_TIMEOUT,
                         headers=headers, params=telemetry_data)
     except requests.exceptions.ConnectionError:
         raise NetworkConnectionError()
@@ -205,10 +203,10 @@ def fetch_database_file(path: str, db_name: str, cached = 0,
 
     if not full_path.exists():
         raise DatabaseFileNotFoundError(db=path)
-    
+
     with open(full_path) as f:
         data = json.loads(f.read())
-    
+
     if cached:
         LOG.info('Writing %s to cache because cached value was %s', db_name, cached)
         write_to_cache(db_name, data)
@@ -226,7 +224,7 @@ def is_valid_database(db) -> bool:
     return False
 
 
-def fetch_database(session, full=False, db=False, cached=0, telemetry=True, 
+def fetch_database(session, full=False, db=False, cached=0, telemetry=True,
                    ecosystem: Optional[Ecosystem] = None, from_cache=True):
 
     if session.is_using_auth_credentials():
@@ -242,7 +240,7 @@ def fetch_database(session, full=False, db=False, cached=0, telemetry=True,
         if is_a_remote_mirror(mirror):
             if ecosystem is None:
                 ecosystem = Ecosystem.PYTHON
-            data = fetch_database_url(session, mirror, db_name=db_name, cached=cached, 
+            data = fetch_database_url(session, mirror, db_name=db_name, cached=cached,
                                       telemetry=telemetry, ecosystem=ecosystem, from_cache=from_cache)
         else:
             data = fetch_database_file(mirror, db_name=db_name, cached=cached,
@@ -562,16 +560,16 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], secure_vulns_by_
                 secure_v = compute_sec_ver_for_user(package=pkg, secure_vulns_by_user=secure_vulns_by_user, db_full=db_full)
 
             rem['closest_secure_version'] = get_closest_ver(secure_v, version, spec)
-    
+
             upgrade = rem['closest_secure_version'].get('upper', None)
             downgrade = rem['closest_secure_version'].get('lower', None)
             recommended_version = None
-    
+
             if upgrade:
                 recommended_version = upgrade
             elif downgrade:
                 recommended_version = downgrade
-    
+
             rem['recommended_version'] = recommended_version
             rem['other_recommended_versions'] = [other_v for other_v in secure_v if
                                                                     other_v != str(recommended_version)]
@@ -645,12 +643,12 @@ def process_fixes(files, remediations, auto_remediation_limit, output, no_output
 
 def process_fixes_scan(file_to_fix, to_fix_spec, auto_remediation_limit, output, no_output=True, prompt=False):
     to_fix_remediations =  []
-    
+
     def get_remmediation_from(spec):
         upper = None
         lower = None
         recommended = None
-        
+
         try:
             upper = Version(spec.remediation.closest_secure.upper) if spec.remediation.closest_secure.upper else None
         except Exception as e:
@@ -664,7 +662,7 @@ def process_fixes_scan(file_to_fix, to_fix_spec, auto_remediation_limit, output,
         try:
             recommended = Version(spec.remediation.recommended)
         except Exception as e:
-            LOG.error(f'Error getting recommended version for remediation, ignoring', exc_info=True)            
+            LOG.error(f'Error getting recommended version for remediation, ignoring', exc_info=True)
 
         return {
             "vulnerabilities_found": spec.remediation.vulnerabilities_found,
@@ -672,7 +670,7 @@ def process_fixes_scan(file_to_fix, to_fix_spec, auto_remediation_limit, output,
             "requirement": spec,
             "more_info_url": spec.remediation.more_info_url,
             "closest_secure_version": {
-                'upper': upper, 
+                'upper': upper,
                 'lower': lower
                 },
             "recommended_version": recommended,
@@ -690,7 +688,7 @@ def process_fixes_scan(file_to_fix, to_fix_spec, auto_remediation_limit, output,
             'files': {str(file_to_fix.location): {'content': None, 'fixes': {'TO_SKIP': [], 'TO_APPLY': [], 'TO_CONFIRM': []}, 'supported': False, 'filename': file_to_fix.location.name}},
             'dependencies': defaultdict(dict),
         }
-    
+
     fixes = apply_fixes(requirements, output, no_output, prompt, scan_flow=True, auto_remediation_limit=auto_remediation_limit)
 
     return fixes
@@ -822,7 +820,7 @@ def apply_fixes(requirements, out_type, no_output, prompt, scan_flow=False, auto
     for name, data in requirements['files'].items():
         output = [('', {}),
                   (f"Analyzing {name}... [{get_fix_opt_used_msg(auto_remediation_limit)} limit]", {'styling': {'bold': True}, 'start_line_decorator': '->', 'indent': ' '})]
-        
+
         r_skip = data['fixes']['TO_SKIP']
         r_apply = data['fixes']['TO_APPLY']
         r_confirm = data['fixes']['TO_CONFIRM']
@@ -901,7 +899,7 @@ def apply_fixes(requirements, out_type, no_output, prompt, scan_flow=False, auto
         else:
             not_supported_filename = data.get('filename', name)
             output.append(
-                (f"{not_supported_filename} updates not supported: Please update these dependencies using your package manager.", 
+                (f"{not_supported_filename} updates not supported: Please update these dependencies using your package manager.",
                  {'start_line_decorator': ' -', 'indent': ' '}))
             output.append(('', {}))
 
@@ -999,7 +997,7 @@ def review(*, report=None, params=None):
 
 @sync_safety_context
 def get_licenses(*, session=None, db_mirror=False, cached=0, telemetry=True):
-    
+
     if db_mirror:
         mirrors = [db_mirror]
     else:

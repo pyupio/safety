@@ -45,32 +45,30 @@ LOG = logging.getLogger(__name__)
 def get_from_cache(db_name: str, cache_valid_seconds: int = 0, skip_time_verification: bool = False) -> Optional[Dict[str, Any]]:
     cache_file_lock = f"{DB_CACHE_FILE}.lock"
     os.makedirs(os.path.dirname(cache_file_lock), exist_ok=True)
-    lock = FileLock(cache_file_lock, timeout=10)
-    with lock:
+    with FileLock(cache_file_lock, timeout=10) as lock:
         if os.path.exists(DB_CACHE_FILE):
             with open(DB_CACHE_FILE) as f:
                 try:
                     data = json.loads(f.read())
-                    if db_name in data:
-
-                        if "cached_at" in data[db_name]:
-                            if data[db_name]["cached_at"] + cache_valid_seconds > time.time() or skip_time_verification:
-                                LOG.debug('Getting the database from cache at %s, cache setting: %s',
-                                        data[db_name]["cached_at"], cache_valid_seconds)
-
-                                try:
-                                    data[db_name]["db"]["meta"]["base_domain"] = "https://data.safetycli.com"
-                                except KeyError as e:
-                                    pass
-
-                                return data[db_name]["db"]
-
-                            LOG.debug('Cached file is too old, it was cached at %s', data[db_name]["cached_at"])
-                        else:
-                            LOG.debug('There is not the cached_at key in %s database', data[db_name])
-
                 except json.JSONDecodeError:
                     LOG.debug('JSONDecodeError trying to get the cached database.')
+                if db_name in data:
+
+                    if "cached_at" in data[db_name]:
+                        if data[db_name]["cached_at"] + cache_valid_seconds > time.time() or skip_time_verification:
+                            LOG.debug('Getting the database from cache at %s, cache setting: %s',
+                                    data[db_name]["cached_at"], cache_valid_seconds)
+
+                            try:
+                                data[db_name]["db"]["meta"]["base_domain"] = "https://data.safetycli.com"
+                            except KeyError as e:
+                                pass
+
+                            return data[db_name]["db"]
+
+                        LOG.debug('Cached file is too old, it was cached at %s', data[db_name]["cached_at"])
+                    else:
+                        LOG.debug('There is not the cached_at key in %s database', data[db_name])
         else:
             LOG.debug("Cache file doesn't exist...")
     return None
@@ -101,8 +99,7 @@ def write_to_cache(db_name, data):
                 raise
 
     cache_file_lock = f"{DB_CACHE_FILE}.lock"
-    lock = FileLock(cache_file_lock, timeout=10)
-    with lock:
+    with FileLock(cache_file_lock, timeout=10) as lock:
         if os.path.exists(DB_CACHE_FILE):
             with open(DB_CACHE_FILE, "r") as f:
                 try:

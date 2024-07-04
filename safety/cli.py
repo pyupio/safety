@@ -47,9 +47,6 @@ except ImportError:
     from typing_extensions import Annotated
 
 
-
-
-
 LOG = logging.getLogger(__name__)
 
 def preprocess_args():
@@ -59,7 +56,6 @@ def preprocess_args():
         if len(sys.argv) > index + 1:
             next_arg = sys.argv[index + 1]
             if next_arg in ('1', 'true'):
-                sys.argv[index] = '--debug'  # Keep --debug
                 sys.argv.pop(index + 1)  # Remove the next argument (1 or true)
 
 preprocess_args()

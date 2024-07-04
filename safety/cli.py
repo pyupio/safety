@@ -58,8 +58,6 @@ def preprocess_args():
             if next_arg in ('1', 'true'):
                 sys.argv.pop(index + 1)  # Remove the next argument (1 or true)
 
-preprocess_args()
-
 
 def configure_logger(ctx, param, value):
     level = logging.CRITICAL
@@ -729,5 +727,9 @@ cli.add_command(typer.main.get_command(auth_app), "auth")
 
 cli.add_command(alert)
 
-if __name__ == "__main__":
+def main():
+    preprocess_args()
     cli()
+
+if __name__ == "__main__":
+    main()

@@ -11,7 +11,7 @@ import tempfile
 import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, Union, Iterator
 
 import click
 import requests
@@ -41,6 +41,17 @@ LOG = logging.getLogger(__name__)
 
 
 def get_from_cache(db_name: str, cache_valid_seconds: int = 0, skip_time_verification: bool = False) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves the database from the cache if it is valid.
+
+    Args:
+        db_name (str): The name of the database.
+        cache_valid_seconds (int): The validity period of the cache in seconds.
+        skip_time_verification (bool): Whether to skip time verification.
+
+    Returns:
+        Optional[[Dict[str, Any]]: The cached database if available and valid, otherwise False.
+    """
     cache_file_lock = f"{DB_CACHE_FILE}.lock"
     os.makedirs(os.path.dirname(cache_file_lock), exist_ok=True)
     lock = FileLock(cache_file_lock, timeout=10)
@@ -74,7 +85,14 @@ def get_from_cache(db_name: str, cache_valid_seconds: int = 0, skip_time_verific
     return None
 
 
-def write_to_cache(db_name, data):
+def write_to_cache(db_name: str, data: Dict[str, Any]) -> None:
+    """
+    Writes the database to the cache.
+
+    Args:
+        db_name (str): The name of the database.
+        data (Dict[str, Any]): The database data to be cached.
+    """
     # cache is in: ~/safety/cache.json
     # and has the following form:
     # {
@@ -120,8 +138,30 @@ def write_to_cache(db_name, data):
             LOG.debug('Safety updated the cache file for %s database.', db_name)
 
 
-def fetch_database_url(session, mirror, db_name, cached, telemetry=True,
-                       ecosystem: Ecosystem = Ecosystem.PYTHON, from_cache=True):
+def fetch_database_url(
+    session: requests.Session,
+    mirror: str,
+    db_name: str,
+    cached: int,
+    telemetry: bool = True,
+    ecosystem: Ecosystem = Ecosystem.PYTHON,
+    from_cache: bool = True
+) -> Dict[str, Any]:
+    """
+    Fetches the database from a URL.
+
+    Args:
+        session (requests.Session): The requests session.
+        mirror (str): The URL of the mirror.
+        db_name (str): The name of the database.
+        cached (int): The cache validity in seconds.
+        telemetry (bool): Whether to include telemetry data.
+        ecosystem (Ecosystem): The ecosystem.
+        from_cache (bool): Whether to fetch from cache.
+
+    Returns:
+        Dict[str, Any]: The fetched database.
+    """
     headers = {'schema-version': JSON_SCHEMA_VERSION, 'ecosystem': ecosystem.value}
 
     if cached and from_cache:
@@ -167,7 +207,16 @@ def fetch_database_url(session, mirror, db_name, cached, telemetry=True,
     return data
 
 
-def fetch_policy(session):
+def fetch_policy(session: requests.Session) -> Dict[str, Any]:
+    """
+    Fetches the policy from the server.
+
+    Args:
+        session (requests.Session): The requests session.
+
+    Returns:
+        Dict[str, Any]: The fetched policy.
+    """
     url = f"{DATA_API_BASE_URL}policy/"
 
     try:
@@ -181,7 +230,18 @@ def fetch_policy(session):
         return {"safety_policy": "", "audit_and_monitor": False}
 
 
-def post_results(session, safety_json, policy_file):
+def post_results(session: requests.Session, safety_json: str, policy_file: str) -> Dict[str, Any]:
+    """
+    Posts the scan results to the server.
+
+    Args:
+        session (requests.Session): The requests session.
+        safety_json (str): The scan results in JSON format.
+        policy_file (str): The policy file.
+
+    Returns:
+        Dict[str, Any]: The server response.
+    """
     url = f"{DATA_API_BASE_URL}result/"
 
     # safety_json is in text form already. policy_file is a text YAML
@@ -208,8 +268,19 @@ def post_results(session, safety_json, policy_file):
         return {}
 
 
-def fetch_database_file(path: str, db_name: str, cached = 0,
-                        ecosystem: Optional[Ecosystem] = None):
+def fetch_database_file(path: str, db_name: str, cached: int = 0, ecosystem: Optional[Ecosystem] = None) -> Dict[str, Any]:
+    """
+    Fetches the database from a local file.
+
+    Args:
+        path (str): The path to the local file.
+        db_name (str): The name of the database.
+        cached (int): The cache validity in seconds.
+        ecosystem (Optional[Ecosystem]): The ecosystem.
+
+    Returns:
+        Dict[str, Any]: The fetched database.
+    """
     full_path = (Path(path) / (ecosystem.value if ecosystem else '') / db_name).expanduser().resolve()
 
     if not full_path.exists():
@@ -225,7 +296,16 @@ def fetch_database_file(path: str, db_name: str, cached = 0,
     return data
 
 
-def is_valid_database(db) -> bool:
+def is_valid_database(db: Dict[str, Any]) -> bool:
+    """
+    Checks if the database is valid.
+
+    Args:
+        db (Dict[str, Any]): The database.
+
+    Returns:
+        bool: True if the database is valid, False otherwise.
+    """
     try:
         if db['meta']['schema_version'] == JSON_SCHEMA_VERSION:
             return True
@@ -235,9 +315,30 @@ def is_valid_database(db) -> bool:
     return False
 
 
-def fetch_database(session, full=False, db=False, cached=0, telemetry=True,
-                   ecosystem: Optional[Ecosystem] = None, from_cache=True):
+def fetch_database(
+    session: requests.Session,
+    full: bool = False,
+    db: Union[Optional[str], bool] = False,
+    cached: int = 0,
+    telemetry: bool = True,
+    ecosystem: Optional[Ecosystem] = None,
+    from_cache: bool = True
+) -> Dict[str, Any]:
+    """
+    Fetches the database from a mirror or a local file.
 
+    Args:
+        session (requests.Session): The requests session.
+        full (bool): Whether to fetch the full database.
+        db (Optional[str]): The path to the local database file.
+        cached (int): The cache validity in seconds.
+        telemetry (bool): Whether to include telemetry data.
+        ecosystem (Optional[Ecosystem]): The ecosystem.
+        from_cache (bool): Whether to fetch from cache.
+
+    Returns:
+        Dict[str, Any]: The fetched database.
+    """
     if session.is_using_auth_credentials():
         mirrors = API_MIRRORS
     elif db:
@@ -266,14 +367,52 @@ def fetch_database(session, full=False, db=False, cached=0, telemetry=True,
     raise DatabaseFetchError()
 
 
-def get_vulnerabilities(pkg, spec, db):
+def get_vulnerabilities(pkg: str, spec: str, db: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    """
+    Retrieves vulnerabilities for a package from the database.
+
+    Args:
+        pkg (str): The package name.
+        spec (str): The specifier set.
+        db (Dict[str, Any]): The database.
+
+    Returns:
+        Iterator[Dict[str, Any]]: An iterator of vulnerabilities.
+    """
     for entry in db['vulnerable_packages'][pkg]:
         for entry_spec in entry["specs"]:
             if entry_spec == spec:
                 yield entry
 
 
-def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_vulns, affected):
+def get_vulnerability_from(
+    vuln_id: str,
+    cve: Optional[CVE],
+    data: Dict[str, Any],
+    specifier: str,
+    db: Dict[str, Any],
+    name: str,
+    pkg: Package,
+    ignore_vulns: Dict[str, Any],
+    affected: SafetyRequirement
+) -> Vulnerability:
+    """
+    Constructs a Vulnerability object from the provided data.
+
+    Args:
+        vuln_id (str): The vulnerability ID.
+        cve (Optional[CVE]): The CVE object.
+        data (Dict[str, Any]): The vulnerability data.
+        specifier (str): The specifier set.
+        db (Dict[str, Any]): The database.
+        name (str): The package name.
+        pkg (Package): The Package object.
+        ignore_vulns (Dict[str, Any]): The ignored vulnerabilities.
+        affected (SafetyRequirement): The affected requirement.
+
+    Returns:
+        Vulnerability: The constructed Vulnerability object.
+    """
     base_domain = db.get('meta', {}).get('base_domain')
     unpinned_ignored = ignore_vulns.get(vuln_id, {}).get('requirements', None)
     should_ignore = not unpinned_ignored or str(affected.specifier) in unpinned_ignored
@@ -317,7 +456,17 @@ def get_vulnerability_from(vuln_id, cve, data, specifier, db, name, pkg, ignore_
     )
 
 
-def get_cve_from(data, db_full):
+def get_cve_from(data: Dict[str, Any], db_full: Dict[str, Any]) -> Optional[CVE]:
+    """
+    Retrieves the CVE object from the provided data.
+
+    Args:
+        data (Dict[str, Any]): The vulnerability data.
+        db_full (Dict[str, Any]): The full database.
+
+    Returns:
+        Optional[CVE]: The CVE object if found, otherwise None.
+    """
     try:
         xve_id: str = str(
             next(filter(lambda i: i.get('type', None) in ['cve', 'pve'], data.get('ids', []))).get('id', ''))
@@ -332,7 +481,25 @@ def get_cve_from(data, db_full):
                cvssv3=cve_meta.get("cvssv3", None))
 
 
-def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_severity_rules, req):
+def ignore_vuln_if_needed(
+    pkg: Package,
+    vuln_id: str,
+    cve: Optional[CVE],
+    ignore_vulns: Dict[str, Any],
+    ignore_severity_rules: Dict[str, Any],
+    req: SafetyRequirement
+) -> None:
+    """
+    Determines if a vulnerability should be ignored based on severity rules and updates the ignore_vulns dictionary.
+
+    Args:
+        pkg (Package): The package.
+        vuln_id (str): The vulnerability ID.
+        cve (Optional[CVE]): The CVE object.
+        ignore_vulns (Dict[str, Any]): The ignored vulnerabilities.
+        ignore_severity_rules (Dict[str, Any]): The severity rules for ignoring vulnerabilities.
+        req (SafetyRequirement): The affected requirement.
+    """
     if not ignore_severity_rules:
         ignore_severity_rules = {}
 
@@ -371,8 +538,18 @@ def ignore_vuln_if_needed(pkg: Package, vuln_id, cve, ignore_vulns, ignore_sever
         ignore_vulns[vuln_id] = {'reason': reason, 'expires': None, 'requirements': requirements}
 
 
-def is_vulnerable(vulnerable_spec: SpecifierSet, requirement, package):
+def is_vulnerable(vulnerable_spec: SpecifierSet, requirement: SafetyRequirement, package: Package) -> bool:
+    """
+    Checks if a package version is vulnerable.
 
+    Args:
+        vulnerable_spec (SpecifierSet): The specifier set for vulnerable versions.
+        requirement (SafetyRequirement): The package requirement.
+        package (Package): The package.
+
+    Returns:
+        bool: True if the package version is vulnerable, False otherwise.
+    """
     if is_pinned_requirement(requirement.specifier):
         try:
             return vulnerable_spec.contains(next(iter(requirement.specifier)).version)
@@ -390,8 +567,41 @@ def is_vulnerable(vulnerable_spec: SpecifierSet, requirement, package):
 
 
 @sync_safety_context
-def check(*, session=None, packages=[], db_mirror=False, cached=0, ignore_vulns=None, ignore_severity_rules=None, proxy=None,
-          include_ignored=False, is_env_scan=True, telemetry=True, params=None, project=None):
+def check(
+    *,
+    session: requests.Session,
+    packages: List[Package] = [],
+    db_mirror: Union[Optional[str], bool] = False,
+    cached: int = 0,
+    ignore_vulns: Optional[Dict[str, Any]] = None,
+    ignore_severity_rules: Optional[Dict[str, Any]] = None,
+    proxy: Optional[Dict[str, Any]] = None,
+    include_ignored: bool = False,
+    is_env_scan: bool = True,
+    telemetry: bool = True,
+    params: Optional[Dict[str, Any]] = None,
+    project: Optional[str] = None
+) -> tuple:
+    """
+    Performs a vulnerability check on the provided packages.
+
+    Args:
+        session (requests.Session): The requests session.
+        packages (List[Package]): The list of packages to check.
+        db_mirror (Union[Optional[str], bool]): The database mirror.
+        cached (int): The cache validity in seconds.
+        ignore_vulns (Optional[Dict[str, Any]]): The ignored vulnerabilities.
+        ignore_severity_rules (Optional[Dict[str, Any]]): The severity rules for ignoring vulnerabilities.
+        proxy (Optional[Dict[str, Any]]): The proxy settings.
+        include_ignored (bool): Whether to include ignored vulnerabilities.
+        is_env_scan (bool): Whether it is an environment scan.
+        telemetry (bool): Whether to include telemetry data.
+        params (Optional[Dict[str, Any]]): Additional parameters.
+        project (Optional[str]): The project name.
+
+    Returns:
+        tuple: A tuple containing the list of vulnerabilities and the full database.
+    """
     SafetyContext().command = 'check'
     db = fetch_database(session, db=db_mirror, cached=cached, telemetry=telemetry)
     db_full = None
@@ -455,8 +665,21 @@ def check(*, session=None, packages=[], db_mirror=False, cached=0, ignore_vulns=
     return vulnerabilities, db_full
 
 
-def precompute_remediations(remediations, packages, vulns, secure_vulns_by_user):
+def precompute_remediations(
+    remediations: Dict[str, Dict[str, Any]],
+    packages: Dict[str, Package],
+    vulns: List[Vulnerability],
+    secure_vulns_by_user: set
+) -> None:
+    """
+    Precomputes the remediations for the given vulnerabilities.
 
+    Args:
+        remediations (Dict[str, Dict[str, Any]]): The remediations dictionary.
+        packages (Dict[str, Package]): The packages dictionary.
+        vulns (List[Vulnerability]): The list of vulnerabilities.
+        secure_vulns_by_user (set): The set of vulnerabilities secured by the user.
+    """
     for vuln in vulns:
 
         if vuln.ignored and vuln.ignored_reason != IGNORE_UNPINNED_REQ_REASON:
@@ -487,8 +710,23 @@ def precompute_remediations(remediations, packages, vulns, secure_vulns_by_user)
                 'more_info_url': vuln.pkg.more_info_url}
 
 
-def get_closest_ver(versions, version, spec: SpecifierSet):
-    results = {'upper': None, 'lower': None}
+def get_closest_ver(
+    versions: List[str],
+    version: Optional[str],
+    spec: SpecifierSet
+) -> Dict[str, Optional[Union[str, Version]]]:
+    """
+    Retrieves the closest versions for the given version and specifier set.
+
+    Args:
+        versions (List[str]): The list of versions.
+        version (Optional[str]): The current version.
+        spec (SpecifierSet): The specifier set.
+
+    Returns:
+        Dict[str, Optional[Union[str, Version]]]: The closest versions.
+    """
+    results: Dict[str, Optional[Union[str, Version]]] = {'upper': None, 'lower': None}
 
     if (not version and not spec) or not versions:
         return results
@@ -527,7 +765,22 @@ def get_closest_ver(versions, version, spec: SpecifierSet):
     return results
 
 
-def compute_sec_ver_for_user(package: Package, secure_vulns_by_user, db_full):
+def compute_sec_ver_for_user(
+    package: Package,
+    secure_vulns_by_user: set,
+    db_full: Dict[str, Any]
+) -> List[str]:
+    """
+    Computes the secure versions for the user.
+
+    Args:
+        package (Package): The package.
+        secure_vulns_by_user (set): The set of vulnerabilities secured by the user.
+        db_full (Dict[str, Any]): The full database.
+
+    Returns:
+        List[str]: The list of secure versions.
+    """
     versions = package.get_versions(db_full)
     affected_versions = []
 
@@ -542,10 +795,22 @@ def compute_sec_ver_for_user(package: Package, secure_vulns_by_user, db_full):
     return sorted(sec_ver_for_user, key=lambda ver: parse_version(ver), reverse=True)
 
 
-def compute_sec_ver(remediations, packages: Dict[str, Package], secure_vulns_by_user, db_full):
+def compute_sec_ver(
+    remediations: Dict[str, Dict[str, Any]],
+    packages: Dict[str, Package],
+    secure_vulns_by_user: set,
+    db_full: Dict[str, Any]
+) -> None:
     """
-    Compute the secure_versions and the closest_secure_version for each remediation using the affected_versions
-    of each no ignored vulnerability of the same package, there is only a remediation for each package.
+    Computes the secure versions and the closest secure version for each remediation.
+
+    Uses the affected_versions of each no ignored vulnerability of the same package, there is only a remediation for each package.
+
+    Args:
+        remediations (Dict[str, Dict[str, Any]]): The remediations dictionary.
+        packages (Dict[str, Package]): The packages dictionary.
+        secure_vulns_by_user (set): The set of vulnerabilities secured by the user.
+        db_full (Dict[str, Any]): The full database.
     """
     for pkg_name in remediations.keys():
         pkg: Package = packages.get(pkg_name, None)
@@ -595,7 +860,20 @@ def compute_sec_ver(remediations, packages: Dict[str, Package], secure_vulns_by_
                                            target_version=recommended_version)
 
 
-def calculate_remediations(vulns, db_full):
+def calculate_remediations(
+    vulns: List[Vulnerability],
+    db_full: Dict[str, Any]
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Calculates the remediations for the given vulnerabilities.
+
+    Args:
+        vulns (List[Vulnerability]): The list of vulnerabilities.
+        db_full (Dict[str, Any]): The full database.
+
+    Returns:
+        Dict[str, Dict[str, Any]]: The calculated remediations.
+    """
     remediations = defaultdict(dict)
     package_metadata = {}
     secure_vulns_by_user = set()
@@ -609,7 +887,22 @@ def calculate_remediations(vulns, db_full):
     return remediations
 
 
-def should_apply_auto_fix(from_ver: Optional[Version], to_ver, allowed_automatic):
+def should_apply_auto_fix(
+    from_ver: Optional[Version],
+    to_ver: Version,
+    allowed_automatic: List[str]
+) -> bool:
+    """
+    Determines if an automatic fix should be applied.
+
+    Args:
+        from_ver (Optional[Version]): The current version.
+        to_ver (Version): The target version.
+        allowed_automatic (List[str]): The allowed automatic update types.
+
+    Returns:
+        bool: True if an automatic fix should be applied, False otherwise.
+    """
     if not from_ver:
         return False
 
@@ -634,8 +927,17 @@ def should_apply_auto_fix(from_ver: Optional[Version], to_ver, allowed_automatic
     return False
 
 
-def get_update_type(from_ver: Optional[Version], to_ver: Version):
+def get_update_type(from_ver: Optional[Version], to_ver: Version) -> str:
+    """
+    Determines the update type.
 
+    Args:
+        from_ver (Optional[Version]): The current version.
+        to_ver (Version): The target version.
+
+    Returns:
+        str: The update type.
+    """
     if not from_ver or (to_ver.major - from_ver.major) != 0:
         return 'major'
 
@@ -645,14 +947,56 @@ def get_update_type(from_ver: Optional[Version], to_ver: Version):
     return 'patch'
 
 
-def process_fixes(files, remediations, auto_remediation_limit, output, no_output=True, prompt=False):
+def process_fixes(
+    files: List[str],
+    remediations: Dict[str, Dict[str, Any]],
+    auto_remediation_limit: List[str],
+    output: str,
+    no_output: bool = True,
+    prompt: bool = False
+) -> List[Fix]:
+    """
+    Processes the fixes for the given files and remediations.
+
+    Args:
+        files (List[str]): The list of files.
+        remediations (Dict[str, Dict[str, Any]]): The remediations dictionary.
+        auto_remediation_limit (List[str]): The automatic remediation limits.
+        output (str): The output format.
+        no_output (bool): Whether to suppress output.
+        prompt (bool): Whether to prompt for confirmation.
+
+    Returns:
+        List[Fix]: The list of applied fixes.
+    """
     req_remediations = itertools.chain.from_iterable(rem.values() for pkg_name, rem in remediations.items())
     requirements = compute_fixes_per_requirements(files, req_remediations, auto_remediation_limit, prompt=prompt)
     fixes = apply_fixes(requirements, output, no_output, prompt)
     return fixes
 
 
-def process_fixes_scan(file_to_fix, to_fix_spec, auto_remediation_limit, output, no_output=True, prompt=False):
+def process_fixes_scan(
+    file_to_fix: SafetyPolicyFile,
+    to_fix_spec: List[SafetyRequirement],
+    auto_remediation_limit: List[str],
+    output: str,
+    no_output: bool = True,
+    prompt: bool = False
+) -> List[Fix]:
+    """
+    Processes the fixes for the given file and specifications in scan mode.
+
+    Args:
+        file_to_fix (SafetyPolicyFile): The file to fix.
+        to_fix_spec (List[SafetyRequirement]): The specifications to fix.
+        auto_remediation_limit (List[str]): The automatic remediation limits.
+        output (str): The output format.
+        no_output (bool): Whether to suppress output.
+        prompt (bool): Whether to prompt for confirmation.
+
+    Returns:
+        List[Fix]: The list of applied fixes.
+    """
     to_fix_remediations =  []
 
     def get_remmediation_from(spec):
@@ -705,7 +1049,24 @@ def process_fixes_scan(file_to_fix, to_fix_spec, auto_remediation_limit, output,
     return fixes
 
 
-def compute_fixes_per_requirements(files, req_remediations, auto_remediation_limit, prompt=False):
+def compute_fixes_per_requirements(
+    files: List[str],
+    req_remediations: Iterator[Dict[str, Any]],
+    auto_remediation_limit: List[str],
+    prompt: bool = False
+) -> Dict[str, Any]:
+    """
+    Computes the fixes per requirements.
+
+    Args:
+        files (List[str]): The list of files.
+        req_remediations (Iterator[Dict[str, Any]]): The remediations iterator.
+        auto_remediation_limit (List[str]): The automatic remediation limits.
+        prompt (bool): Whether to prompt for confirmation.
+
+    Returns:
+        Dict[str, Any]: The computed requirements with fixes.
+    """
     requirements_files = get_requirements_content(files)
 
     from dparse.parser import parse, filetypes
@@ -810,7 +1171,28 @@ def compute_fixes_per_requirements(files, req_remediations, auto_remediation_lim
     return requirements
 
 
-def apply_fixes(requirements, out_type, no_output, prompt, scan_flow=False, auto_remediation_limit=None):
+def apply_fixes(
+    requirements: Dict[str, Any],
+    out_type: str,
+    no_output: bool,
+    prompt: bool,
+    scan_flow: bool = False,
+    auto_remediation_limit: List[str] = None
+) -> List[Fix]:
+    """
+    Applies the fixes to the requirements.
+
+    Args:
+        requirements (Dict[str, Any]): The requirements with fixes.
+        out_type (str): The output format.
+        no_output (bool): Whether to suppress output.
+        prompt (bool): Whether to prompt for confirmation.
+        scan_flow (bool): Whether it is in scan flow mode.
+        auto_remediation_limit (List[str]): The automatic remediation limits.
+
+    Returns:
+        List[Fix]: The list of applied fixes.
+    """
 
     from dparse.updater import RequirementsTXTUpdater
 
@@ -930,7 +1312,20 @@ def apply_fixes(requirements, out_type, no_output, prompt, scan_flow=False, auto
     return skip + apply + confirm
 
 
-def find_vulnerabilities_fixed(vulnerabilities: Dict, fixes) -> List[Vulnerability]:
+def find_vulnerabilities_fixed(
+    vulnerabilities: Dict[str, Any],
+    fixes: List[Fix]
+) -> List[Vulnerability]:
+    """
+    Finds the vulnerabilities that have been fixed.
+
+    Args:
+        vulnerabilities (Dict[str, Any]): The dictionary of vulnerabilities.
+        fixes (List[Fix]): The list of applied fixes.
+
+    Returns:
+        List[Vulnerability]: The list of fixed vulnerabilities.
+    """
     fixed_specs = set(fix.previous_spec for fix in fixes)
 
     if not fixed_specs:
@@ -941,7 +1336,21 @@ def find_vulnerabilities_fixed(vulnerabilities: Dict, fixes) -> List[Vulnerabili
 
 
 @sync_safety_context
-def review(*, report=None, params=None):
+def review(
+    *,
+    report: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, Any]] = None
+) -> tuple:
+    """
+    Reviews the report and returns the vulnerabilities and remediations.
+
+    Args:
+        report (Optional[Dict[str, Any]]): The report.
+        params (Optional[Dict[str, Any]]): Additional parameters.
+
+    Returns:
+        tuple: A tuple containing the list of vulnerabilities, the remediations, and the found packages.
+    """
     SafetyContext().command = 'review'
     vulnerable = []
     vulnerabilities = report.get('vulnerabilities', []) + report.get('ignored_vulnerabilities', [])
@@ -1007,8 +1416,25 @@ def review(*, report=None, params=None):
 
 
 @sync_safety_context
-def get_licenses(*, session=None, db_mirror=False, cached=0, telemetry=True):
+def get_licenses(
+    *,
+    session: requests.Session,
+    db_mirror: Union[Optional[str], bool] = False,
+    cached: int = 0,
+    telemetry: bool = True
+) -> Dict[str, Any]:
+    """
+    Retrieves the licenses from the database.
 
+    Args:
+        session (requests.Session): The requests session.
+        db_mirror (Union[Optional[str], bool]): The database mirror.
+        cached (int): The cache validity in seconds.
+        telemetry (bool): Whether to include telemetry data.
+
+    Returns:
+        Dict[str, Any]: The licenses dictionary.
+    """
     if db_mirror:
         mirrors = [db_mirror]
     else:
@@ -1028,10 +1454,22 @@ def get_licenses(*, session=None, db_mirror=False, cached=0, telemetry=True):
     raise DatabaseFetchError()
 
 
-def add_local_notifications(packages: List[Package],
-                            ignore_unpinned_requirements: Optional[bool]) -> List[Dict[str, str]]:
+def add_local_notifications(
+    packages: List[Package],
+    ignore_unpinned_requirements: Optional[bool]
+) -> List[Dict[str, str]]:
+    """
+    Adds local notifications for unpinned packages.
+
+    Args:
+        packages (List[Package]): The list of packages.
+        ignore_unpinned_requirements (Optional[bool]): Whether to ignore unpinned requirements.
+
+    Returns:
+        List[Dict[str, str]]: The list of notifications.
+    """
     announcements = []
-    unpinned_packages: [str] = [f"{pkg.name}" for pkg in packages if pkg.has_unpinned_req()]
+    unpinned_packages: List[str] = [f"{pkg.name}" for pkg in packages if pkg.has_unpinned_req()]
 
     if unpinned_packages and ignore_unpinned_requirements is not False:
         found = len(unpinned_packages)
@@ -1058,7 +1496,22 @@ def add_local_notifications(packages: List[Package],
     return announcements
 
 
-def get_announcements(session, telemetry=True, with_telemetry=None):
+def get_announcements(
+    session: requests.Session,
+    telemetry: bool = True,
+    with_telemetry: Any = None
+) -> List[Dict[str, str]]:
+    """
+    Retrieves announcements from the server.
+
+    Args:
+        session (requests.Session): The requests session.
+        telemetry (bool): Whether to include telemetry data.
+        with_telemetry (Optional[Dict[str, Any]]): The telemetry data.
+
+    Returns:
+        List[Dict[str, str]]: The list of announcements.
+    """
     LOG.info('Getting announcements')
 
     announcements = []
@@ -1110,8 +1563,18 @@ def get_announcements(session, telemetry=True, with_telemetry=None):
     return announcements
 
 
-def get_packages(files=False, stdin=False):
 
+def get_packages(files: Optional[List[str]] = None, stdin: bool = False) -> List[Package]:
+    """
+    Retrieves the packages from the given files or standard input.
+
+    Args:
+        files (Optional[List[str]]): The list of files.
+        stdin (bool): Whether to read from standard input.
+
+    Returns:
+        List[Package]: The list of packages.
+    """
     if files:
         return list(itertools.chain.from_iterable(read_requirements(f, resolve=True) for f in files))
 
@@ -1120,7 +1583,7 @@ def get_packages(files=False, stdin=False):
 
     import pkg_resources
 
-    def allowed_version(pkg: str, version: str):
+    def allowed_version(pkg: str, version: str) -> bool:
         try:
             parse_version(version)
         except Exception:
@@ -1146,7 +1609,16 @@ def get_packages(files=False, stdin=False):
     ]
 
 
-def read_vulnerabilities(fh):
+def read_vulnerabilities(fh: Any) -> Dict[str, Any]:
+    """
+    Reads vulnerabilities from a file handle.
+
+    Args:
+        fh (Any): The file handle.
+
+    Returns:
+        Dict[str, Any]: The vulnerabilities data.
+    """
     try:
         data = json.load(fh)
     except json.JSONDecodeError as e:
@@ -1157,7 +1629,22 @@ def read_vulnerabilities(fh):
     return data
 
 
-def get_server_policies(session, policy_file, proxy_dictionary: Dict):
+def get_server_policies(
+    session: requests.Session,
+    policy_file: SafetyPolicyFile,
+    proxy_dictionary: Dict[str, str]
+) -> tuple:
+    """
+    Retrieves the server policies.
+
+    Args:
+        session (requests.Session): The requests session.
+        policy_file (SafetyPolicyFile): The policy file.
+        proxy_dictionary (Dict[str, str]): The proxy dictionary.
+
+    Returns:
+        tuple: A tuple containing the policy file and the audit and monitor flag.
+    """
     if session.api_key:
         server_policies = fetch_policy(session)
         server_audit_and_monitor = server_policies["audit_and_monitor"]
@@ -1184,7 +1671,19 @@ def get_server_policies(session, policy_file, proxy_dictionary: Dict):
     return policy_file, server_audit_and_monitor
 
 
-def save_report(path: str, default_name: str, report: str):
+def save_report(
+    path: str,
+    default_name: str,
+    report: str
+) -> None:
+    """
+    Saves the report to a file.
+
+    Args:
+        path (str): The path to save the report.
+        default_name (str): The default name of the report file.
+        report (str): The report content.
+    """
     if path:
         save_at = path
 

@@ -11,7 +11,7 @@ import tempfile
 import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 import click
 import requests
@@ -19,6 +19,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
 from pydantic.json import pydantic_encoder
+from filelock import FileLock
 
 from safety_schemas.models import Ecosystem, FileType
 
@@ -39,34 +40,38 @@ from .util import build_remediation_info_url, pluralize, read_requirements, Pack
 LOG = logging.getLogger(__name__)
 
 
-def get_from_cache(db_name, cache_valid_seconds=0, skip_time_verification=False):
-    if os.path.exists(DB_CACHE_FILE):
-        with open(DB_CACHE_FILE) as f:
-            try:
-                data = json.loads(f.read())
-                if db_name in data:
+def get_from_cache(db_name: str, cache_valid_seconds: int = 0, skip_time_verification: bool = False) -> Optional[Dict[str, Any]]:
+    cache_file_lock = f"{DB_CACHE_FILE}.lock"
+    os.makedirs(os.path.dirname(cache_file_lock), exist_ok=True)
+    lock = FileLock(cache_file_lock, timeout=10)
+    with lock:
+        if os.path.exists(DB_CACHE_FILE):
+            with open(DB_CACHE_FILE) as f:
+                try:
+                    data = json.loads(f.read())
+                    if db_name in data:
 
-                    if "cached_at" in data[db_name]:
-                        if data[db_name]["cached_at"] + cache_valid_seconds > time.time() or skip_time_verification:
-                            LOG.debug('Getting the database from cache at %s, cache setting: %s',
-                                      data[db_name]["cached_at"], cache_valid_seconds)
+                        if "cached_at" in data[db_name]:
+                            if data[db_name]["cached_at"] + cache_valid_seconds > time.time() or skip_time_verification:
+                                LOG.debug('Getting the database from cache at %s, cache setting: %s',
+                                        data[db_name]["cached_at"], cache_valid_seconds)
 
-                            try:
-                                data[db_name]["db"]["meta"]["base_domain"] = "https://data.safetycli.com"
-                            except KeyError as e:
-                                pass
+                                try:
+                                    data[db_name]["db"]["meta"]["base_domain"] = "https://data.safetycli.com"
+                                except KeyError as e:
+                                    pass
 
-                            return data[db_name]["db"]
+                                return data[db_name]["db"]
 
-                        LOG.debug('Cached file is too old, it was cached at %s', data[db_name]["cached_at"])
-                    else:
-                        LOG.debug('There is not the cached_at key in %s database', data[db_name])
+                            LOG.debug('Cached file is too old, it was cached at %s', data[db_name]["cached_at"])
+                        else:
+                            LOG.debug('There is not the cached_at key in %s database', data[db_name])
 
-            except json.JSONDecodeError:
-                LOG.debug('JSONDecodeError trying to get the cached database.')
-    else:
-        LOG.debug("Cache file doesn't exist...")
-    return False
+                except json.JSONDecodeError:
+                    LOG.debug('JSONDecodeError trying to get the cached database.')
+        else:
+            LOG.debug("Cache file doesn't exist...")
+    return None
 
 
 def write_to_cache(db_name, data):
@@ -93,20 +98,26 @@ def write_to_cache(db_name, data):
             if exc.errno != errno.EEXIST:
                 raise
 
-    with open(DB_CACHE_FILE, "r") as f:
-        try:
-            cache = json.loads(f.read())
-        except json.JSONDecodeError:
-            LOG.debug('JSONDecodeError in the local cache, dumping the full cache file.')
+    cache_file_lock = f"{DB_CACHE_FILE}.lock"
+    lock = FileLock(cache_file_lock, timeout=10)
+    with lock:
+        if os.path.exists(DB_CACHE_FILE):
+            with open(DB_CACHE_FILE, "r") as f:
+                try:
+                    cache = json.loads(f.read())
+                except json.JSONDecodeError:
+                    LOG.debug('JSONDecodeError in the local cache, dumping the full cache file.')
+                    cache = {}
+        else:
             cache = {}
 
-    with open(DB_CACHE_FILE, "w") as f:
-        cache[db_name] = {
-            "cached_at": time.time(),
-            "db": data
-        }
-        f.write(json.dumps(cache))
-        LOG.debug('Safety updated the cache file for %s database.', db_name)
+        with open(DB_CACHE_FILE, "w") as f:
+            cache[db_name] = {
+                "cached_at": time.time(),
+                "db": data
+            }
+            f.write(json.dumps(cache))
+            LOG.debug('Safety updated the cache file for %s database.', db_name)
 
 
 def fetch_database_url(session, mirror, db_name, cached, telemetry=True,

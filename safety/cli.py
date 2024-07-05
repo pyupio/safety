@@ -49,6 +49,14 @@ except ImportError:
 
 LOG = logging.getLogger(__name__)
 
+def configure_logger(ctx, param, value):
+    level = logging.CRITICAL
+    if value:
+        level = logging.DEBUG
+    logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)
+    return value
+
+
 @click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
 @auth_options()
 @proxy_options
@@ -61,6 +69,7 @@ def cli(ctx, debug, disable_optional_telemetry):
     preprocess_args()
     cli_internal(ctx, debug, disable_optional_telemetry)
 
+
 def preprocess_args():
     # Preprocess the arguments before Click processes them
     if '--debug' in sys.argv:
@@ -69,14 +78,6 @@ def preprocess_args():
             next_arg = sys.argv[index + 1]
             if next_arg in ('1', 'true'):
                 sys.argv.pop(index + 1)  # Remove the next argument (1 or true)
-
-def configure_logger(ctx, param, value):
-    level = logging.CRITICAL
-    if value:
-        level = logging.DEBUG
-    logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)
-    return value
-
 
 def cli_internal(ctx, debug, disable_optional_telemetry):
     """

@@ -49,6 +49,10 @@ except ImportError:
 
 LOG = logging.getLogger(__name__)
 
+def cli():
+    preprocess_args()
+    cli_internal()
+
 def preprocess_args():
     # Preprocess the arguments before Click processes them
     if '--debug' in sys.argv:
@@ -57,7 +61,6 @@ def preprocess_args():
             next_arg = sys.argv[index + 1]
             if next_arg in ('1', 'true'):
                 sys.argv.pop(index + 1)  # Remove the next argument (1 or true)
-
 
 def configure_logger(ctx, param, value):
     level = logging.CRITICAL
@@ -75,7 +78,7 @@ def configure_logger(ctx, param, value):
 @click.version_option(version=get_safety_version())
 @click.pass_context
 @inject_session
-def cli(ctx, debug, disable_optional_telemetry):
+def cli_internal(ctx, debug, disable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.
     """
@@ -727,9 +730,6 @@ cli.add_command(typer.main.get_command(auth_app), "auth")
 
 cli.add_command(alert)
 
-def main():
-    preprocess_args()
-    cli()
 
 if __name__ == "__main__":
-    main()
+    cli()

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 import configparser
-import psutil
 from dataclasses import asdict
 from enum import Enum
 import requests
@@ -52,6 +51,7 @@ except ImportError:
 LOG = logging.getLogger(__name__)
 
 def get_network_telemetry():
+    import psutil
     network_info = {}
 
     # Get network IO statistics
@@ -114,22 +114,23 @@ def configure_logger(ctx, param, debug):
 
     logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)
 
-    # Log the contents of the config.ini file
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE_USER)
-    LOG.debug('Config file contents:')
-    for section in config.sections():
-        LOG.debug('[%s]', section)
-        for key, value in config.items(section):
-            LOG.debug('%s = %s', key, value)
+    if debug:
+        # Log the contents of the config.ini file
+        config = configparser.ConfigParser()
+        config.read(CONFIG_FILE_USER)
+        LOG.debug('Config file contents:')
+        for section in config.sections():
+            LOG.debug('[%s]', section)
+            for key, value in config.items(section):
+                LOG.debug('%s = %s', key, value)
 
-    # Log the proxy settings if they were attempted
-    if 'proxy' in config:
-        LOG.debug('Proxy configuration attempted with settings: %s', dict(config['proxy']))
+        # Log the proxy settings if they were attempted
+        if 'proxy' in config:
+            LOG.debug('Proxy configuration attempted with settings: %s', dict(config['proxy']))
 
-    # Collect and log network telemetry data
-    network_telemetry = get_network_telemetry()
-    LOG.debug('Network telemetry: %s', network_telemetry)
+        # Collect and log network telemetry data
+        network_telemetry = get_network_telemetry()
+        LOG.debug('Network telemetry: %s', network_telemetry)
 
 @click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
 @auth_options()

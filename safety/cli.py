@@ -49,9 +49,17 @@ except ImportError:
 
 LOG = logging.getLogger(__name__)
 
-def cli():
+@click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
+@auth_options()
+@proxy_options
+@click.option('--disable-optional-telemetry', default=False, is_flag=True, show_default=True, help=CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP)
+@click.option('--debug', is_flag=True, help=CLI_DEBUG_HELP, callback=configure_logger)
+@click.version_option(version=get_safety_version())
+@click.pass_context
+@inject_session
+def cli(ctx, debug, disable_optional_telemetry):
     preprocess_args()
-    cli_internal()
+    cli_internal(ctx, debug, disable_optional_telemetry)
 
 def preprocess_args():
     # Preprocess the arguments before Click processes them
@@ -70,14 +78,6 @@ def configure_logger(ctx, param, value):
     return value
 
 
-@click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
-@auth_options()
-@proxy_options
-@click.option('--disable-optional-telemetry', default=False, is_flag=True, show_default=True, help=CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP)
-@click.option('--debug', is_flag=True, help=CLI_DEBUG_HELP, callback=configure_logger)
-@click.version_option(version=get_safety_version())
-@click.pass_context
-@inject_session
 def cli_internal(ctx, debug, disable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.

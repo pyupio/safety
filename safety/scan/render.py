@@ -340,7 +340,7 @@ def print_wait_policy_download(console: Console, closure: Tuple[Any, Dict[str, A
     return policy
 
 
-def prompt_project_id(console: Console, stage: Stage, prj_root_name: Optional[str], do_not_exit: bool = True) -> Optional[str}:
+def prompt_project_id(console: Console, stage: Stage, prj_root_name: Optional[str], do_not_exit: bool = True) -> Optional[str]:
     """
     Prompt the user to set a project ID for the scan.
 

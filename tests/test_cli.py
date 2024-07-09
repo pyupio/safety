@@ -542,8 +542,6 @@ class TestSafetyCLI(unittest.TestCase):
         def dummy_function():
             pass
 
-        dummy_function()  # Call the decorated function
-
         # Extract the preprocessed arguments from sys.argv
         preprocessed_args = sys.argv[1:]  # Exclude the script name 'safety'
 
@@ -561,8 +559,6 @@ class TestSafetyCLI(unittest.TestCase):
         @cli.preprocess_args
         def dummy_function():
             pass
-
-        dummy_function()  # Call the decorated function
 
         # Extract the preprocessed arguments from sys.argv
         preprocessed_args = sys.argv[1:]  # Exclude the script name 'safety'

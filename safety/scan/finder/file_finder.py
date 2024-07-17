@@ -8,7 +8,7 @@ from safety_schemas.models import Ecosystem, FileType
 
 from safety.errors import SafetyException
 
-from .handlers import FileHandler, ECOSYSTEM_HANDLER_MAPPING
+from .handlers import FileHandler, ECOSYSTEM_HANDLER_MAPPING, PyProjectTomlHandler
 
 LOG = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def should_exclude(excludes: Set[Path], to_analyze: Path) -> bool:
                 return True
         except ValueError:
             pass
-    
+
     return False
 
 
@@ -37,19 +37,20 @@ class FileFinder():
     find depending on the language type.
     """
 
-    def __init__(self, max_level: int, ecosystems: List[Ecosystem], target: Path, 
+    def __init__(self, max_level: int, ecosystems: List[Ecosystem], target: Path,
                  console, live_status=None,
-                 exclude: Optional[List[str]] = None, 
+                 exclude: Optional[List[str]] = None,
                  include_files: Optional[Dict[FileType, List[Path]]] = None,
                  handlers: Optional[Set[FileHandler]] = None) -> None:
         self.max_level = max_level
         self.target = target
         self.include_files = include_files
 
+        print("ecosystems", ecosystems)
         if not handlers:
-            handlers = set(ECOSYSTEM_HANDLER_MAPPING[ecosystem]() 
+            handlers = set(ECOSYSTEM_HANDLER_MAPPING[ecosystem]()
                                               for ecosystem in ecosystems)
-        
+
         self.handlers = handlers
         self.file_count = 0
         self.exclude_dirs: Set[Path] = set()
@@ -65,7 +66,7 @@ class FileFinder():
 
         self.console = console
         self.live_status = live_status
-    
+
     def process_directory(self, dir_path, max_deep: Optional[int]=None) -> Tuple[str, Dict[str, Set[Path]]]:
         files: Dict[str, Set[Path]] = {}
         level : int = 0
@@ -79,10 +80,10 @@ class FileFinder():
 
             dirs[:] = [d for d in dirs if not should_exclude(excludes=self.exclude_dirs,
                                                              to_analyze=(root_path / Path(d)))]
-            
+
             if dirs:
                 LOG.info(f"Directories to inspect -> {', '.join(dirs)}")
-            
+
             LOG.info(f"Current -> {root}")
             if self.live_status:
                 self.live_status.update(f":mag: Scanning {root}")
@@ -92,7 +93,7 @@ class FileFinder():
                 del dirs[:]
 
             filenames[:] = [f for f in filenames if not should_exclude(
-                excludes=self.exclude_files, 
+                excludes=self.exclude_files,
                 to_analyze=Path(f))]
 
             self.file_count += len(filenames)
@@ -106,7 +107,16 @@ class FileFinder():
                             files[file_type.value] = set()
                         files[file_type.value].add(inspectable_file)
                         break
+
+                special_files = {'pyproject.toml', 'env.yml', 'env.yaml'}
+                if file_name in special_files:
+                    file_type = FileType(file_name)
+                    inspectable_file = Path(root, file_name)
+                    if file_type.value not in files or not files[file_type.value]:
+                        files[file_type.value] = set()
+                    files[file_type.value].add(inspectable_file)
             level += 1
+
 
         return dir_path, files
 

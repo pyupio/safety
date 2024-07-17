@@ -8,7 +8,7 @@ from safety_schemas.models import Ecosystem, FileType
 
 from safety.errors import SafetyException
 
-from .handlers import FileHandler, ECOSYSTEM_HANDLER_MAPPING
+from .handlers import FileHandler, ECOSYSTEM_HANDLER_MAPPING, PyProjectTomlHandler
 
 LOG = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class FileFinder():
         self.target = target
         self.include_files = include_files
 
+        print("ecosystems", ecosystems)
         if not handlers:
             handlers = set(ECOSYSTEM_HANDLER_MAPPING[ecosystem]()
                                               for ecosystem in ecosystems)
@@ -115,6 +116,7 @@ class FileFinder():
                         files[file_type.value] = set()
                     files[file_type.value].add(inspectable_file)
             level += 1
+
 
         return dir_path, files
 

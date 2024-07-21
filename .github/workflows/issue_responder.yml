@@ -1,0 +1,26 @@
+name: Issue Responder
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  respond:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Respond to new issues
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const issueNumber = context.issue.number;
+          const issueTitle = context.payload.issue.title;
+          const issueBody = context.payload.issue.body;
+
+          const commentBody = `Thank you for opening this issue!\n\nTitle: ${issueTitle}\n\nBody: ${issueBody}\n\nWe will look into it and get back to you soon.`;
+
+          github.issues.createComment({
+            ...context.repo,
+            issue_number: issueNumber,
+            body: commentBody
+          });

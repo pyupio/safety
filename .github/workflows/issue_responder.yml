@@ -14,11 +14,18 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const issueNumber = context.issue.number;
-          const issueTitle = context.payload.issue.title;
+          const issueAuthor = context.payload.issue.user.login;
 
-          const commentBody = `Thank you for opening this issue!\n\nWe will look into it and get back to you soon.`;
+          const commentBody = `
+          Hi @${issueAuthor}, thank you for opening this issue!
 
-          github.issues.createComment({
+          We appreciate your effort in reporting this. Our team will review it and get back to you soon.
+          If you have any additional details or updates, feel free to add them to this issue.
+
+          Thank you for contributing to Safety CLI!
+          `;
+
+          await github.issues.createComment({
             ...context.repo,
             issue_number: issueNumber,
             body: commentBody

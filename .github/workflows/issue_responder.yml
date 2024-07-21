@@ -15,9 +15,8 @@ jobs:
         script: |
           const issueNumber = context.issue.number;
           const issueTitle = context.payload.issue.title;
-          const issueBody = context.payload.issue.body;
 
-          const commentBody = `Thank you for opening this issue!\n\nTitle: ${issueTitle}\n\nBody: ${issueBody}\n\nWe will look into it and get back to you soon.`;
+          const commentBody = `Thank you for opening this issue!\n\nWe will look into it and get back to you soon.`;
 
           github.issues.createComment({
             ...context.repo,

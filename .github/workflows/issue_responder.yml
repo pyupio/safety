@@ -22,6 +22,8 @@ jobs:
           We appreciate your effort in reporting this. Our team will review it and get back to you soon.
           If you have any additional details or updates, feel free to add them to this issue.
 
+          **Note:** If this is a serious security issue that could impact the security of Safety CLI users, please email security@safetycli.com immediately.
+
           Thank you for contributing to Safety CLI!
           `;
 

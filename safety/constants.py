@@ -162,3 +162,17 @@ EXIT_CODE_MALFORMED_DB = 69
 EXIT_CODE_INVALID_PROVIDED_REPORT = 70
 EXIT_CODE_INVALID_REQUIREMENT = 71
 EXIT_CODE_EMAIL_NOT_VERIFIED = 72
+
+EXIT_CODE_REASON_MAPPING = {
+    EXIT_CODE_OK: "No vulnerabilities found.",
+    EXIT_CODE_FAILURE: "General failure.",
+    EXIT_CODE_VULNERABILITIES_FOUND: "Vulnerabilities found.",
+    EXIT_CODE_INVALID_API_KEY: "Invalid API key.",
+    EXIT_CODE_TOO_MANY_REQUESTS: "Too many requests.",
+    EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB: "Unable to load local vulnerability database.",
+    EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB: "Unable to fetch vulnerability database.",
+    EXIT_CODE_MALFORMED_DB: "Malformed vulnerability database.",
+    EXIT_CODE_INVALID_PROVIDED_REPORT: "Invalid provided report.",
+    EXIT_CODE_INVALID_REQUIREMENT: "Invalid requirement.",
+    EXIT_CODE_EMAIL_NOT_VERIFIED: "Email not verified."
+}

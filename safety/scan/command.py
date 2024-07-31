@@ -436,7 +436,7 @@ def scan(ctx: typer.Context,
 
     exit_reason = EXIT_CODE_REASON_MAPPING.get(exit_code, "Unknown reason")
 
-    report_url = process_report(ctx.obj, console, report, exit_code=exit_code, exit_reason=exit_reason, **{**ctx.params})
+    report_url = process_report(ctx.obj, console, report, exit_code=exit_code, exit_reason=exit_reason, **ctx.params)
     project_url = f"{SAFETY_PLATFORM_URL}{ctx.obj.project.url_path}"
 
     if apply_updates:
@@ -469,7 +469,7 @@ def scan(ctx: typer.Context,
             if any(policy_limits):
                 update_limits = [policy_limit.value for policy_limit in policy_limits]
 
-            fixes = process_fixes_scan(file_to_fix,
+            process_fixes_scan(file_to_fix,
                                        specs_to_fix, update_limits, output, no_output=no_output,
                                        prompt=prompt)
 
@@ -767,4 +767,4 @@ def system_scan(ctx: typer.Context,
             for detail in [f"{prj} dashboard: {data['project_url']}"]:
                 console.print(Padding(detail, (0, 0, 0, 1)), emoji=True, overflow="crop")
 
-    process_report(ctx.obj, console, report, **{**ctx.params})
+    process_report(ctx.obj, console, report, **ctx.params)

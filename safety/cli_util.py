@@ -89,7 +89,17 @@ def custom_make_command_help(help_text: str) -> Text:
     """
     return Text(help_text)
 
-def get_command_for(name:str, typer_instance: typer.Typer):
+def get_command_for(name: str, typer_instance: typer.Typer) -> click.Command:
+    """
+    Retrieve a command by name from a Typer instance.
+
+    Args:
+        name (str): The name of the command.
+        typer_instance (typer.Typer): The Typer instance.
+
+    Returns:
+        click.Command: The found command.
+    """
     single_command = next(
         (command
          for command in typer_instance.registered_commands
@@ -114,7 +124,7 @@ def get_command_for(name:str, typer_instance: typer.Typer):
 
 def pass_safety_cli_obj(func):
     """
-    Make sure the SafetyCLI object exists for a command.
+    Decorator to ensure the SafetyCLI object exists for a command.
     """
     @wraps(func)
     def inner(ctx, *args, **kwargs):
@@ -130,6 +140,14 @@ def pass_safety_cli_obj(func):
 
 def pretty_format_help(obj: Union[click.Command, click.Group],
                        ctx: click.Context, markup_mode: MarkupMode) -> None:
+    """
+    Format and print help text in a pretty format.
+
+    Args:
+        obj (Union[click.Command, click.Group]): The Click command or group.
+        ctx (click.Context): The Click context.
+        markup_mode (MarkupMode): The markup mode.
+    """
     from typer.rich_utils import highlighter, STYLE_USAGE_COMMAND, \
             ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE, \
                 COMMANDS_PANEL_TITLE
@@ -267,7 +285,16 @@ def print_main_command_panels(*,
     name: str,
     commands: List[click.Command],
     markup_mode: MarkupMode,
-    console):
+    console) -> None:
+    """
+    Print the main command panels.
+
+    Args:
+        name (str): The name of the panel.
+        commands (List[click.Command]): List of commands to display.
+        markup_mode (MarkupMode): The markup mode.
+        console: The Rich console.
+    """
     from rich import box
     from rich.table import Table
     from rich.text import Text
@@ -335,9 +362,18 @@ def print_main_command_panels(*,
 # The help output for the main safety root command: `safety --help`
 def format_main_help(obj: Union[click.Command, click.Group],
                        ctx: click.Context, markup_mode: MarkupMode) -> None:
+    """
+    Format the main help output for the safety root command.
+
+    Args:
+        obj (Union[click.Command, click.Group]): The Click command or group.
+        ctx (click.Context): The Click context.
+        markup_mode (MarkupMode): The markup mode.
+    """
     from typer.rich_utils import highlighter, STYLE_USAGE_COMMAND, \
         ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE, \
             COMMANDS_PANEL_TITLE
+  
     from rich.align import Align
     from rich.padding import Padding
     from rich.console import Console
@@ -457,7 +493,15 @@ def format_main_help(obj: Union[click.Command, click.Group],
             console.print(Padding(Align(epilogue_text, pad=False), 1))
 
 
-def process_auth_status_not_ready(console, auth: Auth, ctx: typer.Context):
+def process_auth_status_not_ready(console, auth: Auth, ctx: typer.Context) -> None:
+    """
+    Handle the process when the authentication status is not ready.
+
+    Args:
+        console: The Rich console.
+        auth (Auth): The Auth object.
+        ctx (typer.Context): The Typer context.
+    """
     from safety_schemas.models import Stage
     from rich.prompt import Confirm, Prompt
 
@@ -522,16 +566,43 @@ def process_auth_status_not_ready(console, auth: Auth, ctx: typer.Context):
         sys.exit(1)
 
 class UtilityCommandMixin:
-    def __init__(self, *args, **kwargs):
+    """
+    Mixin to add utility command functionality.
+    """
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize the UtilityCommandMixin.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
         self.utility_command = kwargs.pop('utility_command', False)
         super().__init__(*args, **kwargs)
 
 class SafetyCLISubGroup(UtilityCommandMixin, TyperGroup):
+    """
+    Custom TyperGroup with additional functionality for Safety CLI.
+    """
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Format help message with rich formatting.
+
+        Args:
+            ctx (click.Context): Click context.
+            formatter (click.HelpFormatter): Click help formatter.
+        """
         pretty_format_help(self, ctx, markup_mode=self.rich_markup_mode)
 
-    def format_usage(self, ctx, formatter) -> None:
+    def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Format usage message.
+
+        Args:
+            ctx (click.Context): Click context.
+            formatter (click.HelpFormatter): Click help formatter.
+        """
         command_path = ctx.command_path
         pieces = self.collect_usage_pieces(ctx)
         main_group = ctx.parent
@@ -544,15 +615,41 @@ class SafetyCLISubGroup(UtilityCommandMixin, TyperGroup):
         self,
         *args: Any,
         **kwargs: Any,
-    ):
+    ) -> click.Command:
+        """
+        Create a new command.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            click.Command: The created command.
+        """
         super().command(*args, **kwargs)
 
 class SafetyCLICommand(UtilityCommandMixin, TyperCommand):
-
+    """
+    Custom TyperCommand with additional functionality for Safety CLI.
+    """
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Format help message with rich formatting.
+
+        Args:
+            ctx (click.Context): Click context.
+            formatter (click.HelpFormatter): Click help formatter.
+        """
         pretty_format_help(self, ctx, markup_mode=self.rich_markup_mode)
 
-    def format_usage(self, ctx, formatter) -> None:
+    def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Format usage message.
+
+        Args:
+            ctx (click.Context): Click context.
+            formatter (click.HelpFormatter): Click help formatter.
+        """
         command_path = ctx.command_path
         pieces = self.collect_usage_pieces(ctx)
         main_group = ctx.parent
@@ -563,13 +660,35 @@ class SafetyCLICommand(UtilityCommandMixin, TyperCommand):
 
 
 class SafetyCLIUtilityCommand(TyperCommand):
-    def __init__(self, *args, **kwargs):
+    """
+    Custom TyperCommand designated as a utility command.
+    """
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize the SafetyCLIUtilityCommand.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
         self.utility_command = True
         super().__init__(*args, **kwargs)
 
 class SafetyCLILegacyGroup(UtilityCommandMixin, click.Group):
+    """
+    Custom Click Group to handle legacy command-line arguments.
+    """
 
     def parse_legacy_args(self, args: List[str]) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
+        """
+        Parse legacy command-line arguments for proxy settings and keys.
+
+        Args:
+            args (List[str]): List of command-line arguments.
+
+        Returns:
+            Tuple[Optional[Dict[str, str]], Optional[str]]: Parsed proxy options and key.
+        """
         options = {
             'proxy_protocol': 'https',
             'proxy_port': 80,
@@ -590,7 +709,13 @@ class SafetyCLILegacyGroup(UtilityCommandMixin, click.Group):
         proxy = options if options['proxy_host'] else None
         return proxy, key
 
-    def invoke(self, ctx):
+    def invoke(self, ctx: click.Context) -> None:
+        """
+        Invoke the command, handling legacy arguments.
+
+        Args:
+            ctx (click.Context): Click context.
+        """
         args = ctx.args
 
         # Workaround for legacy check options, that now are global options
@@ -608,7 +733,14 @@ class SafetyCLILegacyGroup(UtilityCommandMixin, click.Group):
         super(SafetyCLILegacyGroup, self).invoke(ctx)
 
 
-    def format_help(self, ctx, formatter) -> None:
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Format help message with rich formatting.
+
+        Args:
+            ctx (click.Context): Click context.
+            formatter (click.HelpFormatter): Click help formatter.
+        """
         # The main `safety --help`
         if self.name == "cli":
             format_main_help(self, ctx, markup_mode="rich")
@@ -617,11 +749,30 @@ class SafetyCLILegacyGroup(UtilityCommandMixin, click.Group):
             pretty_format_help(self, ctx, markup_mode="rich")
 
 class SafetyCLILegacyCommand(UtilityCommandMixin, click.Command):
-    def format_help(self, ctx, formatter) -> None:
+    """
+    Custom Click Command to handle legacy command-line arguments.
+    """
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Format help message with rich formatting.
+
+        Args:
+            ctx (click.Context): Click context.
+            formatter (click.HelpFormatter): Click help formatter.
+        """
         pretty_format_help(self, ctx, markup_mode="rich")
 
 
 def handle_cmd_exception(func):
+    """
+    Decorator to handle exceptions in command functions.
+
+    Args:
+        func: The command function to wrap.
+
+    Returns:
+        The wrapped function.
+    """
     @wraps(func)
     def inner(ctx, output: Optional[ScanOutput], *args, **kwargs):
         if output:

@@ -63,10 +63,10 @@ def get_network_telemetry():
 
     # Test network speed (download speed)
     test_url = "http://example.com"  # A URL to test the download speed
-    start_time = time.time()
+    start_time = time.perf_counter()
     try:
         response = requests.get(test_url, timeout=10)
-        end_time = time.time()
+        end_time = time.perf_counter()
         download_time = end_time - start_time
         download_speed = len(response.content) / download_time
         network_info['download_speed'] = download_speed

@@ -54,28 +54,28 @@ def get_network_telemetry():
     import psutil
     import socket
     network_info = {}
-
-    # Get network IO statistics
-    net_io = psutil.net_io_counters()
-    network_info['bytes_sent'] = net_io.bytes_sent
-    network_info['bytes_recv'] = net_io.bytes_recv
-    network_info['packets_sent'] = net_io.packets_sent
-    network_info['packets_recv'] = net_io.packets_recv
-
-    # Test network speed (download speed)
-    test_url = "http://example.com"  # A URL to test the download speed
-    start_time = time.perf_counter()
     try:
-        response = requests.get(test_url, timeout=10)
-        end_time = time.perf_counter()
-        download_time = end_time - start_time
-        download_speed = len(response.content) / download_time
-        network_info['download_speed'] = download_speed
-    except requests.RequestException as e:
-        network_info['download_speed'] = None
-        network_info['error'] = str(e)
+        # Get network IO statistics
+        net_io = psutil.net_io_counters()
+        network_info['bytes_sent'] = net_io.bytes_sent
+        network_info['bytes_recv'] = net_io.bytes_recv
+        network_info['packets_sent'] = net_io.packets_sent
+        network_info['packets_recv'] = net_io.packets_recv
 
-    try:
+        # Test network speed (download speed)
+        test_url = "http://example.com"  # A URL to test the download speed
+        start_time = time.perf_counter()
+        try:
+            response = requests.get(test_url, timeout=10)
+            end_time = time.perf_counter()
+            download_time = end_time - start_time
+            download_speed = len(response.content) / download_time
+            network_info['download_speed'] = download_speed
+        except requests.RequestException as e:
+            network_info['download_speed'] = None
+            network_info['error'] = str(e)
+
+
         # Get network addresses
         net_if_addrs = psutil.net_if_addrs()
         network_info['interfaces'] = {iface: [addr.address for addr in addrs if addr.family == socket.AF_INET] for iface, addrs in net_if_addrs.items()}

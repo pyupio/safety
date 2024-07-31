@@ -1,0 +1,34 @@
+name: Issue Responder
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  respond:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Respond to new issues
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const issueNumber = context.issue.number;
+          const issueAuthor = context.payload.issue.user.login;
+
+          const commentBody = `
+          Hi @${issueAuthor}, thank you for opening this issue!
+
+          We appreciate your effort in reporting this. Our team will review it and get back to you soon.
+          If you have any additional details or updates, feel free to add them to this issue.
+
+          **Note:** If this is a serious security issue that could impact the security of Safety CLI users, please email security@safetycli.com immediately.
+
+          Thank you for contributing to Safety CLI!
+          `;
+
+          await github.issues.createComment({
+            ...context.repo,
+            issue_number: issueNumber,
+            body: commentBody
+          });

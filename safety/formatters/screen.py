@@ -7,7 +7,8 @@ from safety.output_utils import build_announcements_section_content, format_long
     build_primary_announcement, get_specifier_range_info, format_unpinned_vulnerabilities
 from safety.util import get_primary_announcement, get_basic_announcements, get_terminal_size, \
     is_ignore_unpinned_mode
-
+from collections import defaultdict
+from typing import List, Dict, Any, Tuple
 
 class ScreenReport(FormatterAPI):
     DIVIDER_SECTIONS = '+' + '=' * (get_terminal_size().columns - 2) + '+'
@@ -29,7 +30,16 @@ class ScreenReport(FormatterAPI):
 
     ANNOUNCEMENTS_HEADING = format_long_text(click.style('ANNOUNCEMENTS', bold=True))
 
-    def __build_announcements_section(self, announcements):
+    def __build_announcements_section(self, announcements: List[Dict]) -> List[str]:
+        """
+        Build the announcements section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+
+        Returns:
+            List[str]: Formatted announcements section.
+        """
         announcements_section = []
 
         basic_announcements = get_basic_announcements(announcements)
@@ -41,7 +51,22 @@ class ScreenReport(FormatterAPI):
 
         return announcements_section
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
+    def render_vulnerabilities(self, announcements: List[Dict], vulnerabilities: List[Dict], remediations: Dict[str, Any],
+                               full: bool, packages: List[Dict], fixes: Tuple = ()) -> str:
+        """
+        Render the vulnerabilities section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+            vulnerabilities (List[Dict]): List of vulnerability dictionaries.
+            remediations (Dict[str, Any]): Remediation data.
+            full (bool): Flag indicating full report.
+            packages (List[Dict]): List of package dictionaries.
+            fixes (Tuple, optional): Iterable of fixes.
+
+        Returns:
+            str: Rendered vulnerabilities report.
+        """
         announcements_section = self.__build_announcements_section(announcements)
         primary_announcement = get_primary_announcement(announcements)
         remediation_section = build_remediation_section(remediations)
@@ -56,7 +81,6 @@ class ScreenReport(FormatterAPI):
         ignored = {}
         total_ignored = 0
 
-        from collections import defaultdict
         unpinned_packages = defaultdict(list)
         styled_vulns = []
 
@@ -110,7 +134,17 @@ class ScreenReport(FormatterAPI):
                 end_content
             )
 
-    def render_licenses(self, announcements, licenses):
+    def render_licenses(self, announcements: List[Dict], licenses: List[Dict]) -> str:
+        """
+        Render the licenses section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+            licenses (List[Dict]): List of license dictionaries.
+
+        Returns:
+            str: Rendered licenses report.
+        """
         unique_license_types = set([lic['license'] for lic in licenses])
 
         report_brief_section = build_report_brief_section(primary_announcement=get_primary_announcement(announcements),
@@ -149,7 +183,16 @@ class ScreenReport(FormatterAPI):
                                                                     self.DIVIDER_SECTIONS]
         )
 
-    def render_announcements(self, announcements):
+    def render_announcements(self, announcements: List[Dict]) -> List[str]:
+        """
+        Render the announcements section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+
+        Returns:
+            str: Rendered announcements section.
+        """
         return self.__build_announcements_section(announcements)
 
 

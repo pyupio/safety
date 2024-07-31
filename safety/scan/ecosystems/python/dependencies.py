@@ -13,7 +13,18 @@ from packaging.version import parse as parse_version
 from packaging.utils import canonicalize_name
 
 
-def get_closest_ver(versions, version, spec: SpecifierSet):
+def get_closest_ver(versions: List[str], version: Optional[str], spec: SpecifierSet) -> dict:
+    """
+    Gets the closest version to the specified version within a list of versions.
+
+    Args:
+        versions (List[str]): The list of versions.
+        version (Optional[str]): The target version.
+        spec (SpecifierSet): The version specifier set.
+
+    Returns:
+        dict: A dictionary containing the upper and lower closest versions.
+    """
     results = {'upper': None, 'lower': None}
 
     if (not version and not spec) or not versions:
@@ -54,6 +65,15 @@ def get_closest_ver(versions, version, spec: SpecifierSet):
 
 
 def is_pinned_requirement(spec: SpecifierSet) -> bool:
+    """
+    Checks if a requirement is pinned.
+
+    Args:
+        spec (SpecifierSet): The version specifier set.
+
+    Returns:
+        bool: True if the requirement is pinned, False otherwise.
+    """
     if not spec or len(spec) != 1:
         return False
 
@@ -63,7 +83,16 @@ def is_pinned_requirement(spec: SpecifierSet) -> bool:
         or specifier.operator == '==='
 
 
-def find_version(requirements):
+def find_version(requirements: List[PythonSpecification]) -> Optional[str]:
+    """
+    Finds the version of a requirement.
+
+    Args:
+        requirements (List[PythonSpecification]): The list of requirements.
+
+    Returns:
+        Optional[str]: The version if found, otherwise None.
+    """
     ver = None
 
     if len(requirements) != 1:
@@ -77,13 +106,32 @@ def find_version(requirements):
     return ver
 
 
-def is_supported_by_parser(path):
+def is_supported_by_parser(path: str) -> bool:
+    """
+    Checks if the file path is supported by the parser.
+
+    Args:
+        path (str): The file path.
+
+    Returns:
+        bool: True if supported, False otherwise.
+    """
     supported_types = (".txt", ".in", ".yml", ".ini", "Pipfile",
                        "Pipfile.lock", "setup.cfg", "poetry.lock")
     return path.endswith(supported_types)
 
 
-def parse_requirement(dep, found: Optional[str]) -> PythonSpecification:
+def parse_requirement(dep: str, found: Optional[str]) -> PythonSpecification:
+    """
+    Parses a requirement and creates a PythonSpecification object.
+
+    Args:
+        dep (str): The dependency string.
+        found (Optional[str]): The found path.
+
+    Returns:
+        PythonSpecification: The parsed requirement.
+    """
     req = PythonSpecification(dep)
     req.found = Path(found).resolve() if found else None
 
@@ -93,12 +141,16 @@ def parse_requirement(dep, found: Optional[str]) -> PythonSpecification:
     return req
 
 
-def read_requirements(fh, resolve=True):
+def read_requirements(fh, resolve: bool = True) -> Generator[PythonDependency, None, None]:
     """
-    Reads requirements from a file like object and (optionally) from referenced files.
-    :param fh: file like object to read from
-    :param resolve: boolean. resolves referenced files.
-    :return: generator
+    Reads requirements from a file-like object and (optionally) from referenced files.
+
+    Args:
+        fh: The file-like object to read from.
+        resolve (bool): Whether to resolve referenced files.
+
+    Returns:
+        Generator[PythonDependency, None, None]: A generator of PythonDependency objects.
     """
     is_temp_file = not hasattr(fh, 'name')
     path = None
@@ -136,7 +188,17 @@ def read_requirements(fh, resolve=True):
                       more_info_url=None)
 
 
-def read_dependencies(fh, resolve=True):
+def read_dependencies(fh, resolve: bool = True) -> Generator[PythonDependency, None, None]:
+    """
+    Reads dependencies from a file-like object.
+
+    Args:
+        fh: The file-like object to read from.
+        resolve (bool): Whether to resolve referenced files.
+
+    Returns:
+        Generator[PythonDependency, None, None]: A generator of PythonDependency objects.
+    """
     path = fh.name
     absolute_path = Path(path).resolve()
     found = absolute_path
@@ -163,8 +225,16 @@ def read_dependencies(fh, resolve=True):
                       latest_version_without_known_vulnerabilities=None,
                       more_info_url=None)
 
-def read_virtual_environment_dependencies(f: InspectableFile) \
-    -> Generator[PythonDependency, None, None]:
+def read_virtual_environment_dependencies(f: InspectableFile) -> Generator[PythonDependency, None, None]:
+    """
+    Reads dependencies from a virtual environment.
+
+    Args:
+        f (InspectableFile): The inspectable file representing the virtual environment.
+
+    Returns:
+        Generator[PythonDependency, None, None]: A generator of PythonDependency objects.
+    """
 
     env_path = Path(f.file.name).resolve().parent
 
@@ -181,7 +251,7 @@ def read_virtual_environment_dependencies(f: InspectableFile) \
     if not site_pkgs_path.resolve().exists():
         # Unable to find packages for foo env
         return
-    
+
     dep_paths = site_pkgs_path.glob("*/METADATA")
 
     for path in dep_paths:
@@ -193,22 +263,31 @@ def read_virtual_environment_dependencies(f: InspectableFile) \
 
         yield PythonDependency(name=dep_name, version=dep_version,
                 specifications=[
-                    PythonSpecification(f"{dep_name}=={dep_version}", 
-                                        found=site_pkgs_path)], 
+                    PythonSpecification(f"{dep_name}=={dep_version}",
+                                        found=site_pkgs_path)],
                 found=site_pkgs_path, insecure_versions=[],
-                secure_versions=[], latest_version=None, 
+                secure_versions=[], latest_version=None,
                 latest_version_without_known_vulnerabilities=None,
                 more_info_url=None)
 
 
 def get_dependencies(f: InspectableFile) -> List[PythonDependency]:
+    """
+    Gets the dependencies for the given inspectable file.
+
+    Args:
+        f (InspectableFile): The inspectable file.
+
+    Returns:
+        List[PythonDependency]: A list of PythonDependency objects.
+    """
     if not f.file_type:
         return []
-    
-    if f.file_type in [FileType.REQUIREMENTS_TXT, FileType.POETRY_LOCK, 
+
+    if f.file_type in [FileType.REQUIREMENTS_TXT, FileType.POETRY_LOCK,
                        FileType.PIPENV_LOCK]:
         return list(read_dependencies(f.file, resolve=True))
-    
+
     if f.file_type == FileType.VIRTUAL_ENVIRONMENT:
         return list(read_virtual_environment_dependencies(f))
 

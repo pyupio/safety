@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from random import randint
 import sys
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from rich.padding import Padding
 from safety_schemas.models import ConfigModel, ProjectModel
@@ -29,7 +29,10 @@ from safety_schemas.models import MetadataModel, ScanType, ReportSchemaVersion, 
 LOG = logging.getLogger(__name__)
 
 
-def initialize_scan(ctx, console):
+def initialize_scan(ctx: Any, console: Console) -> None:
+    """
+    Initializes the scan by setting platform_enabled based on the response from the server.
+    """
     data = None
 
     try:
@@ -48,7 +51,7 @@ def initialize_scan(ctx, console):
 
 def scan_project_command_init(func):
     """
-    Make general verifications before each scan command.
+    Decorator to make general verifications before each project scan command.
     """
     @wraps(func)
     def inner(ctx, policy_file_path: Optional[Path], target: Path,
@@ -62,7 +65,7 @@ def scan_project_command_init(func):
             console.quiet = True
 
         if not ctx.obj.auth.is_valid():
-            process_auth_status_not_ready(console=console, 
+            process_auth_status_not_ready(console=console,
                                         auth=ctx.obj.auth, ctx=ctx)
 
         upload_request_id = kwargs.pop("upload_request_id", None)
@@ -109,12 +112,12 @@ def scan_project_command_init(func):
 
         cloud_policy = None
         if ctx.obj.platform_enabled:
-            cloud_policy = print_wait_policy_download(console, (download_policy, 
-                                            {"session": session, 
+            cloud_policy = print_wait_policy_download(console, (download_policy,
+                                            {"session": session,
                                             "project_id": ctx.obj.project.id,
                                             "stage": stage,
                                             "branch": branch}))
-        
+
         ctx.obj.project.policy = resolve_policy(local_policy, cloud_policy)
         config = ctx.obj.project.policy.config \
             if ctx.obj.project.policy and ctx.obj.project.policy.config \
@@ -145,10 +148,10 @@ def scan_project_command_init(func):
                 details = {"Account": f"{content} {render_email_note(ctx.obj.auth)}"}
             else:
                 details = {"Account": f"Offline - {os.getenv('SAFETY_DB_DIR')}"}
-        
+
         if ctx.obj.project.id:
             details["Project"] = ctx.obj.project.id
-        
+
         if ctx.obj.project.git:
             details[" Git branch"] = ctx.obj.project.git.branch
 
@@ -156,7 +159,7 @@ def scan_project_command_init(func):
 
         msg = "None, using Safety CLI default policies"
 
-        if ctx.obj.project.policy:        
+        if ctx.obj.project.policy:
             if ctx.obj.project.policy.source is PolicySource.cloud:
                 msg = f"fetched from Safety Platform, " \
                     "ignoring any local Safety CLI policy files"
@@ -170,7 +173,7 @@ def scan_project_command_init(func):
 
         for k,v in details.items():
             console.print(f"[scan_meta_title]{k}[/scan_meta_title]: {v}")
-                
+
         print_announcements(console=console, ctx=ctx)
 
         console.print()
@@ -185,10 +188,10 @@ def scan_project_command_init(func):
 
 def scan_system_command_init(func):
     """
-    Make general verifications before each system scan command.
+    Decorator to make general verifications before each system scan command.
     """
     @wraps(func)
-    def inner(ctx, policy_file_path: Optional[Path], targets: List[Path], 
+    def inner(ctx, policy_file_path: Optional[Path], targets: List[Path],
               output: SystemScanOutput,
               console: Console = main_console, *args, **kwargs):
         ctx.obj.console = console
@@ -198,8 +201,8 @@ def scan_system_command_init(func):
             console.quiet = True
 
         if not ctx.obj.auth.is_valid():
-            process_auth_status_not_ready(console=console, 
-                                        auth=ctx.obj.auth, ctx=ctx)            
+            process_auth_status_not_ready(console=console,
+                                        auth=ctx.obj.auth, ctx=ctx)
 
         initialize_scan(ctx, console)
 
@@ -229,12 +232,12 @@ def scan_system_command_init(func):
 
         ctx.obj.config = config
 
-        if not any(targets):        
+        if not any(targets):
             if any(config.scan.system_targets):
                 targets = [Path(t).expanduser().absolute() for t in config.scan.system_targets]
             else:
                 targets = [Path("/")]
-            
+
             ctx.obj.metadata.scan_locations = targets
 
         console.print()
@@ -244,8 +247,8 @@ def scan_system_command_init(func):
 
         details = {"Account": f"{ctx.obj.auth.name}, {ctx.obj.auth.email}",
                 "Scan stage": ctx.obj.auth.stage}
-                
-        if ctx.obj.system_scan_policy:        
+
+        if ctx.obj.system_scan_policy:
             if ctx.obj.system_scan_policy.source is PolicySource.cloud:
                 policy_type = "remote"
             else:
@@ -259,9 +262,9 @@ def scan_system_command_init(func):
 
         for k,v in details.items():
             console.print(f"[bold]{k}[/bold]: {v}")
-        
+
         if ctx.obj.system_scan_policy:
-            
+
             dirs = [ign for ign in ctx.obj.config.scan.ignore if Path(ign).is_dir()]
 
             policy_details = [
@@ -273,17 +276,17 @@ def scan_system_command_init(func):
                 console.print(
                     Padding(policy_detail,
                             (0, 0, 0, 1)), emoji=True)
-        
+
         print_announcements(console=console, ctx=ctx)
 
         console.print()
-        
+
         kwargs.update({"targets": targets})
         result = func(ctx, *args, **kwargs)
         return result
 
-    return inner        
-            
+    return inner
+
 
 def inject_metadata(func):
     """
@@ -304,7 +307,7 @@ def inject_metadata(func):
 
         if not scan_type:
             raise SafetyException("Missing scan_type.")
-        
+
         if scan_type is ScanType.scan:
             if not target:
                 raise SafetyException("Missing target.")
@@ -319,7 +322,7 @@ def inject_metadata(func):
             telemetry=telemetry,
             schema_version=ReportSchemaVersion.v3_0
             )
-            
+
         ctx.obj.schema = ReportSchemaVersion.v3_0
         ctx.obj.metadata = metadata
         ctx.obj.telemetry = telemetry

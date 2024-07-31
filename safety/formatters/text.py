@@ -8,6 +8,7 @@ from safety.output_utils import build_announcements_section_content, format_vuln
     build_primary_announcement, format_unpinned_vulnerabilities
 from safety.util import get_primary_announcement, get_basic_announcements, is_ignore_unpinned_mode, \
     get_remediations_count
+from typing import List, Dict, Tuple, Any
 
 
 class TextReport(FormatterAPI):
@@ -30,7 +31,16 @@ class TextReport(FormatterAPI):
 
 """ + SMALL_DIVIDER_SECTIONS
 
-    def __build_announcements_section(self, announcements):
+    def __build_announcements_section(self, announcements: List[Dict]) -> List[str]:
+        """
+        Build the announcements section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+
+        Returns:
+            List[str]: Formatted announcements section.
+        """
         announcements_table = []
 
         basic_announcements = get_basic_announcements(announcements)
@@ -43,7 +53,25 @@ class TextReport(FormatterAPI):
 
         return announcements_table
 
-    def render_vulnerabilities(self, announcements, vulnerabilities, remediations, full, packages, fixes=()):
+    def render_vulnerabilities(
+        self, announcements: List[Dict], vulnerabilities: List[Dict],
+        remediations: Dict[str, Any], full: bool, packages: List[Dict],
+        fixes: Tuple = ()
+    ) -> str:
+        """
+        Render the vulnerabilities section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+            vulnerabilities (List[Dict]): List of vulnerability dictionaries.
+            remediations (Dict[str, Any]): Remediation data.
+            full (bool): Flag indicating full report.
+            packages (List[Dict]): List of package dictionaries.
+            fixes (Tuple, optional): Iterable of fixes.
+
+        Returns:
+            str: Rendered vulnerabilities report.
+        """
         primary_announcement = get_primary_announcement(announcements)
         remediation_section = [click.unstyle(rem) for rem in build_remediation_section(remediations, columns=80)]
         end_content = []
@@ -109,7 +137,17 @@ class TextReport(FormatterAPI):
             table
         )
 
-    def render_licenses(self, announcements, licenses):
+    def render_licenses(self, announcements: List[Dict], licenses: List[Dict]) -> str:
+        """
+        Render the licenses section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+            licenses (List[Dict]): List of license dictionaries.
+
+        Returns:
+            str: Rendered licenses report.
+        """
         unique_license_types = set([lic['license'] for lic in licenses])
 
         report_brief_section = click.unstyle(
@@ -145,7 +183,16 @@ class TextReport(FormatterAPI):
 
         return "\n".join(table)
 
-    def render_announcements(self, announcements):
+    def render_announcements(self, announcements: List[Dict]) -> str:
+        """
+        Render the announcements section of the report.
+
+        Args:
+            announcements (List[Dict]): List of announcement dictionaries.
+
+        Returns:
+            str: Rendered announcements section.
+        """
         rows = self.__build_announcements_section(announcements)
         rows.insert(0, self.SMALL_DIVIDER_SECTIONS)
         return '\n'.join(rows)

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple, Any, Callable
 
 import click
 
@@ -21,9 +21,20 @@ from functools import wraps
 LOG = logging.getLogger(__name__)
 
 
-def build_client_session(api_key=None, proxies=None, headers=None):
-    kwargs = {}
+def build_client_session(api_key: Optional[str] = None, proxies: Optional[Dict[str, str]] = None, headers: Optional[Dict[str, str]] = None) -> Tuple[SafetyAuthSession, Dict[str, Any]]:
+    """
+    Builds and configures the client session for authentication.
 
+    Args:
+        api_key (Optional[str]): The API key for authentication.
+        proxies (Optional[Dict[str, str]]): Proxy configuration.
+        headers (Optional[Dict[str, str]]): Additional headers.
+
+    Returns:
+        Tuple[SafetyAuthSession, Dict[str, Any]]: The configured client session and OpenID configuration.
+    """
+
+    kwargs = {}
     target_proxies = proxies
 
     # Global proxy defined in the config.ini
@@ -31,21 +42,21 @@ def build_client_session(api_key=None, proxies=None, headers=None):
 
     if not proxies:
         target_proxies = proxy_config
-    
+
     def update_token(tokens, **kwargs):
         save_auth_config(access_token=tokens['access_token'], id_token=tokens['id_token'],
                     refresh_token=tokens['refresh_token'])
         load_auth_session(click_ctx=click.get_current_context(silent=True))
 
-    client_session = SafetyAuthSession(client_id=CLIENT_ID, 
+    client_session = SafetyAuthSession(client_id=CLIENT_ID,
                                        code_challenge_method='S256',
-                                       redirect_uri=get_redirect_url(), 
+                                       redirect_uri=get_redirect_url(),
                                        update_token=update_token,
                                        scope='openid email profile offline_access',
                                        **kwargs)
-    
+
     client_session.mount("https://pyup.io/static-s3/", S3PresignedAdapter())
-    
+
     client_session.proxy_required = proxy_required
     client_session.proxy_timeout = proxy_timeout
     client_session.proxies = target_proxies
@@ -57,7 +68,7 @@ def build_client_session(api_key=None, proxies=None, headers=None):
         LOG.debug('Unable to load the openID config: %s', e)
         openid_config = {}
 
-    client_session.metadata["token_endpoint"] = openid_config.get("token_endpoint", 
+    client_session.metadata["token_endpoint"] = openid_config.get("token_endpoint",
                                                                   None)
 
     if api_key:
@@ -70,7 +81,13 @@ def build_client_session(api_key=None, proxies=None, headers=None):
     return client_session, openid_config
 
 
-def load_auth_session(click_ctx):
+def load_auth_session(click_ctx: click.Context) -> None:
+    """
+    Loads the authentication session from the context.
+
+    Args:
+        click_ctx (click.Context): The Click context object.
+    """
     if not click_ctx:
         LOG.warn("Click context is needed to be able to load the Auth data.")
         return
@@ -94,63 +111,103 @@ def load_auth_session(click_ctx):
             print(e)
             clean_session(client)
 
-def proxy_options(func):
+def proxy_options(func: Callable) -> Callable:
     """
+    Decorator that defines proxy options for Click commands.
+
     Options defined per command, this will override the proxy settings defined in the
     config.ini file.
+
+    Args:
+        func (Callable): The Click command function.
+
+    Returns:
+        Callable: The wrapped Click command function with proxy options.
     """
-    func = click.option("--proxy-protocol", 
+    func = click.option("--proxy-protocol",
                         type=click.Choice(['http', 'https']), default='https',
                         cls=DependentOption, required_options=['proxy_host'],
                         help=CLI_PROXY_PROTOCOL_HELP)(func)
-    func = click.option("--proxy-port", multiple=False, type=int, default=80, 
-                        cls=DependentOption, required_options=['proxy_host'], 
+    func = click.option("--proxy-port", multiple=False, type=int, default=80,
+                        cls=DependentOption, required_options=['proxy_host'],
                         help=CLI_PROXY_PORT_HELP)(func)
-    func = click.option("--proxy-host", multiple=False, type=str, default=None, 
+    func = click.option("--proxy-host", multiple=False, type=str, default=None,
                         help=CLI_PROXY_HOST_HELP)(func)
 
     return func
 
-def auth_options(stage=True):
+def auth_options(stage: bool = True) -> Callable:
+    """
+    Decorator that defines authentication options for Click commands.
 
-    def decorator(func):
+    Args:
+        stage (bool): Whether to include the stage option.
+
+    Returns:
+        Callable: The decorator function.
+    """
+    def decorator(func: Callable) -> Callable:
 
         func = click.option("--key", default=None, envvar="SAFETY_API_KEY",
             help=CLI_KEY_HELP)(func)
 
         if stage:
-            func = click.option("--stage", default=None, envvar="SAFETY_STAGE", 
+            func = click.option("--stage", default=None, envvar="SAFETY_STAGE",
                                 help=CLI_STAGE_HELP)(func)
-    
+
         return func
-    
+
     return decorator
 
 
-def inject_session(func):
+def inject_session(func: Callable) -> Callable:
     """
+    Decorator that injects a session object into Click commands.
+
     Builds the session object to be used in each command.
+
+    Args:
+        func (Callable): The Click command function.
+
+    Returns:
+        Callable: The wrapped Click command function with session injection.
     """
     @wraps(func)
-    def inner(ctx, proxy_protocol: Optional[str] = None, 
+    def inner(ctx: click.Context, proxy_protocol: Optional[str] = None,
               proxy_host: Optional[str] = None,
               proxy_port: Optional[str] = None,
-              key: Optional[str] = None, 
-              stage: Optional[Stage] = None, *args, **kwargs):
-        
+              key: Optional[str] = None,
+              stage: Optional[Stage] = None, *args, **kwargs) -> Any:
+        """
+        Inner function that performs the session injection.
+
+        Args:
+            ctx (click.Context): The Click context object.
+            proxy_protocol (Optional[str]): The proxy protocol.
+            proxy_host (Optional[str]): The proxy host.
+            proxy_port (Optional[int]): The proxy port.
+            key (Optional[str]): The API key.
+            stage (Optional[Stage]): The stage.
+            *args (Any): Additional arguments.
+            **kwargs (Any): Additional keyword arguments.
+
+        Returns:
+            Any: The result of the decorated function.
+        """
+
         if ctx.invoked_subcommand == "configure":
             return
-        
+
         org: Optional[Organization] = get_organization()
-        
+
         if not stage:
             host_stage = get_host_config(key_name="stage")
             stage = host_stage if host_stage else Stage.development
 
-        proxy_config: Optional[Dict[str, str]] = get_proxy_dict(proxy_protocol, 
+        proxy_config: Optional[Dict[str, str]] = get_proxy_dict(proxy_protocol,
                                                                 proxy_host, proxy_port)
 
-        client_session, openid_config = build_client_session(api_key=key, 
+        client_session, openid_config = build_client_session(api_key=key,
                                                              proxies=proxy_config)
         keys = get_keys(client_session, openid_config)
 

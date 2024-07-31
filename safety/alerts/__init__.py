@@ -1,7 +1,7 @@
 import logging
 import sys
 import json
-from typing import Any
+from typing import Any, IO
 import click
 
 from dataclasses import dataclass
@@ -16,6 +16,15 @@ LOG = logging.getLogger(__name__)
 
 @dataclass
 class Alert:
+    """
+    Data class for storing alert details.
+
+    Attributes:
+        report (Any): The report data.
+        key (str): The API key for the safetycli.com vulnerability database.
+        policy (Any): The policy data.
+        requirements_files (Any): The requirements files data.
+    """
     report: Any
     key: str
     policy: Any = None
@@ -29,7 +38,16 @@ class Alert:
 @click.option("--policy-file", type=SafetyPolicyFile(), default='.safety-policy.yml',
               help="Define the policy file to be used")
 @click.pass_context
-def alert(ctx, check_report, policy_file, key):
+def alert(ctx: click.Context, check_report: IO[str], policy_file: SafetyPolicyFile, key: str) -> None:
+    """
+    Command for processing the Safety Check JSON report.
+
+    Args:
+        ctx (click.Context): The Click context object.
+        check_report (IO[str]): The file containing the JSON report.
+        policy_file (SafetyPolicyFile): The policy file to be used.
+        key (str): The API key for the safetycli.com vulnerability database.
+    """
     LOG.info('alert started')
     LOG.info(f'check_report is using stdin: {check_report == sys.stdin}')
 
@@ -48,5 +66,6 @@ def alert(ctx, check_report, policy_file, key):
 
     ctx.obj = Alert(report=safety_report, policy=policy_file if policy_file else {}, key=key)
 
+# Adding subcommands for GitHub integration
 alert.add_command(github.github_pr)
 alert.add_command(github.github_issue)

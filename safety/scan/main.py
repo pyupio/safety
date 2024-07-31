@@ -25,11 +25,20 @@ PROJECT_CONFIG_URL = "url"
 PROJECT_CONFIG_NAME = "name"
 
 
-def download_policy(session: SafetyAuthSession, 
-                    project_id: str, 
-                    stage: Stage, 
-                    branch: Optional[str]) -> Optional[PolicyFileModel]:
-    result = session.download_policy(project_id=project_id, stage=stage, 
+def download_policy(session: SafetyAuthSession, project_id: str, stage: Stage, branch: Optional[str]) -> Optional[PolicyFileModel]:
+    """
+    Downloads the policy file from the cloud for the given project and stage.
+
+    Args:
+        session (SafetyAuthSession): SafetyAuthSession object for authentication.
+        project_id (str): The ID of the project.
+        stage (Stage): The stage of the project.
+        branch (Optional[str]): The branch of the project (optional).
+
+    Returns:
+        Optional[PolicyFileModel]: PolicyFileModel object if successful, otherwise None.
+    """
+    result = session.download_policy(project_id=project_id, stage=stage,
                                      branch=branch)
 
     if result and "uuid" in result and result["uuid"]:
@@ -62,28 +71,44 @@ def download_policy(session: SafetyAuthSession,
                                 source=PolicySource.cloud,
                                 location=None,
                                 config=config)
-    
+
     return None
 
 
 def load_unverified_project_from_config(project_root: Path) -> UnverifiedProjectModel:
+    """
+    Loads an unverified project from the configuration file located at the project root.
+
+    Args:
+        project_root (Path): The root directory of the project.
+
+    Returns:
+        UnverifiedProjectModel: An instance of UnverifiedProjectModel.
+    """
     config = configparser.ConfigParser()
     project_path = project_root / PROJECT_CONFIG
     config.read(project_path)
     id = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_ID, fallback=None)
     id = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_ID, fallback=None)
     url = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_URL, fallback=None)
-    name = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_NAME, fallback=None)    
+    name = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_NAME, fallback=None)
     created = True
     if id:
         created = False
-    
-    return UnverifiedProjectModel(id=id, url_path=url, 
-                                  name=name, project_path=project_path, 
+
+    return UnverifiedProjectModel(id=id, url_path=url,
+                                  name=name, project_path=project_path,
                                   created=created)
 
 
-def save_project_info(project: ProjectModel, project_path: Path):
+def save_project_info(project: ProjectModel, project_path: Path) -> None:
+    """
+    Saves the project information to the configuration file.
+
+    Args:
+        project (ProjectModel): The ProjectModel object containing project information.
+        project_path (Path): The path to the configuration file.
+    """
     config = configparser.ConfigParser()
     config.read(project_path)
 
@@ -95,12 +120,21 @@ def save_project_info(project: ProjectModel, project_path: Path):
         config[PROJECT_CONFIG_SECTION][PROJECT_CONFIG_URL] = project.url_path
     if project.name:
         config[PROJECT_CONFIG_SECTION][PROJECT_CONFIG_NAME] = project.name
-    
+
     with open(project_path, 'w') as configfile:
-        config.write(configfile)    
+        config.write(configfile)
 
 
 def load_policy_file(path: Path) -> Optional[PolicyFileModel]:
+    """
+    Loads a policy file from the specified path.
+
+    Args:
+        path (Path): The path to the policy file.
+
+    Returns:
+        Optional[PolicyFileModel]: PolicyFileModel object if successful, otherwise None.
+    """
     config = None
 
     if not path or not path.exists():
@@ -118,13 +152,21 @@ def load_policy_file(path: Path) -> Optional[PolicyFileModel]:
         LOG.error(f"Wrong YML file for policy file {path}.", exc_info=True)
         raise SafetyError(f"{err}, details: {e}")
 
-    return PolicyFileModel(id=str(path), source=PolicySource.local, 
+    return PolicyFileModel(id=str(path), source=PolicySource.local,
                            location=path, config=config)
 
 
-def resolve_policy(local_policy: Optional[PolicyFileModel], 
-                   cloud_policy: Optional[PolicyFileModel]) \
-                    -> Optional[PolicyFileModel]:    
+def resolve_policy(local_policy: Optional[PolicyFileModel], cloud_policy: Optional[PolicyFileModel]) -> Optional[PolicyFileModel]:
+    """
+    Resolves the policy to be used, preferring cloud policy over local policy.
+
+    Args:
+        local_policy (Optional[PolicyFileModel]): The local policy file model (optional).
+        cloud_policy (Optional[PolicyFileModel]): The cloud policy file model (optional).
+
+    Returns:
+        Optional[PolicyFileModel]: The resolved PolicyFileModel object.
+    """
     policy = None
 
     if cloud_policy:
@@ -135,20 +177,37 @@ def resolve_policy(local_policy: Optional[PolicyFileModel],
     return policy
 
 
-def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, report: Any):
-        tag = int(time.time()) 
+def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, report: Any) -> None:
+    """
+    Saves the scan report to the specified location.
 
-        if at.is_dir():
-            at = at / Path(
-                f"{scan_type.value}-{export_type.get_default_file_name(tag=tag)}")
+    Args:
+        scan_type (ScanType): The type of scan.
+        export_type (ScanExport): The type of export.
+        at (Path): The path to save the report.
+        report (Any): The report content.
+    """
+    tag = int(time.time())
 
-        with open(at, 'w+') as report_file:
-            report_file.write(report)
+    if at.is_dir():
+        at = at / Path(
+            f"{scan_type.value}-{export_type.get_default_file_name(tag=tag)}")
+
+    with open(at, 'w+') as report_file:
+        report_file.write(report)
 
 
-def process_files(paths: Dict[str, Set[Path]], 
-                  config: Optional[ConfigModel] = None) -> \
-                    Generator[Tuple[Path, InspectableFile], None, None]:
+def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None) -> Generator[Tuple[Path, InspectableFile], None, None]:
+    """
+    Processes the files and yields each file path along with its inspectable file.
+
+    Args:
+        paths (Dict[str, Set[Path]]): A dictionary of file paths by file type.
+        config (Optional[ConfigModel]): The configuration model (optional).
+
+    Yields:
+        Tuple[Path, InspectableFile]: A tuple of file path and inspectable file.
+    """
     if not config:
         config = ConfigModel()
 
@@ -158,7 +217,7 @@ def process_files(paths: Dict[str, Set[Path]],
             continue
         for f_path in f_paths:
             with InspectableFileContext(f_path, file_type=file_type) as inspectable_file:
-                if inspectable_file and inspectable_file.file_type:                    
+                if inspectable_file and inspectable_file.file_type:
                     inspectable_file.inspect(config=config)
                     inspectable_file.remediate()
                     yield f_path, inspectable_file

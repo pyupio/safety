@@ -29,11 +29,27 @@ from packaging.specifiers import SpecifierSet
 LOG = logging.getLogger(__name__)
 
 
-def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType,
-                          vuln_id: str, cve, ignore_vulns,
-                          ignore_unpinned: bool, ignore_environment: bool,
-                          specification: PythonSpecification,
-                          ignore_severity: List[VulnerabilitySeverityLabels] = []):
+def ignore_vuln_if_needed(
+    dependency: PythonDependency, file_type: FileType,
+    vuln_id: str, cve, ignore_vulns,
+    ignore_unpinned: bool, ignore_environment: bool,
+    specification: PythonSpecification,
+    ignore_severity: List[VulnerabilitySeverityLabels] = []
+) -> None:
+    """
+    Ignores vulnerabilities based on the provided rules.
+
+    Args:
+        dependency (PythonDependency): The Python dependency.
+        file_type (FileType): The type of the file.
+        vuln_id (str): The vulnerability ID.
+        cve: The CVE object.
+        ignore_vulns: The dictionary of ignored vulnerabilities.
+        ignore_unpinned (bool): Whether to ignore unpinned specifications.
+        ignore_environment (bool): Whether to ignore environment results.
+        specification (PythonSpecification): The specification.
+        ignore_severity (List[VulnerabilitySeverityLabels]): List of severity labels to ignore.
+    """
 
     vuln_ignored: bool = vuln_id in ignore_vulns
 
@@ -80,6 +96,17 @@ def ignore_vuln_if_needed(dependency: PythonDependency, file_type: FileType,
 
 
 def should_fail(config: ConfigModel, vulnerability: Vulnerability) -> bool:
+    """
+    Determines if a vulnerability should cause a failure based on the configuration.
+
+    Args:
+        config (ConfigModel): The configuration model.
+        vulnerability (Vulnerability): The vulnerability.
+
+    Returns:
+        bool: True if the vulnerability should cause a failure, False otherwise.
+    """
+
     if not config.depedendency_vulnerability.fail_on.enabled:
         return False
 
@@ -119,10 +146,27 @@ def should_fail(config: ConfigModel, vulnerability: Vulnerability) -> bool:
     )
 
 
-def get_vulnerability(vuln_id: str, cve,
-                      data, specifier,
-                      db, name, ignore_vulns: IgnoredItems,
-                      affected: PythonSpecification) -> Vulnerability:
+def get_vulnerability(
+    vuln_id: str, cve, data, specifier,
+    db, name, ignore_vulns: IgnoredItems,
+    affected: PythonSpecification
+) -> Vulnerability:
+    """
+    Creates a Vulnerability object from the given data.
+
+    Args:
+        vuln_id (str): The vulnerability ID.
+        cve: The CVE object.
+        data: The vulnerability data.
+        specifier: The specifier set.
+        db: The database.
+        name: The package name.
+        ignore_vulns (IgnoredItems): The ignored vulnerabilities.
+        affected (PythonSpecification): The affected specification.
+
+    Returns:
+        Vulnerability: The created Vulnerability object.
+    """
     base_domain = db.get('meta', {}).get('base_domain')
     unpinned_ignored = ignore_vulns[vuln_id].specifications \
         if vuln_id in ignore_vulns.keys() else None
@@ -175,14 +219,31 @@ def get_vulnerability(vuln_id: str, cve,
     )
 
 class PythonFile(InspectableFile, Remediable):
+    """
+    A class representing a Python file that can be inspected for vulnerabilities and remediated.
+    """
 
     def __init__(self, file_type: FileType, file: FileTextWrite) -> None:
+        """
+        Initializes the PythonFile instance.
+
+        Args:
+            file_type (FileType): The type of the file.
+            file (FileTextWrite): The file object.
+        """
         super().__init__(file=file)
         self.ecosystem = file_type.ecosystem
         self.file_type = file_type
 
     def __find_dependency_vulnerabilities__(self, dependencies: List[PythonDependency],
-                                            config: ConfigModel):
+                                            config: ConfigModel) -> None:
+        """
+        Finds vulnerabilities in the dependencies.
+
+        Args:
+            dependencies (List[PythonDependency]): The list of dependencies.
+            config (ConfigModel): The configuration model.
+        """
         ignored_vulns_data = {}
         ignore_vulns = {} \
             if not config.depedendency_vulnerability.ignore_vulnerabilities \
@@ -287,7 +348,13 @@ class PythonFile(InspectableFile, Remediable):
         self.dependency_results.ignored_vulns = ignore_vulns
         self.dependency_results.ignored_vulns_data = ignored_vulns_data
 
-    def inspect(self, config: ConfigModel):
+    def inspect(self, config: ConfigModel) -> None:
+        """
+        Inspects the file for vulnerabilities based on the given configuration.
+
+        Args:
+            config (ConfigModel): The configuration model.
+        """
 
         # We only support vulnerability checking for now
         dependencies = get_dependencies(self)
@@ -299,7 +366,18 @@ class PythonFile(InspectableFile, Remediable):
                                                  config=config)
 
     def __get_secure_specifications_for_user__(self, dependency: PythonDependency, db_full,
-                                               secure_vulns_by_user=None):
+                                               secure_vulns_by_user=None) -> List[str]:
+        """
+        Gets secure specifications for the user.
+
+        Args:
+            dependency (PythonDependency): The Python dependency.
+            db_full: The full database.
+            secure_vulns_by_user: The set of secure vulnerabilities by user.
+
+        Returns:
+            List[str]: The list of secure specifications.
+        """
         if not db_full:
             return
 
@@ -319,7 +397,10 @@ class PythonFile(InspectableFile, Remediable):
 
         return sorted(sec_ver_for_user, key=lambda ver: parse_version(ver), reverse=True)
 
-    def remediate(self):
+    def remediate(self) -> None:
+        """
+        Remediates the vulnerabilities in the file.
+        """
         db_full = get_from_cache(db_name="insecure_full.json",
                                  skip_time_verification=True)
         if not db_full:

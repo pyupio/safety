@@ -2,6 +2,7 @@ import itertools
 import logging
 import re
 import sys
+from typing import Any, Optional
 
 import click
 
@@ -18,12 +19,27 @@ from . import utils, requirements
 LOG = logging.getLogger(__name__)
 
 
-def create_branch(repo, base_branch, new_branch):
+def create_branch(repo: Any, base_branch: str, new_branch: str) -> None:
+    """
+    Create a new branch in the given GitHub repository.
+
+    Args:
+        repo (Any): The GitHub repository object.
+        base_branch (str): The name of the base branch.
+        new_branch (str): The name of the new branch to create.
+    """
     ref = repo.get_git_ref("heads/" + base_branch)
     repo.create_git_ref(ref="refs/heads/" + new_branch, sha=ref.object.sha)
 
 
-def delete_branch(repo, branch):
+def delete_branch(repo: Any, branch: str) -> None:
+    """
+    Delete a branch from the given GitHub repository.
+
+    Args:
+        repo (Any): The GitHub repository object.
+        branch (str): The name of the branch to delete.
+    """
     ref = repo.get_git_ref(f"heads/{branch}")
     ref.delete()
 
@@ -33,16 +49,23 @@ def delete_branch(repo, branch):
 @click.option('--base-url', help='Optional custom Base URL, if you\'re using GitHub enterprise', default=None)
 @click.pass_obj
 @utils.require_files_report
-def github_pr(obj, repo, token, base_url):
+def github_pr(obj: Any, repo: str, token: str, base_url: Optional[str]) -> None:
     """
     Create a GitHub PR to fix any vulnerabilities using Safety's remediation data.
 
-    This is usally run by a GitHub action. If you're running this manually, ensure that your local repo is up to date and on HEAD - otherwise you'll see strange results.
+    This is usually run by a GitHub action. If you're running this manually, ensure that your local repo is up to date and on HEAD - otherwise you'll see strange results.
+
+    Args:
+        obj (Any): The Click context object containing report data.
+        repo (str): The GitHub repository path.
+        token (str): The GitHub Access Token.
+        base_url (Optional[str]): Custom base URL for GitHub Enterprise, if applicable.
     """
     if pygithub is None:
         click.secho("pygithub is not installed. Did you install Safety with GitHub support? Try pip install safety[github]", fg='red')
         sys.exit(1)
 
+    # Load alert configurations from the policy
     alert = obj.policy.get('alert', {}) or {}
     security = alert.get('security', {}) or {}
     config_pr = security.get('github-pr', {}) or {}
@@ -55,6 +78,7 @@ def github_pr(obj, repo, token, base_url):
     ignore_cvss_severity_below = config_pr.get('ignore-cvss-severity-below', 0)
     ignore_cvss_unknown_severity = config_pr.get('ignore-cvss-unknown-severity', False)
 
+    # Authenticate with GitHub
     gh = pygithub.Github(token, **({"base_url": base_url} if base_url else {}))
     repo_name = repo
     repo = gh.get_repo(repo)
@@ -65,8 +89,11 @@ def github_pr(obj, repo, token, base_url):
         # to assuming we're running under an action
         self_user = "web-flow"
 
+    # Collect all remediations from the report
     req_remediations = list(itertools.chain.from_iterable(
         rem.get('requirements', {}).values() for pkg_name, rem in obj.report['remediations'].items()))
+
+    # Get all open pull requests for the repository
     pulls = repo.get_pulls(state='open', sort='created', base=repo.default_branch)
     pending_updates = set(
         [f"{canonicalize_name(req_rem['requirement']['name'])}{req_rem['requirement']['specifier']}" for req_rem in req_remediations])
@@ -74,6 +101,7 @@ def github_pr(obj, repo, token, base_url):
     created = 0
 
     # TODO: Refactor this loop into a fn to iterate over remediations nicely
+    # Iterate over all requirements files and process each remediation
     for name, contents in obj.requirements_files.items():
         raw_contents = contents
         contents = contents.decode('utf-8') # TODO - encoding?
@@ -84,14 +112,17 @@ def github_pr(obj, repo, token, base_url):
             pkg_canonical_name: str = canonicalize_name(pkg)
             analyzed_spec: str = remediation['requirement']['specifier']
 
+            # Skip remediations without a recommended version
             if remediation['recommended_version'] is None:
                 LOG.debug(f"The GitHub PR alerter only currently supports remediations that have a recommended_version: {pkg}")
                 continue
 
             # We have a single remediation that can have multiple vulnerabilities
+            # Find all vulnerabilities associated with the remediation
             vulns = [x for x in obj.report['vulnerabilities'] if
                      x['package_name'] == pkg_canonical_name and x['analyzed_requirement']['specifier'] == analyzed_spec]
 
+            # Skip if all vulnerabilities have unknown severity and the ignore flag is set
             if ignore_cvss_unknown_severity and all(x['severity'] is None for x in vulns):
                 LOG.debug("All vulnerabilities have unknown severity, and ignore_cvss_unknown_severity is set.")
                 continue
@@ -101,6 +132,7 @@ def github_pr(obj, repo, token, base_url):
                 if vuln['severity'] is not None:
                     highest_base_score = max(highest_base_score, (vuln['severity'].get('cvssv3', {}) or {}).get('base_score', 10))
 
+            # Skip if none of the vulnerabilities meet the severity threshold
             if ignore_cvss_severity_below:
                 at_least_one_match = False
                 for vuln in vulns:
@@ -116,6 +148,7 @@ def github_pr(obj, repo, token, base_url):
             for parsed_req in parsed_req_file.requirements:
                 specs = SpecifierSet('>=0') if parsed_req.specs == SpecifierSet('') else parsed_req.specs
 
+                # Check if the requirement matches the remediation
                 if canonicalize_name(parsed_req.name) == pkg_canonical_name and str(specs) == analyzed_spec:
                     updated_contents = parsed_req.update_version(contents, remediation['recommended_version'])
                     pending_updates.discard(f"{pkg_canonical_name}{analyzed_spec}")
@@ -131,6 +164,7 @@ def github_pr(obj, repo, token, base_url):
                     # 5. An existing PR exists, but it's not needed anymore (perhaps we've been updated to a later version)
                     # 6. No existing PRs exist, but a branch does exist (perhaps the PR was closed but a stale branch left behind)
                     # In any case, we only act if we've been the only committer to the branch.
+                    # Handle various cases for existing pull requests
                     for pr in pulls:
                         if not pr.head.ref.startswith(branch_prefix):
                             continue
@@ -142,6 +176,7 @@ def github_pr(obj, repo, token, base_url):
                             _, pr_pkg, pr_spec, pr_ver = pr.head.ref.split('/')
                         except ValueError:
                             # It's possible that something weird has manually been done, so skip that
+                            # Skip invalid branch names
                             LOG.debug('Found an invalid branch name on an open PR, that matches our prefix. Skipping.')
                             continue
 
@@ -150,7 +185,7 @@ def github_pr(obj, repo, token, base_url):
                         if pr_pkg != pkg_canonical_name:
                             continue
 
-                        # Case 4
+                        # Case 4: An up-to-date PR exists
                         if pr_pkg == pkg_canonical_name and pr_spec == analyzed_spec and pr_ver == \
                                 remediation['recommended_version'] and pr.mergeable:
                             LOG.debug(f"An up to date PR #{pr.number} for {pkg} was found, no action will be taken.")
@@ -162,7 +197,7 @@ def github_pr(obj, repo, token, base_url):
                             LOG.debug(f"There are other committers on the PR #{pr.number} for {pkg}. No further action will be taken.")
                             continue
 
-                        # Case 2
+                        # Case 2: An existing PR is out of date
                         if pr_pkg == pkg_canonical_name and pr_spec == analyzed_spec and pr_ver != \
                                 remediation['recommended_version']:
                             LOG.debug(f"Closing stale PR #{pr.number} for {pkg} as a newer recommended version became")
@@ -171,7 +206,7 @@ def github_pr(obj, repo, token, base_url):
                             pr.edit(state='closed')
                             delete_branch(repo, pr.head.ref)
 
-                        # Case 3
+                        # Case 3: An existing PR is not mergeable
                         if not pr.mergeable:
                             LOG.debug(f"Closing PR #{pr.number} for {pkg} as it has become unmergable and we were the only committer")
 
@@ -179,13 +214,16 @@ def github_pr(obj, repo, token, base_url):
                             pr.edit(state='closed')
                             delete_branch(repo, pr.head.ref)
 
+                    # Skip if no changes were made
                     if updated_contents == contents:
                         LOG.debug(f"Couldn't update {pkg} to {remediation['recommended_version']}")
                         continue
 
+                    # Skip creation if indicated
                     if skip_create:
                         continue
 
+                    # Create a new branch and commit the changes
                     try:
                         create_branch(repo, repo.default_branch, new_branch)
                     except pygithub.GithubException as e:
@@ -224,6 +262,7 @@ def github_pr(obj, repo, token, base_url):
 
                     created += 1
 
+                    # Add assignees and labels to the PR
                     for assignee in assignees:
                         pr.add_to_assignees(assignee)
 
@@ -250,11 +289,17 @@ def github_pr(obj, repo, token, base_url):
 @click.option('--base-url', help='Optional custom Base URL, if you\'re using GitHub enterprise', default=None)
 @click.pass_obj
 @utils.require_files_report # TODO: For now, it can be removed in the future to support env scans.
-def github_issue(obj, repo, token, base_url):
+def github_issue(obj: Any, repo: str, token: str, base_url: Optional[str]) -> None:
     """
     Create a GitHub Issue for any vulnerabilities found using PyUp's remediation data.
 
     Normally, this is run by a GitHub action. If you're running this manually, ensure that your local repo is up to date and on HEAD - otherwise you'll see strange results.
+
+    Args:
+        obj (Any): The Click context object containing report data.
+        repo (str): The GitHub repository path.
+        token (str): The GitHub Access Token.
+        base_url (Optional[str]): Custom base URL for GitHub Enterprise, if applicable.
     """
     LOG.info(f'github_issue')
 
@@ -262,6 +307,7 @@ def github_issue(obj, repo, token, base_url):
         click.secho("pygithub is not installed. Did you install Safety with GitHub support? Try pip install safety[github]", fg='red')
         sys.exit(1)
 
+    # Load alert configurations from the policy
     alert = obj.policy.get('alert', {}) or {}
     security = alert.get('security', {}) or {}
     config_issue = security.get('github-issue', {}) or {}
@@ -274,10 +320,12 @@ def github_issue(obj, repo, token, base_url):
     ignore_cvss_severity_below = config_issue.get('ignore-cvss-severity-below', 0)
     ignore_cvss_unknown_severity = config_issue.get('ignore-cvss-unknown-severity', False)
 
+    # Authenticate with GitHub
     gh = pygithub.Github(token, **({"base_url": base_url} if base_url else {}))
     repo_name = repo
     repo = gh.get_repo(repo)
 
+    # Get all open issues for the repository
     issues = list(repo.get_issues(state='open', sort='created'))
     ISSUE_TITLE_REGEX = re.escape(issue_prefix) + r"Security Vulnerability in (.+)"
     req_remediations = list(itertools.chain.from_iterable(
@@ -285,6 +333,7 @@ def github_issue(obj, repo, token, base_url):
 
     created = 0
 
+    # Iterate over all requirements files and process each remediation
     for name, contents in obj.requirements_files.items():
         raw_contents = contents
         contents = contents.decode('utf-8') # TODO - encoding?
@@ -295,13 +344,16 @@ def github_issue(obj, repo, token, base_url):
             pkg_canonical_name: str = canonicalize_name(pkg)
             analyzed_spec: str = remediation['requirement']['specifier']
 
+            # Skip remediations without a recommended version
             if remediation['recommended_version'] is None:
                 LOG.debug(f"The GitHub Issue alerter only currently supports remediations that have a recommended_version: {pkg}")
                 continue
 
             # We have a single remediation that can have multiple vulnerabilities
+            # Find all vulnerabilities associated with the remediation
             vulns = [x for x in obj.report['vulnerabilities'] if x['package_name'] == pkg_canonical_name and x['analyzed_requirement']['specifier'] == analyzed_spec]
 
+            # Skip if all vulnerabilities have unknown severity and the ignore flag is set
             if ignore_cvss_unknown_severity and all(x['severity'] is None for x in vulns):
                 LOG.debug("All vulnerabilities have unknown severity, and ignore_cvss_unknown_severity is set.")
                 continue
@@ -311,6 +363,7 @@ def github_issue(obj, repo, token, base_url):
                 if vuln['severity'] is not None:
                     highest_base_score = max(highest_base_score, (vuln['severity'].get('cvssv3', {}) or {}).get('base_score', 10))
 
+            # Skip if none of the vulnerabilities meet the severity threshold
             if ignore_cvss_severity_below:
                 at_least_one_match = False
                 for vuln in vulns:
@@ -337,15 +390,18 @@ def github_issue(obj, repo, token, base_url):
                                 break
 
                     # For now, we just skip issues if they already exist - we don't try and update them.
+                    # Skip if an issue already exists for this remediation
                     if skip:
                         LOG.debug(
                             f"An issue already exists for {pkg}{analyzed_spec} - skipping")
                         continue
 
+                    # Create a new GitHub issue
                     pr = repo.create_issue(title=issue_prefix + utils.generate_issue_title(pkg, remediation), body=utils.generate_issue_body(pkg, remediation, vulns, api_key=obj.key))
                     created += 1
                     LOG.debug(f"Created issue to update {pkg}")
 
+                    # Add assignees and labels to the issue
                     for assignee in assignees:
                         pr.add_to_assignees(assignee)
 

@@ -4,7 +4,7 @@ import logging
 import socket
 import sys
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Dict, Tuple
 import urllib.parse
 import threading
 import click
@@ -14,14 +14,18 @@ from safety.console import main_console as console
 
 from safety.auth.constants import AUTH_SERVER_URL, CLI_AUTH_SUCCESS, CLI_LOGOUT_SUCCESS, HOST
 from safety.auth.main import save_auth_config
-from authlib.integrations.base_client.errors import OAuthError
 from rich.prompt import Prompt
 
 LOG = logging.getLogger(__name__)
 
 
-def find_available_port():
-    """Find an available port on localhost"""
+def find_available_port() -> Optional[int]:
+    """
+    Find an available port on localhost within the dynamic port range (49152-65536).
+
+    Returns:
+        Optional[int]: An available port number, or None if no ports are available.
+    """
     # Dynamic ports IANA
     port_range = range(49152, 65536)
 
@@ -36,7 +40,23 @@ def find_available_port():
 
     return None
 
-def auth_process(code: str, state: str, initial_state: str, code_verifier, client):
+def auth_process(code: str, state: str, initial_state: str, code_verifier: str, client: Any) -> Any:
+    """
+    Process the authentication callback and exchange the authorization code for tokens.
+
+    Args:
+        code (str): The authorization code.
+        state (str): The state parameter from the callback.
+        initial_state (str): The initial state parameter.
+        code_verifier (str): The code verifier for PKCE.
+        client (Any): The OAuth client.
+
+    Returns:
+        Any: The user information.
+
+    Raises:
+        SystemExit: If there is an error during authentication.
+    """
     err = None
 
     if initial_state is None or initial_state != state:
@@ -51,15 +71,15 @@ def auth_process(code: str, state: str, initial_state: str, code_verifier, clien
     if err:
         click.secho(f'Error: {err}', fg='red')
         sys.exit(1)
-    
+
     try:
         tokens = client.fetch_token(url=f'{AUTH_SERVER_URL}/oauth/token',
                                         code_verifier=code_verifier,
                                         client_id=client.client_id,
                                         grant_type='authorization_code', code=code)
 
-        save_auth_config(access_token=tokens['access_token'], 
-                            id_token=tokens['id_token'], 
+        save_auth_config(access_token=tokens['access_token'],
+                            id_token=tokens['id_token'],
                             refresh_token=tokens['refresh_token'])
         return client.fetch_user_info()
 
@@ -68,20 +88,32 @@ def auth_process(code: str, state: str, initial_state: str, code_verifier, clien
         sys.exit(1)
 
 class CallbackHandler(http.server.BaseHTTPRequestHandler):
-    def auth(self, code: str, state: str, err, error_description):
+    def auth(self, code: str, state: str, err: str, error_description: str) -> None:
+        """
+        Handle the authentication callback.
+
+        Args:
+            code (str): The authorization code.
+            state (str): The state parameter.
+            err (str): The error message, if any.
+            error_description (str): The error description, if any.
+        """
         initial_state = self.server.initial_state
         ctx = self.server.ctx
 
-        result = auth_process(code=code, 
-                              state=state, 
-                              initial_state=initial_state, 
+        result = auth_process(code=code,
+                              state=state,
+                              initial_state=initial_state,
                               code_verifier=ctx.obj.auth.code_verifier,
                               client=ctx.obj.auth.client)
-        
+
         self.server.callback = result
         self.do_redirect(location=CLI_AUTH_SUCCESS, params={})
 
-    def logout(self):
+    def logout(self) -> None:
+        """
+        Handle the logout callback.
+        """
         ctx = self.server.ctx
         uri = CLI_LOGOUT_SUCCESS
 
@@ -90,7 +122,10 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
 
         self.do_redirect(location=CLI_LOGOUT_SUCCESS, params={})
 
-    def do_GET(self):
+    def do_GET(self) -> None:
+        """
+        Handle GET requests.
+        """
         query = urllib.parse.urlparse(self.path).query
         params = urllib.parse.parse_qs(query)
         callback_type: Optional[str] = None
@@ -111,22 +146,56 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
         state = params.get('state', [''])[0]
         err = params.get('error', [''])[0]
         error_description = params.get('error_description', [''])[0]
-        
+
         self.auth(code=code, state=state, err=err, error_description=error_description)
 
-    def do_redirect(self, location, params):
+    def do_redirect(self, location: str, params: Dict) -> None:
+        """
+        Redirect the client to the specified location.
+
+        Args:
+            location (str): The URL to redirect to.
+            params (dict): Additional parameters for the redirection.
+        """
         self.send_response(301)
         self.send_header('Location', location)
         self.end_headers()
 
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: Any) -> None:
+        """
+        Log an arbitrary message.
+
+        Args:
+            format (str): The format string.
+            args (Any): Arguments for the format string.
+        """
         LOG.info(format % args)
 
 
-def process_browser_callback(uri, **kwargs) -> Any:
+def process_browser_callback(uri: str, **kwargs: Any) -> Any:
+    """
+    Process the browser callback for authentication.
+
+    Args:
+        uri (str): The authorization URL.
+        **kwargs (Any): Additional keyword arguments.
+
+    Returns:
+        Any: The user information.
+
+    Raises:
+        SystemExit: If there is an error during the process.
+    """
 
     class ThreadedHTTPServer(http.server.HTTPServer):
-        def __init__(self, server_address, RequestHandlerClass):
+        def __init__(self, server_address: Tuple, RequestHandlerClass: Any) -> None:
+            """
+            Initialize the ThreadedHTTPServer.
+
+            Args:
+                server_address (Tuple): The server address as a tuple (host, port).
+                RequestHandlerClass (Any): The request handler class.
+            """
             super().__init__(server_address, RequestHandlerClass)
             self.initial_state = None
             self.ctx = None
@@ -134,6 +203,9 @@ def process_browser_callback(uri, **kwargs) -> Any:
             self.timeout_reached = False
 
         def handle_timeout(self) -> None:
+            """
+            Handle server timeout.
+            """
             self.timeout_reached = True
             return super().handle_timeout()
 
@@ -142,7 +214,7 @@ def process_browser_callback(uri, **kwargs) -> Any:
     if not PORT:
         click.secho("No available ports.")
         sys.exit(1)
-    
+
     try:
         headless = kwargs.get("headless", False)
         initial_state = kwargs.get("initial_state", None)
@@ -152,6 +224,7 @@ def process_browser_callback(uri, **kwargs) -> Any:
 
 
         if not headless:
+            # Start a threaded HTTP server to handle the callback
             server = ThreadedHTTPServer((HOST, PORT), CallbackHandler)
             server.initial_state = initial_state
             server.timeout = kwargs.get("timeout", 600)
@@ -159,14 +232,14 @@ def process_browser_callback(uri, **kwargs) -> Any:
             server_thread = threading.Thread(target=server.handle_request)
             server_thread.start()
             message = f"If the browser does not automatically open in 5 seconds, " \
-                        "copy and paste this url into your browser:"            
+                        "copy and paste this url into your browser:"
 
         target = uri if headless else f"{uri}&port={PORT}"
         console.print(f"{message} [link={target}]{target}[/link]")
         console.print()
 
         if headless:
-            
+            # Handle the headless mode where user manually provides the response
             exchange_data = None
             while not exchange_data:
                 auth_code_text = Prompt.ask("Paste the response here", default=None, console=console)
@@ -175,17 +248,17 @@ def process_browser_callback(uri, **kwargs) -> Any:
                     state = exchange_data["state"]
                     code = exchange_data["code"]
                 except Exception as e:
-                    code = state = None             
+                    code = state = None
 
-            return auth_process(code=code, 
-                                        state=state, 
-                                        initial_state=initial_state, 
+            return auth_process(code=code,
+                                        state=state,
+                                        initial_state=initial_state,
                                         code_verifier=ctx.obj.auth.code_verifier,
                                         client=ctx.obj.auth.client)
         else:
-
+            # Wait for the browser authentication in non-headless mode
             wait_msg = "waiting for browser authentication"
-            
+
             with console.status(wait_msg, spinner="bouncingBar"):
                 time.sleep(2)
                 click.launch(target)

@@ -5,7 +5,7 @@ import json
 import logging
 from pathlib import Path
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from rich.prompt import Prompt
 from rich.text import Text
 from rich.console import Console
@@ -28,6 +28,16 @@ LOG = logging.getLogger(__name__)
 import datetime
 
 def render_header(targets: List[Path], is_system_scan: bool) -> Text:
+    """
+    Render the header text for the scan.
+
+    Args:
+        targets (List[Path]): List of target paths for the scan.
+        is_system_scan (bool): Indicates if the scan is a system scan.
+
+    Returns:
+        Text: Rendered header text.
+    """
     version = get_safety_version()
     scan_datetime = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S %Z")
 
@@ -38,14 +48,29 @@ def render_header(targets: List[Path], is_system_scan: bool) -> Text:
     return Text.from_markup(
         f"[bold]Safety[/bold] {version} {action}\n{scan_datetime}")
 
-def print_header(console, targets: List[Path], is_system_scan: bool = False):
+def print_header(console, targets: List[Path], is_system_scan: bool = False) -> None:
+    """
+    Print the header for the scan.
+
+    Args:
+        console (Console): The console for output.
+        targets (List[Path]): List of target paths for the scan.
+        is_system_scan (bool): Indicates if the scan is a system scan.
+    """
     console.print(render_header(targets, is_system_scan), markup=True)
 
-def print_announcements(console, ctx):    
+def print_announcements(console: Console, ctx: typer.Context):
+    """
+    Print announcements from Safety.
+
+    Args:
+        console (Console): The console for output.
+        ctx (typer.Context): The context of the Typer command.
+    """
     colors = {"error": "red", "warning": "yellow", "info": "default"}
 
-    announcements = safety.get_announcements(ctx.obj.auth.client, 
-                                             telemetry=ctx.obj.config.telemetry_enabled, 
+    announcements = safety.get_announcements(ctx.obj.auth.client,
+                                             telemetry=ctx.obj.config.telemetry_enabled,
                                              with_telemetry=ctx.obj.telemetry)
     basic_announcements = get_basic_announcements(announcements, False)
 
@@ -53,12 +78,19 @@ def print_announcements(console, ctx):
         console.print()
         console.print("[bold]Safety Announcements:[/bold]")
         console.print()
-        for announcement in announcements:        
+        for announcement in announcements:
             color = colors.get(announcement.get('type', "info"), "default")
             console.print(f"[{color}]* {announcement.get('message')}[/{color}]")
 
-def print_detected_ecosystems_section(console, file_paths: Dict[str, Set[Path]], 
-                                      include_safety_prjs: bool = True):
+def print_detected_ecosystems_section(console: Console, file_paths: Dict[str, Set[Path]], include_safety_prjs: bool = True) -> None:
+    """
+    Print detected ecosystems section.
+
+    Args:
+        console (Console): The console for output.
+        file_paths (Dict[str, Set[Path]]): Dictionary of file paths by type.
+        include_safety_prjs (bool): Whether to include safety projects.
+    """
     detected: Dict[Ecosystem, Dict[FileType, int]] = {}
 
     for file_type_key, f_paths in file_paths.items():
@@ -75,24 +107,33 @@ def print_detected_ecosystems_section(console, file_paths: Dict[str, Set[Path]],
 
         brief = "Found "
         file_types = []
-        
+
         for f_type, count in f_type_count.items():
             file_types.append(f"{count} {f_type.human_name(plural=count>1)}")
-        
+
         if len(file_types) > 1:
             brief += ", ".join(file_types[:-1]) + " and " + file_types[-1]
         else:
             brief += file_types[0]
-        
+
         msg = f"{ecosystem.name.replace('_', ' ').title()} detected. {brief}"
-        
+
         console.print(msg)
 
-def print_brief(console, project: ProjectModel, dependencies_count: int = 0, 
-                affected_count: int = 0, fixes_count: int = 0):
+def print_brief(console: Console, project: ProjectModel, dependencies_count: int = 0, affected_count: int = 0, fixes_count: int = 0) -> None:
+    """
+    Print a brief summary of the scan results.
+
+    Args:
+        console (Console): The console for output.
+        project (ProjectModel): The project model.
+        dependencies_count (int): Number of dependencies tested.
+        affected_count (int): Number of security issues found.
+        fixes_count (int): Number of fixes suggested.
+    """
     from ..util import pluralize
 
-    if project.policy:        
+    if project.policy:
         if project.policy.source is PolicySource.cloud:
             policy_msg = f"policy fetched from Safety Platform"
         else:
@@ -107,8 +148,16 @@ def print_brief(console, project: ProjectModel, dependencies_count: int = 0,
                   f"issues using {policy_msg}")
     console.print(
         f"[number]{affected_count}[/number] security {pluralize('issue', affected_count)} found, [number]{fixes_count}[/number] {pluralize('fix', fixes_count)} suggested")
-    
-def print_fixes_section(console, requirements_txt_found: bool = False, is_detailed_output: bool = False):
+
+def print_fixes_section(console: Console, requirements_txt_found: bool = False, is_detailed_output: bool = False) -> None:
+    """
+    Print the section on applying fixes.
+
+    Args:
+        console (Console): The console for output.
+        requirements_txt_found (bool): Indicates if a requirements.txt file was found.
+        is_detailed_output (bool): Indicates if detailed output is enabled.
+    """
     console.print("-" * console.size.width)
     console.print("Apply Fixes")
     console.print("-" * console.size.width)
@@ -131,8 +180,17 @@ def print_fixes_section(console, requirements_txt_found: bool = False, is_detail
     console.print("-" * console.size.width)
 
 
-def print_ignore_details(console, project: ProjectModel, ignored, 
-                         is_detailed_output: bool = False, ignored_vulns_data = None):
+def print_ignore_details(console: Console, project: ProjectModel, ignored: Set[str], is_detailed_output: bool = False, ignored_vulns_data: Optional[Dict[str, Vulnerability]] = None) -> None:
+    """
+    Print details about ignored vulnerabilities.
+
+    Args:
+        console (Console): The console for output.
+        project (ProjectModel): The project model.
+        ignored (Set[str]): Set of ignored vulnerabilities.
+        is_detailed_output (bool): Indicates if detailed output is enabled.
+        ignored_vulns_data (Optional[Dict[str, Vulnerability]]): Data of ignored vulnerabilities.
+    """
     from ..util import pluralize
 
     if is_detailed_output:
@@ -146,7 +204,7 @@ def print_ignore_details(console, project: ProjectModel, ignored,
         unpinned_ignored = {}
         unpinned_ignored_pkgs = set()
         environment_ignored = {}
-        environment_ignored_pkgs = set()        
+        environment_ignored_pkgs = set()
 
         for vuln_data in ignored_vulns_data:
             code = IgnoreCodes(vuln_data.ignored_code)
@@ -160,7 +218,7 @@ def print_ignore_details(console, project: ProjectModel, ignored,
                 unpinned_ignored_pkgs.add(vuln_data.package_name)
             elif code is IgnoreCodes.environment_dependency:
                 environment_ignored[vuln_data.vulnerability_id] = vuln_data
-                environment_ignored_pkgs.add(vuln_data.package_name)                
+                environment_ignored_pkgs.add(vuln_data.package_name)
 
         if manual_ignored:
             count = len(manual_ignored)
@@ -168,7 +226,7 @@ def print_ignore_details(console, project: ProjectModel, ignored,
                 f"[number]{count}[/number] were manually ignored due to the project policy:")
             for vuln in manual_ignored.values():
                 render_to_console(vuln, console,
-                                  rich_kwargs={"emoji": True, "overflow": "crop"}, 
+                                  rich_kwargs={"emoji": True, "overflow": "crop"},
                                   detailed_output=is_detailed_output)
         if cvss_severity_ignored:
             count = len(cvss_severity_ignored)
@@ -197,7 +255,19 @@ def print_ignore_details(console, project: ProjectModel, ignored,
                           "project policy)")
 
 
-def print_wait_project_verification(console, project_id, closure, on_error_delay=1):
+def print_wait_project_verification(console: Console, project_id: str, closure: Tuple[Any, Dict[str, Any]], on_error_delay: int = 1) -> Any:
+    """
+    Print a waiting message while verifying a project.
+
+    Args:
+        console (Console): The console for output.
+        project_id (str): The project ID.
+        closure (Tuple[Any, Dict[str, Any]]): The function and its arguments to call.
+        on_error_delay (int): Delay in seconds on error.
+
+    Returns:
+        Any: The status of the project verification.
+    """
     status = None
     wait_msg = f"Verifying project {project_id} with Safety Platform."
 
@@ -215,10 +285,17 @@ def print_wait_project_verification(console, project_id, closure, on_error_delay
         if not status:
             wait_msg = f'Unable to verify "{project_id}". Starting again...'
             time.sleep(on_error_delay)
-    
+
     return status
 
-def print_project_info(console, project: ProjectModel):
+def print_project_info(console: Console, project: ProjectModel):
+    """
+    Print information about the project.
+
+    Args:
+        console (Console): The console for output.
+        project (ProjectModel): The project model.
+    """
     config_msg = "loaded without policies or custom configuration."
 
     if project.policy:
@@ -229,11 +306,21 @@ def print_project_info(console, project: ProjectModel):
         else:
             config_msg = " policies fetched " \
                 "from Safety Platform."
-    
+
     msg = f"[bold]{project.id} project found[/bold] - {config_msg}"
     console.print(msg)
 
-def print_wait_policy_download(console, closure) -> Optional[PolicyFileModel]:
+def print_wait_policy_download(console: Console, closure: Tuple[Any, Dict[str, Any]]) -> Optional[PolicyFileModel]:
+    """
+    Print a waiting message while downloading a policy from the cloud.
+
+    Args:
+        console (Console): The console for output.
+        closure (Tuple[Any, Dict[str, Any]]): The function and its arguments to call.
+
+    Returns:
+        Optional[PolicyFileModel]: The downloaded policy file model.
+    """
     policy = None
     wait_msg = "Looking for a policy from cloud..."
 
@@ -253,9 +340,19 @@ def print_wait_policy_download(console, closure) -> Optional[PolicyFileModel]:
     return policy
 
 
-def prompt_project_id(console, stage: Stage, 
-                      prj_root_name: Optional[str],
-                      do_not_exit=True) -> str:
+def prompt_project_id(console: Console, stage: Stage, prj_root_name: Optional[str], do_not_exit: bool = True) -> Optional[str]:
+    """
+    Prompt the user to set a project ID for the scan.
+
+    Args:
+        console (Console): The console for output.
+        stage (Stage): The current stage.
+        prj_root_name (Optional[str]): The root name of the project.
+        do_not_exit (bool): Indicates if the function should not exit on failure.
+
+    Returns:
+        Optional[str]: The project ID.
+    """
     from safety.util import clean_project_id
     default_prj_id = clean_project_id(prj_root_name) if prj_root_name else None
 
@@ -264,10 +361,10 @@ def prompt_project_id(console, stage: Stage,
         # Fail here
         console.print("The scan needs to be linked to a project.")
         raise typer.Exit(code=1)
-    
+
     hint = ""
-    if default_prj_id:        
-        hint = f" If empty Safety will use [bold]{default_prj_id}[/bold]"    
+    if default_prj_id:
+        hint = f" If empty Safety will use [bold]{default_prj_id}[/bold]"
     prompt_text = f"Set a project id for this scan (no spaces).{hint}"
 
     def ask():
@@ -290,27 +387,55 @@ def prompt_project_id(console, stage: Stage,
     return project_id
 
 
-def prompt_link_project(console, prj_name: str, prj_admin_email: str) -> bool:
+def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -> bool:
+    """
+    Prompt the user to link the scan with an existing project.
+
+    Args:
+        console (Console): The console for output.
+        prj_name (str): The project name.
+        prj_admin_email (str): The project admin email.
+
+    Returns:
+        bool: True if the user wants to link the scan, False otherwise.
+    """
     console.print("[bold]Safety found an existing project with this name in your organization:[/bold]")
 
-    for detail in (f"[bold]Project name:[/bold] {prj_name}", 
+    for detail in (f"[bold]Project name:[/bold] {prj_name}",
                    f"[bold]Project admin:[/bold] {prj_admin_email}"):
         console.print(Padding(detail, (0, 0, 0, 2)), emoji=True)
 
     prompt_question = "Do you want to link this scan with this existing project?"
-    
-    answer = Prompt.ask(prompt=prompt_question, choices=["y", "n"], 
+
+    answer = Prompt.ask(prompt=prompt_question, choices=["y", "n"],
                         default="y", show_default=True, console=console).lower()
-    
+
     return answer == "y"
 
 
-def render_to_console(cls: Vulnerability, console: Console, rich_kwargs,
-                      detailed_output: bool = False):
+def render_to_console(cls: Vulnerability, console: Console, rich_kwargs: Dict[str, Any], detailed_output: bool = False) -> None:
+    """
+    Render a vulnerability to the console.
+
+    Args:
+        cls (Vulnerability): The vulnerability instance.
+        console (Console): The console for output.
+        rich_kwargs (Dict[str, Any]): Additional arguments for rendering.
+        detailed_output (bool): Indicates if detailed output is enabled.
+    """
     cls.__render__(console, detailed_output, rich_kwargs)
 
 
-def get_render_console(entity_type):
+def get_render_console(entity_type: Any) -> Any:
+    """
+    Get the render function for a specific entity type.
+
+    Args:
+        entity_type (Any): The entity type.
+
+    Returns:
+        Any: The render function.
+    """
 
     if entity_type is Vulnerability:
         def __render__(self, console: Console, detailed_output: bool, rich_kwargs):
@@ -330,12 +455,12 @@ def get_render_console(entity_type):
 
             console.print(
                 Padding(
-                    f"->{pre} Vuln ID [vuln_id]{self.vulnerability_id}[/vuln_id]: {severity_detail if severity_detail else ''}", 
+                    f"->{pre} Vuln ID [vuln_id]{self.vulnerability_id}[/vuln_id]: {severity_detail if severity_detail else ''}",
                     (0, 0, 0, 2)
                 ), **rich_kwargs)
             console.print(
                 Padding(
-                    f"{self.advisory[:advisory_length]}{'...' if len(self.advisory) > advisory_length else ''}", 
+                    f"{self.advisory[:advisory_length]}{'...' if len(self.advisory) > advisory_length else ''}",
                     (0, 0, 0, 5)
                 ), **rich_kwargs)
 
@@ -347,7 +472,17 @@ def get_render_console(entity_type):
         return __render__
 
 
-def render_scan_html(report: ReportModel, obj) -> str:
+def render_scan_html(report: ReportModel, obj: Any) -> str:
+    """
+    Render the scan report to HTML.
+
+    Args:
+        report (ReportModel): The scan report model.
+        obj (Any): The object containing additional settings.
+
+    Returns:
+        str: The rendered HTML report.
+    """
     from safety.scan.command import ScannableEcosystems
 
     project = report.projects[0] if any(report.projects) else None
@@ -376,30 +511,40 @@ def render_scan_html(report: ReportModel, obj) -> str:
         ignored_packages += len(file.results.ignored_vulns)
 
     # TODO: Get this information for the report model (?)
-    summary = {"scanned_packages": scanned_packages, 
-               "affected_packages": affected_packages, 
+    summary = {"scanned_packages": scanned_packages,
+               "affected_packages": affected_packages,
                "remediations_recommended": remediations_recommended,
                "ignored_vulnerabilities": ignored_vulnerabilities, "vulnerabilities": vulnerabilities}
-    
+
     vulnerabilities = []
-    
-    
+
+
     # TODO: This should be based on the configs per command
     ecosystems = [(f"{ecosystem.name.title()}",
                   [file_type.human_name(plural=True) for file_type in ecosystem.file_types]) for ecosystem in [Ecosystem(member.value) for member in list(ScannableEcosystems)]]
-    
+
     settings ={"audit_and_monitor": True, "platform_url": SAFETY_PLATFORM_URL, "ecosystems": ecosystems}
-    template_context = {"report": report, "summary": summary, "announcements": [], 
-                        "project": project, 
+    template_context = {"report": report, "summary": summary, "announcements": [],
+                        "project": project,
                         "platform_enabled": obj.platform_enabled,
                         "settings": settings,
                         "vulns_per_file": vulns_per_file,
                         "remed_per_file": remed_per_file}
-    
+
     return parse_html(kwargs=template_context, template="scan/index.html")
 
 
-def generate_spdx_creation_info(*, spdx_version: str, project_identifier: str) -> Any:
+def generate_spdx_creation_info(spdx_version: str, project_identifier: str) -> Any:
+    """
+    Generate SPDX creation information.
+
+    Args:
+        spdx_version (str): The SPDX version.
+        project_identifier (str): The project identifier.
+
+    Returns:
+        Any: The SPDX creation information.
+    """
     from spdx_tools.spdx.model import (
         Actor,
         ActorType,
@@ -439,7 +584,17 @@ def generate_spdx_creation_info(*, spdx_version: str, project_identifier: str) -
     return creation_info
 
 
-def create_pkg_ext_ref(*, package: PythonDependency, version: Optional[str]):
+def create_pkg_ext_ref(*, package: PythonDependency, version: Optional[str]) -> Any:
+    """
+    Create an external package reference for SPDX.
+
+    Args:
+        package (PythonDependency): The package dependency.
+        version (Optional[str]): The package version.
+
+    Returns:
+        Any: The external package reference.
+    """
     from spdx_tools.spdx.model import (
         ExternalPackageRef,
         ExternalPackageRefCategory,
@@ -455,11 +610,20 @@ def create_pkg_ext_ref(*, package: PythonDependency, version: Optional[str]):
 
 
 def create_packages(dependencies: List[PythonDependency]) -> List[Any]:
+    """
+    Create a list of SPDX packages.
+
+    Args:
+        dependencies (List[PythonDependency]): List of Python dependencies.
+
+    Returns:
+        List[Any]: List of SPDX packages.
+    """
     from spdx_tools.spdx.model.spdx_no_assertion import SpdxNoAssertion
 
     from spdx_tools.spdx.model import (
         Package,
-    )    
+    )
 
     doc_pkgs = []
     pkgs_added = set([])
@@ -471,7 +635,7 @@ def create_packages(dependencies: List[PythonDependency]) -> List[Any]:
             if pkg_id in pkgs_added:
                 continue
             pkg_ref = create_pkg_ext_ref(package=dependency, version=pkg_version)
-            
+
             pkg = Package(
                 spdx_id=pkg_id,
                 name=f"pip:{dep_name}",
@@ -491,6 +655,16 @@ def create_packages(dependencies: List[PythonDependency]) -> List[Any]:
 
 
 def create_spdx_document(*, report: ReportModel, spdx_version: str) -> Optional[Any]:
+    """
+    Create an SPDX document.
+
+    Args:
+        report (ReportModel): The scan report model.
+        spdx_version (str): The SPDX version.
+
+    Returns:
+        Optional[Any]: The SPDX document.
+    """
     from spdx_tools.spdx.model import (
         Document,
         Relationship,
@@ -501,13 +675,13 @@ def create_spdx_document(*, report: ReportModel, spdx_version: str) -> Optional[
 
     if not project:
         return None
-    
+
     prj_id = project.id
-    
+
     if not prj_id:
         parent_name = project.project_path.parent.name
         prj_id = parent_name if parent_name else str(int(time.time()))
-    
+
     creation_info = generate_spdx_creation_info(spdx_version=spdx_version, project_identifier=prj_id)
 
     depedencies = iter([])
@@ -534,12 +708,23 @@ def create_spdx_document(*, report: ReportModel, spdx_version: str) -> Optional[
     return spdx_doc
 
 
-def render_scan_spdx(report: ReportModel, obj, spdx_version: Optional[str]) -> Optional[Any]:
+def render_scan_spdx(report: ReportModel, obj: Any, spdx_version: Optional[str]) -> Optional[Any]:
+    """
+    Render the scan report to SPDX format.
+
+    Args:
+        report (ReportModel): The scan report model.
+        obj (Any): The object containing additional settings.
+        spdx_version (Optional[str]): The SPDX version.
+
+    Returns:
+        Optional[Any]: The rendered SPDX document in JSON format.
+    """
     from spdx_tools.spdx.writer.write_utils import (
         convert,
         validate_and_deduplicate
     )
-        
+
     # Set to latest supported if a version is not specified
     if not spdx_version:
         spdx_version = "2.3"

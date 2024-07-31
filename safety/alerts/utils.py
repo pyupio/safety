@@ -1,9 +1,8 @@
 import hashlib
 import os
 import sys
-
 from functools import wraps
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from packaging.version import parse as parse_version
 from packaging.specifiers import SpecifierSet
@@ -25,7 +24,16 @@ except ImportError:
 import requests
 
 
-def highest_base_score(vulns):
+def highest_base_score(vulns: List[Dict[str, Any]]) -> float:
+    """
+    Calculates the highest CVSS base score from a list of vulnerabilities.
+
+    Args:
+        vulns (List[Dict[str, Any]]): The list of vulnerabilities.
+
+    Returns:
+        float: The highest CVSS base score.
+    """
     highest_base_score = 0
     for vuln in vulns:
         if vuln['severity'] is not None:
@@ -34,15 +42,44 @@ def highest_base_score(vulns):
     return highest_base_score
 
 
-def generate_branch_name(pkg: str, remediation):
+def generate_branch_name(pkg: str, remediation: Dict[str, Any]) -> str:
+    """
+    Generates a branch name for a given package and remediation.
+
+    Args:
+        pkg (str): The package name.
+        remediation (Dict[str, Any]): The remediation data.
+
+    Returns:
+        str: The generated branch name.
+    """
     return f"{pkg}/{remediation['requirement']['specifier']}/{remediation['recommended_version']}"
 
 
-def generate_issue_title(pkg, remediation):
+def generate_issue_title(pkg: str, remediation: Dict[str, Any]) -> str:
+    """
+    Generates an issue title for a given package and remediation.
+
+    Args:
+        pkg (str): The package name.
+        remediation (Dict[str, Any]): The remediation data.
+
+    Returns:
+        str: The generated issue title.
+    """
     return f"Security Vulnerability in {pkg}{remediation['requirement']['specifier']}"
 
 
-def get_hint(remediation):
+def get_hint(remediation: Dict[str, Any]) -> str:
+    """
+    Generates a hint for a given remediation.
+
+    Args:
+        remediation (Dict[str, Any]): The remediation data.
+
+    Returns:
+        str: The generated hint.
+    """
     pinned = is_pinned_requirement(SpecifierSet(remediation['requirement']['specifier']))
     hint = ''
 
@@ -54,13 +91,36 @@ def get_hint(remediation):
     return hint
 
 
-def generate_title(pkg, remediation, vulns):
+def generate_title(pkg: str, remediation: Dict[str, Any], vulns: List[Dict[str, Any]]) -> str:
+    """
+    Generates a title for a pull request or issue.
+
+    Args:
+        pkg (str): The package name.
+        remediation (Dict[str, Any]): The remediation data.
+        vulns (List[Dict[str, Any]]): The list of vulnerabilities.
+
+    Returns:
+        str: The generated title.
+    """
     suffix = "y" if len(vulns) == 1 else "ies"
     from_dependency = remediation['version'] if remediation['version'] else remediation['requirement']['specifier']
     return f"Update {pkg} from {from_dependency} to {remediation['recommended_version']} to fix {len(vulns)} vulnerabilit{suffix}"
 
 
-def generate_body(pkg, remediation, vulns, *, api_key):
+def generate_body(pkg: str, remediation: Dict[str, Any], vulns: List[Dict[str, Any]], *, api_key: str) -> Optional[str]:
+    """
+    Generates the body content for a pull request.
+
+    Args:
+        pkg (str): The package name.
+        remediation (Dict[str, Any]): The remediation data.
+        vulns (List[Dict[str, Any]]): The list of vulnerabilities.
+        api_key (str): The API key for fetching changelog data.
+
+    Returns:
+        str: The generated body content.
+    """
     changelog = fetch_changelog(pkg, remediation['version'], remediation['recommended_version'],
                                 api_key=api_key, from_spec=remediation.get('requirement', {}).get('specifier', None))
 
@@ -84,7 +144,19 @@ def generate_body(pkg, remediation, vulns, *, api_key):
     return template.render(context)
 
 
-def generate_issue_body(pkg, remediation, vulns, *, api_key):
+def generate_issue_body(pkg: str, remediation: Dict[str, Any], vulns: List[Dict[str, Any]], *, api_key: str) -> Optional[str]:
+    """
+    Generates the body content for an issue.
+
+    Args:
+        pkg (str): The package name.
+        remediation (Dict[str, Any]): The remediation data.
+        vulns (List[Dict[str, Any]]): The list of vulnerabilities.
+        api_key (str): The API key for fetching changelog data.
+
+    Returns:
+        str: The generated body content.
+    """
     changelog = fetch_changelog(pkg, remediation['version'], remediation['recommended_version'],
                                 api_key=api_key, from_spec=remediation.get('requirement', {}).get('specifier', None))
 
@@ -108,17 +180,49 @@ def generate_issue_body(pkg, remediation, vulns, *, api_key):
     return template.render(context)
 
 
-def generate_commit_message(pkg, remediation):
+def generate_commit_message(pkg: str, remediation: Dict[str, Any]) -> str:
+    """
+    Generates a commit message for a given package and remediation.
+
+    Args:
+        pkg (str): The package name.
+        remediation (Dict[str, Any]): The remediation data.
+
+    Returns:
+        str: The generated commit message.
+    """
     from_dependency = remediation['version'] if remediation['version'] else remediation['requirement']['specifier']
 
     return f"Update {pkg} from {from_dependency} to {remediation['recommended_version']}"
 
 
-def git_sha1(raw_contents):
+def git_sha1(raw_contents: bytes) -> str:
+    """
+    Calculates the SHA-1 hash of the given raw contents.
+
+    Args:
+        raw_contents (bytes): The raw contents to hash.
+
+    Returns:
+        str: The SHA-1 hash.
+    """
     return hashlib.sha1(b"blob " + str(len(raw_contents)).encode('ascii') + b"\0" + raw_contents).hexdigest()
 
 
-def fetch_changelog(package, from_version: Optional[str], to_version: str, *, api_key, from_spec=None):
+def fetch_changelog(package: str, from_version: Optional[str], to_version: str, *, api_key: str, from_spec: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Fetches the changelog for a package from a specified version to another version.
+
+    Args:
+        package (str): The package name.
+        from_version (Optional[str]): The starting version.
+        to_version (str): The ending version.
+        api_key (str): The API key for fetching changelog data.
+        from_spec (Optional[str]): The specifier for the starting version.
+
+    Returns:
+        Dict[str, Any]: The fetched changelog data.
+    """
     to_version = parse_version(to_version)
 
     if from_version:
@@ -154,6 +258,15 @@ def fetch_changelog(package, from_version: Optional[str], to_version: str, *, ap
 
 
 def cvss3_score_to_label(score: float) -> Optional[str]:
+    """
+    Converts a CVSS v3 score to a severity label.
+
+    Args:
+        score (float): The CVSS v3 score.
+
+    Returns:
+        Optional[str]: The severity label.
+    """
     if 0.1 <= score <= 3.9:
         return 'low'
     elif 4.0 <= score <= 6.9:
@@ -168,7 +281,18 @@ def cvss3_score_to_label(score: float) -> Optional[str]:
 
 def require_files_report(func):
     @wraps(func)
-    def inner(obj, *args, **kwargs):
+    def inner(obj: Any, *args: Any, **kwargs: Any) -> Any:
+        """
+        Decorator that ensures a report is generated against a file.
+
+        Args:
+            obj (Any): The object containing the report.
+            *args (Any): Additional arguments.
+            **kwargs (Any): Additional keyword arguments.
+
+        Returns:
+            Any: The result of the decorated function.
+        """
         if obj.report['report_meta']['scan_target'] != "files":
             click.secho("This report was generated against an environment, but this alert command requires "
                         "a scan report that was generated against a file. To learn more about the "

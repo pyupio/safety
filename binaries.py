@@ -8,15 +8,21 @@ import os
 import subprocess
 import sys
 from collections import OrderedDict
+from typing import Generator, Tuple
 
-
-class environment:
+class Environment:
+    """
+    Environment class to handle the build and distribution process for different operating systems.
+    """
 
     WIN = "win"
     LINUX = "linux"
     MACOS = "macos"
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """
+        Initialize the environment based on the BINARY_OS environment variable.
+        """
         os_mapping = {
             "windows-latest": self.WIN,
             "ubuntu-20.04": self.LINUX,
@@ -25,7 +31,13 @@ class environment:
         self.os = os_mapping[os.getenv("BINARY_OS")]
 
     @property
-    def python(self):
+    def python(self) -> Generator[Tuple[int, str], None, None]:
+        """
+        Generator to yield the architecture and corresponding Python executable path.
+
+        Yields:
+            Generator[Tuple[int, str], None, None]: Architecture and Python executable path.
+        """
         for arch, python in self.PYTHON_BINARIES[self.os].items():
             yield arch, python
 
@@ -49,11 +61,15 @@ class environment:
         }
     }
 
-    def run(self, command):
-        """Runs the given command via subprocess.check_output.
+    def run(self, command: str) -> None:
+        """
+        Runs the given command via subprocess.run.
 
-        Exits with -1 if the command wasn't successfull.
+        Args:
+            command (str): The command to run.
 
+        Exits:
+            Exits with -1 if the command wasn't successful.
         """
         try:
             print(f"RUNNING: {command}")
@@ -68,7 +84,7 @@ class environment:
             print(e.output and e.output.decode('utf-8'))
             sys.exit(-1)
 
-    def install(self):
+    def install(self) -> None:
         """
         Install required dependencies
         """
@@ -76,8 +92,10 @@ class environment:
             self.run(f"{python} -m pip install pyinstaller")
             self.run(f"{python} -m pip install -r test_requirements.txt")
 
-    def dist(self):
-        """Runs Pyinstaller producing a binary for every platform arch."""
+    def dist(self) -> None:
+        """
+        Runs PyInstaller to produce a binary for every platform architecture.
+        """
         for arch, python in self.python:
 
             # Build the binary
@@ -102,9 +120,9 @@ class environment:
             else:
                 self.run(f"cp {binary_path} {artifact_path}")
 
-    def test(self):
+    def test(self) -> None:
         """
-        Runs tests for every available arch on the current platform.
+        Runs tests for every available architecture on the current platform.
         """
         for arch, python in self.python:
             self.run(f"{python} -m pytest --log-level=DEBUG")
@@ -116,7 +134,7 @@ if __name__ == "__main__":
         print("usage: binaries.py [install|test|dist]")
         sys.exit(-1)
 
-    env = environment()
+    env = Environment()
 
     # Runs the command in sys.argv[1] (install|test|dist)
     getattr(env, sys.argv[1])()

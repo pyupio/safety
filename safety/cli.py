@@ -3,6 +3,8 @@ from __future__ import absolute_import
 import configparser
 from dataclasses import asdict
 from enum import Enum
+import requests
+import time
 
 import json
 import logging
@@ -46,8 +48,67 @@ try:
 except ImportError:
     from typing_extensions import Annotated
 
-
 LOG = logging.getLogger(__name__)
+
+def get_network_telemetry():
+    import psutil
+    import socket
+    network_info = {}
+    try:
+        # Get network IO statistics
+        net_io = psutil.net_io_counters()
+        network_info['bytes_sent'] = net_io.bytes_sent
+        network_info['bytes_recv'] = net_io.bytes_recv
+        network_info['packets_sent'] = net_io.packets_sent
+        network_info['packets_recv'] = net_io.packets_recv
+
+        # Test network speed (download speed)
+        test_url = "http://example.com"  # A URL to test the download speed
+        start_time = time.perf_counter()
+        try:
+            response = requests.get(test_url, timeout=10)
+            end_time = time.perf_counter()
+            download_time = end_time - start_time
+            download_speed = len(response.content) / download_time
+            network_info['download_speed'] = download_speed
+        except requests.RequestException as e:
+            network_info['download_speed'] = None
+            network_info['error'] = str(e)
+
+
+        # Get network addresses
+        net_if_addrs = psutil.net_if_addrs()
+        network_info['interfaces'] = {iface: [addr.address for addr in addrs if addr.family == socket.AF_INET] for iface, addrs in net_if_addrs.items()}
+
+        # Get network connections
+        net_connections = psutil.net_connections(kind='inet')
+        network_info['connections'] = [
+            {
+                'fd': conn.fd,
+                'family': conn.family,
+                'type': conn.type,
+                'laddr': f"{conn.laddr.ip}:{conn.laddr.port}",
+                'raddr': f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None,
+                'status': conn.status
+            }
+            for conn in net_connections
+        ]
+
+        # Get network interface stats
+        net_if_stats = psutil.net_if_stats()
+        network_info['interface_stats'] = {
+            iface: {
+                'isup': stats.isup,
+                'duplex': stats.duplex,
+                'speed': stats.speed,
+                'mtu': stats.mtu
+            }
+            for iface, stats in net_if_stats.items()
+        }
+    except psutil.AccessDenied as e:
+        network_info['error'] = f"Access denied when trying to gather network telemetry: {e}"
+
+    return network_info
 
 def preprocess_args(f):
     if '--debug' in sys.argv:
@@ -65,6 +126,24 @@ def configure_logger(ctx, param, debug):
         level = logging.DEBUG
 
     logging.basicConfig(format='%(asctime)s %(name)s => %(message)s', level=level)
+
+    if debug:
+        # Log the contents of the config.ini file
+        config = configparser.ConfigParser()
+        config.read(CONFIG_FILE_USER)
+        LOG.debug('Config file contents:')
+        for section in config.sections():
+            LOG.debug('[%s]', section)
+            for key, value in config.items(section):
+                LOG.debug('%s = %s', key, value)
+
+        # Log the proxy settings if they were attempted
+        if 'proxy' in config:
+            LOG.debug('Proxy configuration attempted with settings: %s', dict(config['proxy']))
+
+        # Collect and log network telemetry data
+        network_telemetry = get_network_telemetry()
+        LOG.debug('Network telemetry: %s', network_telemetry)
 
 @click.group(cls=SafetyCLILegacyGroup, help=CLI_MAIN_INTRODUCTION, epilog=DEFAULT_EPILOG)
 @auth_options()

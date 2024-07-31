@@ -636,12 +636,12 @@ class TestConfigureLogger(unittest.TestCase):
         param = Mock()
         debug = True
 
-        with patch('sys.argv', ['--debug', 'true']):
-            with patch('logging.basicConfig') as mock_basicConfig:
-                with patch('configparser.ConfigParser.items', return_value=[('key', 'value')]), \
-                     patch('configparser.ConfigParser.sections', return_value=['section']):
-                    cli.configure_logger(ctx, param, debug)
-                    mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.DEBUG)
+        with patch('sys.argv', ['--debug', 'true']), \
+        patch('logging.basicConfig') as mock_basicConfig, \
+        patch('configparser.ConfigParser.items', return_value=[('key', 'value')]), \
+        patch('configparser.ConfigParser.sections', return_value=['section']):
+            cli.configure_logger(ctx, param, debug)
+            mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.DEBUG)
 
         # Check if network telemetry logging was called
         mock_get_network_telemetry.assert_called_once()

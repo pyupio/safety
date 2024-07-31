@@ -1,5 +1,7 @@
 [![safety](https://cdn.safetycli.com/images/cli_readme_header.png)](https://docs.safetycli.com/)
 
+[![Downloads](https://static.pepy.tech/badge/safety/month)](https://pepy.tech/project/safety)
+
 > [!NOTE]
 > [Come and join us at SafetyCLI](https://apply.workable.com/safety/). We are hiring for various roles.
 

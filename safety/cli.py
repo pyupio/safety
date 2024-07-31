@@ -105,6 +105,14 @@ def get_network_telemetry():
     }
 
     return network_info
+def preprocess_args(f):
+    if '--debug' in sys.argv:
+        index = sys.argv.index('--debug')
+        if len(sys.argv) > index + 1:
+            next_arg = sys.argv[index + 1]
+            if next_arg in ('1', 'true'):
+                sys.argv.pop(index + 1)  # Remove the next argument (1 or true)
+    return f
 
 def configure_logger(ctx, param, debug):
     level = logging.CRITICAL
@@ -136,10 +144,11 @@ def configure_logger(ctx, param, debug):
 @auth_options()
 @proxy_options
 @click.option('--disable-optional-telemetry', default=False, is_flag=True, show_default=True, help=CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP)
-@click.option('--debug', default=False, help=CLI_DEBUG_HELP, callback=configure_logger)
+@click.option('--debug', is_flag=True, help=CLI_DEBUG_HELP, callback=configure_logger)
 @click.version_option(version=get_safety_version())
 @click.pass_context
 @inject_session
+@preprocess_args
 def cli(ctx, debug, disable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.

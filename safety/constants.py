@@ -15,6 +15,12 @@ OPEN_MIRRORS = [
 DIR_NAME = ".safety"
 
 def get_system_dir() -> Path:
+    """
+    Get the system directory for the safety configuration.
+
+    Returns:
+        Path: The system directory path.
+    """
     import os
     import sys
     raw_dir = os.getenv("SAFETY_SYSTEM_CONFIG_PATH")
@@ -34,6 +40,12 @@ def get_system_dir() -> Path:
 
 
 def get_user_dir() -> Path:
+    """
+    Get the user directory for the safety configuration.
+
+    Returns:
+        Path: The user directory path.
+    """
     path = Path("~", DIR_NAME).expanduser()
     return path
 
@@ -66,6 +78,15 @@ class URLSettings(Enum):
 
 
 def get_config_setting(name: str) -> Optional[str]:
+    """
+    Get the configuration setting from the config file or defaults.
+
+    Args:
+        name (str): The name of the setting to retrieve.
+
+    Returns:
+        Optional[str]: The value of the setting if found, otherwise None.
+    """
     config = configparser.ConfigParser()
     config.read(CONFIG)
 

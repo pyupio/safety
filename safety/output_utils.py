@@ -4,7 +4,7 @@ import logging
 import os
 import textwrap
 from datetime import datetime
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Any, Union
 
 import click
 
@@ -20,8 +20,19 @@ from jinja2 import Environment, PackageLoader
 LOG = logging.getLogger(__name__)
 
 
-def build_announcements_section_content(announcements, columns=get_terminal_size().columns, indent: str = ' ' * 2,
-                                        sub_indent: str = ' ' * 4):
+def build_announcements_section_content(announcements: List[Dict[str, Any]], columns: int = get_terminal_size().columns, indent: str = ' ' * 2, sub_indent: str = ' ' * 4) -> str:
+    """
+    Build the content for the announcements section.
+
+    Args:
+        announcements (List[Dict[str, Any]]): List of announcements.
+        columns (int, optional): Number of columns for formatting. Defaults to terminal size.
+        indent (str, optional): Indentation for the text. Defaults to ' ' * 2.
+        sub_indent (str, optional): Sub-indentation for the text. Defaults to ' ' * 4.
+
+    Returns:
+        str: Formatted announcements section content.
+    """
     section = ''
 
     for i, announcement in enumerate(announcements):
@@ -42,11 +53,30 @@ def build_announcements_section_content(announcements, columns=get_terminal_size
     return section
 
 
-def add_empty_line():
+def add_empty_line() -> str:
+    """
+    Add an empty line.
+
+    Returns:
+        str: Empty line.
+    """
     return format_long_text('')
 
 
-def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_line=' ' * 4):
+def style_lines(lines: List[Dict[str, Any]], columns: int, pre_processed_text: str = '', start_line: str = ' ' * 4, end_line: str = ' ' * 4) -> str:
+    """
+    Style the lines with the specified format.
+
+    Args:
+        lines (List[Dict[str, Any]]): List of lines to style.
+        columns (int): Number of columns for formatting.
+        pre_processed_text (str, optional): Pre-processed text. Defaults to ''.
+        start_line (str, optional): Starting line decorator. Defaults to ' ' * 4.
+        end_line (str, optional): Ending line decorator. Defaults to ' ' * 4.
+
+    Returns:
+        str: Styled text.
+    """
     styled_text = pre_processed_text
 
     for line in lines:
@@ -74,7 +104,19 @@ def style_lines(lines, columns, pre_processed_text='', start_line=' ' * 4, end_l
     return styled_text
 
 
-def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_terminal_size().columns):
+def format_vulnerability(vulnerability: Any, full_mode: bool, only_text: bool = False, columns: int = get_terminal_size().columns) -> str:
+    """
+    Format the vulnerability details.
+
+    Args:
+        vulnerability (Any): The vulnerability object.
+        full_mode (bool): Whether to use full mode for formatting.
+        only_text (bool, optional): Whether to return only text without styling. Defaults to False.
+        columns (int, optional): Number of columns for formatting. Defaults to terminal size.
+
+    Returns:
+        str: Formatted vulnerability details.
+    """
 
     common_format = {'indent': 3, 'format': {'sub_indent': ' ' * 3, 'max_lines': None}}
 
@@ -221,7 +263,18 @@ def format_vulnerability(vulnerability, full_mode, only_text=False, columns=get_
     return click.unstyle(content) if only_text else content
 
 
-def format_license(license, only_text=False, columns=get_terminal_size().columns):
+def format_license(license: Dict[str, Any], only_text: bool = False, columns: int = get_terminal_size().columns) -> str:
+    """
+    Format the license details.
+
+    Args:
+        license (Dict[str, Any]): The license details.
+        only_text (bool, optional): Whether to return only text without styling. Defaults to False.
+        columns (int, optional): Number of columns for formatting. Defaults to terminal size.
+
+    Returns:
+        str: Formatted license details.
+    """
     to_print = [
         {'words': [{'style': {'bold': True}, 'value': license['package']},
                    {'value': ' version {0} found using license '.format(license['version'])},
@@ -235,7 +288,16 @@ def format_license(license, only_text=False, columns=get_terminal_size().columns
     return click.unstyle(content) if only_text else content
 
 
-def get_fix_hint_for_unpinned(remediation):
+def get_fix_hint_for_unpinned(remediation: Dict[str, Any]) -> str:
+    """
+    Get the fix hint for unpinned dependencies.
+
+    Args:
+        remediation (Dict[str, Any]): The remediation details.
+
+    Returns:
+        str: The fix hint.
+    """
     secure_options: List[str] = [str(fix) for fix in remediation.get('other_recommended_versions', [])]
     fixes_hint = f'Version {remediation.get("recommended_version")} has no known vulnerabilities and falls' \
                  f' within your current specifier range.'
@@ -248,12 +310,31 @@ def get_fix_hint_for_unpinned(remediation):
     return fixes_hint
 
 
-def get_unpinned_hint(pkg: str):
+def get_unpinned_hint(pkg: str) -> str:
+    """
+    Get the hint for unpinned packages.
+
+    Args:
+        pkg (str): The package name.
+
+    Returns:
+        str: The hint for unpinned packages.
+    """
     return f"We recommend either pinning {pkg} to one of the versions above or updating your " \
                                 f"install specifier to ensure a vulnerable version cannot be installed."
 
 
 def get_specifier_range_info(style: bool = True, pin_hint: bool = False) -> str:
+    """
+    Get the specifier range information.
+
+    Args:
+        style (bool, optional): Whether to apply styling. Defaults to True.
+        pin_hint (bool, optional): Whether to include a pin hint. Defaults to False.
+
+    Returns:
+        str: The specifier range information.
+    """
     hint = ''
 
     if pin_hint:
@@ -269,7 +350,18 @@ def get_specifier_range_info(style: bool = True, pin_hint: bool = False) -> str:
     return f'{msg} {link}'
 
 
-def build_other_options_msg(fix_version: Optional[str], is_spec: bool, secure_options: [str]) -> str:
+def build_other_options_msg(fix_version: Optional[str], is_spec: bool, secure_options: List[str]) -> str:
+    """
+    Build the message for other secure options.
+
+    Args:
+        fix_version (Optional[str]): The recommended fix version.
+        is_spec (bool): Whether the package is specified.
+        secure_options (List[str]): List of secure options.
+
+    Returns:
+        str: The message for other secure options.
+    """
     other_options_msg = ''
     raw_pre_other_options = ''
     outside = ''
@@ -290,7 +382,19 @@ def build_other_options_msg(fix_version: Optional[str], is_spec: bool, secure_op
     return other_options_msg
 
 
-def build_remediation_section(remediations, only_text=False, columns=get_terminal_size().columns, kwargs=None):
+def build_remediation_section(remediations: Dict[str, Any], only_text: bool = False, columns: int = get_terminal_size().columns, kwargs: Optional[Dict[str, Any]] = None) -> List[str]:
+    """
+    Build the remediation section content.
+
+    Args:
+        remediations (Dict[str, Any]): The remediations details.
+        only_text (bool, optional): Whether to return only text without styling. Defaults to False.
+        columns (int, optional): Number of columns for formatting. Defaults to terminal size.
+        kwargs (Optional[Dict[str, Any]], optional): Additional arguments for formatting. Defaults to None.
+
+    Returns:
+        List[str]: The remediation section content.
+    """
     columns -= 2
     indent = ' ' * 3
 
@@ -315,94 +419,94 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
             spec = rem['requirement']
             is_spec = not version and spec
             secure_options: List[str] = [str(fix) for fix in rem.get('other_recommended_versions', [])]
-    
+
             fix_version = None
             new_line = '\n'
             spec_info = []
-    
+
             vuln_word = 'vulnerability'
             pronoun_word = 'this'
-    
+
             if rem['vulnerabilities_found'] > 1:
                 vuln_word = 'vulnerabilities'
                 pronoun_word = 'these'
-    
+
             if rem.get('recommended_version', None):
                 fix_version = str(rem.get('recommended_version'))
-    
+
             other_options_msg = build_other_options_msg(fix_version=fix_version, is_spec=is_spec,
                                                         secure_options=secure_options)
-    
+
             spec_hint = ''
-    
-            if secure_options or fix_version and is_spec:                
+
+            if secure_options or fix_version and is_spec:
                 raw_spec_info = get_unpinned_hint(pkg)
-    
+
                 spec_hint = f"{click.style(raw_spec_info, bold=True, fg='green')}" \
                             f" {get_specifier_range_info()}"
-    
+
             if fix_version:
                 fix_v: str = click.style(fix_version, bold=True)
                 closest_msg = f'The closest version with no known vulnerabilities is {fix_v}'
-    
+
                 if is_spec:
                     closest_msg = f'Version {fix_v} has no known vulnerabilities and falls within your current specifier ' \
                                   f'range'
-    
+
                 raw_recommendation = f"We recommend updating to version {fix_version} of {pkg}."
-    
+
                 remediation_styled = click.style(f'{raw_recommendation} {other_options_msg}', bold=True,
                                                  fg='green')
-    
+
                 # Spec case
                 if is_spec:
                     closest_msg += f'. {other_options_msg}'
                     remediation_styled = spec_hint
-    
+
                 remediation_content = [
                     closest_msg,
                     new_line,
                     remediation_styled
                 ]
-    
+
             else:
                 no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word}.'
-    
+
                 if is_spec and secure_options:
                     no_known_fix_msg = f'There is no known fix for {pronoun_word} {vuln_word} in the current specified ' \
                                        f'range ({spec}).'
-    
+
                 no_fix_msg_styled = f"{click.style(no_known_fix_msg, bold=True, fg='yellow')} " \
                                     f"{click.style(other_options_msg, bold=True, fg='green')}"
-    
+
                 remediation_content = [new_line, no_fix_msg_styled]
-    
+
                 if spec_hint:
                     remediation_content.extend([new_line, spec_hint])
-    
+
             # Pinned
             raw_rem_title = f"-> {pkg} version {version} was found, " \
                             f"which has {rem['vulnerabilities_found']} {vuln_word}"
-    
+
             # Range
             if is_spec:
                 # Spec remediation copy
                 raw_rem_title = f"-> {pkg} with install specifier {spec} was found, " \
                                 f"which has {rem['vulnerabilities_found']} {vuln_word}"
-    
+
             remediation_title = click.style(raw_rem_title, fg=RED, bold=True)
             content += new_line + format_long_text(remediation_title,
                                                    **{**kwargs, **{'indent': '', 'sub_indent': ' ' * 3}}) + new_line
-    
+
             pre_content = remediation_content + spec_info + [new_line,
                                                              f"For more information about the {pkg} package and update "
                                                              f"options, visit {rem['more_info_url']}",
                                                              f'Always check for breaking changes when updating packages.',
                                                              new_line]
-    
+
             for i, element in enumerate(pre_content):
                 content += format_long_text(element, **kwargs)
-    
+
                 if i + 1 < len(pre_content):
                     content += '\n'
 
@@ -429,7 +533,20 @@ def build_remediation_section(remediations, only_text=False, columns=get_termina
     return content
 
 
-def get_final_brief(total_vulns_found, remediations, ignored, total_ignored, kwargs=None):
+def get_final_brief(total_vulns_found: int, remediations: Dict[str, Any], ignored: Dict[str, Any], total_ignored: int, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Get the final brief summary.
+
+    Args:
+        total_vulns_found (int): Total vulnerabilities found.
+        remediations (Dict[str, Any]): Remediation details.
+        ignored (Dict[str, Any]): Ignored vulnerabilities details.
+        total_ignored (int): Total ignored vulnerabilities.
+        kwargs (Optional[Dict[str, Any]], optional): Additional arguments for formatting. Defaults to None.
+
+    Returns:
+        str: Final brief summary.
+    """
     if not kwargs:
         kwargs = {}
 
@@ -451,7 +568,17 @@ def get_final_brief(total_vulns_found, remediations, ignored, total_ignored, kwa
     return format_long_text(raw_brief, start_line_decorator=' ', **kwargs)
 
 
-def get_final_brief_license(licenses, kwargs=None):
+def get_final_brief_license(licenses: List[str], kwargs: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Get the final brief summary for licenses.
+
+    Args:
+        licenses (List[str]): List of licenses.
+        kwargs (Optional[Dict[str, Any]], optional): Additional arguments for formatting. Defaults to None.
+
+    Returns:
+        str: Final brief summary for licenses.
+    """
     if not kwargs:
         kwargs = {}
 
@@ -463,7 +590,24 @@ def get_final_brief_license(licenses, kwargs=None):
     return format_long_text("{0}".format(licenses_text), start_line_decorator=' ', **kwargs)
 
 
-def format_long_text(text, color='', columns=get_terminal_size().columns, start_line_decorator=' ', end_line_decorator=' ', max_lines=None, styling=None, indent='', sub_indent=''):
+def format_long_text(text: str, color: str = '', columns: int = get_terminal_size().columns, start_line_decorator: str = ' ', end_line_decorator: str = ' ', max_lines: Optional[int] = None, styling: Optional[Dict[str, Any]] = None, indent: str = '', sub_indent: str = '') -> str:
+    """
+    Format long text with wrapping and styling.
+
+    Args:
+        text (str): The text to format.
+        color (str, optional): Color for the text. Defaults to ''.
+        columns (int, optional): Number of columns for formatting. Defaults to terminal size.
+        start_line_decorator (str, optional): Starting line decorator. Defaults to ' '.
+        end_line_decorator (str, optional): Ending line decorator. Defaults to ' '.
+        max_lines (Optional[int], optional): Maximum number of lines. Defaults to None.
+        styling (Optional[Dict[str, Any]], optional): Additional styling options. Defaults to None.
+        indent (str, optional): Indentation for the text. Defaults to ''.
+        sub_indent (str, optional): Sub-indentation for the text. Defaults to ''.
+
+    Returns:
+        str: Formatted text.
+    """
     if not styling:
         styling = {}
 
@@ -492,7 +636,16 @@ def format_long_text(text, color='', columns=get_terminal_size().columns, start_
     return "\n".join(formatted_lines)
 
 
-def get_printable_list_of_scanned_items(scanning_target):
+def get_printable_list_of_scanned_items(scanning_target: str) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """
+    Get a printable list of scanned items.
+
+    Args:
+        scanning_target (str): The scanning target (environment, stdin, files, or file).
+
+    Returns:
+        Tuple[List[Dict[str, Any]], List[str]]: Printable list of scanned items and scanned items data.
+    """
     context = SafetyContext()
 
     result = []
@@ -538,7 +691,19 @@ def get_printable_list_of_scanned_items(scanning_target):
 REPORT_HEADING = format_long_text(click.style('REPORT', bold=True))
 
 
-def build_report_brief_section(columns=None, primary_announcement=None, report_type=1, **kwargs):
+def build_report_brief_section(columns: Optional[int] = None, primary_announcement: Optional[Dict[str, Any]] = None, report_type: int = 1, **kwargs: Any) -> str:
+    """
+    Build the brief section of the report.
+
+    Args:
+        columns (Optional[int], optional): Number of columns for formatting. Defaults to None.
+        primary_announcement (Optional[Dict[str, Any]], optional): Primary announcement details. Defaults to None.
+        report_type (int, optional): Type of the report. Defaults to 1.
+        **kwargs: Additional arguments for formatting.
+
+    Returns:
+        str: Brief section of the report.
+    """
     if not columns:
         columns = get_terminal_size().columns
 
@@ -571,7 +736,16 @@ def build_report_brief_section(columns=None, primary_announcement=None, report_t
     return "\n".join([add_empty_line(), REPORT_HEADING, add_empty_line(), '\n'.join(styled_brief_lines)])
 
 
-def build_report_for_review_vuln_report(as_dict=False):
+def build_report_for_review_vuln_report(as_dict: bool = False) -> Union[Dict[str, Any], List[List[Dict[str, Any]]]]:
+    """
+    Build the report for review vulnerability report.
+
+    Args:
+        as_dict (bool, optional): Whether to return as a dictionary. Defaults to False.
+
+    Returns:
+        Union[Dict[str, Any], List[List[Dict[str, Any]]]]: Review vulnerability report.
+    """
     ctx = SafetyContext()
     report_from_file = ctx.review
     packages = ctx.packages
@@ -620,7 +794,18 @@ def build_report_for_review_vuln_report(as_dict=False):
     return brief_info
 
 
-def build_using_sentence(account, key, db):
+def build_using_sentence(account: Optional[str], key: Optional[str], db: Optional[str]) -> List[Dict[str, Any]]:
+    """
+    Build the sentence for the used components.
+
+    Args:
+        account (Optional[str]): The account details.
+        key (Optional[str]): The API key.
+        db (Optional[str]): The database details.
+
+    Returns:
+        List[Dict[str, Any]]: Sentence for the used components.
+    """
     key_sentence = []
     custom_integration = os.environ.get('SAFETY_CUSTOM_INTEGRATION',
                                         'false').lower() == 'true'
@@ -647,7 +832,16 @@ def build_using_sentence(account, key, db):
     return [{'style': False, 'value': 'Using '}] + key_sentence + database_sentence
 
 
-def build_scanned_count_sentence(packages):
+def build_scanned_count_sentence(packages: List[Package]) -> List[Dict[str, Any]]:
+    """
+    Build the sentence for the scanned count.
+
+    Args:
+        packages (List[Package]): List of packages.
+
+    Returns:
+        List[Dict[str, Any]]: Sentence for the scanned count.
+    """
     scanned_count = 'No packages found'
     if len(packages) >= 1:
         scanned_count = 'Found and scanned {0} {1}'.format(len(packages),
@@ -656,7 +850,13 @@ def build_scanned_count_sentence(packages):
     return [{'style': True, 'value': scanned_count}]
 
 
-def add_warnings_if_needed(brief_info):
+def add_warnings_if_needed(brief_info: List[List[Dict[str, Any]]]):
+    """
+    Add warnings to the brief info if needed.
+
+    Args:
+        brief_info (List[List[Dict[str, Any]]]): Brief info details.
+    """
     ctx = SafetyContext()
     warnings = []
 
@@ -673,7 +873,18 @@ def add_warnings_if_needed(brief_info):
         brief_info += [[{'style': False, 'value': ''}]] + warnings
 
 
-def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
+def get_report_brief_info(as_dict: bool = False, report_type: int = 1, **kwargs: Any):
+    """
+    Get the brief info of the report.
+
+    Args:
+        as_dict (bool, optional): Whether to return as a dictionary. Defaults to False.
+        report_type (int, optional): Type of the report. Defaults to 1.
+        **kwargs: Additional arguments for the report.
+
+    Returns:
+        Union[Dict[str, Any], List[List[Dict[str, Any]]]]: Brief info of the report.
+    """
     LOG.info('get_report_brief_info: %s, %s, %s', as_dict, report_type, kwargs)
 
     context = SafetyContext()
@@ -812,7 +1023,18 @@ def get_report_brief_info(as_dict=False, report_type=1, **kwargs):
     return brief_data if as_dict else brief_info
 
 
-def build_primary_announcement(primary_announcement, columns=None, only_text=False):
+def build_primary_announcement(primary_announcement, columns: Optional[int] = None, only_text: bool = False) -> str:
+    """
+    Build the primary announcement section.
+
+    Args:
+        primary_announcement (Dict[str, Any]): Primary announcement details.
+        columns (Optional[int], optional): Number of columns for formatting. Defaults to None.
+        only_text (bool, optional): Whether to return only text without styling. Defaults to False.
+
+    Returns:
+        str: Primary announcement section.
+    """
     lines = json.loads(primary_announcement.get('message'))
 
     for line in lines:
@@ -829,15 +1051,37 @@ def build_primary_announcement(primary_announcement, columns=None, only_text=Fal
     return click.unstyle(message) if only_text else message
 
 
-def is_using_api_key():
+def is_using_api_key() -> bool:
+    """
+    Check if an API key is being used.
+
+    Returns:
+        bool: True if using an API key, False otherwise.
+    """
     return bool(SafetyContext().key) or bool(SafetyContext().account)
 
 
-def is_using_a_safety_policy_file():
+def is_using_a_safety_policy_file() -> bool:
+    """
+    Check if a safety policy file is being used.
+
+    Returns:
+        bool: True if using a safety policy file, False otherwise.
+    """
     return bool(SafetyContext().params.get('policy_file', None))
 
 
-def should_add_nl(output, found_vulns):
+def should_add_nl(output: str, found_vulns: bool) -> bool:
+    """
+    Determine if a newline should be added.
+
+    Args:
+        output (str): The output format.
+        found_vulns (bool): Whether vulnerabilities were found.
+
+    Returns:
+        bool: True if a newline should be added, False otherwise.
+    """
     if output == 'bare' and not found_vulns:
         return False
 
@@ -845,6 +1089,15 @@ def should_add_nl(output, found_vulns):
 
 
 def get_skip_reason(fix: Fix) -> str:
+    """
+    Get the reason for skipping a fix.
+
+    Args:
+        fix (Fix): The fix details.
+
+    Returns:
+        str: The reason for skipping the fix.
+    """
     range_msg = ''
 
     if not fix.updated_version and fix.other_options:
@@ -859,15 +1112,43 @@ def get_skip_reason(fix: Fix) -> str:
     return reasons.get(fix.status, 'unknown.')
 
 
-def get_applied_msg(fix, mode="auto") -> str:
+def get_applied_msg(fix: Fix, mode: str = "auto") -> str:
+    """
+    Get the message for an applied fix.
+
+    Args:
+        fix (Fix): The fix details.
+        mode (str, optional): The mode of the fix. Defaults to "auto".
+
+    Returns:
+        str: The message for the applied fix.
+    """
     return f"{fix.package}{fix.previous_spec} has a {fix.update_type} version fix available: {mode} updating to =={fix.updated_version}."
 
 
-def get_skipped_msg(fix) -> str:
+def get_skipped_msg(fix: Fix) -> str:
+    """
+    Get the message for a skipped fix.
+
+    Args:
+        fix (Fix): The fix details.
+
+    Returns:
+        str: The message for the skipped fix.
+    """
     return f'{fix.package} remediation was skipped because {get_skip_reason(fix)}'
 
 
-def get_fix_opt_used_msg(fix_options=None) -> str:
+def get_fix_opt_used_msg(fix_options: Optional[List[str]] = None) -> str:
+    """
+    Get the message for the fix options used.
+
+    Args:
+        fix_options (Optional[List[str]], optional): The fix options. Defaults to None.
+
+    Returns:
+        str: The message for the fix options used.
+    """
 
     if not fix_options:
         fix_options = SafetyContext().params.get('auto_remediation_limit', [])
@@ -883,7 +1164,18 @@ def get_fix_opt_used_msg(fix_options=None) -> str:
     return msg
 
 
-def print_service(output: List[Tuple[str, Dict]], out_format: str, format_text: Optional[dict] = None):
+def print_service(output: List[Tuple[str, Dict[str, Any]]], out_format: str, format_text: Optional[Dict[str, Any]] = None):
+    """
+    Print the service output.
+
+    Args:
+        output (List[Tuple[str, Dict[str, Any]]]): The output to print.
+        out_format (str): The output format.
+        format_text (Optional[Dict[str, Any]], optional): Additional text formatting options. Defaults to None.
+
+    Raises:
+        ValueError: If the output format is not allowed.
+    """
     formats = ['text', 'screen']
 
     if out_format not in formats:
@@ -904,7 +1196,22 @@ def print_service(output: List[Tuple[str, Dict]], out_format: str, format_text: 
             click.echo(click.unstyle(line))
 
 
-def prompt_service(output: Tuple[str, Dict], out_format: str, format_text: Optional[dict] = None) -> bool:
+
+def prompt_service(output: Tuple[str, Dict[str, Any]], out_format: str, format_text: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Prompt the user for input.
+
+    Args:
+        output (Tuple[str, Dict[str, Any]]): The output to display.
+        out_format (str): The output format.
+        format_text (Optional[Dict[str, Any]], optional): Additional text formatting options. Defaults to None.
+
+    Returns:
+        bool: The user response.
+
+    Raises:
+        ValueError: If the output format is not allowed.
+    """
     formats = ['text', 'screen']
 
     if out_format not in formats:
@@ -924,14 +1231,34 @@ def prompt_service(output: Tuple[str, Dict], out_format: str, format_text: Optio
     return click.prompt(msg)
 
 
-def parse_html(*, kwargs, template='index.html'):
+def parse_html(*, kwargs: Dict[str, Any], template: str = 'index.html') -> str:
+    """
+    Parse HTML using Jinja2 templates.
+
+    Args:
+        kwargs (Dict[str, Any]): The template variables.
+        template (str, optional): The template name. Defaults to 'index.html'.
+
+    Returns:
+        str: The rendered HTML.
+    """
     file_loader = PackageLoader('safety', 'templates')
     env = Environment(loader=file_loader)
     template = env.get_template(template)
     return template.render(**kwargs)
 
 
-def format_unpinned_vulnerabilities(unpinned_packages, columns=None):
+def format_unpinned_vulnerabilities(unpinned_packages: Dict[str, List[Any]], columns: Optional[int] = None) -> List[str]:
+    """
+    Format unpinned vulnerabilities.
+
+    Args:
+        unpinned_packages (Dict[str, List[Any]]): Unpinned packages and their vulnerabilities.
+        columns (Optional[int], optional): Number of columns for formatting. Defaults to None.
+
+    Returns:
+        List[str]: Formatted unpinned vulnerabilities.
+    """
     lines = []
 
     if not unpinned_packages:

@@ -52,6 +52,7 @@ LOG = logging.getLogger(__name__)
 
 def get_network_telemetry():
     import psutil
+    import socket
     network_info = {}
 
     # Get network IO statistics
@@ -74,37 +75,41 @@ def get_network_telemetry():
         network_info['download_speed'] = None
         network_info['error'] = str(e)
 
-    # Get network addresses
-    net_if_addrs = psutil.net_if_addrs()
-    network_info['interfaces'] = {iface: [addr.address for addr in addrs if addr.family == psutil.AF_INET] for iface, addrs in net_if_addrs.items()}
+    try:
+        # Get network addresses
+        net_if_addrs = psutil.net_if_addrs()
+        network_info['interfaces'] = {iface: [addr.address for addr in addrs if addr.family == socket.AF_INET] for iface, addrs in net_if_addrs.items()}
 
-    # Get network connections
-    net_connections = psutil.net_connections(kind='inet')
-    network_info['connections'] = [
-        {
-            'fd': conn.fd,
-            'family': conn.family,
-            'type': conn.type,
-            'laddr': f"{conn.laddr.ip}:{conn.laddr.port}",
-            'raddr': f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None,
-            'status': conn.status
-        }
-        for conn in net_connections
-    ]
+        # Get network connections
+        net_connections = psutil.net_connections(kind='inet')
+        network_info['connections'] = [
+            {
+                'fd': conn.fd,
+                'family': conn.family,
+                'type': conn.type,
+                'laddr': f"{conn.laddr.ip}:{conn.laddr.port}",
+                'raddr': f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None,
+                'status': conn.status
+            }
+            for conn in net_connections
+        ]
 
-    # Get network interface stats
-    net_if_stats = psutil.net_if_stats()
-    network_info['interface_stats'] = {
-        iface: {
-            'isup': stats.isup,
-            'duplex': stats.duplex,
-            'speed': stats.speed,
-            'mtu': stats.mtu
+        # Get network interface stats
+        net_if_stats = psutil.net_if_stats()
+        network_info['interface_stats'] = {
+            iface: {
+                'isup': stats.isup,
+                'duplex': stats.duplex,
+                'speed': stats.speed,
+                'mtu': stats.mtu
+            }
+            for iface, stats in net_if_stats.items()
         }
-        for iface, stats in net_if_stats.items()
-    }
+    except psutil.AccessDenied as e:
+        network_info['error'] = f"Access denied when trying to gather network telemetry: {e}"
 
     return network_info
+
 def preprocess_args(f):
     if '--debug' in sys.argv:
         index = sys.argv.index('--debug')

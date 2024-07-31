@@ -6,6 +6,10 @@ import click
 from functools import wraps
 import typer
 from typer.core import TyperGroup, TyperCommand, MarkupMode
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
 from safety.auth.constants import CLI_AUTH, MSG_NON_AUTHENTICATED
 from safety.auth.models import Auth
 from safety.constants import MSG_NO_AUTHD_CICD_PROD_STG, MSG_NO_AUTHD_CICD_PROD_STG_ORG, MSG_NO_AUTHD_DEV_STG, MSG_NO_AUTHD_DEV_STG_ORG_PROMPT, MSG_NO_AUTHD_DEV_STG_PROMPT, MSG_NO_AUTHD_NOTE_CICD_PROD_STG_TPL, MSG_NO_VERIFIED_EMAIL_TPL
@@ -18,6 +22,72 @@ from .errors import SafetyError, SafetyException
 
 LOG = logging.getLogger(__name__)
 
+def custom_print_options_panel(name: str, params: List[Any], ctx: Any, console: Console) -> None:
+    """
+    Print a panel with options.
+
+    Args:
+        name (str): The title of the panel.
+        params (List[Any]): The list of options to print.
+        ctx (Any): The context object.
+        markup_mode (str): The markup mode.
+        console (Console): The console to print to.
+    """
+    table = Table(title=name, show_lines=True)
+    for param in params:
+        table.add_row(str(param.opts), param.help or "")
+    console.print(table)
+
+def custom_print_commands_panel(name: str, commands: List[Any], console: Console) -> None:
+    """
+    Print a panel with commands.
+
+    Args:
+        name (str): The title of the panel.
+        commands (List[Any]): The list of commands to print.
+        console (Console): The console to print to.
+    """
+    table = Table(title=name, show_lines=True)
+    for command in commands:
+        table.add_row(command.name, command.help or "")
+    console.print(table)
+
+def custom_make_rich_text(text: str) -> Text:
+    """
+    Create rich text.
+
+    Args:
+        text (str): The text to format.
+
+    Returns:
+        Text: The formatted rich text.
+    """
+    return Text(text)
+
+def custom_get_help_text(obj: Any) -> Text:
+    """
+    Get the help text for an object.
+
+    Args:
+        obj (Any): The object to get help text for.
+
+    Returns:
+        Text: The formatted help text.
+    """
+    return Text(obj.help)
+
+def custom_make_command_help(help_text: str) -> Text:
+    """
+    Create rich text for command help.
+
+    Args:
+        help_text (str): The help text to format.
+        markup_mode (str): The markup mode.
+
+    Returns:
+        Text: The formatted rich text.
+    """
+    return Text(help_text)
 
 def get_command_for(name: str, typer_instance: typer.Typer) -> click.Command:
     """
@@ -78,18 +148,17 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
         ctx (click.Context): The Click context.
         markup_mode (MarkupMode): The markup mode.
     """
-    from typer.rich_utils import _print_options_panel, _get_rich_console, \
-        _get_help_text, highlighter, STYLE_HELPTEXT, STYLE_USAGE_COMMAND, _print_commands_panel, \
-            _RICH_HELP_PANEL_NAME, ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE, \
-                COMMANDS_PANEL_TITLE, _make_rich_rext
+    from typer.rich_utils import highlighter, STYLE_USAGE_COMMAND, \
+            ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE, \
+                COMMANDS_PANEL_TITLE
     from rich.align import Align
     from rich.padding import Padding
     from rich.console import Console
     from rich.theme import Theme
 
-    typer_console = _get_rich_console()
+    console = Console()
 
-    with typer_console.use_theme(Theme(styles=CONSOLE_HELP_THEME)) as theme_context:
+    with console.use_theme(Theme(styles=CONSOLE_HELP_THEME)) as theme_context:
         console = theme_context.console
         # Print command / group help if we have some
         if obj.help:
@@ -98,7 +167,7 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
             # Print with some padding
             console.print(
                 Padding(
-                    Align(_get_help_text(obj=obj, markup_mode=markup_mode), pad=False),
+                    Align(custom_get_help_text(obj=obj), pad=False),
                     (0, 1, 0, 1)
                 )
             )
@@ -114,27 +183,25 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
                 command = obj.get_command(ctx, command_name)
                 if command and not command.hidden:
                     panel_name = (
-                        getattr(command, _RICH_HELP_PANEL_NAME, None)
+                        getattr(command, "rich_help_panel", None)
                         or COMMANDS_PANEL_TITLE
                     )
                     panel_to_commands[panel_name].append(command)
 
             # Print each command group panel
             default_commands = panel_to_commands.get(COMMANDS_PANEL_TITLE, [])
-            _print_commands_panel(
+            custom_print_commands_panel(
                 name=COMMANDS_PANEL_TITLE,
                 commands=default_commands,
-                markup_mode=markup_mode,
                 console=console,
             )
             for panel_name, commands in panel_to_commands.items():
                 if panel_name == COMMANDS_PANEL_TITLE:
                     # Already printed above
                     continue
-                _print_commands_panel(
+                custom_print_commands_panel(
                     name=panel_name,
                     commands=commands,
-                    markup_mode=markup_mode,
                     console=console,
                 )
 
@@ -146,52 +213,48 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
                 continue
             if isinstance(param, click.Argument):
                 panel_name = (
-                    getattr(param, _RICH_HELP_PANEL_NAME, None) or ARGUMENTS_PANEL_TITLE
+                    getattr(param, "rich_help_panel", None) or ARGUMENTS_PANEL_TITLE
                 )
                 panel_to_arguments[panel_name].append(param)
             elif isinstance(param, click.Option):
                 panel_name = (
-                    getattr(param, _RICH_HELP_PANEL_NAME, None) or OPTIONS_PANEL_TITLE
+                    getattr(param, "rich_help_panel", None) or OPTIONS_PANEL_TITLE
                 )
                 panel_to_options[panel_name].append(param)
 
         default_options = panel_to_options.get(OPTIONS_PANEL_TITLE, [])
-        _print_options_panel(
+        custom_print_options_panel(
             name=OPTIONS_PANEL_TITLE,
             params=default_options,
             ctx=ctx,
-            markup_mode=markup_mode,
             console=console,
         )
         for panel_name, options in panel_to_options.items():
             if panel_name == OPTIONS_PANEL_TITLE:
                 # Already printed above
                 continue
-            _print_options_panel(
+            custom_print_options_panel(
                 name=panel_name,
                 params=options,
                 ctx=ctx,
-                markup_mode=markup_mode,
                 console=console,
             )
 
         default_arguments = panel_to_arguments.get(ARGUMENTS_PANEL_TITLE, [])
-        _print_options_panel(
+        custom_print_options_panel(
             name=ARGUMENTS_PANEL_TITLE,
             params=default_arguments,
             ctx=ctx,
-            markup_mode=markup_mode,
             console=console,
         )
         for panel_name, arguments in panel_to_arguments.items():
             if panel_name == ARGUMENTS_PANEL_TITLE:
                 # Already printed above
                 continue
-            _print_options_panel(
+            custom_print_options_panel(
                 name=panel_name,
                 params=arguments,
                 ctx=ctx,
-                markup_mode=markup_mode,
                 console=console,
             )
 
@@ -201,11 +264,10 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
                 if isinstance(param, click.Option):
                     params.append(param)
 
-            _print_options_panel(
+            custom_print_options_panel(
                 name="Global-Options",
                 params=params,
                 ctx=ctx.parent,
-                markup_mode=markup_mode,
                 console=console,
             )
 
@@ -214,7 +276,7 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
             # Remove single linebreaks, replace double with single
             lines = obj.epilog.split("\n\n")
             epilogue = "\n".join([x.replace("\n", " ").strip() for x in lines])
-            epilogue_text = _make_rich_rext(text=epilogue, markup_mode=markup_mode)
+            epilogue_text = custom_make_rich_text(text=epilogue)
             console.print(Padding(Align(epilogue_text, pad=False), 1))
 
 
@@ -240,7 +302,7 @@ def print_main_command_panels(*,
     from typer.rich_utils import STYLE_COMMANDS_TABLE_SHOW_LINES, STYLE_COMMANDS_TABLE_LEADING, \
         STYLE_COMMANDS_TABLE_BOX, STYLE_COMMANDS_TABLE_BORDER_STYLE, STYLE_COMMANDS_TABLE_ROW_STYLES, \
             STYLE_COMMANDS_TABLE_PAD_EDGE, STYLE_COMMANDS_TABLE_PADDING, STYLE_COMMANDS_PANEL_BORDER, \
-                ALIGN_COMMANDS_PANEL, _make_command_help
+                ALIGN_COMMANDS_PANEL
 
     t_styles: Dict[str, Any] = {
         "show_lines": STYLE_COMMANDS_TABLE_SHOW_LINES,
@@ -279,9 +341,8 @@ def print_main_command_panels(*,
         rows.append(
             [
                 command_name_text,
-                _make_command_help(
+                custom_make_command_help(
                     help_text=helptext,
-                    markup_mode=markup_mode,
                 ),
             ]
         )
@@ -309,16 +370,16 @@ def format_main_help(obj: Union[click.Command, click.Group],
         ctx (click.Context): The Click context.
         markup_mode (MarkupMode): The markup mode.
     """
-    from typer.rich_utils import _print_options_panel, _get_rich_console, \
-    _get_help_text, highlighter, STYLE_USAGE_COMMAND, _print_commands_panel, \
-        _RICH_HELP_PANEL_NAME, ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE, \
-            COMMANDS_PANEL_TITLE, _make_rich_rext
+    from typer.rich_utils import highlighter, STYLE_USAGE_COMMAND, \
+        ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE, \
+            COMMANDS_PANEL_TITLE
+  
     from rich.align import Align
     from rich.padding import Padding
     from rich.console import Console
     from rich.theme import Theme
 
-    typer_console = _get_rich_console()
+    typer_console = Console()
 
     with typer_console.use_theme(Theme(styles=CONSOLE_HELP_THEME)) as theme_context:
         console = theme_context.console
@@ -329,7 +390,7 @@ def format_main_help(obj: Union[click.Command, click.Group],
             # Print with some padding
             console.print(
                 Padding(
-                    Align(_get_help_text(obj=obj, markup_mode=markup_mode, ),
+                    Align(custom_get_help_text(obj=obj),
                         pad=False,
                     ),
                     (0, 1, 0, 1),
@@ -380,50 +441,46 @@ def format_main_help(obj: Union[click.Command, click.Group],
                 continue
             if isinstance(param, click.Argument):
                 panel_name = (
-                    getattr(param, _RICH_HELP_PANEL_NAME, None) or ARGUMENTS_PANEL_TITLE
+                    getattr(param, "rich_help_panel", None) or ARGUMENTS_PANEL_TITLE
                 )
                 panel_to_arguments[panel_name].append(param)
             elif isinstance(param, click.Option):
                 panel_name = (
-                    getattr(param, _RICH_HELP_PANEL_NAME, None) or OPTIONS_PANEL_TITLE
+                    getattr(param, "rich_help_panel", None) or OPTIONS_PANEL_TITLE
                 )
                 panel_to_options[panel_name].append(param)
         default_arguments = panel_to_arguments.get(ARGUMENTS_PANEL_TITLE, [])
-        _print_options_panel(
+        custom_print_options_panel(
             name=ARGUMENTS_PANEL_TITLE,
             params=default_arguments,
             ctx=ctx,
-            markup_mode=markup_mode,
             console=console,
         )
         for panel_name, arguments in panel_to_arguments.items():
             if panel_name == ARGUMENTS_PANEL_TITLE:
                 # Already printed above
                 continue
-            _print_options_panel(
+            custom_print_options_panel(
                 name=panel_name,
                 params=arguments,
                 ctx=ctx,
-                markup_mode=markup_mode,
                 console=console,
             )
         default_options = panel_to_options.get(OPTIONS_PANEL_TITLE, [])
-        _print_options_panel(
+        custom_print_options_panel(
             name=OPTIONS_PANEL_TITLE,
             params=default_options,
             ctx=ctx,
-            markup_mode=markup_mode,
             console=console,
         )
         for panel_name, options in panel_to_options.items():
             if panel_name == OPTIONS_PANEL_TITLE:
                 # Already printed above
                 continue
-            _print_options_panel(
+            custom_print_options_panel(
                 name=panel_name,
                 params=options,
                 ctx=ctx,
-                markup_mode=markup_mode,
                 console=console,
             )
 
@@ -432,7 +489,7 @@ def format_main_help(obj: Union[click.Command, click.Group],
             # Remove single linebreaks, replace double with single
             lines = obj.epilog.split("\n\n")
             epilogue = "\n".join([x.replace("\n", " ").strip() for x in lines])
-            epilogue_text = _make_rich_rext(text=epilogue, markup_mode=markup_mode)
+            epilogue_text = custom_make_rich_text(text=epilogue)
             console.print(Padding(Align(epilogue_text, pad=False), 1))
 
 

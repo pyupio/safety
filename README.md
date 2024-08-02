@@ -1,6 +1,11 @@
 [![safety](https://cdn.safetycli.com/images/cli_readme_header.png)](https://docs.safetycli.com/)
 
 [![Downloads](https://static.pepy.tech/badge/safety/month)](https://pepy.tech/project/safety)
+![Build Status](https://github.com/pyupio/safety/actions/workflows/main.yml/badge.svg)
+![License](https://img.shields.io/github/license/pyupio/safety)
+![PyPI Version](https://img.shields.io/pypi/v/safety)
+![Python Versions](https://img.shields.io/pypi/pyversions/safety)
+![Coverage](https://img.shields.io/codecov/c/github/pyupio/safety)
 
 > [!NOTE]
 > [Come and join us at SafetyCLI](https://apply.workable.com/safety/). We are hiring for various roles.

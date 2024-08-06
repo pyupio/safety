@@ -1,4 +1,4 @@
-# Service Level Agreement (SLA) for Issue Management
+# Service-Level Agreement (SLA) for Issue Management
 
 We are committed to maintaining a high level of responsiveness and transparency in managing issues reported in our codebases. This SLA outlines our policies and procedures for handling issues to ensure timely resolutions and effective communication with our community.
 
@@ -32,11 +32,11 @@ Goals: While we strive to meet these resolution times, they are goals and not ha
 * Regular Updates: We strive to provide regular updates on the progress of unresolved issues and keep everyone informed of our progress.
 
 ### Escalation Path
-* Escalation: If an issue is not addressed within the expected timeframe, users can escalate the matter by tagging the assignee of the issue or contacting Dylan at dylan@safetycli.com.
+* Escalation: If an issue is not addressed within the expected timeframe, users can escalate the matter by tagging the assignee of the issue or contacting Dylan at [dylan@safetycli.com](mailto:dylan@safetycli.com).
 
 ## Labels
 To better organize and prioritize issues, we use the following labels:
-* bug: Identifies a problem that needs to be fixed.
+* bug: Indicates a problem that needs to be resolved.
 * considering: Indicates that the issue is under consideration.
 * duplicate: Marks issues that have already been reported.
 * invalid: Applied to issues that are not valid or relevant.
@@ -49,7 +49,7 @@ Each label helps us to classify and prioritize issues effectively, ensuring that
 
 ## Procedure for Handling New Issues
 1. Automated Acknowledgment: Upon issue submission, an automated message is sent to the reporter.
-2. First Human Response: Within 24-48 hours, a team member will review the issue and provide initial feedback.
+2. First Human Response: Within 24–48 hours, a team member will review the issue and provide initial feedback.
 3. Triage: Within 72 hours, the issue will be classified into one of the priority levels.
 4. Assignment: The issue will be assigned to the appropriate team member or team for resolution.
 5. Status Updates: Regular updates will be provided to the reporter, especially at key milestones.

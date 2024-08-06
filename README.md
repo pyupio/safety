@@ -76,7 +76,7 @@ Leveraging the industry's most comprehensive database of vulnerabilities and mal
 
 
 # Detailed Documentation
-Full documentation is available at https://docs.safetycli.com.
+Full documentation is available at [https://docs.safetycli.com](https://docs.safetycli.com).
 
 Included in the documentation are the following key topics:
 
@@ -120,7 +120,7 @@ Included in the documentation are the following key topics:
 - [Safety 2.x Documentation](https://docs.safetycli.com/safety-2)
 - [Support](https://docs.safetycli.com/safety-docs/miscellaneous/support)
 
-System status is available at https://status.safetycli.com
+System status is available at [https://status.safetycli.com](https://status.safetycli.com)
 
 Further support is available by emailing support@safetycli.com.
 
@@ -129,7 +129,7 @@ Safety is released under the MIT License.
 
 Upon creating an account, a 7-day free trial of our Team plan is offered to new users, after which they will be downgraded to our Free plan. This plan is limited to a single user and is not recommended for commercial purposes.
 
-Our paid [plans for commercial use](https://safetycli.com/resources/plans) begin at just $25 per seat per month and allow scans to be performed using our full vulnerability database, complete with 3x more tracked vulnerabilities and malicious packages than our free plan and other providers. To learn more about our Team and Enterprise plans, please visit https://safetycli.com/resources/plans or email sales@safetycli.com.
+Our paid [plans for commercial use](https://safetycli.com/resources/plans) begin at just $25 per seat per month and allow scans to be performed using our full vulnerability database, complete with 3x more tracked vulnerabilities and malicious packages than our free plan and other providers. To learn more about our Team and Enterprise plans, [https://safetycli.com/resources/plans](https://safetycli.com/resources/plans) or email sales@safetycli.com.
 
 # Supported Python Versions
 Safety CLI 3 supports Python versions >=3.7. Further details on supported versions, as well as options to run Safety CLI on versions <3.7 using a Docker image are available in our [Documentation Hub](https://docs.safetycli.com).

@@ -21,6 +21,7 @@
     - [2. Log In or Register](#2-log-in-or-register)
     - [3. Running Your First Scan](#3-running-your-first-scan)
   - [Basic Commands](#basic-commands)
+- [Service-Level Agreement (SLA)](#service-level-agreement-sla)
 - [Detailed Documentation](#detailed-documentation)
 - [License](#license)
 - [Supported Python Versions](#supported-python-versions)
@@ -74,6 +75,11 @@ Leveraging the industry's most comprehensive database of vulnerabilities and mal
 - `safety system-scan`: Perform a scan across the entire development machine.
 - `safety scan --apply-fixes`: Update vulnerable dependencies.
 
+# Service-Level Agreement (SLA)
+
+We are committed to maintaining a high level of responsiveness and transparency in managing issues reported in our codebases. This SLA outlines our policies and procedures for handling issues to ensure timely resolutions and effective communication with our community.
+
+- [Read our full SLA](./SLA.md)
 
 # Detailed Documentation
 Full documentation is available at [https://docs.safetycli.com](https://docs.safetycli.com).

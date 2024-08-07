@@ -8,9 +8,9 @@ We are committed to maintaining a high level of responsiveness and transparency 
 ### Initial Acknowledgment
 * Automated Reply: Upon submission of a new issue, an automated response is sent within minutes via GitHub Actions.
 ### First Human Response
-* Response Time: A member of our team will aim to respond within 24-48 hours to acknowledge the issue and provide initial feedback or request further information if necessary.
+* Response Time: A member of our team will aim to respond within 1-2 business days to acknowledge the issue and provide initial feedback or request further information if necessary.
 ### Bug Triage
-* Triage Time: We will aim to triage within 72 hours to classify them appropriately (e.g., bugs, feature requests, questions).
+* Triage Time: We will aim to triage within 3 business days to classify them appropriately (e.g., bugs, feature requests, questions).
 
 ## Resolution Time
 Goals: While we strive to meet these resolution times, they are goals and not hard promises. We will do our best to resolve:

@@ -8,16 +8,16 @@ We are committed to maintaining a high level of responsiveness and transparency 
 ### Initial Acknowledgment
 * Automated Reply: Upon submission of a new issue, an automated response is sent within minutes via GitHub Actions.
 ### First Human Response
-* Response Time: A member of our team will respond within 24-48 hours to acknowledge the issue and provide initial feedback or request further information if necessary.
+* Response Time: A member of our team will aim to respond within 24-48 hours to acknowledge the issue and provide initial feedback or request further information if necessary.
 ### Bug Triage
-* Triage Time: Issues will be triaged within 72 hours to classify them appropriately (e.g., bugs, feature requests, questions).
+* Triage Time: We will aim to triage within 72 hours to classify them appropriately (e.g., bugs, feature requests, questions).
 
 ## Resolution Time
 Goals: While we strive to meet these resolution times, they are goals and not hard promises. We will do our best to resolve:
-* Critical Bugs: Within 1 week.
-* High-Priority Bugs: Within 2 weeks.
-* Medium-Priority Bugs: Within 1 month.
-* Low-Priority Bugs: Within 2 months.
+* Critical Bugs: Within 5 business days.
+* High-Priority Bugs: Within 10 business days.
+* Medium-Priority Bugs: Within 20 business days.
+* Low-Priority Bugs: Within 40 business days.
 * Enhancements: Scheduled based on the project roadmap.
 
 ## Priority Levels
@@ -32,7 +32,7 @@ Goals: While we strive to meet these resolution times, they are goals and not ha
 * Regular Updates: We strive to provide regular updates on the progress of unresolved issues and keep everyone informed of our progress.
 
 ### Escalation Path
-* Escalation: If an issue is not addressed within the expected timeframe, users can escalate the matter by tagging the assignee of the issue or contacting Dylan at [dylan@safetycli.com](mailto:dylan@safetycli.com).
+* Escalation: If an issue is not addressed within the expected timeframe, users can escalate the matter by tagging the assignee of the issue or emailing [engineers@safetycli.com](mailto:engineers@safetycli.com).
 
 ## Labels
 To better organize and prioritize issues, we use the following labels:
@@ -49,11 +49,11 @@ Each label helps us to classify and prioritize issues effectively, ensuring that
 
 ## Procedure for Handling New Issues
 1. Automated Acknowledgment: Upon issue submission, an automated message is sent to the reporter.
-2. First Human Response: Within 24–48 hours, a team member will review the issue and provide initial feedback.
-3. Triage: Within 72 hours, the issue will be classified into one of the priority levels.
+2. First Human Response: Within 1-2 business days, a team member will aim to review the issue and provide initial feedback.
+3. Triage: Within 3 business days, a team member will aim to classify the issue into one of the priority levels.
 4. Assignment: The issue will be assigned to the appropriate team member or team for resolution.
-5. Status Updates: Regular updates will be provided to the reporter, especially at key milestones.
-6. Resolution: The issue will be resolved within the timeframe specified for its priority level.
+5. Status Updates: We will aim to provide regular updates to the reporter, especially at key milestones.
+6. Resolution: We will aim to resolve the issue within the timeframe specified for its priority level.
 7. Closure: Once resolved, the issue will be closed, and the resolution will be documented for future reference.
 
 We value the contributions and feedback from our community and strive to foster a collaborative and responsive environment. Thank you for helping us improve and maintain the quality of our project.

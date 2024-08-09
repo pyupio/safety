@@ -17,7 +17,7 @@ Authlib>=1.2.0
 rich
 typer
 pydantic>=1.10.12
-safety_schemas>=0.0.2
+safety_schemas>=0.0.3
 typing-extensions>=4.7.1
 filelock~=3.12.2
 psutil~=6.0.0

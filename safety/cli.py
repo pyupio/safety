@@ -63,7 +63,7 @@ def get_network_telemetry():
         network_info['packets_recv'] = net_io.packets_recv
 
         # Test network speed (download speed)
-        test_url = "http://example.com"  # A URL to test the download speed
+        test_url = "https://data.safetycli.com/api/v1/safety/announcements/"  # Test the download speed
         start_time = time.perf_counter()
         try:
             response = requests.get(test_url, timeout=10)

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.2.5] - 2024-08-09
+- fix: increment schemas version (#567)
+- Add SLA Document (#565)
+- Add Table of Contents to README.md (#564)
+- docs: code of conduct (#559)
+- Add More Badges (#558)
+- feat: fixed issue responder (#561)
+- feat(logger): config.ini, proxy, network stats (#547)
+- refactor: replace private typer functions with rich module equivalents (#556)
+- feat(safety_cli): docstrings, type hints, comments (#549)
+- feat: add GitHub Action to automatically respond to new issues (#554)
+- readme: add download badge to readme (#557)
+- fix(debug): fix --debug flag and associated tests (#552)
+- chore: release 3.2.4 (#545)
+- fix(cache): handle get_from_cache=None and ensure directory exists (#544)
+- REQUEST_TIMEOUT Env Var (#541)
+- Update URLs, Lint (#540)
+
 ## [3.2.4] - 2024-07-04
 - Handle `get_from_cache=None` and ensure directory exists (#538)
 - Switch filelock package to compatible release clause (#538)

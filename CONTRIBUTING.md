@@ -29,6 +29,8 @@ If you find a bug, please report it by opening a [GitHub issue](https://github.c
 - Any relevant logs or screenshots.
 - The version of SafetyCLI and Python you are using.
 
+If your bug report has security implications or involves a potential vulnerability, we encourage you to participate in our [Bug Bounty Program](https://safetycli.com/resources/bug-bounty). Your responsible disclosure will help us improve the security of our software and may be eligible for a reward.
+
 Please use the appropriate label when creating an issue:
 - `bug`: Indicates a problem that needs to be resolved.
 - `Critical`: Issues that break core functionality or pose significant security vulnerabilities.

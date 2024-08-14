@@ -68,7 +68,7 @@ Please use the following labels as needed:
 
 Please read and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a welcoming environment for all contributors.
 
-###  Development Setup
+### Development Setup
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/pyupio/safety.git

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🐛 Bug Bounty
+    url: https://safetycli.com/resources/bug-bounty
+    about: Participate in our Bug Bounty program and get rewarded!
+  - name: 📖 Safety CLI Documentation
+    url: https://docs.safetycli.com/safety-docs
+    about: Check the Safety CLI documentation for in-depth overview of all the available commands and options.
+  - name: 💻 Take Our Survey!
+    url: https://form.typeform.com/to/ttlLdSaM
+    about: We're on a mission to make Safety CLI the best it can be, and we need YOUR help. We've put together a brief survey to understand how you use Safety CLI, what you love about it, and where you think we can do better.

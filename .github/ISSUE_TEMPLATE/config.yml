@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: 🐛 Bug Bounty
     url: https://safetycli.com/resources/bug-bounty
-    about: Check the Safety CLI documentation for in-depth overview of all the available commands and options.
+    about: Participate in our Bug Bounty program and get rewarded!
   - name: 📖 Safety CLI Documentation
     url: https://docs.safetycli.com/safety-docs
     about: Check the Safety CLI documentation for in-depth overview of all the available commands and options.

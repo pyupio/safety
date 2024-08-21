@@ -1,0 +1,86 @@
+name: 🚀 Feature Request
+description: Suggest an idea or a feature for this project
+labels: ["feature request"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this feature request!
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I agree to the terms within the [Safety Code of Conduct](https://github.com/pyupio/safety/blob/main/CODE_OF_CONDUCT.md).
+          required: true
+
+  - type: textarea
+    id: safety-version
+    attributes:
+      label: Safety version
+      description: Specify the version of Safety you're using.
+      placeholder: e.g., 3.2.5
+    validations:
+      required: true
+
+  - type: textarea
+    id: python-version
+    attributes:
+      label: Python version
+      description: Specify the version of Python you're using.
+      placeholder: e.g., 3.11.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: os
+    attributes:
+      label: Operating System
+      description: Specify the operating system you're using.
+      placeholder: e.g., macOS 13, Windows 10
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the problem you'd like to have solved
+      description: A clear and concise description of what the problem is.
+      placeholder: My life would be a lot simpler if...
+    validations:
+      required: true
+
+  - type: textarea
+    id: ideal-solution
+    attributes:
+      label: Describe the ideal solution
+      description: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives-and-workarounds
+    attributes:
+      label: Alternatives and current workarounds
+      description: A clear and concise description of any alternatives you've considered or any workarounds that are currently in place.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context or screenshots about the feature request here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-i-did
+    attributes:
+      label: What I Did
+      description: Describe what you were trying to get done. Tell us what happened, what went wrong, and what you expected to happen.
+      placeholder: Paste the command(s) you ran and the output. If there was a crash, please include the traceback here.
+    validations:
+      required: true

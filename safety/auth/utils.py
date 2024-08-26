@@ -402,7 +402,14 @@ class SafetyAuthSession(OAuth2Session):
         Returns:
             Any: The initialization result.
         """
-        return self.get(url=PLATFORM_API_INITIALIZE_SCAN_ENDPOINT, timeout=2)
+        try:
+            response = self.get(url=PLATFORM_API_INITIALIZE_SCAN_ENDPOINT, timeout=5)
+            return response
+        except requests.exceptions.Timeout:
+            LOG.error("Auth request to initialize scan timed out after 5 seconds.")
+        except Exception as e:
+            LOG.exception("Exception trying to auth initialize scan", exc_info=True)
+        return None
 
 class S3PresignedAdapter(HTTPAdapter):
     def send(self, request: requests.PreparedRequest, **kwargs: Any) -> requests.Response:

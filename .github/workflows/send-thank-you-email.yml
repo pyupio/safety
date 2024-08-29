@@ -1,0 +1,38 @@
+name: Send Thank You Email
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  send-email:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Count Merged PRs
+        id: count_prs
+        run: |
+          PR_COUNT=$(gh pr list --author ${{ github.actor }} --state merged --repo ${{ github.repository }} --json number --jq '. | length')
+          echo "PR_COUNT=$PR_COUNT" >> $GITHUB_ENV
+
+      - name: Send Thank You Email
+        if: ${{ env.PR_COUNT }} == 1
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.example.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Thank You for Your First PR!"
+          body: |
+            Hi ${{ github.actor }},
+
+            Thank you for your first contribution to our project! We truly appreciate your effort and look forward to more of your contributions.
+
+            Best Regards,
+            The Team
+          to: ${{ github.actor }}@users.noreply.github.com
+          from: your_email@example.com

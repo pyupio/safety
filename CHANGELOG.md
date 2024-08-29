@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.2.7] - 2024-08-29
+- fix/increase-auth-timeout: increase timeout to 5s (#583)
+- Update Issue Templates: Add Feature Request Template and Improve Issue Submission Process (#580)
+
 ## [3.2.6] - 2024-08-21
 - fix/update-schemas-0-0-4 (#581)
 - chore/update-coc-email (#579)

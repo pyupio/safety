@@ -1,11 +1,11 @@
-name: Send Thank You Email
+name: Add User to SendGrid List on First PR Merge
 
 on:
   pull_request:
     types: [closed]
 
 jobs:
-  send-email:
+  add-to-sendgrid-list:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
     steps:
@@ -18,21 +18,11 @@ jobs:
           PR_COUNT=$(gh pr list --author ${{ github.actor }} --state merged --repo ${{ github.repository }} --json number --jq '. | length')
           echo "PR_COUNT=$PR_COUNT" >> $GITHUB_ENV
 
-      - name: Send Thank You Email
+      - name: Add User to SendGrid List
         if: ${{ env.PR_COUNT }} == 1
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.example.com
-          server_port: 587
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Thank You for Your First PR!"
-          body: |
-            Hi ${{ github.actor }},
-
-            Thank you for your first contribution to the Safety CLI project! We truly appreciate your effort and look forward to more of your contributions.
-
-            Best Regards,
-            The Safety CLI Team
-          to: ${{ github.actor }}@users.noreply.github.com
-          from: your_email@example.com
+        run: |
+          curl --request POST \
+            --url https://api.sendgrid.com/v3/marketing/contacts \
+            --header "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            --header 'Content-Type: application/json' \
+            --data '{"list_ids":["OUR_LIST_ID"],"contacts":[{"email":"${{ github.actor }}@users.noreply.github.com"}]}'

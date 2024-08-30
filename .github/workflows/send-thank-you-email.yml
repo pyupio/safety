@@ -30,9 +30,9 @@ jobs:
           body: |
             Hi ${{ github.actor }},
 
-            Thank you for your first contribution to our project! We truly appreciate your effort and look forward to more of your contributions.
+            Thank you for your first contribution to the Safety CLI project! We truly appreciate your effort and look forward to more of your contributions.
 
             Best Regards,
-            The Team
+            The Safety CLI Team
           to: ${{ github.actor }}@users.noreply.github.com
           from: your_email@example.com

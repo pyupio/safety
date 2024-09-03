@@ -11,39 +11,39 @@ CLI_DOCUMENTATION_URL="https://docs.safetycli.com"
 CLI_SUPPORT_EMAIL="support@safetycli.com"
 
 # Main Safety --help data:
-CLI_MAIN_INTRODUCTION = f"[bold]Safety CLI 3 - Vulnerability Scanning for Secure Python Development[/bold]\n\n" \
+CLI_MAIN_INTRODUCTION = f"Safety CLI 3 - Vulnerability Scanning for Secure Python Development\n\n" \
 "Leverage the most comprehensive vulnerability data available to secure your projects against vulnerable and malicious packages. Safety CLI is a Python dependency vulnerability scanner that enhances software supply chain security at every stage of development.\n\n" \
-f"Documentation: [underline]{CLI_DOCUMENTATION_URL}[/underline]\n"\
-f"Contact: {CLI_SUPPORT_EMAIL}\n\n"
+f"Documentation: {CLI_DOCUMENTATION_URL}\n"\
+f"Contact: {CLI_SUPPORT_EMAIL}\n"
 
 CLI_AUTH_COMMAND_HELP = "Authenticate Safety CLI to perform scans. Your default browser will automatically open to https://platform.safetycli.com."\
-"\n[bold]Example: safety auth login[/bold]"
+"\nExample: safety auth login"
 CLI_SCAN_COMMAND_HELP = "Scans a Python project directory."\
-"\n[bold]Example: safety scan[/bold] to scan the current directory"
+"\nExample: safety scan to scan the current directory"
 CLI_SYSTEM_SCAN_COMMAND_HELP = "\\[beta] Run a comprehensive scan for packages and vulnerabilities across your entire machine/environment."\
-"\n[bold]Example: safety system-scan[/bold]"
+"\nExample: safety system-scan"
 
-CLI_CHECK_COMMAND_HELP = "\\[deprecated] Find vulnerabilities at target files or enviroments. Now replaced by [bold]safety scan[/bold], and will be unsupported beyond 1 May 2024." \
-"\n[bold]Example: safety check -r requirements.txt[/bold]"
-CLI_LICENSES_COMMAND_HELP = "\\[deprecated] Find licenses at target files or enviroments. This command will be replaced by [bold]safety scan[/bold], and will be unsupported beyond 1 May 2024." \
-"\n[bold]Example: safety license -r requirements.txt[/bold]"
+CLI_CHECK_COMMAND_HELP = "\\[deprecated] Find vulnerabilities at target files or environments. Now replaced by safety scan, and will be unsupported beyond 1 May 2024." \
+"\nExample: safety check -r requirements.txt"
+CLI_LICENSES_COMMAND_HELP = "\\[deprecated] Find licenses at target files or environments. This command will be replaced by safety scan, and will be unsupported beyond 1 May 2024." \
+"\nExample: safety license -r requirements.txt"
 
 
 CLI_ALERT_COMMAND_HELP = "\\[deprecated] Create GitHub pull requests or GitHub issues using a `safety check` json report file. Being replaced by newer features." \
-"\n[bold]Example: safety alert --check-report your-report.json --key API_KEY github-pr --repo my-org/my-repo --token github-token[/bold]"
+"\nExample: safety alert --check-report your-report.json --key API_KEY github-pr --repo my-org/my-repo --token github-token"
 
 CLI_CHECK_UPDATES_HELP = "Check for version updates to Safety CLI."\
-"\n[bold]Example: safety check-updates[/bold]"
+"\nExample: safety check-updates"
 
 CLI_CONFIGURE_HELP = "Set up global configurations for Safety CLI, including proxy settings and organization details."\
-"\n[bold]Example: safety configure --proxy-host 192.168.0.1[/bold]"
+"\nExample: safety configure --proxy-host 192.168.0.1"
 
 CLI_GENERATE_HELP = "Generate a boilerplate Safety CLI policy file for customized security policies."\
 "\nNote: Safety Platform policies will override any local policy files found"\
-"\n[bold]Example: safety generate policy_file[/bold]"
+"\nExample: safety generate policy_file"
 
 CLI_VALIDATE_HELP = "Check if your local Safety CLI policy file is valid."\
-"\n[bold]Example: Example: safety validate --path /path/to/policy.yml[/bold]"
+"\nExample: Example: safety validate --path /path/to/policy.yml"
 
 # Global options help
 _CLI_PROXY_TIP_HELP = f"[nhc]Note: proxy details can be set globally in a config file.[/nhc]\n\nSee [bold]safety configure --help[/bold]\n\n"
@@ -110,10 +110,10 @@ CLI_AUTH_STATUS_HELP = "Show the current authentication status.\n\n" \
     "[bold]Example: safety auth status[/bold]"
 
 DEFAULT_EPILOG = f"\nSafety CLI version: {CLI_VERSION}\n" \
-    f"\nDocumentation: [underline]{CLI_DOCUMENTATION_URL}[/underline]\n\n\n\n" \
-    "Made with :heart: by [purple]Safety Cybersecurity[/purple]\n\n" \
+    f"\nDocumentation: {CLI_DOCUMENTATION_URL}\n\n\n\n" \
+    "Made with love by Safety Cybersecurity\n\n" \
     f"{CLI_WEBSITE_URL}\n\n"\
-    f"{CLI_SUPPORT_EMAIL}\n\n"
+    f"{CLI_SUPPORT_EMAIL}\n"
 
 # Configure options
 CLI_CONFIGURE_PROXY_HOST_HELP = "Specify a proxy host for network communications to be saved into Safety's configuration. \n\n"
@@ -142,4 +142,4 @@ CLI_GENERATE_PATH = "The path where the generated file will be saved (default: c
 CMD_PROJECT_NAME = "scan"
 CMD_SYSTEM_NAME = "system-scan"
 DEFAULT_CMD = CMD_PROJECT_NAME
-DEFAULT_SPINNER = "bouncingBar" 
+DEFAULT_SPINNER = "bouncingBar"

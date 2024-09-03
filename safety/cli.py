@@ -515,9 +515,7 @@ def generate(ctx, name, path):
 @click.argument('version', required=False)
 @click.pass_context
 def validate(ctx, name, version, path):
-    """Verify that a local policy file is valid
-
-    NAME is the name of the file type to validate. Valid values are: policy_file
+    """Verify that a local policy file is valid. NAME is the name of the file type to validate. Valid values are: policy_file
     """
     if name != 'policy_file':
         click.secho(f'This Safety version only supports "policy_file" validation. "{name}" is not supported.', fg='red',

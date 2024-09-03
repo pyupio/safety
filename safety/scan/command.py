@@ -510,6 +510,7 @@ def scan(ctx: typer.Context,
 @scan_system_app.command(
         cls=SafetyCLICommand,
         help=CLI_SYSTEM_SCAN_COMMAND_HELP,
+        hidden=True,
         options_metavar="[COMMAND-OPTIONS]",
         name=CMD_SYSTEM_NAME, epilog=DEFAULT_EPILOG)
 @handle_cmd_exception

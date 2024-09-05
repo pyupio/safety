@@ -13,11 +13,23 @@ TIERS = {"Valued Contributor": 10, "Frequent Contributor": 5, "First Contributor
 
 # API request to get merged PRs
 def get_merged_prs():
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls?state=closed&per_page=100"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
+    prs = []
+    page = 1
+    while True:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls?state=closed&per_page=100&page={page}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        page_prs = response.json()
+
+        # Break if there are no more PRs
+        if not page_prs:
+            break
+
+        prs.extend(page_prs)
+        page += 1
+
+    return prs
 
 
 # Count contributions for each user

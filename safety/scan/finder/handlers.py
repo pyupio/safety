@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import os
 from pathlib import Path
 from types import MappingProxyType
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Set
 import toml
 from safety_schemas.models import Ecosystem, FileType
 
@@ -161,14 +161,6 @@ class PyProjectTomlHandler(FileHandler):
 
             return dependencies
 
-
-
-
-    def download_required_assets(self, session) -> None:
-        """
-        No required assets to download for Safety project files.
-        """
-        pass
 
 # Mapping of ecosystems to their corresponding file handlers
 ECOSYSTEM_HANDLER_MAPPING = MappingProxyType({

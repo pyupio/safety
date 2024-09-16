@@ -45,8 +45,6 @@ scan_system_app = typer.Typer(**cli_apps_opts)
 class ScannableEcosystems(Enum):
     """Enum representing scannable ecosystems."""
     PYTHON = Ecosystem.PYTHON.value
-    PYPROJECT_TOML = Ecosystem.PYPROJECT_TOML.value
-
 
 def process_report(
     obj: Any, console: Console, report: ReportModel, output: str,

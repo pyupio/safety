@@ -52,7 +52,7 @@ class FileHandler(ABC):
         return None
 
     @abstractmethod
-    def download_required_assets(self, session) -> Dict[str, str]:
+    def download_required_assets(self, session):
         """
         Abstract method to download required assets for handling files. Should be implemented
         by subclasses.
@@ -116,7 +116,7 @@ class SafetyProjectFileHandler(FileHandler):
 class PyProjectTomlHandler(FileHandler):
     def __init__(self) -> None:
         super().__init__()
-        self.ecosystem = Ecosystem.PYPROJECT_TOML
+        self.ecosystem = Ecosystem.PYTHON
 
     def download_required_assets(self, session):
         from safety.safety import fetch_database
@@ -174,5 +174,5 @@ class PyProjectTomlHandler(FileHandler):
 ECOSYSTEM_HANDLER_MAPPING = MappingProxyType({
     Ecosystem.PYTHON: PythonFileHandler,
     Ecosystem.SAFETY_PROJECT: SafetyProjectFileHandler,
-    Ecosystem.PYPROJECT_TOML: PyProjectTomlHandler,
+    # Ecosystem.PYPROJECT_TOML: PyProjectTomlHandler,
 })

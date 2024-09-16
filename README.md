@@ -1,10 +1,34 @@
 [![safety](https://cdn.safetycli.com/images/cli_readme_header.png)](https://docs.safetycli.com/)
 
+[![Downloads](https://static.pepy.tech/badge/safety/month)](https://pepy.tech/project/safety)
+![Build Status](https://github.com/pyupio/safety/actions/workflows/main.yml/badge.svg)
+![License](https://img.shields.io/github/license/pyupio/safety)
+![PyPI Version](https://img.shields.io/pypi/v/safety)
+![Python Versions](https://img.shields.io/pypi/pyversions/safety)
+![Coverage](https://img.shields.io/codecov/c/github/pyupio/safety)
+
 > [!NOTE]
 > [Come and join us at SafetyCLI](https://apply.workable.com/safety/). We are hiring for various roles.
 
+# Table of Contents
+- [Table of Contents](#table-of-contents)
+- [Introduction](#introduction)
+- [Key Features](#key-features)
+- [Getting Started](#getting-started)
+  - [GitHub Action](#github-action)
+  - [Command Line Interface](#command-line-interface)
+    - [1. Installation](#1-installation)
+    - [2. Log In or Register](#2-log-in-or-register)
+    - [3. Running Your First Scan](#3-running-your-first-scan)
+  - [Basic Commands](#basic-commands)
+- [Service-Level Agreement (SLA)](#service-level-agreement-sla)
+- [Detailed Documentation](#detailed-documentation)
+- [License](#license)
+- [Supported Python Versions](#supported-python-versions)
+- [Resources](#resources)
+
 # Introduction
-Safety CLI is a Python dependency vulnerability scanner designed to enhance software supply chain security by detecting packages with known vulnerabilities and malicious packages in local development environments, CI/CD, and production systems. 
+Safety CLI is a Python dependency vulnerability scanner designed to enhance software supply chain security by detecting packages with known vulnerabilities and malicious packages in local development environments, CI/CD, and production systems.
 Safety CLI can be deployed in minutes and provides clear, actionable recommendations for remediation of detected vulnerabilities.
 
 Leveraging the industry's most comprehensive database of vulnerabilities and malicious packages, Safety CLI Scanner allows teams to detect vulnerabilities at every stage of the software development lifecycle.
@@ -51,9 +75,14 @@ Leveraging the industry's most comprehensive database of vulnerabilities and mal
 - `safety system-scan`: Perform a scan across the entire development machine.
 - `safety scan --apply-fixes`: Update vulnerable dependencies.
 
+# Service-Level Agreement (SLA)
+
+We are committed to maintaining a high level of responsiveness and transparency in managing issues reported in our codebases. This SLA outlines our policies and procedures for handling issues to ensure timely resolutions and effective communication with our community.
+
+- [Read our full SLA](./SLA.md)
 
 # Detailed Documentation
-Full documentation is available at https://docs.safetycli.com. 
+Full documentation is available at [https://docs.safetycli.com](https://docs.safetycli.com).
 
 Included in the documentation are the following key topics:
 
@@ -97,19 +126,19 @@ Included in the documentation are the following key topics:
 - [Safety 2.x Documentation](https://docs.safetycli.com/safety-2)
 - [Support](https://docs.safetycli.com/safety-docs/miscellaneous/support)
 
-System status is available at https://status.safetycli.com
+System status is available at [https://status.safetycli.com](https://status.safetycli.com)
 
-Further support is available by emailing support@safetycli.com. 
+Further support is available by emailing support@safetycli.com.
 
 # License
-Safety is released under the MIT License. 
+Safety is released under the MIT License.
 
 Upon creating an account, a 7-day free trial of our Team plan is offered to new users, after which they will be downgraded to our Free plan. This plan is limited to a single user and is not recommended for commercial purposes.
 
-Our paid [plans for commercial use](https://safetycli.com/resources/plans) begin at just $25 per seat per month and allow scans to be performed using our full vulnerability database, complete with 3x more tracked vulnerabilities and malicious packages than our free plan and other providers. To learn more about our Team and Enterprise plans, please visit https://safetycli.com/resources/plans or email sales@safetycli.com. 
+Our paid [plans for commercial use](https://safetycli.com/resources/plans) begin at just $25 per seat per month and allow scans to be performed using our full vulnerability database, complete with 3x more tracked vulnerabilities and malicious packages than our free plan and other providers. To learn more about our Team and Enterprise plans, please visit [https://safetycli.com/resources/plans](https://safetycli.com/resources/plans) or email sales@safetycli.com.
 
 # Supported Python Versions
-Safety CLI 3 supports Python versions >=3.7. Further details on supported versions, as well as options to run Safety CLI on versions <3.7 using a Docker image are available in our [Documentation Hub](https://docs.safetycli.com). 
+Safety CLI 3 supports Python versions >=3.7. Further details on supported versions, as well as options to run Safety CLI on versions <3.7 using a Docker image are available in our [Documentation Hub](https://docs.safetycli.com).
 
 We maintain a policy of supporting all maintained and secure versions of Python, plus one minor version below the oldest maintained and secure version. Details on Python versions that meet these criteria can be found here: https://endoflife.date/python.
 

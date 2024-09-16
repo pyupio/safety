@@ -2,6 +2,7 @@ import json
 from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, List, Optional, Set, Tuple, Union, Dict
 
 from dparse.dependencies import Dependency
 from dparse import parse, filetypes
@@ -25,8 +26,11 @@ except ImportError:
 
 
 class DictConverter(object):
+    """
+    A class to convert objects to dictionaries.
+    """
 
-    def to_dict(self, **kwargs):
+    def to_dict(self, **kwargs: Any) -> Dict:
         pass
 
 
@@ -45,7 +49,20 @@ RequirementFile = namedtuple('RequirementFile', ['path'])
 
 
 class SafetyRequirement(Requirement):
-    def __init__(self, requirement: [str, Dependency], found: Optional[str] = None) -> None:
+    """
+    A subclass of Requirement that includes additional attributes and methods for safety requirements.
+    """
+    def __init__(self, requirement: Union[str, Dependency], found: Optional[str] = None) -> None:
+        """
+        Initialize a SafetyRequirement.
+
+        Args:
+            requirement (Union[str, Dependency]): The requirement as a string or Dependency object.
+            found (Optional[str], optional): Where the requirement was found. Defaults to None.
+
+        Raises:
+            InvalidRequirementError: If the requirement cannot be parsed.
+        """
         dep = requirement
 
         if isinstance(requirement, str):
@@ -75,10 +92,19 @@ class SafetyRequirement(Requirement):
         self.raw = raw_line
         self.found = found
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return str(self) == str(other)
-    
-    def to_dict(self, **kwargs):
+
+    def to_dict(self, **kwargs: Any) -> Dict:
+        """
+        Convert the requirement to a dictionary.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            dict: The dictionary representation of the requirement.
+        """
         specifier_obj = self.specifier
         if not "specifier_obj" in kwargs:
             specifier_obj = str(self.specifier)
@@ -95,6 +121,15 @@ class SafetyRequirement(Requirement):
 
 
 def is_pinned_requirement(spec: SpecifierSet) -> bool:
+    """
+    Check if a requirement is pinned.
+
+    Args:
+        spec (SpecifierSet): The specifier set of the requirement.
+
+    Returns:
+        bool: True if the requirement is pinned, False otherwise.
+    """
     if not spec or len(spec) != 1:
         return False
 
@@ -105,6 +140,9 @@ def is_pinned_requirement(spec: SpecifierSet) -> bool:
 
 @dataclass
 class Package(DictConverter):
+    """
+    A class representing a package.
+    """
     name: str
     version: Optional[str]
     requirements: List[SafetyRequirement]
@@ -116,16 +154,37 @@ class Package(DictConverter):
     latest_version: Optional[str] = None
     more_info_url: Optional[str] = None
 
-    def has_unpinned_req(self):
+    def has_unpinned_req(self) -> bool:
+        """
+        Check if the package has unpinned requirements.
+
+        Returns:
+            bool: True if there are unpinned requirements, False otherwise.
+        """
         for req in self.requirements:
             if not is_pinned_requirement(req.specifier):
                 return True
         return False
 
-    def get_unpinned_req(self):
+    def get_unpinned_req(self) -> filter:
+        """
+        Get the unpinned requirements.
+
+        Returns:
+            filter: A filter object with the unpinned requirements.
+        """
         return filter(lambda r: not is_pinned_requirement(r.specifier), self.requirements)
 
-    def filter_by_supported_versions(self, versions: [str]) -> [str]:
+    def filter_by_supported_versions(self, versions: List[str]) -> List[str]:
+        """
+        Filter the versions by supported versions.
+
+        Args:
+            versions (List[str]): The list of versions.
+
+        Returns:
+            List[str]: The list of supported versions.
+        """
         allowed = []
 
         for version in versions:
@@ -137,13 +196,28 @@ class Package(DictConverter):
 
         return allowed
 
-    def get_versions(self, db_full):
+    def get_versions(self, db_full: Dict) -> Set[str]:
+        """
+        Get the versions from the database.
+
+        Args:
+            db_full (Dict): The full database.
+
+        Returns:
+            Set[str]: The set of versions.
+        """
         pkg_meta = db_full.get('meta', {}).get('packages', {}).get(self.name, {})
         versions = self.filter_by_supported_versions(
             pkg_meta.get("insecure_versions", []) + pkg_meta.get("secure_versions", []))
         return set(versions)
 
-    def refresh_from(self, db_full):
+    def refresh_from(self, db_full: Dict) -> None:
+        """
+        Refresh the package information from the database.
+
+        Args:
+            db_full (Dict): The full database.
+        """
         base_domain = db_full.get('meta', {}).get('base_domain')
         pkg_meta = db_full.get('meta', {}).get('packages', {}).get(canonicalize_name(self.name), {})
 
@@ -156,7 +230,16 @@ class Package(DictConverter):
 
         self.update(kwargs)
 
-    def to_dict(self, **kwargs):
+    def to_dict(self, **kwargs: Any) -> Dict:
+        """
+        Convert the package to a dictionary.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            dict: The dictionary representation of the package.
+        """
         if kwargs.get('short_version', False):
             return {
                 'name': self.name,
@@ -175,19 +258,37 @@ class Package(DictConverter):
                 'more_info_url': self.more_info_url
                 }
 
-    def update(self, new):
+    def update(self, new: Dict) -> None:
+        """
+        Update the package attributes with new values.
+
+        Args:
+            new (Dict): The new attribute values.
+        """
         for key, value in new.items():
             if hasattr(self, key):
                 setattr(self, key, value)
 
 
 class Announcement(announcement_nmt):
+    """
+    A class representing an announcement.
+    """
     pass
 
 
 class Remediation(remediation_nmt, DictConverter):
+    """
+    A class representing a remediation.
+    """
 
-    def to_dict(self):
+    def to_dict(self) -> Dict:
+        """
+        Convert the remediation to a dictionary.
+
+        Returns:
+            Dict: The dictionary representation of the remediation.
+        """
         return {'package': self.Package.name,
                 'closest_secure_version': self.closest_secure_version,
                 'secure_versions': self.secure_versions,
@@ -197,10 +298,13 @@ class Remediation(remediation_nmt, DictConverter):
 
 @dataclass
 class Fix:
+    """
+    A class representing a fix.
+    """
     dependency: Any = None
     previous_version: Any = None
     previous_spec: Optional[str] = None
-    other_options: [str] = field(default_factory=lambda: [])
+    other_options: List[str] = field(default_factory=lambda: [])
     updated_version: Any = None
     update_type: str = ""
     package: str = ""
@@ -211,13 +315,31 @@ class Fix:
 
 
 class CVE(cve_nmt, DictConverter):
+    """
+    A class representing a CVE.
+    """
 
-    def to_dict(self):
+    def to_dict(self) -> Dict:
+        """
+        Convert the CVE to a dictionary.
+
+        Returns:
+            Dict: The dictionary representation of the CVE.
+        """
         return {'name': self.name, 'cvssv2': self.cvssv2, 'cvssv3': self.cvssv3}
 
 
 class Severity(severity_nmt, DictConverter):
-    def to_dict(self):
+    """
+    A class representing the severity of a vulnerability.
+    """
+    def to_dict(self) -> Dict:
+        """
+        Convert the severity to a dictionary.
+
+        Returns:
+            Dict: The dictionary representation of the severity.
+        """
         result = {'severity': {'source': self.source}}
 
         result['severity']['cvssv2'] = self.cvssv2
@@ -227,7 +349,19 @@ class Severity(severity_nmt, DictConverter):
 
 
 class SafetyEncoder(json.JSONEncoder):
-    def default(self, value):
+    """
+    A custom JSON encoder for Safety related objects.
+    """
+    def default(self, value: Any) -> Any:
+        """
+        Override the default method to handle custom objects.
+
+        Args:
+            value (Any): The value to encode.
+
+        Returns:
+            Any: The encoded value.
+        """
         if isinstance(value, SafetyRequirement):
             return value.to_dict()
         elif isinstance(value, Version) or (legacyType and isinstance(value, legacyType)):
@@ -237,8 +371,17 @@ class SafetyEncoder(json.JSONEncoder):
 
 
 class Vulnerability(vulnerability_nmt):
+    """
+    A class representing a vulnerability.
+    """
 
-    def to_dict(self):
+    def to_dict(self) -> Dict:
+        """
+        Convert the vulnerability to a dictionary.
+
+        Returns:
+            Dict: The dictionary representation of the vulnerability.
+        """
         empty_list_if_none = ['fixed_versions', 'closest_versions_without_known_vulnerabilities', 'resources']
         result = {
         }
@@ -268,10 +411,22 @@ class Vulnerability(vulnerability_nmt):
 
         return result
 
-    def get_advisory(self):
+    def get_advisory(self) -> str:
+        """
+        Get the advisory for the vulnerability.
+
+        Returns:
+            str: The advisory text.
+        """
         return self.advisory.replace('\r', '') if self.advisory else "No advisory found for this vulnerability."
-    
-    def to_model_dict(self):
+
+    def to_model_dict(self) -> Dict:
+        """
+        Convert the vulnerability to a dictionary for the model.
+
+        Returns:
+            Dict: The dictionary representation of the vulnerability for the model.
+        """
         try:
             affected_spec = next(iter(self.vulnerable_spec))
         except Exception:
@@ -285,7 +440,7 @@ class Vulnerability(vulnerability_nmt):
         }
 
         if self.ignored:
-            repr["ignored"] = {"reason": self.ignored_reason, 
+            repr["ignored"] = {"reason": self.ignored_reason,
                                "expires": self.ignored_expires}
 
         return repr
@@ -293,6 +448,9 @@ class Vulnerability(vulnerability_nmt):
 
 @dataclass
 class Safety:
+    """
+    A class representing Safety settings.
+    """
     client: Any
     keys: Any
 
@@ -302,6 +460,9 @@ from rich.console import Console
 
 @dataclass
 class SafetyCLI:
+    """
+    A class representing Safety CLI settings.
+    """
     auth: Optional[Auth] = None
     telemetry: Optional[TelemetryModel] = None
     metadata: Optional[MetadataModel] = None

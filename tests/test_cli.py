@@ -1,11 +1,15 @@
 import json
+import logging
 import os
+import sys
 import shutil
 import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
+import requests
+import socket
+import psutil
 
 import click
 from click.testing import CliRunner
@@ -15,6 +19,8 @@ from packaging.version import Version
 from safety import cli
 from safety.models import CVE, SafetyRequirement, Severity, Vulnerability
 from safety.util import Package, SafetyContext
+from safety.auth.models import Auth
+from safety_schemas.models.base import AuthenticationType
 
 
 def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
@@ -514,3 +520,140 @@ class TestSafetyCLI(unittest.TestCase):
         result = self.runner.invoke(cli.cli, ['license', '--key', 'foo', '--file', test_filename])
         print(result.stdout)
         self.assertEqual(result.exit_code, 0)
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch.object(Auth, 'is_valid', return_value=True)
+    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
+    @patch('builtins.input', lambda *args: '')
+    @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
+    def test_debug_flag(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+        result = self.runner.invoke(cli.cli, ['--debug', 'scan'])
+        assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
+        assert "for known security issues using default" in result.output
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch.object(Auth, 'is_valid', return_value=True)
+    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
+    @patch('builtins.input', lambda *args: '')
+    @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
+    def test_debug_flag_with_value_1(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+        sys.argv = ['safety', '--debug', '1', 'scan']
+
+        @cli.preprocess_args
+        def dummy_function():
+            pass
+
+        # Extract the preprocessed arguments from sys.argv
+        preprocessed_args = sys.argv[1:]  # Exclude the script name 'safety'
+
+        # Assert the preprocessed arguments
+        assert preprocessed_args == ['--debug', 'scan'], f"Preprocessed args: {preprocessed_args}"
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch.object(Auth, 'is_valid', return_value=True)
+    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
+    @patch('builtins.input', lambda *args: '')
+    @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
+    def test_debug_flag_with_value_true(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+        sys.argv = ['safety', '--debug', 'true', 'scan']
+
+        @cli.preprocess_args
+        def dummy_function():
+            pass
+
+        # Extract the preprocessed arguments from sys.argv
+        preprocessed_args = sys.argv[1:]  # Exclude the script name 'safety'
+
+        # Assert the preprocessed arguments
+        assert preprocessed_args == ['--debug', 'scan'], f"Preprocessed args: {preprocessed_args}"
+
+class TestNetworkTelemetry(unittest.TestCase):
+
+    @patch('psutil.net_io_counters')
+    @patch('psutil.net_if_addrs')
+    @patch('psutil.net_connections')
+    @patch('psutil.net_if_stats')
+    @patch('requests.get')
+    def test_get_network_telemetry(self, mock_requests_get, mock_net_if_stats, mock_net_connections, mock_net_if_addrs, mock_net_io_counters):
+        # Setup mocks
+        mock_net_io_counters.return_value = Mock(bytes_sent=1000, bytes_recv=2000, packets_sent=10, packets_recv=20)
+        mock_net_if_addrs.return_value = {'eth0': [Mock(family=socket.AF_INET, address='192.168.1.1')]}
+        mock_net_connections.return_value = [Mock(fd=1, family=socket.AF_INET, type=socket.SOCK_STREAM,
+                                                  laddr=Mock(ip='192.168.1.1', port=8080),
+                                                  raddr=Mock(ip='93.184.216.34', port=80),
+                                                  status='ESTABLISHED')]
+        mock_net_if_stats.return_value = {'eth0': Mock(isup=True, duplex=2, speed=1000, mtu=1500)}
+
+        mock_response = Mock()
+        mock_response.content = b'a' * 1000  # Mock content length
+        mock_requests_get.return_value = mock_response
+
+        # Run the function
+        result = cli.get_network_telemetry()
+
+        # Assert the network telemetry data
+        self.assertEqual(result['bytes_sent'], 1000)
+        self.assertEqual(result['bytes_recv'], 2000)
+        self.assertEqual(result['packets_sent'], 10)
+        self.assertEqual(result['packets_recv'], 20)
+        self.assertIsNotNone(result['download_speed'])
+        self.assertEqual(result['interfaces'], {'eth0': ['192.168.1.1']})
+        self.assertEqual(result['connections'][0]['laddr'], '192.168.1.1:8080')
+        self.assertEqual(result['connections'][0]['raddr'], '93.184.216.34:80')
+        self.assertEqual(result['connections'][0]['status'], 'ESTABLISHED')
+        self.assertEqual(result['interface_stats']['eth0']['isup'], True)
+        self.assertEqual(result['interface_stats']['eth0']['duplex'], 2)
+        self.assertEqual(result['interface_stats']['eth0']['speed'], 1000)
+        self.assertEqual(result['interface_stats']['eth0']['mtu'], 1500)
+
+    @patch('requests.get', side_effect=requests.RequestException('Network error'))
+    def test_get_network_telemetry_request_exception(self, mock_requests_get):
+        # Run the function
+        result = cli.get_network_telemetry()
+
+        # Assert the download_speed is None and error is captured
+        self.assertIsNone(result['download_speed'])
+        self.assertIn('error', result)
+
+    @patch('psutil.net_io_counters', side_effect=psutil.AccessDenied('Access denied'))
+    def test_get_network_telemetry_access_denied(self, mock_net_io_counters):
+        # Run the function
+        result = cli.get_network_telemetry()
+
+        # Assert the error is captured
+        self.assertIn('error', result)
+        self.assertIn('Access denied', result['error'])
+
+class TestConfigureLogger(unittest.TestCase):
+
+    @patch('configparser.ConfigParser.read')
+    @patch('safety.cli.get_network_telemetry')
+    def test_configure_logger_debug(self, mock_get_network_telemetry, mock_config_read):
+        mock_get_network_telemetry.return_value = {'dummy_key': 'dummy_value'}
+        mock_config_read.return_value = None
+
+        ctx = Mock()
+        param = Mock()
+        debug = True
+
+        with patch('sys.argv', ['--debug', 'true']), \
+        patch('logging.basicConfig') as mock_basicConfig, \
+        patch('configparser.ConfigParser.items', return_value=[('key', 'value')]), \
+        patch('configparser.ConfigParser.sections', return_value=['section']):
+            cli.configure_logger(ctx, param, debug)
+            mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.DEBUG)
+
+        # Check if network telemetry logging was called
+        mock_get_network_telemetry.assert_called_once()
+
+    @patch('configparser.ConfigParser.read')
+    def test_configure_logger_non_debug(self, mock_config_read):
+        mock_config_read.return_value = None
+
+        ctx = Mock()
+        param = Mock()
+        debug = False
+
+        with patch('logging.basicConfig') as mock_basicConfig:
+            cli.configure_logger(ctx, param, debug)
+            mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.CRITICAL)

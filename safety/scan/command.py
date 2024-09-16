@@ -1,5 +1,3 @@
-
-from datetime import datetime
 from enum import Enum
 import itertools
 import logging
@@ -45,13 +43,29 @@ scan_system_app = typer.Typer(**cli_apps_opts)
 
 
 class ScannableEcosystems(Enum):
+    """Enum representing scannable ecosystems."""
     PYTHON = Ecosystem.PYTHON.value
     PYPROJECT_TOML = Ecosystem.PYPROJECT_TOML.value
 
 
-def process_report(obj: Any, console: Console, report: ReportModel, output: str,
-                   save_as: Optional[Tuple[str, Path]], **kwargs):
+def process_report(
+    obj: Any, console: Console, report: ReportModel, output: str,
+    save_as: Optional[Tuple[str, Path]], **kwargs
+) -> Optional[str]:
+    """
+    Processes and outputs the report based on the given parameters.
 
+    Args:
+        obj (Any): The context object.
+        console (Console): The console object.
+        report (ReportModel): The report model.
+        output (str): The output format.
+        save_as (Optional[Tuple[str, Path]]): The save-as format and path.
+        kwargs: Additional keyword arguments.
+
+    Returns:
+        Optional[str]: The URL of the report if uploaded, otherwise None.
+    """
     wait_msg = "Processing report"
     with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
         json_format = report.as_v30().json()
@@ -154,8 +168,13 @@ def process_report(obj: Any, console: Console, report: ReportModel, output: str,
     return report_url
 
 
-def generate_updates_arguments() -> list:
-    """Generates a list of file types and update limits for apply fixes."""
+def generate_updates_arguments() -> List:
+    """
+    Generates a list of file types and update limits for apply fixes.
+
+    Returns:
+        List: A list of file types and update limits.
+    """
     fixes = []
     limit_type = SecurityUpdates.UpdateLevel.PATCH
     DEFAULT_FILE_TYPES = [FileType.REQUIREMENTS_TXT, FileType.PIPENV_LOCK,
@@ -230,10 +249,12 @@ def scan(ctx: typer.Context,
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
     """
 
+    # Generate update arguments if apply updates option is enabled
     fixes_target = []
     if apply_updates:
         fixes_target = generate_updates_arguments()
 
+    # Ensure save_as params are correctly set
     if not all(save_as):
         ctx.params["save_as"] = None
 
@@ -241,19 +262,21 @@ def scan(ctx: typer.Context,
     ecosystems = [Ecosystem(member.value) for member in list(ScannableEcosystems)]
     to_include = {file_type: paths for file_type, paths in ctx.obj.config.scan.include_files.items() if file_type.ecosystem in ecosystems}
 
+    # Initialize file finder
     file_finder = FileFinder(target=target, ecosystems=ecosystems,
                              max_level=ctx.obj.config.scan.max_depth,
                              exclude=ctx.obj.config.scan.ignore,
                              include_files=to_include,
                              console=console)
 
+    # Download necessary assets for each handler
     for handler in file_finder.handlers:
         if handler.ecosystem:
             wait_msg = "Fetching Safety's vulnerability database..."
             with console.status(wait_msg, spinner=DEFAULT_SPINNER):
                 handler.download_required_assets(ctx.obj.auth.client)
 
-
+    # Start scanning the project directory
     wait_msg = "Scanning project directory"
 
     path = None
@@ -288,6 +311,7 @@ def scan(ctx: typer.Context,
     requirements_txt_found = False
     display_apply_fix_suggestion = False
 
+    # Process each file for dependencies and vulnerabilities
     with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
         for path, analyzed_file in process_files(paths=file_paths,
                                                  config=config):
@@ -295,9 +319,11 @@ def scan(ctx: typer.Context,
             print("now here", analyzed_file.file_type)
             count += len(analyzed_file.dependency_results.dependencies)
 
+            # Update exit code if vulnerabilities are found
             if exit_code == 0 and analyzed_file.dependency_results.failed:
                 exit_code = EXIT_CODE_VULNERABILITIES_FOUND
 
+            # Handle ignored vulnerabilities for detailed output
             if detailed_output:
                 vulns_ignored = analyzed_file.dependency_results.ignored_vulns_data \
                     .values()
@@ -487,6 +513,7 @@ def scan(ctx: typer.Context,
 @scan_system_app.command(
         cls=SafetyCLICommand,
         help=CLI_SYSTEM_SCAN_COMMAND_HELP,
+        hidden=True,
         options_metavar="[COMMAND-OPTIONS]",
         name=CMD_SYSTEM_NAME, epilog=DEFAULT_EPILOG)
 @handle_cmd_exception

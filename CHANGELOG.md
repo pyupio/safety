@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.2.8] - 2024-09-27
+- feat: enhance version comparison logic for check-updates command (#605)
+- docs: add demo Jupyter Notebook (#601)
+- feat: add script to generate CONTRIBUTORS.md with Shields.io badges based on merged PRs (#600)
+- chore: fix CLI help text by removing rich formatting for cleaner output (#599)
+- chore: hide system scan from help text (#598)
+- chore: add LICENSES.md file to document dependency licenses (#597)
+- docs: add SECURITY.md file with security policy and bug bounty details (#593)
+
 ## [3.2.7] - 2024-08-29
 - fix/increase-auth-timeout: increase timeout to 5s (#583)
 - Update Issue Templates: Add Feature Request Template and Improve Issue Submission Process (#580)

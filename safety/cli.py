@@ -14,6 +14,8 @@ import platform
 import sys
 from functools import wraps
 from typing import Dict, Optional
+from packaging import version as packaging_version
+from packaging.version import InvalidVersion
 
 import click
 import typer
@@ -767,7 +769,7 @@ def check_updates(ctx: typer.Context,
     details = [f"Organization: {organization}",
                f"Account: {account}",
                current_version,
-               f"Latest available version: {latest_available_version}"
+               f"Latest stable available version: {latest_available_version}"
                ]
 
     for msg in details:
@@ -776,14 +778,25 @@ def check_updates(ctx: typer.Context,
     console.print()
 
     if latest_available_version:
-        console.print(f"Update available: Safety version {latest_available_version}")
-        console.print()
-        console.print(
-            f"If Safety was installed from a requirements file, update Safety to version {latest_available_version} in that requirements file."
-        )
-        console.print()
-        # `pip -i <source_url> install safety=={latest_available_version}` OR
-        console.print(f"Pip: To install the updated version of Safety directly via pip, run: `pip install safety=={latest_available_version}`")
+        try:
+            # Compare the current version and the latest available version using packaging.version
+            if packaging_version.parse(latest_available_version) > packaging_version.parse(VERSION):
+                console.print(f"Update available: Safety version {latest_available_version}")
+                console.print()
+                console.print(
+                    f"If Safety was installed from a requirements file, update Safety to version {latest_available_version} in that requirements file."
+                )
+                console.print()
+                console.print(f"Pip: To install the updated version of Safety directly via pip, run: pip install safety=={latest_available_version}")
+            elif packaging_version.parse(latest_available_version) < packaging_version.parse(VERSION):
+                # Notify user about downgrading
+                console.print(f"Latest stable version is {latest_available_version}. If you want to downgrade to this version, you can run: pip install safety=={latest_available_version}")
+            else:
+                console.print("You are already using the latest stable version of Safety.")
+        except InvalidVersion as invalid_version:
+            LOG.exception(f'Invalid version format encountered: {invalid_version}')
+            console.print(f"Error: Invalid version format encountered for the latest available version: {latest_available_version}")
+            console.print("Please report this issue or try again later.")
 
     if console.quiet:
         console.quiet = False

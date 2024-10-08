@@ -124,7 +124,7 @@ def render_successful_login(auth: Auth,
 
 
 @auth_app.command(name=CMD_LOGIN_NAME, help=CLI_AUTH_LOGIN_HELP)
-def login(ctx: typer.Context, headless: bool = False) -> None:
+def login(ctx: typer.Context, headless: bool = True) -> None:
     """
     Authenticate Safety CLI with your safetycli.com account using your default browser.
 

@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 import configparser
 from dataclasses import asdict
+from datetime import date
 from enum import Enum
 import requests
 import time
@@ -51,6 +52,11 @@ except ImportError:
     from typing_extensions import Annotated
 
 LOG = logging.getLogger(__name__)
+
+DEPRECATION_DATE = date(2024, 6, 1)
+OLD_COMMAND = "check"
+NEW_COMMAND = "scan"
+BAR_LINE = "+===========================================================================================================================================================================================+"
 
 def get_network_telemetry():
     import psutil
@@ -235,6 +241,36 @@ def clean_check_command(f):
     return inner
 
 
+def print_deprecation_message():
+    """
+    Print a formatted deprecation message for the 'check' command.
+
+    This function uses the click library to output a visually distinct
+    message in the console, warning users about the deprecation of the
+    'check' command. It includes information about the deprecation date
+    and suggests an alternative command to use.
+
+    The message is formatted with colors and styles for emphasis:
+    - Yellow for the border and general information
+    - Red for the 'DEPRECATED' label
+    - Green for the suggestion of the new command
+
+    No parameters are required, and the function doesn't return any value.
+    """
+    click.echo("\n")
+    click.echo(click.style(BAR_LINE, fg="yellow", bold=True))
+    click.echo("\n")
+    click.echo(click.style("DEPRECATED: ", fg="red", bold=True) +
+               click.style(f"this command (`{OLD_COMMAND}`) has been DEPRECATED, and will be unsupported beyond {DEPRECATION_DATE.strftime('%d %B %Y')}.", fg="yellow", bold=True))
+    click.echo("\n")
+    click.echo(click.style("We highly encourage switching to the new ", fg="green") +
+               click.style(f"`{NEW_COMMAND}`", fg="green", bold=True) +
+               click.style(" command which is easier to use, more powerful, and can be set up to mimick check if required.", fg="green"))
+    click.echo("\n")
+    click.echo(click.style(BAR_LINE, fg="yellow", bold=True))
+    click.echo("\n")
+
+
 @cli.command(cls=SafetyCLILegacyCommand, utility_command=True, help=CLI_CHECK_COMMAND_HELP)
 @proxy_options
 @auth_options(stage=False)
@@ -309,7 +345,7 @@ def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_req
     is_silent_output = output in silent_outputs
     prompt_mode = bool(not non_interactive and not stdin and not is_silent_output) and not no_prompt
     kwargs = {'version': json_version} if output == 'json' else {}
-
+    print_deprecation_message()
     try:
         packages = get_packages(files, stdin)
 
@@ -391,7 +427,7 @@ def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_req
                 announcements, vulns, remediations, full_report, packages, fixes)
 
             safety.save_report(save_html, 'safety-report.html', html_report)
-
+        print_deprecation_message()
         if exit_code and found_vulns:
             LOG.info('Exiting with default code for vulnerabilities found')
             sys.exit(EXIT_CODE_VULNERABILITIES_FOUND)

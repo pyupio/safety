@@ -2,7 +2,7 @@ from collections import defaultdict
 from pathlib import Path
 import sys
 from typing import Generator, List, Optional
-
+import toml
 from safety_schemas.models import FileType, PythonDependency
 from safety_schemas.models.package import PythonSpecification
 from ..base import InspectableFile
@@ -270,6 +270,42 @@ def read_virtual_environment_dependencies(f: InspectableFile) -> Generator[Pytho
                 latest_version_without_known_vulnerabilities=None,
                 more_info_url=None)
 
+def read_pyproject_toml_dependencies(file: Path) -> Generator[PythonDependency, None, None]:
+    with open(file, 'r') as f:
+        data = toml.load(f)
+        dependencies = []
+
+        # Handle 'build-system.requires'
+        if 'build-system' in data and 'requires' in data['build-system']:
+            dependencies.extend(data['build-system']['requires'])
+
+        # Handle 'project.dependencies'
+        if 'project' in data and 'dependencies' in data['project']:
+            dependencies.extend(data['project']['dependencies'])
+
+        # Handle 'tool.poetry.dependencies'
+        if 'tool' in data and 'poetry' in data['tool'] and 'dependencies' in data['tool']['poetry']:
+            for dep, version in data['tool']['poetry']['dependencies'].items():
+                if isinstance(version, str):
+                    dependencies.append(f"{dep}=={version}")
+                else:
+                    dependencies.append(dep)
+
+        for dep in dependencies:
+            dep_name, dep_version = (dep.split("==") + [None])[:2]
+            yield PythonDependency(
+                name=dep_name,
+                version=dep_version,
+                specifications=[
+                    PythonSpecification(f"{dep_name}=={dep_version}" if dep_version else dep_name, found=file)
+                ],
+                found=file,
+                insecure_versions=[],
+                secure_versions=[],
+                latest_version=None,
+                latest_version_without_known_vulnerabilities=None,
+                more_info_url=None
+            )
 
 def get_dependencies(f: InspectableFile) -> List[PythonDependency]:
     """
@@ -290,5 +326,8 @@ def get_dependencies(f: InspectableFile) -> List[PythonDependency]:
 
     if f.file_type == FileType.VIRTUAL_ENVIRONMENT:
         return list(read_virtual_environment_dependencies(f))
+
+    if f.file_type == FileType.PYPROJECT_TOML:
+        return list(read_pyproject_toml_dependencies(f.file))
 
     return []

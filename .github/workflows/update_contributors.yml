@@ -1,0 +1,40 @@
+name: Update Contributors Tiers
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  update-contributors:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Count Merged PRs
+        id: count_prs
+        run: |
+          PR_COUNT=$(gh pr list --author ${{ github.actor }} --state merged --repo ${{ github.repository }} --json number --jq '. | length')
+          echo "PR_COUNT=$PR_COUNT" >> $GITHUB_ENV
+
+      - name: Update CONTRIBUTORS.md
+        run: |
+          python scripts/update_contributors.py ${{ github.actor }} $PR_COUNT
+
+      - name: Commit and Push Changes to Dedicated Branch
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git checkout -B contributors-updates
+          git add CONTRIBUTORS.md
+          git commit -m "Update CONTRIBUTORS.md for ${{ github.actor }}"
+          git push --set-upstream origin contributors-updates

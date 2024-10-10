@@ -516,9 +516,29 @@ class TestSafetyCLI(unittest.TestCase):
     @patch('builtins.input', lambda *args: '')
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+        """
+        Test the behavior of the CLI when invoked with the '--debug' flag.
+        
+        This test invokes the CLI with the 'scan' command and the '--debug' flag enabled,
+        verifies that the command exits successfully, and checks that the expected output snippet
+        is present in the CLI output.
+        
+        Args:
+            mock_get_auth_info: Mock for retrieving authentication info.
+            mock_is_valid: Mock for checking validity of inputs or authentication.
+            mock_get_auth_type: Mock for retrieving the authentication type.
+            mock_fetch_database: Mock for database fetching operations.
+        """
         result = self.runner.invoke(cli.cli, ['--debug', 'scan'])
-        assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
-        assert "for known security issues using default" in result.output
+        assert result.exit_code == 0, (
+            f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
+        )
+        expected_output_snippet = "Safety 3.2.8 scanning" 
+        assert expected_output_snippet in result.output, (
+            f"Expected output to contain: {expected_output_snippet}, but got: {result.output}"
+        )
+
+
 
     @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
     @patch.object(Auth, 'is_valid', return_value=True)

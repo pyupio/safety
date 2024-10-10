@@ -180,14 +180,14 @@ def print_fixes_section(console: Console, requirements_txt_found: bool = False, 
     console.print("-" * console.size.width)
 
 
-def print_ignore_details(console: Console, project: ProjectModel, ignored: Set[str], is_detailed_output: bool = False, ignored_vulns_data: Optional[Dict[str, Vulnerability]] = None) -> None:
+def print_ignore_details(console: Console, ignored: Set[str], duplicate_count: int, is_detailed_output: bool = False, ignored_vulns_data: Optional[Dict[str, Vulnerability]] = None) -> None:
     """
     Print details about ignored vulnerabilities.
 
     Args:
         console (Console): The console for output.
-        project (ProjectModel): The project model.
         ignored (Set[str]): Set of ignored vulnerabilities.
+        duplicate_count (int): Total number of issues found including duplicates.
         is_detailed_output (bool): Indicates if detailed output is enabled.
         ignored_vulns_data (Optional[Dict[str, Vulnerability]]): Data of ignored vulnerabilities.
     """
@@ -196,7 +196,6 @@ def print_ignore_details(console: Console, project: ProjectModel, ignored: Set[s
     if is_detailed_output:
         if not ignored_vulns_data:
             ignored_vulns_data = iter([])
-
 
         manual_ignored = {}
         cvss_severity_ignored = {}
@@ -223,36 +222,44 @@ def print_ignore_details(console: Console, project: ProjectModel, ignored: Set[s
         if manual_ignored:
             count = len(manual_ignored)
             console.print(
-                f"[number]{count}[/number] were manually ignored due to the project policy:")
+                f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} manually ignored due to project policy:"
+            )
             for vuln in manual_ignored.values():
                 render_to_console(vuln, console,
                                   rich_kwargs={"emoji": True, "overflow": "crop"},
                                   detailed_output=is_detailed_output)
+
         if cvss_severity_ignored:
             count = len(cvss_severity_ignored)
             console.print(
-                f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because " \
-                     "of their severity or exploitability impacted the following" \
-                        f" {pluralize('package', len(cvss_severity_ignored_pkgs))}: {', '.join(cvss_severity_ignored_pkgs)}"
+                f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because of severity or exploitability, impacting the following " \
+                f"{pluralize('package', len(cvss_severity_ignored_pkgs))}: {', '.join(cvss_severity_ignored_pkgs)}"
             )
+
         if environment_ignored:
             count = len(environment_ignored)
             console.print(
-                f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because " \
-                     "they are inside an environment dependency."
+                f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because they are inside an environment dependency."
             )
+
         if unpinned_ignored:
             count = len(unpinned_ignored)
             console.print(
-                f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because " \
-                    f"{pluralize('this', len(unpinned_ignored_pkgs))} {pluralize('package', len(unpinned_ignored_pkgs))} {pluralize('has', len(unpinned_ignored_pkgs))} unpinned specs: " \
-                        f"{', '.join(unpinned_ignored_pkgs)}"
+                f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because {pluralize('this', len(unpinned_ignored_pkgs))} " \
+                f"{pluralize('package', len(unpinned_ignored_pkgs))} {pluralize('has', len(unpinned_ignored_pkgs))} unpinned specs: {', '.join(unpinned_ignored_pkgs)}"
             )
+
+        # Display the total number of duplicate issues at the end of the detailed output
+        console.print(f"[number]{duplicate_count}[/number] total issues found including duplicates.")
 
     else:
         if len(ignored) > 0:
-            console.print(f"([number]{len(ignored)}[/number] {pluralize('vulnerability', len(ignored))} {pluralize('was', len(ignored))} ignored due to " \
-                          "project policy)")
+            # Displaying ignored vulnerabilities and total duplicates in non-detailed output
+            console.print(
+                f"([number]{len(ignored)}[/number] {pluralize('vulnerability', len(ignored))} {pluralize('was', len(ignored))} ignored due to project policy, "
+                f"with [number]{int(duplicate_count)}[/number] total issues found including duplicates.)"
+            )
+
 
 
 def print_wait_project_verification(console: Console, project_id: str, closure: Tuple[Any, Dict[str, Any]], on_error_delay: int = 1) -> Any:

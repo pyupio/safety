@@ -15,4 +15,5 @@
     "postCreateCommand": "pip install -r test_requirements.txt && pip install ruff requests pre-commit",
     "remoteUser": "root",
     "workspaceFolder": "/workspaces/safety",
+    "forwardPorts": [49152]
 }

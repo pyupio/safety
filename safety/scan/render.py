@@ -119,35 +119,8 @@ def print_detected_ecosystems_section(console: Console, file_paths: Dict[str, Se
         msg = f"{ecosystem.name.replace('_', ' ').title()} detected. {brief}"
 
         console.print(msg)
+        
 
-def print_brief(console: Console, project: ProjectModel, dependencies_count: int = 0, affected_count: int = 0, fixes_count: int = 0) -> None:
-    """
-    Print a brief summary of the scan results.
-
-    Args:
-        console (Console): The console for output.
-        project (ProjectModel): The project model.
-        dependencies_count (int): Number of dependencies tested.
-        affected_count (int): Number of security issues found.
-        fixes_count (int): Number of fixes suggested.
-    """
-    from ..util import pluralize
-
-    if project.policy:
-        if project.policy.source is PolicySource.cloud:
-            policy_msg = f"policy fetched from Safety Platform"
-        else:
-            if project.id:
-                policy_msg = f"local {project.id} project scan policy"
-            else:
-                policy_msg = f"local scan policy file"
-    else:
-        policy_msg = "default Safety CLI policies"
-
-    console.print(f"Tested [number]{dependencies_count}[/number] {pluralize('dependency', dependencies_count)} for known security " \
-                  f"issues using {policy_msg}")
-    console.print(
-        f"[number]{affected_count}[/number] security {pluralize('issue', affected_count)} found, [number]{fixes_count}[/number] {pluralize('fix', fixes_count)} suggested")
 
 def print_fixes_section(console: Console, requirements_txt_found: bool = False, is_detailed_output: bool = False) -> None:
     """
@@ -179,20 +152,65 @@ def print_fixes_section(console: Console, requirements_txt_found: bool = False, 
     console.print()
     console.print("-" * console.size.width)
 
-
-def print_ignore_details(console: Console, project: ProjectModel, ignored: Set[str], is_detailed_output: bool = False, ignored_vulns_data: Optional[Dict[str, Vulnerability]] = None) -> None:
+def print_summary(
+    console: Console,
+    total_issues_with_duplicates: int,
+    total_ignored_issues: int,
+    project: ProjectModel,
+    dependencies_count: int = 0,
+    fixes_count: int = 0,
+    resolved_vulns_per_fix: int = 0,
+    is_detailed_output: bool = False,
+    ignored_vulns_data: Optional[Dict[str, Vulnerability]] = None
+) -> None:
     """
-    Print details about ignored vulnerabilities.
+    Prints a concise summary of scan results including vulnerabilities, fixes, and ignored vulnerabilities.
+
+    This function summarizes the results of a security scan, displaying the number of dependencies scanned,
+    vulnerabilities found, suggested fixes, and the impact of those fixes. It also optionally provides a 
+    detailed breakdown of ignored vulnerabilities based on predefined policies.
 
     Args:
-        console (Console): The console for output.
-        project (ProjectModel): The project model.
-        ignored (Set[str]): Set of ignored vulnerabilities.
-        is_detailed_output (bool): Indicates if detailed output is enabled.
-        ignored_vulns_data (Optional[Dict[str, Vulnerability]]): Data of ignored vulnerabilities.
+        console (Console): The console object used to print formatted output.
+        total_issues_with_duplicates (int): The total number of security issues, including duplicates.
+        total_ignored_issues (int): The number of issues that were ignored based on project policies.
+        project (ProjectModel): The project model containing the scanned project details and policies.
+        dependencies_count (int, optional): The total number of dependencies scanned for vulnerabilities. Defaults to 0.
+        fixes_count (int, optional): The number of fixes suggested by the scan. Defaults to 0.
+        resolved_vulns_per_fix (int, optional): The number of vulnerabilities that can be resolved by the suggested fixes. Defaults to 0.
+        is_detailed_output (bool, optional): Flag to indicate whether detailed output, especially for ignored vulnerabilities, should be shown. Defaults to False.
+        ignored_vulns_data (Optional[Dict[str, Vulnerability]], optional): A dictionary of vulnerabilities that were ignored, categorized by their reason for being ignored. Defaults to None.
+
+    Returns:
+        None: This function does not return any value. It prints the summary to the console.
+
+    Usage:
+        Call this function after a vulnerability scan to display the results in a clear, formatted manner.
+        Example:
+            print_summary(console, unique_issues, 10, 2, project_model, dependencies_count=5, fixes_count=2)
+
     """
+    
     from ..util import pluralize
 
+    # Set the policy message based on the project source
+    if project.policy:
+        policy_msg = "policy fetched from Safety Platform" if project.policy.source is PolicySource.cloud else f"local {project.id or 'scan policy file'} project scan policy"
+    else:
+        policy_msg = "default Safety CLI policies"
+
+    console.print(f"Tested [number]{dependencies_count}[/number] {pluralize('dependency', dependencies_count)} for security issues using {policy_msg}")
+
+    if total_issues_with_duplicates == 0:
+        console.print("0 security issues found, 0 fixes suggested.")
+    else:
+        # Print security issues and ignored vulnerabilities
+        console.print(f"[number]{total_issues_with_duplicates}[/number] {pluralize('vulnerability', total_issues_with_duplicates)} found, "
+                      f"[number]{total_ignored_issues}[/number] ignored due to policy.")
+
+    console.print(
+                  f"[number]{fixes_count}[/number] {pluralize('fix', fixes_count)} suggested, resolving [number]{resolved_vulns_per_fix}[/number] vulnerabilities.")
+    
     if is_detailed_output:
         if not ignored_vulns_data:
             ignored_vulns_data = iter([])
@@ -226,21 +244,23 @@ def print_ignore_details(console: Console, project: ProjectModel, ignored: Set[s
                 f"[number]{count}[/number] were manually ignored due to the project policy:")
             for vuln in manual_ignored.values():
                 render_to_console(vuln, console,
-                                  rich_kwargs={"emoji": True, "overflow": "crop"},
-                                  detailed_output=is_detailed_output)
+                                    rich_kwargs={"emoji": True, "overflow": "crop"},
+                                    detailed_output=is_detailed_output)
         if cvss_severity_ignored:
             count = len(cvss_severity_ignored)
             console.print(
                 f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because " \
-                     "of their severity or exploitability impacted the following" \
+                        "of their severity or exploitability impacted the following" \
                         f" {pluralize('package', len(cvss_severity_ignored_pkgs))}: {', '.join(cvss_severity_ignored_pkgs)}"
             )
+            
         if environment_ignored:
             count = len(environment_ignored)
             console.print(
                 f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because " \
-                     "they are inside an environment dependency."
+                        "they are inside an environment dependency."
             )
+            
         if unpinned_ignored:
             count = len(unpinned_ignored)
             console.print(
@@ -249,11 +269,7 @@ def print_ignore_details(console: Console, project: ProjectModel, ignored: Set[s
                         f"{', '.join(unpinned_ignored_pkgs)}"
             )
 
-    else:
-        if len(ignored) > 0:
-            console.print(f"([number]{len(ignored)}[/number] {pluralize('vulnerability', len(ignored))} {pluralize('was', len(ignored))} ignored due to " \
-                          "project policy)")
-
+       
 
 def print_wait_project_verification(console: Console, project_id: str, closure: Tuple[Any, Dict[str, Any]], on_error_delay: int = 1) -> Any:
     """

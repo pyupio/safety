@@ -1,13 +1,12 @@
 from enum import Enum
-import itertools
 import logging
 from pathlib import Path
 import sys
-from typing import Any, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from typing_extensions import Annotated
 
 from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND
-from safety.safety import process_fixes, process_fixes_scan
+from safety.safety import process_fixes_scan
 from safety.scan.finder.handlers import ECOSYSTEM_HANDLER_MAPPING, FileHandler
 from safety.scan.validators import output_callback, save_as_callback
 from safety.util import pluralize
@@ -28,7 +27,7 @@ from safety.scan.decorators import inject_metadata, scan_project_command_init, s
 from safety.scan.finder.file_finder import should_exclude
 from safety.scan.main import load_policy_file, load_unverified_project_from_config, process_files, save_report_as
 from safety.scan.models import ScanExport, ScanOutput, SystemScanExport, SystemScanOutput
-from safety.scan.render import print_brief, print_detected_ecosystems_section, print_fixes_section, print_ignore_details, render_scan_html, render_scan_spdx, render_to_console
+from safety.scan.render import print_detected_ecosystems_section, print_fixes_section, print_summary, render_scan_html, render_scan_spdx, render_to_console
 from safety.scan.util import Stage
 from safety_schemas.models import Ecosystem, FileModel, FileType, ProjectModel, \
     ReportModel, ScanType, VulnerabilitySeverityLabels, SecurityUpdates, Vulnerability
@@ -305,6 +304,7 @@ def scan(ctx: typer.Context,
 
     exit_code = 0
     fixes_count = 0
+    total_resolved_vulns = 0
     to_fix_files = []
     fix_file_types = [fix_target[0] if isinstance(fix_target[0], str) else fix_target[0].value for fix_target in fixes_target]
     requirements_txt_found = False
@@ -319,15 +319,6 @@ def scan(ctx: typer.Context,
             # Update exit code if vulnerabilities are found
             if exit_code == 0 and analyzed_file.dependency_results.failed:
                 exit_code = EXIT_CODE_VULNERABILITIES_FOUND
-
-            # Handle ignored vulnerabilities for detailed output
-            if detailed_output:
-                vulns_ignored = analyzed_file.dependency_results.ignored_vulns_data \
-                    .values()
-                ignored_vulns_data = itertools.chain(vulns_ignored,
-                                                       ignored_vulns_data)
-
-            ignored.update(analyzed_file.dependency_results.ignored_vulns.keys())
 
             affected_specifications = analyzed_file.dependency_results.get_affected_specifications()
             affected_count += len(affected_specifications)
@@ -359,7 +350,6 @@ def scan(ctx: typer.Context,
                         [vuln for vuln in spec.vulnerabilities if not vuln.ignored],
                         key=sort_vulns_by_score,
                         reverse=True)
-
                     critical_vulns_count = sum(1 for vuln in vulns_to_report if vuln.severity and vuln.severity.cvssv3 and vuln.severity.cvssv3.get("base_severity", "none").lower() == VulnerabilitySeverityLabels.CRITICAL.value.lower())
 
                     vulns_found = len(vulns_to_report)
@@ -381,6 +371,9 @@ def scan(ctx: typer.Context,
                                               detailed_output=detailed_output)
 
                     lines = []
+                    
+                    if spec.remediation.recommended:
+                        total_resolved_vulns += spec.remediation.vulnerabilities_found
 
                     # Put remediation here
                     if not spec.remediation.recommended:
@@ -438,13 +431,6 @@ def scan(ctx: typer.Context,
         print_fixes_section(console, requirements_txt_found, detailed_output)
 
     console.print()
-    print_brief(console, ctx.obj.project, count, affected_count,
-                fixes_count)
-    print_ignore_details(console, ctx.obj.project, ignored,
-                         is_detailed_output=detailed_output,
-                         ignored_vulns_data=ignored_vulns_data)
-
-
     version = ctx.obj.schema
     metadata = ctx.obj.metadata
     telemetry = ctx.obj.telemetry
@@ -455,6 +441,20 @@ def scan(ctx: typer.Context,
                 telemetry=telemetry,
                 files=[],
                 projects=[ctx.obj.project])
+    
+    total_issues_with_duplicates, total_ignored_issues = get_vulnerability_summary(report.as_v30())
+    
+    print_summary(
+    console=console, 
+    total_issues_with_duplicates=total_issues_with_duplicates, 
+    total_ignored_issues=total_ignored_issues,
+    project=ctx.obj.project, 
+    dependencies_count=count, 
+    fixes_count=fixes_count, 
+    resolved_vulns_per_fix=total_resolved_vulns, 
+    is_detailed_output=detailed_output, 
+    ignored_vulns_data=ignored_vulns_data
+)
 
     report_url = process_report(ctx.obj, console, report, **{**ctx.params})
     project_url = f"{SAFETY_PLATFORM_URL}{ctx.obj.project.url_path}"
@@ -789,3 +789,28 @@ def system_scan(ctx: typer.Context,
                 console.print(Padding(detail, (0, 0, 0, 1)), emoji=True, overflow="crop")
 
     process_report(ctx.obj, console, report, **{**ctx.params})
+
+def get_vulnerability_summary(report: Dict[str, Any]) -> Tuple[int, int]:
+    """
+    Summarize vulnerabilities from the given report.
+
+    Args:
+        report (ReportModel): The report containing vulnerability data.
+    
+    Returns:
+        Tuple[int, int]: A tuple containing:
+            - Total number of issues (including duplicates)
+            - Total number of ignored issues
+    """
+    total_issues = 0
+    ignored_issues = 0
+
+    for project in report.scan_results.projects:
+        for file in project.files:
+            for dependency in file.results.dependencies:
+                for specification in dependency.specifications:
+                    known_vulnerabilities = specification.vulnerabilities.known_vulnerabilities
+                    total_issues += len(known_vulnerabilities)
+                    ignored_issues += sum(1 for v in known_vulnerabilities if v.ignored)
+
+    return total_issues, ignored_issues

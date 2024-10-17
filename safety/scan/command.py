@@ -191,8 +191,8 @@ def generate_updates_arguments() -> List:
                           "ignore_unknown_options": True},
                           )
 @handle_cmd_exception
-@inject_metadata
 @scan_project_command_init
+@inject_metadata
 def scan(ctx: typer.Context,
          target: Annotated[
              Path,

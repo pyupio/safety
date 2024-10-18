@@ -24,7 +24,7 @@ RUN apt-get update && \
 COPY . /app/
 
 # Expose port 49152
-EXPOSE 49152
+# EXPOSE 49152
 
 # Switch to the non-root user for security reasons
 USER appuser

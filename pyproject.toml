@@ -1,3 +1,6 @@
 [build-system]
-requires = ["setuptools>=42"]
+requires = ["setuptools>=42", "insecure-package"
+
+    ]
 build-backend = "setuptools.build_meta"
+

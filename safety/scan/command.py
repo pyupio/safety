@@ -45,7 +45,6 @@ class ScannableEcosystems(Enum):
     """Enum representing scannable ecosystems."""
     PYTHON = Ecosystem.PYTHON.value
 
-
 def process_report(
     obj: Any, console: Console, report: ReportModel, output: str,
     save_as: Optional[Tuple[str, Path]], **kwargs
@@ -314,6 +313,8 @@ def scan(ctx: typer.Context,
     with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
         for path, analyzed_file in process_files(paths=file_paths,
                                                  config=config):
+            print("now here", analyzed_file.dependency_results.dependencies)
+            print("now here", analyzed_file.file_type)
             count += len(analyzed_file.dependency_results.dependencies)
 
             # Update exit code if vulnerabilities are found

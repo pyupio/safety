@@ -1,0 +1,192 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Safety Auth Login",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "auth"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Auth Logout",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "auth",
+                "logout"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Scan",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "scan"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Scan --detailed-output",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "scan",
+                "--detailed-output"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Scan --debug",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "--debug",
+                "scan"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Scan --disable-optional-telemetry",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "--disable-optional-telemetry",
+                "scan"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Scan --output json",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "scan",
+                "--output",
+                "json",
+                "--output-file",
+                "test.json"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Check",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "check"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Safety Check --debug",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "check",
+                "--debug"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run All Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_render.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "./tests/scan/test_render.py"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_cli.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_cli.py"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_db.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_db.py"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_output_utils.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_output_utils.py"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_policy_file.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_policy_file.py"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_util.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_util.py"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_safety.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_safety.py"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run test_models.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_models.py"
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}

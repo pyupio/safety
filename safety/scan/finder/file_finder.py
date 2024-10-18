@@ -8,7 +8,7 @@ from safety_schemas.models import Ecosystem, FileType
 
 from safety.errors import SafetyException
 
-from .handlers import FileHandler, ECOSYSTEM_HANDLER_MAPPING
+from .handlers import FileHandler, ECOSYSTEM_HANDLER_MAPPING, PyProjectTomlHandler
 
 LOG = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ class FileFinder():
         self.target = target
         self.include_files = include_files
 
+        print("ecosystems", ecosystems)
         # If no handlers are provided, initialize them from the ecosystem mapping
         if not handlers:
             handlers = set(ECOSYSTEM_HANDLER_MAPPING[ecosystem]()
@@ -149,7 +150,16 @@ class FileFinder():
                             files[file_type.value] = set()
                         files[file_type.value].add(inspectable_file)
                         break
+
+                special_files = {'pyproject.toml', 'env.yml', 'env.yaml'}
+                if file_name in special_files:
+                    file_type = FileType(file_name)
+                    inspectable_file = Path(root, file_name)
+                    if file_type.value not in files or not files[file_type.value]:
+                        files[file_type.value] = set()
+                    files[file_type.value].add(inspectable_file)
             level += 1
+
 
         return dir_path, files
 

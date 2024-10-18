@@ -23,8 +23,5 @@ RUN apt-get update && \
 # Copy project files into the container (relative to the build context)
 COPY . /app/
 
-# Expose port 49152
-EXPOSE 49152
-
 # Switch to the non-root user for security reasons
 USER appuser

@@ -246,6 +246,9 @@ def scan(ctx: typer.Context,
     """
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
     """
+    
+    if not ctx.obj.metadata.authenticated:
+        raise SafetyError("Authentication required. Please run 'safety auth login' to authenticate before using this command.")
 
     # Generate update arguments if apply updates option is enabled
     fixes_target = []
@@ -288,14 +291,11 @@ def scan(ctx: typer.Context,
     target_ecosystems = ", ".join([member.value for member in ecosystems])
     wait_msg = f"Analyzing {target_ecosystems} files and environments for security findings"
 
-    import time
-
     files: List[FileModel] = []
 
     config = ctx.obj.config
 
     count = 0
-    ignored = set()
 
     affected_count = 0
     dependency_vuln_detected = False

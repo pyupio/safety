@@ -33,6 +33,16 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Safety License",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "license"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Safety Scan --detailed-output",
             "type": "debugpy",
             "request": "launch",

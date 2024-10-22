@@ -113,58 +113,8 @@ class SafetyProjectFileHandler(FileHandler):
         pass
 
 
-class PyProjectTomlHandler(FileHandler):
-    def __init__(self) -> None:
-        super().__init__()
-        self.ecosystem = Ecosystem.PYTHON
-
-    def download_required_assets(self, session):
-        from safety.safety import fetch_database
-
-        SAFETY_DB_DIR = os.getenv("SAFETY_DB_DIR")
-
-        db = False if SAFETY_DB_DIR is None else SAFETY_DB_DIR
-
-
-        fetch_database(session=session, full=False, db=db, cached=True,
-                       telemetry=True, ecosystem=Ecosystem.PYTHON,
-                       from_cache=False)
-
-        fetch_database(session=session, full=True, db=db, cached=True,
-                                telemetry=True, ecosystem=Ecosystem.PYTHON,
-                                from_cache=False)
-
-    def can_handle(self, root: str, file_name: str, include_files: Dict[FileType, List[Path]]) -> Optional[FileType]:
-        if file_name == 'pyproject.toml':
-            print("recognized")
-            return FileType.PYPROJECT_TOML
-        return None
-
-    def handle(self, file_path: Path) -> Set[str]:
-        with open(file_path, 'r') as file:
-            data = toml.load(file)
-            print("printing data", data)
-            dependencies = set()
-
-            # Handle 'build-system.requires'
-            if 'build-system' in data and 'requires' in data['build-system']:
-                dependencies.update(data['build-system']['requires'])
-
-            # Handle 'project.dependencies'
-            if 'project' in data and 'dependencies' in data['project']:
-                dependencies.update(data['project']['dependencies'])
-
-            # Handle 'tool.poetry.dependencies'
-            if 'tool' in data and 'poetry' in data['tool'] and 'dependencies' in data['tool']['poetry']:
-                for dep, version in data['tool']['poetry']['dependencies'].items():
-                    dependencies.add(f"{dep}=={version}" if isinstance(version, str) else dep)
-
-            return dependencies
-
-
 # Mapping of ecosystems to their corresponding file handlers
 ECOSYSTEM_HANDLER_MAPPING = MappingProxyType({
     Ecosystem.PYTHON: PythonFileHandler,
     Ecosystem.SAFETY_PROJECT: SafetyProjectFileHandler,
-    # Ecosystem.PYPROJECT_TOML: PyProjectTomlHandler,
 })

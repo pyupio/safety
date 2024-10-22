@@ -271,41 +271,58 @@ def read_virtual_environment_dependencies(f: InspectableFile) -> Generator[Pytho
                 more_info_url=None)
 
 def read_pyproject_toml_dependencies(file: Path) -> Generator[PythonDependency, None, None]:
-    with open(file, 'r') as f:
-        data = toml.load(f)
-        dependencies = []
+    data = toml.load(file)
+    print(data)
+    dependencies = []
 
-        # Handle 'build-system.requires'
-        if 'build-system' in data and 'requires' in data['build-system']:
-            dependencies.extend(data['build-system']['requires'])
+    # Handle 'build-system.requires'
+    if 'build-system' in data and 'requires' in data['build-system']:
+        dependencies.extend(data['build-system']['requires'])
 
-        # Handle 'project.dependencies'
-        if 'project' in data and 'dependencies' in data['project']:
-            dependencies.extend(data['project']['dependencies'])
+    # Handle 'project.dependencies'
+    if 'project' in data and 'dependencies' in data['project']:
+        dependencies.extend(data['project']['dependencies'])
 
-        # Handle 'tool.poetry.dependencies'
-        if 'tool' in data and 'poetry' in data['tool'] and 'dependencies' in data['tool']['poetry']:
-            for dep, version in data['tool']['poetry']['dependencies'].items():
-                if isinstance(version, str):
-                    dependencies.append(f"{dep}=={version}")
-                else:
-                    dependencies.append(dep)
+    # Handle 'project.optional-dependencies'
+    if 'project' in data and 'optional-dependencies' in data['project']:
+        for opt_deps in data['project']['optional-dependencies'].values():
+            dependencies.extend(opt_deps)
 
-        for dep in dependencies:
-            dep_name, dep_version = (dep.split("==") + [None])[:2]
-            yield PythonDependency(
-                name=dep_name,
-                version=dep_version,
-                specifications=[
-                    PythonSpecification(f"{dep_name}=={dep_version}" if dep_version else dep_name, found=file)
-                ],
-                found=file,
-                insecure_versions=[],
-                secure_versions=[],
-                latest_version=None,
-                latest_version_without_known_vulnerabilities=None,
-                more_info_url=None
-            )
+    # Handle 'tool.poetry.dependencies'
+    if 'tool' in data and 'poetry' in data['tool'] and 'dependencies' in data['tool']['poetry']:
+        for dep, version in data['tool']['poetry']['dependencies'].items():
+            if isinstance(version, str):
+                dependencies.append(f"{dep}=={version}")
+            else:
+                dependencies.append(dep)
+
+    # Handle 'tool.poetry.dev-dependencies'
+    if 'tool' in data and 'poetry' in data['tool'] and 'dev-dependencies' in data['tool']['poetry']:
+        for dep, version in data['tool']['poetry']['dev-dependencies'].items():
+            if isinstance(version, str):
+                dependencies.append(f"{dep}=={version}")
+            else:
+                dependencies.append(dep)
+
+    print("dependencies")
+    print(dependencies)
+    for dep in dependencies:
+        dep_name, dep_version = (dep.split("==") + [None])[:2]
+        print(dep_name)
+        print(dep_version)
+        yield PythonDependency(
+            name=dep_name,
+            version=dep_version,
+            specifications=[
+                PythonSpecification(f"{dep_name}=={dep_version}" if dep_version else dep_name, found=file)
+            ],
+            found=file,
+            insecure_versions=[],
+            secure_versions=[],
+            latest_version=None,
+            latest_version_without_known_vulnerabilities=None,
+            more_info_url=None
+        )
 
 def get_dependencies(f: InspectableFile) -> List[PythonDependency]:
     """
@@ -328,6 +345,6 @@ def get_dependencies(f: InspectableFile) -> List[PythonDependency]:
         return list(read_virtual_environment_dependencies(f))
 
     if f.file_type == FileType.PYPROJECT_TOML:
-        return list(read_pyproject_toml_dependencies(f.file))
+        return list(read_pyproject_toml_dependencies(Path(f.file.name)))
 
     return []

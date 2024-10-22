@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import configparser
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 import requests
 import time
@@ -32,7 +32,7 @@ from safety.scan.constants import CLI_LICENSES_COMMAND_HELP, CLI_MAIN_INTRODUCTI
     CLI_CONFIGURE_SAVE_TO_SYSTEM, CLI_CONFIGURE_PROXY_HOST_HELP, CLI_CONFIGURE_PROXY_PORT_HELP, CLI_CONFIGURE_PROXY_PROTOCOL_HELP, \
     CLI_GENERATE_PATH
 from .cli_util import SafetyCLICommand, SafetyCLILegacyGroup, SafetyCLILegacyCommand, SafetyCLISubGroup, SafetyCLIUtilityCommand, handle_cmd_exception
-from safety.constants import CONFIG_FILE_USER, CONFIG_FILE_SYSTEM, EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
+from safety.constants import BAR_LINE, CONFIG_FILE_USER, CONFIG_FILE_SYSTEM, EXIT_CODE_VULNERABILITIES_FOUND, EXIT_CODE_OK, EXIT_CODE_FAILURE
 from safety.errors import InvalidCredentialError, SafetyException, SafetyError
 from safety.formatter import SafetyFormatter
 from safety.models import SafetyCLI
@@ -52,11 +52,6 @@ except ImportError:
     from typing_extensions import Annotated
 
 LOG = logging.getLogger(__name__)
-
-DEPRECATION_DATE = date(2024, 6, 1)
-OLD_COMMAND = "check"
-NEW_COMMAND = "scan"
-BAR_LINE = "+===========================================================================================================================================================================================+"
 
 def get_network_telemetry():
     import psutil
@@ -240,35 +235,45 @@ def clean_check_command(f):
 
     return inner
 
-
-def print_deprecation_message():
+def print_deprecation_message(
+    old_command: str, 
+    deprecation_date: datetime, 
+    new_command: Optional[str] = None
+) -> None:
     """
-    Print a formatted deprecation message for the 'check' command.
+    Print a formatted deprecation message for a command.
 
     This function uses the click library to output a visually distinct
-    message in the console, warning users about the deprecation of the
-    'check' command. It includes information about the deprecation date
-    and suggests an alternative command to use.
+    message in the console, warning users about the deprecation of a
+    specified command. It includes information about the deprecation date
+    and suggests an alternative command to use, if provided.
 
     The message is formatted with colors and styles for emphasis:
     - Yellow for the border and general information
     - Red for the 'DEPRECATED' label
-    - Green for the suggestion of the new command
+    - Green for the suggestion of the new command (if provided)
 
-    No parameters are required, and the function doesn't return any value.
+    Parameters:
+    - old_command (str): The name of the deprecated command.
+    - deprecation_date (datetime): The date when the command will no longer be supported.
+    - new_command (str, optional): The name of the alternative command to suggest. Default is None.
     """
     click.echo("\n")
     click.echo(click.style(BAR_LINE, fg="yellow", bold=True))
     click.echo("\n")
     click.echo(click.style("DEPRECATED: ", fg="red", bold=True) +
-               click.style(f"this command (`{OLD_COMMAND}`) has been DEPRECATED, and will be unsupported beyond {DEPRECATION_DATE.strftime('%d %B %Y')}.", fg="yellow", bold=True))
-    click.echo("\n")
-    click.echo(click.style("We highly encourage switching to the new ", fg="green") +
-               click.style(f"`{NEW_COMMAND}`", fg="green", bold=True) +
-               click.style(" command which is easier to use, more powerful, and can be set up to mimick check if required.", fg="green"))
+               click.style(f"this command (`{old_command}`) has been DEPRECATED, and will be unsupported beyond {deprecation_date.strftime('%d %B %Y')}.", fg="yellow", bold=True))
+    
+    if new_command:
+        click.echo("\n")
+        click.echo(click.style("We highly encourage switching to the new ", fg="green") +
+                   click.style(f"`{new_command}`", fg="green", bold=True) +
+                   click.style(" command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.", fg="green"))
+    
     click.echo("\n")
     click.echo(click.style(BAR_LINE, fg="yellow", bold=True))
     click.echo("\n")
+
 
 
 @cli.command(cls=SafetyCLILegacyCommand, utility_command=True, help=CLI_CHECK_COMMAND_HELP)
@@ -336,7 +341,7 @@ def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_req
           save_json, save_html, apply_remediations,
           auto_remediation_limit, no_prompt, json_version):
     """
-    [underline][DEPRECATED][/underline] `check` has been replaced by the `scan` command, and will be unsupported beyond 1 May 2024.Find vulnerabilities at a target file or enviroment.
+    [underline][DEPRECATED][/underline] `check` has been replaced by the `scan` command, and will be unsupported beyond 1 June 2024.Find vulnerabilities at a target file or enviroment.
     """
     LOG.info('Running check command')
 
@@ -345,7 +350,7 @@ def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_req
     is_silent_output = output in silent_outputs
     prompt_mode = bool(not non_interactive and not stdin and not is_silent_output) and not no_prompt
     kwargs = {'version': json_version} if output == 'json' else {}
-    print_deprecation_message()
+    print_deprecation_message("check", date(2024, 6, 1), new_command="scan")
     try:
         packages = get_packages(files, stdin)
 
@@ -427,7 +432,7 @@ def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_req
                 announcements, vulns, remediations, full_report, packages, fixes)
 
             safety.save_report(save_html, 'safety-report.html', html_report)
-        print_deprecation_message()
+        print_deprecation_message("check", date(2024, 6, 1), new_command="scan")
         if exit_code and found_vulns:
             LOG.info('Exiting with default code for vulnerabilities found')
             sys.exit(EXIT_CODE_VULNERABILITIES_FOUND)
@@ -478,6 +483,7 @@ def license(ctx, db, output, cache, files):
     """
     Find the open source licenses used by your Python dependencies.
     """
+    print_deprecation_message("license", date(2024, 6, 1), new_command=None)
     LOG.info('Running license command')
     packages = get_packages(files, False)
     licenses_db = {}
@@ -504,6 +510,7 @@ def license(ctx, db, output, cache, files):
     output_report = SafetyFormatter(output=output).render_licenses(announcements, filtered_packages_licenses)
 
     click.secho(output_report, nl=True)
+    print_deprecation_message("license", date(2024, 6, 1), new_command=None)
 
 
 @cli.command(cls=SafetyCLILegacyCommand, utility_command=True, help=CLI_GENERATE_HELP)

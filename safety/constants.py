@@ -183,3 +183,6 @@ EXIT_CODE_MALFORMED_DB = 69
 EXIT_CODE_INVALID_PROVIDED_REPORT = 70
 EXIT_CODE_INVALID_REQUIREMENT = 71
 EXIT_CODE_EMAIL_NOT_VERIFIED = 72
+
+#For Depreciated Messages
+BAR_LINE = "+===========================================================================================================================================================================================+"

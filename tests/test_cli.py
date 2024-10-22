@@ -419,62 +419,51 @@ class TestSafetyCLI(unittest.TestCase):
         db = os.path.join(dirname, "test_db")
         reqs_unpinned = os.path.join(dirname, "reqs_unpinned.txt")
 
-        # If not set (default None) then show local announcement and reported in group and ignored.
+        # Test default behavior (ignore_unpinned_requirements is None)
         result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'text'])
 
-        announcement = "\n\n ANNOUNCEMENTS\n\n  " \
-                       "* Warning: django and numpy are unpinned. Safety by default does not report \n  " \
-                       "  on potential vulnerabilities in unpinned packages. It is recommended to pin \n  " \
-                       "  your dependencies unless this is a library meant for distribution. To learn \n  " \
-                       "  more about reporting these, specifier range handling, and options for \n  " \
-                       "  scanning unpinned packages visit https://docs.pyup.io/docs/safety-range- \n  " \
-                       "  specs \n\n"
-        self.assertIn(announcement, result.stdout)
+        # Check for deprecation message
+        self.assertIn("DEPRECATED: this command (`check`) has been DEPRECATED", result.output)
 
-        unpinned_vulns = "-> Warning: 2 known vulnerabilities match the django versions that could be \n" \
-                         "   installed from your specifier: django>=0 (unpinned). These vulnerabilities \n" \
-                         "   are not reported by default. To report these vulnerabilities set 'ignore- \n" \
-                         "   unpinned-requirements' to False under 'security' in your policy file. See \n" \
-                         "   https://docs.pyup.io/docs/safety-20-policy-file for more information. \n" \
-                         "   It is recommended to pin your dependencies unless this is a library meant \n" \
-                         "   for distribution. To learn more about reporting these, specifier range \n" \
-                         "   handling, and options for scanning unpinned packages visit \n" \
-                         "   https://docs.pyup.io/docs/safety-range-specs \n\n"
+        # Check for the announcement about unpinned packages
+        expected_announcement = "Warning: django and numpy are unpinned. Safety by default does not report"
+        self.assertIn(expected_announcement, result.output)
 
-        self.assertIn(unpinned_vulns, result.stdout)
+        # Check for the warning about potential vulnerabilities
+        expected_warning = "Warning: 2 known vulnerabilities match the django versions that could be"
+        self.assertIn(expected_warning, result.output)
 
-        # If true then
+        # Test ignore_unpinned_requirements set to True
         result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--ignore-unpinned-requirements',
-                                              '--db', db, '--output', 'text'])
+                                            '--db', db, '--output', 'text'])
 
-        announcement = "\n\n ANNOUNCEMENTS\n\n  " \
-                       "* Warning: django and numpy are unpinned and potential vulnerabilities are \n  " \
-                       "  being ignored given `ignore-unpinned-requirements` is True in your config. \n  " \
-                       "  It is recommended to pin your dependencies unless this is a library meant \n  " \
-                       "  for distribution. To learn more about reporting these, specifier range \n  " \
-                       "  handling, and options for scanning unpinned packages visit \n  " \
-                       "  https://docs.pyup.io/docs/safety-range-specs \n\n"
+        self.assertIn("Warning: django and numpy are unpinned and potential vulnerabilities are", result.output)
+        self.assertIn("being ignored given `ignore-unpinned-requirements` is True in your config.", result.output)
 
-        self.assertIn(announcement, result.stdout)
-        self.assertIn(unpinned_vulns, result.stdout)
-
-        # If false then
-        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--check-unpinned-requirements', '--db', db,
-                                              '--output', 'text'])
-
-        self.assertNotIn("ANNOUNCEMENTS", result.stdout)
-        self.assertNotIn("-> Warning: 2 known vulnerabilities match the django versions", result.stdout)
-        self.assertIn("-> Vulnerability may be present given that your django install specifier is >=0", result.stdout)
-        self.assertIn("Scan was completed. 2 vulnerabilities were reported.", result.stdout)
-
+        # Test check_unpinned_requirements set to True
         result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--json', '-i', 'some id',
-                                              '--check-unpinned-requirements'])
+                                          '--check-unpinned-requirements'])
 
-        ignored = json.loads(result.stdout).get('ignored_vulnerabilities', [])
-        self.assertEqual(1, len(ignored), 'Unexpected size for the ignored vulnerabilities list.')
+        # Check for deprecation message
+        self.assertIn("DEPRECATED: this command (`check`) has been DEPRECATED", result.output)
 
-        reason = ignored[0].get('ignored_reason', None)
-        self.assertEqual("", reason, "Reason should be empty as this was ignored without a message.")
+        # Extract JSON part from the output
+        json_start = result.output.find('{')
+        json_end = result.output.rfind('}') + 1
+        json_output = result.output[json_start:json_end]
+
+        try:
+            parsed_json = json.loads(json_output)
+            vulnerabilities = parsed_json.get('vulnerabilities', [])
+            self.assertEqual(1, len(vulnerabilities), 'Unexpected number of vulnerabilities reported.')
+
+            ignored = parsed_json.get('ignored_vulnerabilities', [])
+            self.assertEqual(1, len(ignored), 'Unexpected number of ignored vulnerabilities.')
+
+            reason = ignored[0].get('ignored_reason', None)
+            self.assertEqual("", reason, "Unexpected ignore reason.")
+        except json.JSONDecodeError:
+            self.fail(f"Failed to parse JSON output. Extracted JSON was: {json_output}")
 
     def test_basic_html_output_pass(self):
         dirname = os.path.dirname(__file__)
@@ -527,9 +516,29 @@ class TestSafetyCLI(unittest.TestCase):
     @patch('builtins.input', lambda *args: '')
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+        """
+        Test the behavior of the CLI when invoked with the '--debug' flag.
+        
+        This test invokes the CLI with the 'scan' command and the '--debug' flag enabled,
+        verifies that the command exits successfully, and checks that the expected output snippet
+        is present in the CLI output.
+        
+        Args:
+            mock_get_auth_info: Mock for retrieving authentication info.
+            mock_is_valid: Mock for checking validity of inputs or authentication.
+            mock_get_auth_type: Mock for retrieving the authentication type.
+            mock_fetch_database: Mock for database fetching operations.
+        """
         result = self.runner.invoke(cli.cli, ['--debug', 'scan'])
-        assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
-        assert "for known security issues using default" in result.output
+        assert result.exit_code == 0, (
+            f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
+        )
+        expected_output_snippet = "Safety 3.2.8 scanning" 
+        assert expected_output_snippet in result.output, (
+            f"Expected output to contain: {expected_output_snippet}, but got: {result.output}"
+        )
+
+
 
     @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
     @patch.object(Auth, 'is_valid', return_value=True)

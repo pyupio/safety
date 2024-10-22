@@ -1,0 +1,19 @@
+{
+    "name": "Safety-CLI Dev Container",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "..",
+        "args": {
+            "SAFETY_VERSION": "DEV"
+        }
+    },
+    "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy"
+    ],
+    "postCreateCommand": "pip install -r test_requirements.txt && pip install ruff requests pre-commit",
+    "remoteUser": "root",
+    "workspaceFolder": "/workspaces/safety",
+    "forwardPorts": [49152]
+}

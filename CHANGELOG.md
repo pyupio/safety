@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.2.9] - 2024-10-23
+- chore: deprection-message-for-license-command (4149b70)
+- feat: add-pull-request-template (#604) (61b2fe2)
+- fix:  devcontainer fix (be42d8e)
+- fix: safety error when scan is run without being authed (5ec80dd)
+- feat: add-devcontainers-support (0591838)
+- fix: internal-server-error (04d7efb)
+- fix: clarify-vulnerabilities-found/ Fixed the issue where the vulnerabilities (07bc5b7)
+- chore: added check arg depreciation warning (78109e5)
+- feature: release-script: add release script (#602) (cc49542)
+
 ## [3.2.8] - 2024-09-27
 - feat: enhance version comparison logic for check-updates command (#605)
 - docs: add demo Jupyter Notebook (#601)

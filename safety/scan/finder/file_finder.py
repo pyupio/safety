@@ -150,13 +150,6 @@ class FileFinder():
                         files[file_type.value].add(inspectable_file)
                         break
 
-                special_files = {'pyproject.toml', 'env.yml', 'env.yaml'}
-                if file_name in special_files:
-                    file_type = FileType(file_name)
-                    inspectable_file = Path(root, file_name)
-                    if file_type.value not in files or not files[file_type.value]:
-                        files[file_type.value] = set()
-                    files[file_type.value].add(inspectable_file)
             level += 1
 
 

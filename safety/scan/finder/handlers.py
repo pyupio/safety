@@ -2,8 +2,7 @@ from abc import ABC, abstractmethod
 import os
 from pathlib import Path
 from types import MappingProxyType
-from typing import Dict, List, Optional, Set
-import toml
+from typing import Dict, List, Optional
 from safety_schemas.models import Ecosystem, FileType
 
 

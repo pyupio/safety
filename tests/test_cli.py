@@ -180,6 +180,8 @@ class TestSafetyCLI(unittest.TestCase):
 
     def test_validate_with_basic_policy_file(self):
         dirname = os.path.dirname(__file__)
+        
+        # Test with policy version 2.0
         path = os.path.join(dirname, "test_policy_file", "default_policy_file.yml")
         result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stdout)
@@ -206,10 +208,12 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(msg + parsed, cleaned_stdout)
         self.assertEqual(result.exit_code, 0)
 
+        # Test with policy version 3.0
         path = os.path.join(dirname, "test_policy_file", "v3_0", "default_policy_file.yml")
         result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stdout)
         msg = 'The Safety policy (3.0) file (Used for scan and system-scan commands) was successfully parsed with the following values:\n'
+        
         parsed = {
             "version": "3.0",
             "scan": {
@@ -217,20 +221,20 @@ class TestSafetyCLI(unittest.TestCase):
                 "exclude": [],
                 "include_files": [],
                 "system": {
-                "targets": []
+                    "targets": []
                 }
             },
             "report": {
                 "dependency_vulnerabilities": {
-                "enabled": True,
-                "auto_ignore": {
-                    "python": {
-                    "ignore_environment_results": True,
-                    "ignore_unpinned_requirements": True
-                    },
-                    "vulnerabilities": None,
-                    "cvss_severity": []
-                }
+                    "enabled": True,
+                    "auto_ignore": {
+                        "python": {
+                            "ignore_environment_results": True,
+                            "ignore_unpinned_requirements": True
+                        },
+                        "vulnerabilities": None,
+                        "cvss_severity": []
+                    }
                 }
             },
             "fail_scan": {
@@ -252,26 +256,63 @@ class TestSafetyCLI(unittest.TestCase):
             },
             "security_updates": {
                 "dependency_vulnerabilities": {
-                "auto_security_updates_limit": [
-                    "patch"
-                ]
+                    "auto_security_updates_limit": [
+                        "patch"
+                    ]
+                }
+            },
+            "installation": {
+                "allow": {
+                    "packages": [],
+                    "vulnerabilities": {}
+                },
+                "audit_logging": {
+                    "enabled": True
+                },
+                "default_action": "deny",
+                "deny": {
+                    "packages": {
+                        "block_on_any_of": {
+                            "age_below": None,
+                            "packages": []
+                        },
+                        "warning_on_any_of": {
+                            "age_below": None,
+                            "packages": []
+                        }
+                    },
+                    "vulnerabilities": {
+                        "block_on_any_of": {
+                            "cvss_severity": []
+                        },
+                        "warning_on_any_of": {
+                            "cvss_severity": []
+                        }
+                    }
                 }
             }
-            }
+        }
 
         msg_stdout, parsed_policy = cleaned_stdout.split('\n', 1)
         msg_stdout += '\n'
         parsed_policy = json.loads(parsed_policy.replace('\n', ''))
 
+        # Sorting and comparing specific fields
         fail_scan = parsed_policy.get("fail_scan", None)
         self.assertIsNotNone(fail_scan)
         fail_of_any = fail_scan["dependency_vulnerabilities"]["fail_on_any_of"]
         fail_of_any["cvss_severity"] = sorted(fail_of_any["cvss_severity"])
         fail_of_any["exploitability"] = sorted(fail_of_any["exploitability"])
 
+        # Assert that the message is the same
         self.assertEqual(msg, msg_stdout)
+        
+        # Assert that the parsed policy matches the expected policy
         self.assertEqual(parsed, parsed_policy)
+        
+        # Check the exit code
         self.assertEqual(result.exit_code, 0)
+
 
 
     def test_validate_with_policy_file_using_invalid_keyword(self):

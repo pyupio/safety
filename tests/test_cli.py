@@ -18,7 +18,7 @@ from packaging.version import Version
 
 from safety import cli
 from safety.models import CVE, SafetyRequirement, Severity, Vulnerability
-from safety.util import Package, SafetyContext
+from safety.util import Package, SafetyContext, get_safety_version
 from safety.auth.models import Auth
 from safety_schemas.models.base import AuthenticationType
 
@@ -533,7 +533,7 @@ class TestSafetyCLI(unittest.TestCase):
         assert result.exit_code == 0, (
             f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
         )
-        expected_output_snippet = "Safety 3.2.8 scanning" 
+        expected_output_snippet = f"{get_safety_version()} scanning" 
         assert expected_output_snippet in result.output, (
             f"Expected output to contain: {expected_output_snippet}, but got: {result.output}"
         )
@@ -665,4 +665,4 @@ class TestConfigureLogger(unittest.TestCase):
 
         with patch('logging.basicConfig') as mock_basicConfig:
             cli.configure_logger(ctx, param, debug)
-            mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.CRITICAL)
+        mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.CRITICAL)

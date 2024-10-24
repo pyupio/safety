@@ -272,7 +272,6 @@ def read_virtual_environment_dependencies(f: InspectableFile) -> Generator[Pytho
 
 def read_pyproject_toml_dependencies(file: Path) -> Generator[PythonDependency, None, None]:
     data = toml.load(file)
-    print(data)
     dependencies = []
 
     # Handle 'build-system.requires'
@@ -304,12 +303,8 @@ def read_pyproject_toml_dependencies(file: Path) -> Generator[PythonDependency, 
             else:
                 dependencies.append(dep)
 
-    print("dependencies")
-    print(dependencies)
     for dep in dependencies:
         dep_name, dep_version = (dep.split("==") + [None])[:2]
-        print(dep_name)
-        print(dep_version)
         yield PythonDependency(
             name=dep_name,
             version=dep_version,

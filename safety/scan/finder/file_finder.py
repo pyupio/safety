@@ -75,7 +75,6 @@ class FileFinder():
         self.target = target
         self.include_files = include_files
 
-        print("include_files", include_files)
         # If no handlers are provided, initialize them from the ecosystem mapping
         if not handlers:
             handlers = set(ECOSYSTEM_HANDLER_MAPPING[ecosystem]()

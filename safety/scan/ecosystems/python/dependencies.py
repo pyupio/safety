@@ -285,7 +285,7 @@ def get_dependencies(f: InspectableFile) -> List[PythonDependency]:
         return []
 
     if f.file_type in [FileType.REQUIREMENTS_TXT, FileType.POETRY_LOCK,
-                       FileType.PIPENV_LOCK]:
+                       FileType.PIPENV_LOCK, FileType.PYPROJECT_TOML]:
         return list(read_dependencies(f.file, resolve=True))
 
     if f.file_type == FileType.VIRTUAL_ENVIRONMENT:

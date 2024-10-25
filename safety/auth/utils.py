@@ -1,5 +1,7 @@
+from functools import lru_cache
 import json
 import logging
+import sys
 from typing import Any, Optional, Dict, Callable, Tuple
 from authlib.integrations.requests_client import OAuth2Session
 from authlib.integrations.base_client.errors import OAuthError
@@ -425,3 +427,99 @@ class S3PresignedAdapter(HTTPAdapter):
         """
         request.headers.pop("Authorization", None)
         return super().send(request, **kwargs)
+    
+    
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def is_jupyter_notebook() -> bool:
+    """
+    Detects if the code is running in a Jupyter notebook environment, including
+    various cloud-hosted Jupyter notebooks.
+
+    Returns:
+        bool: True if the environment is identified as a Jupyter notebook (or 
+              equivalent cloud-based environment), False otherwise.
+
+    Supported environments:
+    - Google Colab
+    - Amazon SageMaker
+    - Azure Notebooks
+    - Kaggle Notebooks
+    - Databricks Notebooks
+    - Datalore by JetBrains
+    - Paperspace Gradient Notebooks
+    - Classic Jupyter Notebook and JupyterLab
+
+    Detection is done by attempting to import environment-specific packages:
+    - Google Colab: `google.colab`
+    - Amazon SageMaker: `sagemaker`
+    - Azure Notebooks: `azureml`
+    - Kaggle Notebooks: `kaggle`
+    - Databricks Notebooks: `dbutils`
+    - Datalore: `datalore`
+    - Paperspace Gradient: `gradient`
+    - Classic Jupyter: Checks if 'IPKernelApp' is in IPython config.
+
+    Example:
+        >>> is_jupyter_notebook()
+        True
+    """
+    try:
+        # Detect Google Colab
+        import google.colab
+        return True
+    except ImportError:
+        pass
+
+    try:
+        # Detect Amazon SageMaker
+        import sagemaker
+        return True
+    except ImportError:
+        pass
+
+    try:
+        # Detect Azure Notebooks
+        import azureml
+        return True
+    except ImportError:
+        pass
+
+    try:
+        # Detect Kaggle Notebooks
+        import kaggle
+        return True
+    except ImportError:
+        pass
+
+    try:
+        # Detect Databricks
+        import dbutils
+        return True
+    except ImportError:
+        pass
+
+    try:
+        # Detect Datalore
+        import datalore
+        return True
+    except ImportError:
+        pass
+
+    try:
+        # Detect Paperspace Gradient Notebooks
+        import gradient
+        return True
+    except ImportError:
+        pass
+
+    try:
+        # Detect classic Jupyter Notebook, JupyterLab, and other IPython kernel-based environments
+        from IPython import get_ipython
+        if 'IPKernelApp' in get_ipython().config:
+            return True
+    except:
+        pass
+
+    return False

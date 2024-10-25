@@ -12,6 +12,16 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Safety Auth Login --headless",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "auth","login","--headless"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Safety Auth Logout",
             "type": "debugpy",
             "request": "launch",

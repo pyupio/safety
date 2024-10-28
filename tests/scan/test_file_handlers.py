@@ -1,5 +1,5 @@
 import os
-import pytest
+
 from unittest.mock import Mock, patch
 from safety.scan.finder.handlers import PythonFileHandler
 

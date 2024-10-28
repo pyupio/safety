@@ -12,11 +12,9 @@ from safety.auth.models import Organization, Auth
 from safety.auth.utils import S3PresignedAdapter, SafetyAuthSession, get_keys, is_email_verified
 from safety.constants import REQUEST_TIMEOUT
 from safety.scan.constants import CLI_KEY_HELP, CLI_PROXY_HOST_HELP, CLI_PROXY_PORT_HELP, CLI_PROXY_PROTOCOL_HELP, CLI_STAGE_HELP
-from safety.scan.util import Stage
 from safety.util import DependentOption, SafetyContext, get_proxy_dict
-
-from functools import wraps
-
+from safety.models import SafetyCLI
+from safety_schemas.models import Stage
 
 LOG = logging.getLogger(__name__)
 
@@ -89,7 +87,7 @@ def load_auth_session(click_ctx: click.Context) -> None:
         click_ctx (click.Context): The Click context object.
     """
     if not click_ctx:
-        LOG.warn("Click context is needed to be able to load the Auth data.")
+        LOG.warning("Click context is needed to be able to load the Auth data.")
         return
 
     client = click_ctx.obj.auth.client
@@ -160,89 +158,57 @@ def auth_options(stage: bool = True) -> Callable:
     return decorator
 
 
-def inject_session(func: Callable) -> Callable:
-    """
-    Decorator that injects a session object into Click commands.
+def inject_session(ctx: click.Context, proxy_protocol: Optional[str] = None,
+            proxy_host: Optional[str] = None,
+            proxy_port: Optional[str] = None,
+            key: Optional[str] = None,
+            stage: Optional[Stage] = None,
+            invoked_command: str = "") -> Any:
 
-    Builds the session object to be used in each command.
+    # Skip injection for specific commands that do not require authentication
+    if invoked_command in ["configure"]:
+        return
 
-    Args:
-        func (Callable): The Click command function.
+    org: Optional[Organization] = get_organization()
 
-    Returns:
-        Callable: The wrapped Click command function with session injection.
-    """
-    @wraps(func)
-    def inner(ctx: click.Context, proxy_protocol: Optional[str] = None,
-              proxy_host: Optional[str] = None,
-              proxy_port: Optional[str] = None,
-              key: Optional[str] = None,
-              stage: Optional[Stage] = None, *args, **kwargs) -> Any:
-        """
-        Inner function that performs the session injection.
+    if not stage:
+        host_stage = get_host_config(key_name="stage")
+        stage = host_stage if host_stage else Stage.development
 
-        Args:
-            ctx (click.Context): The Click context object.
-            proxy_protocol (Optional[str]): The proxy protocol.
-            proxy_host (Optional[str]): The proxy host.
-            proxy_port (Optional[int]): The proxy port.
-            key (Optional[str]): The API key.
-            stage (Optional[Stage]): The stage.
-            *args (Any): Additional arguments.
-            **kwargs (Any): Additional keyword arguments.
+    proxy_config: Optional[Dict[str, str]] = get_proxy_dict(proxy_protocol,
+                                                            proxy_host, proxy_port)
 
-        Returns:
-            Any: The result of the decorated function.
-        """
+    client_session, openid_config = build_client_session(api_key=key,
+                                                            proxies=proxy_config)
+    keys = get_keys(client_session, openid_config)
 
-        if ctx.invoked_subcommand == "configure":
-            return
+    auth = Auth(
+        stage=stage,
+        keys=keys,
+        org=org,
+        client_id=CLIENT_ID,
+        client=client_session,
+        code_verifier=generate_token(48)
+    )
 
-        org: Optional[Organization] = get_organization()
+    if not ctx.obj:        
+        ctx.obj = SafetyCLI()
 
-        if not stage:
-            host_stage = get_host_config(key_name="stage")
-            stage = host_stage if host_stage else Stage.development
+    ctx.obj.auth = auth
 
-        proxy_config: Optional[Dict[str, str]] = get_proxy_dict(proxy_protocol,
-                                                                proxy_host, proxy_port)
+    load_auth_session(ctx)
 
-        client_session, openid_config = build_client_session(api_key=key,
-                                                             proxies=proxy_config)
-        keys = get_keys(client_session, openid_config)
+    info = get_auth_info(ctx)
 
-        auth = Auth(
-            stage=stage,
-            keys=keys,
-            org=org,
-            client_id=CLIENT_ID,
-            client=client_session,
-            code_verifier=generate_token(48)
-        )
+    if info:
+        ctx.obj.auth.name = info.get("name")
+        ctx.obj.auth.email = info.get("email")
+        ctx.obj.auth.email_verified = is_email_verified(info)
+        SafetyContext().account = info["email"]
+    else:
+        SafetyContext().account = ""
 
-        if not ctx.obj:
-            from safety.models import SafetyCLI
-            ctx.obj = SafetyCLI()
-
-        ctx.obj.auth=auth
-
-        load_auth_session(ctx)
-
-        info = get_auth_info(ctx)
-
-        if info:
-            ctx.obj.auth.name = info.get("name")
-            ctx.obj.auth.email = info.get("email")
-            ctx.obj.auth.email_verified = is_email_verified(info)
-            SafetyContext().account = info["email"]
-        else:
-            SafetyContext().account = ""
-
-        @ctx.call_on_close
-        def clean_up_on_close():
-            LOG.debug('Closing requests session.')
-            ctx.obj.auth.client.close()
-
-        return func(ctx, *args, **kwargs)
-
-    return inner
+    @ctx.call_on_close
+    def clean_up_on_close():
+        LOG.debug('Closing requests session.')
+        ctx.obj.auth.client.close()

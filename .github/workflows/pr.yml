@@ -43,20 +43,23 @@ jobs:
             #### Quick Test with Python Package
             \`\`\`bash
             # Download and run with uv
-            gh run download ${context.runId} -n dist
+            gh run download ${context.runId} -n dist -R pyupio/safety
             uv run --with safety-${version}-py3-none-any.whl safety --version
             \`\`\`
 
             #### Binary Installation
             \`\`\`bash
             # Linux
-            gh run download ${context.runId} -n safety-linux -D linux
+            gh run download ${context.runId} -n safety-linux -D linux -R pyupio/safety
             cd linux && mv safety safety-pr && chmod +x safety-pr
 
             # macOS
-            gh run download ${context.runId} -n safety-macos -D macos
+            gh run download ${context.runId} -n safety-macos -D macos -R pyupio/safety
             cd macos && mv safety safety-pr && chmod +x safety-pr
             
+            # Windows
+            gh run download ${context.runId} -n safety-windows -D windows -R pyupio/safety
+            cd windows && mv safety.exe safety-pr.exe
             
             ./safety-pr --version
             \`\`\`

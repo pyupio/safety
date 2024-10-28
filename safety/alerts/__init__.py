@@ -6,6 +6,8 @@ import click
 
 from dataclasses import dataclass
 
+from safety.constants import CONTEXT_COMMAND_TYPE
+
 from . import github
 from safety.util import SafetyPolicyFile
 from safety.scan.constants import CLI_ALERT_COMMAND_HELP
@@ -16,6 +18,10 @@ LOG = logging.getLogger(__name__)
 def get_safety_cli_legacy_group():
     from safety.cli_util import SafetyCLILegacyGroup
     return SafetyCLILegacyGroup
+
+def get_context_settings():
+    from safety.cli_util import CommandType
+    return {CONTEXT_COMMAND_TYPE: CommandType.UTILITY}
 
 @dataclass
 class Alert:
@@ -33,7 +39,8 @@ class Alert:
     policy: Any = None
     requirements_files: Any = None
 
-@click.group(cls=get_safety_cli_legacy_group(), help=CLI_ALERT_COMMAND_HELP, deprecated=True, utility_command=True)
+@click.group(cls=get_safety_cli_legacy_group(), help=CLI_ALERT_COMMAND_HELP,
+             deprecated=True, context_settings=get_context_settings())
 @click.option('--check-report', help='JSON output of Safety Check to work with.', type=click.File('r'), default=sys.stdin, required=True)
 @click.option("--key", envvar="SAFETY_API_KEY",
               help="API Key for safetycli.com's vulnerability database. Can be set as SAFETY_API_KEY "

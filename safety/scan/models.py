@@ -1,8 +1,5 @@
 from enum import Enum
-from pathlib import Path
 from typing import Optional
-
-from pydantic.dataclasses import dataclass
 
 class FormatMixin:
     """
@@ -120,14 +117,3 @@ class SystemScanExport(str, Enum):
     Enum representing different system scan export formats.
     """
     JSON = "json"
-
-@dataclass
-class UnverifiedProjectModel():
-    """
-    Data class representing an unverified project model.
-    """
-    id: Optional[str]
-    project_path: Path
-    created: bool
-    name: Optional[str] = None
-    url_path: Optional[str] = None

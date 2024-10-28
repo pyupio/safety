@@ -1,4 +1,5 @@
 from collections import defaultdict
+from enum import Enum
 import logging
 import subprocess
 import sys
@@ -23,20 +24,27 @@ from .errors import SafetyError, SafetyException
 
 LOG = logging.getLogger(__name__)
 
+class CommandType(Enum):
+    MAIN = "main"
+    UTILITY = "utility" 
+    BETA = "beta"
+
 def custom_print_options_panel(name: str, params: List[Any], ctx: Any, console: Console) -> None:
     """
     Print a panel with options.
 
     Args:
         name (str): The title of the panel.
-        params (List[Any]): The list of options to print.
+        params (List[Any]): The list of options/arguments to print.
         ctx (Any): The context object.
         markup_mode (str): The markup mode.
         console (Console): The console to print to.
     """
     table = Table(title=name, show_lines=True)
     for param in params:
-        table.add_row(str(param.opts), param.help or "")
+        opts = getattr(param, 'opts', '')
+        help_text = getattr(param, 'help', '')
+        table.add_row(str(opts), help_text)
     console.print(table)
 
 def custom_print_commands_panel(name: str, commands: List[Any], console: Console) -> None:
@@ -284,6 +292,7 @@ def pretty_format_help(obj: Union[click.Command, click.Group],
 
 def print_main_command_panels(*,
     name: str,
+    commands_type: CommandType,
     commands: List[click.Command],
     markup_mode: MarkupMode,
     console) -> None:
@@ -330,6 +339,17 @@ def print_main_command_panels(*,
     if console.size and console.size[0] > 80:
         console_width = console.size[0]
 
+    from rich.console import Group
+
+    description = None
+
+    if commands_type is CommandType.BETA:
+        description = Group(
+            Text(""),
+            Text("These commands are experimental and part of our commitment to delivering innovative features. As we refine functionality, they may be significantly altered or, in rare cases, removed without prior notice. We welcome your feedback and encourage cautious use."),
+            Text("")
+        )
+
     commands_table.add_column(style="bold cyan", no_wrap=True, width=column_width, max_width=column_width)
     commands_table.add_column(width=console_width - column_width)
 
@@ -338,7 +358,7 @@ def print_main_command_panels(*,
     for command in commands:
         helptext = command.short_help or command.help or ""
         command_name = command.name or ""
-        command_name_text = Text(command_name)
+        command_name_text = Text(command_name, style="") if commands_type is CommandType.BETA else Text(command_name)
         rows.append(
             [
                 command_name_text,
@@ -351,9 +371,10 @@ def print_main_command_panels(*,
     for row in rows:
         commands_table.add_row(*row)
     if commands_table.row_count:
+        renderables = [description, commands_table] if description is not None else [Text(""), commands_table]
+
         console.print(
-            Panel(
-                commands_table,
+            Panel(Group(*renderables),
                 border_style=STYLE_COMMANDS_PANEL_BORDER,
                 title=name,
                 title_align=ALIGN_COMMANDS_PANEL,
@@ -404,31 +425,32 @@ def format_main_help(obj: Union[click.Command, click.Group],
         )
 
         if isinstance(obj, click.MultiCommand):
-            UTILITY_COMMANDS_PANEL_TITLE = "Commands cont."
 
-            panel_to_commands: DefaultDict[str, List[click.Command]] = defaultdict(list)
+            UTILITY_COMMANDS_PANEL_TITLE = "Utility commands"
+            BETA_COMMANDS_PANEL_TITLE = "Beta Commands :rocket:"    
+
+            COMMANDS_PANEL_TITLE_CONSTANTS = {
+                CommandType.MAIN: COMMANDS_PANEL_TITLE,
+                CommandType.UTILITY: UTILITY_COMMANDS_PANEL_TITLE,
+                CommandType.BETA: BETA_COMMANDS_PANEL_TITLE
+            }
+
+            panel_to_commands: Dict[CommandType, List[click.Command]] = {}
+
+            # Keep order of panels
+            for command_type in COMMANDS_PANEL_TITLE_CONSTANTS.keys():
+                panel_to_commands[command_type] = []
+
             for command_name in obj.list_commands(ctx):
                 command = obj.get_command(ctx, command_name)
                 if command and not command.hidden:
-                    panel_name = (
-                        UTILITY_COMMANDS_PANEL_TITLE if command.utility_command else COMMANDS_PANEL_TITLE
-                    )
-                    panel_to_commands[panel_name].append(command)
+                    command_type = command.context_settings.get("command_type", CommandType.MAIN)
+                    panel_to_commands[command_type].append(command)
 
-            # Print each command group panel
-            default_commands = panel_to_commands.get(COMMANDS_PANEL_TITLE, [])
-            print_main_command_panels(
-                name=COMMANDS_PANEL_TITLE,
-                commands=default_commands,
-                markup_mode=markup_mode,
-                console=console,
-            )
-            for panel_name, commands in panel_to_commands.items():
-                if panel_name == COMMANDS_PANEL_TITLE:
-                    # Already printed above
-                    continue
+            for command_type, commands in panel_to_commands.items():
                 print_main_command_panels(
-                    name=panel_name,
+                    name=COMMANDS_PANEL_TITLE_CONSTANTS[command_type],
+                    commands_type=command_type,
                     commands=commands,
                     markup_mode=markup_mode,
                     console=console,
@@ -566,25 +588,25 @@ def process_auth_status_not_ready(console, auth: Auth, ctx: typer.Context) -> No
         console.print(MSG_NON_AUTHENTICATED)
         sys.exit(1)
 
-class UtilityCommandMixin:
-    """
-    Mixin to add utility command functionality.
-    """
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Initialize the UtilityCommandMixin.
+class CustomContext(click.Context):
+    def __init__(
+        self,
+        command: "Command",
+        parent: Optional["Context"] = None,
+        command_type: str = "main",
+        **kwargs
+    ) -> None:
+        self.command_type = command_type
+        super().__init__(command, parent=parent, **kwargs)
 
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-        """
-        self.utility_command = kwargs.pop('utility_command', False)
-        super().__init__(*args, **kwargs)
 
-class SafetyCLISubGroup(UtilityCommandMixin, TyperGroup):
+
+class SafetyCLISubGroup(TyperGroup):
     """
     Custom TyperGroup with additional functionality for Safety CLI.
     """
+
+    context_class = CustomContext
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """
@@ -629,10 +651,13 @@ class SafetyCLISubGroup(UtilityCommandMixin, TyperGroup):
         """
         super().command(*args, **kwargs)
 
-class SafetyCLICommand(UtilityCommandMixin, TyperCommand):
+class SafetyCLICommand(TyperCommand):
     """
     Custom TyperCommand with additional functionality for Safety CLI.
     """
+
+    context_class = CustomContext
+
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """
         Format help message with rich formatting.
@@ -660,25 +685,12 @@ class SafetyCLICommand(UtilityCommandMixin, TyperCommand):
         formatter.write_usage(command_path, " ".join(pieces))
 
 
-class SafetyCLIUtilityCommand(TyperCommand):
-    """
-    Custom TyperCommand designated as a utility command.
-    """
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """
-        Initialize the SafetyCLIUtilityCommand.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-        """
-        self.utility_command = True
-        super().__init__(*args, **kwargs)
-
-class SafetyCLILegacyGroup(UtilityCommandMixin, click.Group):
+class SafetyCLILegacyGroup(click.Group):
     """
     Custom Click Group to handle legacy command-line arguments.
     """
+
+    context_class = CustomContext
 
     def parse_legacy_args(self, args: List[str]) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
         """
@@ -749,10 +761,12 @@ class SafetyCLILegacyGroup(UtilityCommandMixin, click.Group):
         else:
             pretty_format_help(self, ctx, markup_mode="rich")
 
-class SafetyCLILegacyCommand(UtilityCommandMixin, click.Command):
+class SafetyCLILegacyCommand(click.Command):
     """
     Custom Click Command to handle legacy command-line arguments.
     """
+    context_class = CustomContext
+
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """
         Format help message with rich formatting.

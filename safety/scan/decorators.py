@@ -2,8 +2,6 @@ from functools import wraps
 import logging
 import os
 from pathlib import Path
-from random import randint
-import sys
 from typing import Any, List, Optional
 
 from rich.padding import Padding
@@ -12,16 +10,17 @@ from rich.console import Console
 from safety.auth.cli import render_email_note
 from safety.cli_util import process_auth_status_not_ready
 from safety.console import main_console
-from safety.constants import SAFETY_POLICY_FILE_NAME, SYSTEM_CONFIG_DIR, SYSTEM_POLICY_FILE, USER_POLICY_FILE
-from safety.errors import SafetyError, SafetyException, ServerError
+from safety.constants import SYSTEM_POLICY_FILE, USER_POLICY_FILE
+from safety.errors import SafetyError, SafetyException
 from safety.scan.constants import DEFAULT_SPINNER
-from safety.scan.main import PROJECT_CONFIG, download_policy, load_policy_file, \
-    load_unverified_project_from_config, resolve_policy
+from safety.scan.main import download_policy, load_policy_file, resolve_policy
 from safety.scan.models import ScanOutput, SystemScanOutput
-from safety.scan.render import print_announcements, print_header, print_project_info, print_wait_policy_download
+from safety.scan.render import print_announcements, print_header, print_wait_policy_download
 from safety.scan.util import GIT
+from ..init.main import load_unverified_project_from_config, verify_project
 
-from safety.scan.validators import verify_project
+from safety.scan.validators import fail_if_not_allowed_stage
+
 from safety.util import build_telemetry_data, pluralize
 from safety_schemas.models import MetadataModel, ScanType, ReportSchemaVersion, \
     PolicySource
@@ -98,8 +97,8 @@ def scan_project_command_init(func):
                 project_path=unverified_project.project_path
             )
 
-        ctx.obj.project.upload_request_id = upload_request_id
         ctx.obj.project.git = git_data
+        ctx.obj.project.upload_request_id = upload_request_id
 
         if not policy_file_path:
             policy_file_path = target / Path(".safety-policy.yml")

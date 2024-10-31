@@ -60,7 +60,7 @@ _CLI_PROXY_TIP_HELP
 CLI_KEY_HELP = "The API key required for cicd stage or production stage scans.\n\n" \
 "[nhc]For development stage scans unset the API key and authenticate using [bold]safety auth[/bold].[/nhc]\n\n" \
 "[nhc]Tip: the API key can also be set using the environment variable: SAFETY_API_KEY[/nhc]\n\n"\
-"[bold]Example: safety --key API_KEY --stage cicd scan[/bold]"
+"[bold]Example: safety --key API_KEY scan[/bold]"
 
 CLI_STAGE_HELP = "Assign a development lifecycle stage to your scan (default: development).\n\n" \
 "[nhc]This labels the scan and its findings in Safety Platform with this stage.[/nhc]\n\n" \

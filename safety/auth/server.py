@@ -10,6 +10,7 @@ import threading
 import click
 from safety.auth.cli_utils import load_auth_session
 
+from safety.auth.utils import is_jupyter_notebook
 from safety.console import main_console as console
 
 from safety.auth.constants import AUTH_SERVER_URL, CLI_AUTH_SUCCESS, CLI_LOGOUT_SUCCESS, HOST
@@ -191,7 +192,6 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
         def __init__(self, server_address: Tuple, RequestHandlerClass: Any) -> None:
             """
             Initialize the ThreadedHTTPServer.
-
             Args:
                 server_address (Tuple): The server address as a tuple (host, port).
                 RequestHandlerClass (Any): The request handler class.
@@ -219,9 +219,7 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
         headless = kwargs.get("headless", False)
         initial_state = kwargs.get("initial_state", None)
         ctx = kwargs.get("ctx", None)
-
-        message = "Copy and paste this url into your browser:"
-
+        message = "Copy and paste this URL into your browser:\n⚠️ Ensure there are no extra spaces, especially at line breaks, as they may break the link."
 
         if not headless:
             # Start a threaded HTTP server to handle the callback
@@ -231,13 +229,15 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
             server.ctx = ctx
             server_thread = threading.Thread(target=server.handle_request)
             server_thread.start()
-            message = f"If the browser does not automatically open in 5 seconds, " \
-                        "copy and paste this url into your browser:"
+            message = f"If the browser does not automatically open in 5 seconds, copy and paste this url into your browser:"
 
         target = uri if headless else f"{uri}&port={PORT}"
-        console.print(f"{message} [link={target}]{target}[/link]")
-        console.print()
 
+        if is_jupyter_notebook():
+            console.print(f"{message} {target}")
+        else:
+            console.print(f"{message} [link={target}]{target}[/link]")
+        
         if headless:
             # Handle the headless mode where user manually provides the response
             exchange_data = None
@@ -247,18 +247,17 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
                     exchange_data = json.loads(auth_code_text)
                     state = exchange_data["state"]
                     code = exchange_data["code"]
-                except Exception as e:
+                except Exception:
                     code = state = None
 
             return auth_process(code=code,
-                                        state=state,
-                                        initial_state=initial_state,
-                                        code_verifier=ctx.obj.auth.code_verifier,
-                                        client=ctx.obj.auth.client)
+                                state=state,
+                                initial_state=initial_state,
+                                code_verifier=ctx.obj.auth.code_verifier,
+                                client=ctx.obj.auth.client)
         else:
             # Wait for the browser authentication in non-headless mode
             wait_msg = "waiting for browser authentication"
-
             with console.status(wait_msg, spinner="bouncingBar"):
                 time.sleep(2)
                 click.launch(target)
@@ -266,10 +265,7 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
 
     except OSError as e:
         if e.errno == socket.errno.EADDRINUSE:
-            reason = f"The port {HOST}:{PORT} is currently being used by another" \
-                       "application or process. Please choose a different port or " \
-                       "terminate the conflicting application/process to free up " \
-                        "the port."
+            reason = f"The port {HOST}:{PORT} is currently being used by another application or process. Please choose a different port or terminate the conflicting application/process to free up the port."
         else:
             reason = "An error occurred while performing this operation."
 

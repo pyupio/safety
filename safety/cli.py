@@ -644,9 +644,6 @@ def validate(ctx, name, version, path):
               cls=DependentOption,
               required_options=['organization_id'],
               help=CLI_CONFIGURE_ORGANIZATION_NAME)
-@click.option("--stage", "-stg", multiple=False, default=Stage.development.value,
-              type=click.Choice([stage.value for stage in Stage]),
-              help="The project development stage to be tied to the current device.")
 @click.option("--save-to-system/--save-to-user", default=False, is_flag=True,
               help=CLI_CONFIGURE_SAVE_TO_SYSTEM)
 @click.pass_context

@@ -21,7 +21,7 @@ from safety.scan.models import ScanOutput, SystemScanOutput
 from safety.scan.render import print_announcements, print_header, print_project_info, print_wait_policy_download
 from safety.scan.util import GIT
 
-from safety.scan.validators import fail_if_not_allowed_stage, verify_project
+from safety.scan.validators import verify_project
 from safety.util import build_telemetry_data, pluralize
 from safety_schemas.models import MetadataModel, ScanType, ReportSchemaVersion, \
     PolicySource
@@ -69,8 +69,6 @@ def scan_project_command_init(func):
                                         auth=ctx.obj.auth, ctx=ctx)
 
         upload_request_id = kwargs.pop("upload_request_id", None)
-
-        fail_if_not_allowed_stage(ctx=ctx)
 
         # Run the initialize if it was not fired by a system-scan
         if not upload_request_id:
@@ -208,10 +206,6 @@ def scan_system_command_init(func):
 
         console.print()
         print_header(console=console, targets=targets, is_system_scan=True)
-        wait_msg = "Checking authentication and system scan policies"
-
-        with console.status(wait_msg, spinner=DEFAULT_SPINNER):
-            fail_if_not_allowed_stage(ctx=ctx)
 
         if not policy_file_path:
             if SYSTEM_POLICY_FILE.exists():

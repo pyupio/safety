@@ -33,6 +33,16 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Safety Scan API Key",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "--key","ADD-YOUR-API-KEY", "scan"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Safety License",
             "type": "debugpy",
             "request": "launch",

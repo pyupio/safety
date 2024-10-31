@@ -57,27 +57,6 @@ def output_callback(output: ScanOutput) -> str:
     return output.value
 
 
-def fail_if_not_allowed_stage(ctx: typer.Context):
-    """
-    Fail the command if the authentication type is not allowed in the current stage.
-
-    Args:
-        ctx (typer.Context): The context of the Typer command.
-    """
-    if ctx.resilient_parsing:
-        return
-
-    stage = ctx.obj.auth.stage
-    auth_type: AuthenticationType = ctx.obj.auth.client.get_authentication_type()
-
-    if os.getenv("SAFETY_DB_DIR"):
-        return
-
-    if not auth_type.is_allowed_in(stage):
-        raise typer.BadParameter(f"'{auth_type.value}' auth type isn't allowed with " \
-                                 f"the '{stage}' stage.")
-
-
 def save_verified_project(ctx: typer.Context, slug: str, name: Optional[str], project_path: Path, url_path: Optional[str]):
     """
     Save the verified project information to the context and project info file.

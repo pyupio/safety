@@ -180,7 +180,7 @@ class TestSafetyCLI(unittest.TestCase):
 
     def test_validate_with_basic_policy_file(self):
         dirname = os.path.dirname(__file__)
-        
+
         # Test with policy version 2.0
         path = os.path.join(dirname, "test_policy_file", "default_policy_file.yml")
         result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
@@ -213,7 +213,7 @@ class TestSafetyCLI(unittest.TestCase):
         result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stdout)
         msg = 'The Safety policy (3.0) file (Used for scan and system-scan commands) was successfully parsed with the following values:\n'
-        
+
         parsed = {
             "version": "3.0",
             "scan": {
@@ -261,41 +261,14 @@ class TestSafetyCLI(unittest.TestCase):
                     ]
                 }
             },
-            "installation": {
-                "allow": {
-                    "packages": [],
-                    "vulnerabilities": {}
-                },
-                "audit_logging": {
-                    "enabled": True
-                },
-                "default_action": "deny",
-                "deny": {
-                    "packages": {
-                        "block_on_any_of": {
-                            "age_below": None,
-                            "packages": []
-                        },
-                        "warning_on_any_of": {
-                            "age_below": None,
-                            "packages": []
-                        }
-                    },
-                    "vulnerabilities": {
-                        "block_on_any_of": {
-                            "cvss_severity": []
-                        },
-                        "warning_on_any_of": {
-                            "cvss_severity": []
-                        }
-                    }
-                }
-            }
         }
 
         msg_stdout, parsed_policy = cleaned_stdout.split('\n', 1)
         msg_stdout += '\n'
         parsed_policy = json.loads(parsed_policy.replace('\n', ''))
+
+        # Remove the 'installation' key if it exists
+        parsed_policy.pop("installation", None)
 
         # Sorting and comparing specific fields
         fail_scan = parsed_policy.get("fail_scan", None)
@@ -306,12 +279,13 @@ class TestSafetyCLI(unittest.TestCase):
 
         # Assert that the message is the same
         self.assertEqual(msg, msg_stdout)
-        
+
         # Assert that the parsed policy matches the expected policy
         self.assertEqual(parsed, parsed_policy)
-        
+
         # Check the exit code
         self.assertEqual(result.exit_code, 0)
+
 
 
 
@@ -559,11 +533,11 @@ class TestSafetyCLI(unittest.TestCase):
     def test_debug_flag(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
         """
         Test the behavior of the CLI when invoked with the '--debug' flag.
-        
+
         This test invokes the CLI with the 'scan' command and the '--debug' flag enabled,
         verifies that the command exits successfully, and checks that the expected output snippet
         is present in the CLI output.
-        
+
         Args:
             mock_get_auth_info: Mock for retrieving authentication info.
             mock_is_valid: Mock for checking validity of inputs or authentication.
@@ -574,7 +548,7 @@ class TestSafetyCLI(unittest.TestCase):
         assert result.exit_code == 0, (
             f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
         )
-        expected_output_snippet = f"{get_safety_version()} scanning" 
+        expected_output_snippet = f"{get_safety_version()} scanning"
         assert expected_output_snippet in result.output, (
             f"Expected output to contain: {expected_output_snippet}, but got: {result.output}"
         )

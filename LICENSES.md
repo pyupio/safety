@@ -18,7 +18,7 @@
 | cryptography       | 43.0.0          | Apache Software License; BSD License                                                             |
 | distlib            | 0.3.8           | Python Software Foundation License                                                               |
 | docutils           | 0.21.2          | BSD License; GNU General Public License (GPL); Public Domain; Python Software Foundation License |
-| dparse             | 0.6.4b0         | MIT License                                                                                      |
+| dparse             | 0.6.4           | MIT License                                                                                      |
 | filelock           | 3.12.4          | The Unlicense (Unlicense)                                                                        |
 | idna               | 3.7             | BSD License                                                                                      |
 | importlib_metadata | 8.4.0           | Apache Software License                                                                          |

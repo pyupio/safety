@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.2.11] - 2024-11-12
+- chore/upgrade-dparse (#633)
+- Migrate to PyPI Trusted Publisher for Automated Package Deployment (#632)
+- fix/fix-test-validate-func (#631)
+- feat: api keys now work without specifying the env (#630)
+- fix:jupyter notebook rich format removal (#628)
+
 ## [3.2.10] - 2024-10-25
 - Support for scanning pyproject.toml files (#625)
 - Update safety-schemas version used (#624)

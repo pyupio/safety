@@ -16,8 +16,16 @@ CLI_MAIN_INTRODUCTION = f"Safety CLI 3 - Vulnerability Scanning for Secure Pytho
 f"Documentation: {CLI_DOCUMENTATION_URL}\n"\
 f"Contact: {CLI_SUPPORT_EMAIL}\n"
 
-CLI_AUTH_COMMAND_HELP = "Authenticate Safety CLI to perform scans. Your default browser will automatically open to https://platform.safetycli.com."\
-"\nExample: safety auth login"
+CLI_AUTH_COMMAND_HELP = (
+    "Authenticate Safety CLI to perform scans. Your default browser will automatically open to "
+    "https://platform.safetycli.com.\n\n"
+    "Example:\n  safety auth login\n\n"
+    "For headless authentication, you will receive a URL to paste into an external browser.\n\n"
+    "Example:\n  safety auth login --headless"
+)
+
+CLI_AUTH_HEADLESS_HELP = "For headless authentication, you will receive a URL to paste into an external browser."
+
 CLI_SCAN_COMMAND_HELP = "Scans a Python project directory."\
 "\nExample: safety scan to scan the current directory"
 CLI_SYSTEM_SCAN_COMMAND_HELP = "\\[beta] Run a comprehensive scan for packages and vulnerabilities across your entire machine/environment."\
@@ -71,7 +79,6 @@ CLI_DEBUG_HELP = "Enable debug mode for detailed output.\n\n" \
 
 CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP = "Opt-out of sending optional telemetry data. Anonymized telemetry data will remain.\n\n" \
 "[bold]Example: safety --disable-optional-telemetry scan[/bold]"
-
 
 # Scan Help options
 SCAN_POLICY_FILE_HELP = "Use a local policy file to configure the scan.\n\n" \

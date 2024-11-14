@@ -23,7 +23,7 @@ from safety.auth.server import process_browser_callback
 from ..cli_util import get_command_for, pass_safety_cli_obj, SafetyCLISubGroup
 
 from .constants import MSG_FAIL_LOGIN_AUTHED, MSG_FAIL_REGISTER_AUTHED, MSG_LOGOUT_DONE, MSG_LOGOUT_FAILED, MSG_NON_AUTHENTICATED
-from safety.scan.constants import CLI_AUTH_COMMAND_HELP, DEFAULT_EPILOG, CLI_AUTH_LOGIN_HELP, CLI_AUTH_LOGOUT_HELP, CLI_AUTH_STATUS_HELP
+from safety.scan.constants import CLI_AUTH_COMMAND_HELP, CLI_AUTH_HEADLESS_HELP, DEFAULT_EPILOG, CLI_AUTH_LOGIN_HELP, CLI_AUTH_LOGOUT_HELP, CLI_AUTH_STATUS_HELP
 
 
 from rich.padding import Padding
@@ -124,7 +124,17 @@ def render_successful_login(auth: Auth,
 
 
 @auth_app.command(name=CMD_LOGIN_NAME, help=CLI_AUTH_LOGIN_HELP)
-def login(ctx: typer.Context, headless: bool = False) -> None:
+def login(
+    ctx: typer.Context,
+    headless: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--headless",
+            help=CLI_AUTH_HEADLESS_HELP,
+        )
+    ] = None
+) -> None:
+    headless = headless is True 
     """
     Authenticate Safety CLI with your safetycli.com account using your default browser.
 

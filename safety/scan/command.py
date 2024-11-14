@@ -22,7 +22,7 @@ from safety.scan.finder import FileFinder
 from safety.scan.constants import CMD_PROJECT_NAME, CMD_SYSTEM_NAME, DEFAULT_SPINNER, \
     SCAN_OUTPUT_HELP, DEFAULT_EPILOG, SCAN_POLICY_FILE_HELP, SCAN_SAVE_AS_HELP, \
     SCAN_TARGET_HELP, SYSTEM_SCAN_OUTPUT_HELP, SYSTEM_SCAN_POLICY_FILE_HELP, SYSTEM_SCAN_SAVE_AS_HELP, \
-    SYSTEM_SCAN_TARGET_HELP, SCAN_APPLY_FIXES, SCAN_DETAILED_OUTPUT, CLI_SCAN_COMMAND_HELP, CLI_SYSTEM_SCAN_COMMAND_HELP
+    SYSTEM_SCAN_TARGET_HELP, SCAN_APPLY_FIXES, SCAN_DETAILED_OUTPUT, CLI_SCAN_COMMAND_HELP, CLI_SYSTEM_SCAN_COMMAND_HELP, SCAN_CVE_HELP
 from safety.scan.decorators import inject_metadata, scan_project_command_init, scan_system_command_init
 from safety.scan.finder.file_finder import should_exclude
 from safety.scan.main import load_policy_file, load_unverified_project_from_config, process_files, save_report_as
@@ -241,12 +241,16 @@ def scan(ctx: typer.Context,
                             typer.Option("--apply-fixes",
                                 help=SCAN_APPLY_FIXES,
                                 show_default=False)
-                        ] = False
+                        ] = False,
+        cve_output: Annotated[bool,
+            typer.Option("--cve", help=SCAN_CVE_HELP, show_default=False)
+        ] = False,
+
          ):
     """
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
     """
-    
+
     if not ctx.obj.metadata.authenticated:
         raise SafetyError("Authentication required. Please run 'safety auth login' to authenticate before using this command.")
 
@@ -371,7 +375,7 @@ def scan(ctx: typer.Context,
                                               detailed_output=detailed_output)
 
                     lines = []
-                    
+
                     if spec.remediation.recommended:
                         total_resolved_vulns += spec.remediation.vulnerabilities_found
 
@@ -441,20 +445,62 @@ def scan(ctx: typer.Context,
                 telemetry=telemetry,
                 files=[],
                 projects=[ctx.obj.project])
-    
+
     total_issues_with_duplicates, total_ignored_issues = get_vulnerability_summary(report.as_v30())
-    
+
     print_summary(
-    console=console, 
-    total_issues_with_duplicates=total_issues_with_duplicates, 
+    console=console,
+    total_issues_with_duplicates=total_issues_with_duplicates,
     total_ignored_issues=total_ignored_issues,
-    project=ctx.obj.project, 
-    dependencies_count=count, 
-    fixes_count=fixes_count, 
-    resolved_vulns_per_fix=total_resolved_vulns, 
-    is_detailed_output=detailed_output, 
+    project=ctx.obj.project,
+    dependencies_count=count,
+    fixes_count=fixes_count,
+    resolved_vulns_per_fix=total_resolved_vulns,
+    is_detailed_output=detailed_output,
     ignored_vulns_data=ignored_vulns_data
 )
+
+    if cve_output:
+        console.print("\nFetching CVE details...", emoji=True)
+        cve_data = []
+        for file in files:
+            for spec in file.results.get_affected_specifications():
+                for vuln in spec.vulnerabilities:
+                    if vuln.CVE:
+                        filtered_cve = [
+                        cve for cve in vuln.CVE if isinstance(cve, str) or isinstance(cve, dict)
+                    ]
+
+                        cve_data.append(
+                            {
+                                "package": spec.name,
+                                "affected_version": str(spec.specifier),
+                                "safety_vulnerability_id": vuln.vulnerability_id,
+                                "CVE": filtered_cve,
+                                "more_info": vuln.more_info_url,
+                                "advisory": vuln.advisory,
+                                "severity": vuln.severity.cvssv3.get(
+                                    "base_severity", "Unknown"
+                                )
+                                if vuln.severity and vuln.severity.cvssv3
+                                else "Unknown",
+                            }
+                        )
+
+    if cve_data:
+        # Sort by severity
+        severity_order = {
+            "CRITICAL": 4,
+            "HIGH": 3,
+            "MEDIUM": 2,
+            "LOW": 1,
+            "UNKNOWN": 0,  # Catch-all for unrecognized severities
+        }
+        cve_data.sort(key=lambda x: severity_order.get(x["severity"].upper(), 0), reverse=True)
+        console.print("\nCVE Details:\n", emoji=True)
+        console.print_json(data={"cve_details": cve_data})
+    else:
+        console.print("\nNo CVE details found.", emoji=True)
 
     report_url = process_report(ctx.obj, console, report, **{**ctx.params})
     project_url = f"{SAFETY_PLATFORM_URL}{ctx.obj.project.url_path}"
@@ -796,7 +842,7 @@ def get_vulnerability_summary(report: Dict[str, Any]) -> Tuple[int, int]:
 
     Args:
         report (ReportModel): The report containing vulnerability data.
-    
+
     Returns:
         Tuple[int, int]: A tuple containing:
             - Total number of issues (including duplicates)

@@ -487,20 +487,20 @@ def scan(ctx: typer.Context,
                             }
                         )
 
-    if cve_data:
-        # Sort by severity
-        severity_order = {
-            "CRITICAL": 4,
-            "HIGH": 3,
-            "MEDIUM": 2,
-            "LOW": 1,
-            "UNKNOWN": 0,  # Catch-all for unrecognized severities
-        }
-        cve_data.sort(key=lambda x: severity_order.get(x["severity"].upper(), 0), reverse=True)
-        console.print("\nCVE Details:\n", emoji=True)
-        console.print_json(data={"cve_details": cve_data})
-    else:
-        console.print("\nNo CVE details found.", emoji=True)
+        if cve_data:
+            # Sort by severity
+            severity_order = {
+                "CRITICAL": 4,
+                "HIGH": 3,
+                "MEDIUM": 2,
+                "LOW": 1,
+                "UNKNOWN": 0,  # Catch-all for unrecognized severities
+            }
+            cve_data.sort(key=lambda x: severity_order.get(x["severity"].upper(), 0), reverse=True)
+            console.print("\nCVE Details:\n", emoji=True)
+            console.print_json(data={"cve_details": cve_data})
+        else:
+            console.print("\nNo CVE details found.", emoji=True)
 
     report_url = process_report(ctx.obj, console, report, **{**ctx.params})
     project_url = f"{SAFETY_PLATFORM_URL}{ctx.obj.project.url_path}"

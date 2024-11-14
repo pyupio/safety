@@ -83,7 +83,8 @@ SCAN_OUTPUT_HELP = "Set the output format for scan results (default: screen)\n\n
     "[bold]Example: safety scan --output json[/bold]"
 SCAN_SAVE_AS_HELP = "In addition to regular output save the scan results to a json, html, text, or spdx file using: FORMAT FILE_PATH\n\n" \
     "[bold]Example: safety scan --save-as json results.json[/bold]"
-SCAN_CVE_HELP = "Include CVE details in the output."
+SCAN_CVE_HELP = "Include CVE details in the output\n\n"
+"[bold]Example: safety scan --cve[/bold]"
 SCAN_DETAILED_OUTPUT = "Enable a verbose scan report for detailed insights (only for screen output)\n\n" \
     "[bold]Example: safety scan --detailed-output[/bold]"
 SCAN_APPLY_FIXES = "[bold]Update packages listed in requirements.txt files to secure versions where possible[/bold]\n\n"\

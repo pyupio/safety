@@ -131,6 +131,16 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Safety --help",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "--help"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Run All Tests",
             "type": "debugpy",
             "request": "launch",

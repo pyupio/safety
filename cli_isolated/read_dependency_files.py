@@ -1,11 +1,9 @@
 from pathlib import Path
-from typing import List, Tuple, Generator
-from safety_schemas.models import FileType, FileModel, ConfigModel
-from safety.scan.ecosystems.base import InspectableFile
-from safety.scan.ecosystems.target import InspectableFileContext
+from typing import List
+from safety_schemas.models import FileType, ConfigModel
+from inspectable_file_context import InspectableFileContext
 
-
-def read_dependency_files(file_paths: List[Path], file_types: List[FileType], config: ConfigModel = None):
+def read_dependency_files(file_paths: List[Path], file_types: List[FileType], config=None):
     """
     Reads and processes a list of dependency files, parsing their content into structured models.
 

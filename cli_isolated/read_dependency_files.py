@@ -34,11 +34,3 @@ def read_dependency_files(file_paths: List[Path], file_types: List[FileType], co
             else:
                 print(f"Unable to process file: {file_path}")
 
-
-file_path = Path("/Users/dylanpulver/Repos/pyup/safety/test_requirements.txt")
-file_type = FileType.REQUIREMENTS_TXT
-
-# Call the function and consume the generator
-for path, inspectable_file in read_dependency_files([file_path], [file_type]):
-    print(f"Processed file: {path}")
-    print(f"Inspectable File: {inspectable_file}")

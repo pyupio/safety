@@ -24,13 +24,10 @@ def read_dependency_files(file_paths: List[Path], file_types: List[FileType], co
         if not file_path.exists() or not file_path.is_file():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        print(file_path, file_type)
-        # Wrap the file in InspectableFileContext
         with InspectableFileContext(file_path, file_type=file_type) as inspectable_file:
-            if inspectable_file:  # Ensure the file was successfully wrapped
+            if inspectable_file:
                 inspectable_file.inspect(config=config)
                 inspectable_file.remediate()
                 yield file_path, inspectable_file
             else:
                 print(f"Unable to process file: {file_path}")
-

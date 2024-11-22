@@ -337,22 +337,36 @@ def print_wait_policy_download(console: Console, closure: Tuple[Any, Dict[str, A
     Returns:
         Optional[PolicyFileModel]: The downloaded policy file model.
     """
+    # can replace with tenacity in the future
+    MAX_RETRIES = 3
+    INITIAL_BACKOFF = 1  # seconds
+    BACKOFF_MULTIPLIER = 2  # Exponential factor for backoff
+
     policy = None
     wait_msg = "Looking for a policy from cloud..."
 
     with console.status(wait_msg, spinner=DEFAULT_SPINNER):
-        try:
-            f, kwargs = closure
-            policy = f(**kwargs)
-        except Exception as e:
-            LOG.exception(f'Policy download failed, reason: {e}')
-            console.print("Not using cloud policy file.")
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                f, kwargs = closure
+                policy = f(**kwargs)
+                if policy:  # Break out of retry loop if successful
+                    LOG.info("Policy fetched successfully.")
+                    break
+            except Exception as e:
+                LOG.exception(f"Attempt {attempt} failed: {e}")
+                if attempt < MAX_RETRIES:
+                    backoff_time = INITIAL_BACKOFF * (BACKOFF_MULTIPLIER ** (attempt - 1))
+                    console.print(f"Retrying in {backoff_time:.1f} seconds...")
+                    time.sleep(backoff_time)  # Wait before next attempt
+                else:
+                    console.print("Not using cloud policy file.")
 
         if policy:
             wait_msg = "Policy fetched from Safety Platform."
         else:
-            # TODO: Send a log
-            pass
+            LOG.warning("Failed to fetch policy after retries.")
+
     return policy
 
 

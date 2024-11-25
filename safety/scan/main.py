@@ -2,6 +2,10 @@ import configparser
 import logging
 from pathlib import Path
 import re
+import requests
+import os
+from urllib.parse import urljoin
+import platform
 import time
 from typing import Any, Dict, Generator, Optional, Set, Tuple, Union
 from pydantic import ValidationError
@@ -11,10 +15,13 @@ from ..errors import SafetyError
 from .ecosystems.base import InspectableFile
 from .ecosystems.target import InspectableFileContext
 from .models import ScanExport, UnverifiedProjectModel
+from safety.scan.util import GIT
 
 from safety_schemas.models import FileType, PolicyFileModel, PolicySource, \
     ConfigModel, Stage, ProjectModel, ScanType
+from safety.util import get_safety_version
 
+from safety.constants import PLATFORM_API_BASE_URL
 
 LOG = logging.getLogger(__name__)
 
@@ -196,8 +203,51 @@ def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, repor
     with open(at, 'w+') as report_file:
         report_file.write(report)
 
+def build_meta(target: Path) -> Dict[str, Any]:
+    """
+    Build the meta JSON object for a file.
 
-def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None) -> Generator[Tuple[Path, InspectableFile], None, None]:
+    Args:
+        target (Path): The path of the repository.
+
+    Returns:
+        Dict[str, Any]: The metadata dictionary.
+    """
+    target_obj = target.resolve()
+    git_utils = GIT(target_obj)
+
+    git_data = git_utils.build_git_data()
+    git_metadata = {
+        "branch": git_data.branch if git_data else None,
+        "commit": git_data.commit if git_data else None,
+        "dirty": git_data.dirty if git_data else None,
+        "tag": git_data.tag if git_data else None,
+        "origin": git_data.origin if git_data else None,
+    }
+
+    os_metadata = {
+        "type": os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
+        "release": os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
+        "description": os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
+    }
+
+    python_metadata= {
+        "version": platform.python_version(),
+    }
+
+    client_metadata = {
+        "version": get_safety_version(),
+    }
+
+    return {
+        "target": str(target),
+        "os": os_metadata,
+        "git": git_metadata,
+        "python": python_metadata,
+        "client": client_metadata,
+    }
+
+def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False, obj=None, target=Path(".")) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
     Processes the files and yields each file path along with its inspectable file.
 
@@ -211,13 +261,52 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
     if not config:
         config = ConfigModel()
 
-    for file_type_key, f_paths in paths.items():
-        file_type = FileType(file_type_key)
-        if not file_type or not file_type.ecosystem:
-            continue
-        for f_path in f_paths:
-            with InspectableFileContext(f_path, file_type=file_type) as inspectable_file:
-                if inspectable_file and inspectable_file.file_type:
-                    inspectable_file.inspect(config=config)
-                    inspectable_file.remediate()
-                    yield f_path, inspectable_file
+    # old GET implementation
+    if not use_server_matching:
+        for file_type_key, f_paths in paths.items():
+            file_type = FileType(file_type_key)
+            if not file_type or not file_type.ecosystem:
+                continue
+            for f_path in f_paths:
+                with InspectableFileContext(f_path, file_type=file_type) as inspectable_file:
+                    if inspectable_file and inspectable_file.file_type:
+                        inspectable_file.inspect(config=config)
+                        inspectable_file.remediate()
+                        yield f_path, inspectable_file
+
+    # new POST implementation
+    else:
+        files = []
+        meta = build_meta(target)
+        for file_type_key, f_paths in paths.items():
+            file_type = FileType(file_type_key)
+            if not file_type or not file_type.ecosystem:
+                continue
+            for f_path in f_paths:
+                relative_path = os.path.relpath(f_path, start=os.getcwd())
+                # Read the file content
+                try:
+                    with open(f_path, "r") as file:
+                        content = file.read()
+                except Exception as e:
+                    LOG.error(f"Error reading file {f_path}: {e}")
+                    continue
+                # Append metadata to the payload
+                files.append({
+                    "name": relative_path,
+                    "content": content,
+                })
+
+        # Prepare the payload with metadata at the top level
+        payload = {
+            "meta": meta,
+            "files": files,
+        }
+
+        response = obj.auth.client.upload_requirements(payload)
+
+        if response.status_code == 200:
+            LOG.info("Scan Payload successfully sent to the API.")
+        else:
+            LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
+            LOG.error(f"Response: {response.text}")

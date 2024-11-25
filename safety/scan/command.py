@@ -354,6 +354,14 @@ def scan(ctx: typer.Context,
                                 help=SCAN_APPLY_FIXES,
                                 show_default=False)
                         ] = False,
+        use_server_matching: Annotated[
+        bool,
+        typer.Option(
+            "--use-server-matching",
+            help="Flag to enable using server side vulnerability matching. This just sends data to server for now.",
+            show_default=False,
+        ),
+    ] = False,
         filter_keys: Annotated[
                         Optional[List[str]],
                         typer.Option("--filter", help="Filter output by specific top-level JSON keys.")
@@ -429,7 +437,7 @@ def scan(ctx: typer.Context,
     # Process each file for dependencies and vulnerabilities
     with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
         for path, analyzed_file in process_files(paths=file_paths,
-                                                 config=config):
+                                                 config=config, use_server_matching=use_server_matching, obj=ctx.obj, target=target):
             count += len(analyzed_file.dependency_results.dependencies)
 
             # Update exit code if vulnerabilities are found
@@ -622,7 +630,7 @@ def scan(ctx: typer.Context,
 
         if not no_output:
             console.print("-" * console.size.width)
-
+        
     if output is ScanOutput.SCREEN:
         run_easter_egg(console, exit_code)
 
@@ -632,7 +640,6 @@ def scan(ctx: typer.Context,
                 console.print(f":stop_sign: Scan-failing vulnerabilities were found, returning non-zero exit code: {exit_code}")
             else:
                 console.print("No scan-failing vulnerabilities were matched, returning success exit code: 0")
-
         sys.exit(exit_code)
 
     return project_url, report, report_url

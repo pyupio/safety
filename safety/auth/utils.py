@@ -1,30 +1,45 @@
 from functools import lru_cache
 import json
 import logging
-import sys
 from typing import Any, Optional, Dict, Callable, Tuple
 from authlib.integrations.requests_client import OAuth2Session
 from authlib.integrations.base_client.errors import OAuthError
 import requests
 from requests.adapters import HTTPAdapter
 
-from safety.auth.constants import AUTH_SERVER_URL, CLAIM_EMAIL_VERIFIED_API, \
-    CLAIM_EMAIL_VERIFIED_AUTH_SERVER
-from safety.auth.main import get_auth_info, get_token_data
-from safety.constants import PLATFORM_API_CHECK_UPDATES_ENDPOINT, PLATFORM_API_INITIALIZE_SCAN_ENDPOINT, PLATFORM_API_POLICY_ENDPOINT, \
-    PLATFORM_API_PROJECT_CHECK_ENDPOINT, PLATFORM_API_PROJECT_ENDPOINT, PLATFORM_API_PROJECT_SCAN_REQUEST_ENDPOINT, \
-        PLATFORM_API_PROJECT_UPLOAD_SCAN_ENDPOINT, REQUEST_TIMEOUT
+from safety.auth.constants import (
+    AUTH_SERVER_URL,
+)
+from safety.constants import (
+    PLATFORM_API_CHECK_UPDATES_ENDPOINT,
+    PLATFORM_API_INITIALIZE_SCAN_ENDPOINT,
+    PLATFORM_API_POLICY_ENDPOINT,
+    PLATFORM_API_PROJECT_CHECK_ENDPOINT,
+    PLATFORM_API_PROJECT_ENDPOINT,
+    PLATFORM_API_PROJECT_SCAN_REQUEST_ENDPOINT,
+    PLATFORM_API_PROJECT_UPLOAD_SCAN_ENDPOINT,
+    PLATFORM_API_REQUIREMENTS_UPLOAD_SCAN_ENDPOINT,
+    REQUEST_TIMEOUT,
+)
 from safety.scan.util import AuthenticationType
 
 from safety.util import SafetyContext, output_exception
 from safety_schemas.models import STAGE_ID_MAPPING, Stage
-from safety.errors import InvalidCredentialError, NetworkConnectionError, \
-    RequestTimeoutError, ServerError, TooManyRequestsError, SafetyError
+from safety.errors import (
+    InvalidCredentialError,
+    NetworkConnectionError,
+    RequestTimeoutError,
+    ServerError,
+    TooManyRequestsError,
+    SafetyError,
+)
 
 LOG = logging.getLogger(__name__)
 
 
-def get_keys(client_session: OAuth2Session, openid_config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def get_keys(
+    client_session: OAuth2Session, openid_config: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
     """
     Retrieve the keys from the OpenID configuration.
 
@@ -58,7 +73,6 @@ def is_email_verified(info: Dict[str, Any]) -> Optional[bool]:
     return True
 
 
-
 def parse_response(func: Callable) -> Callable:
     """
     Decorator to parse the response from an HTTP request.
@@ -69,12 +83,15 @@ def parse_response(func: Callable) -> Callable:
     Returns:
         Callable: The wrapped function.
     """
+
     def wrapper(*args, **kwargs):
         try:
             r = func(*args, **kwargs)
         except OAuthError as e:
-            LOG.exception('OAuth failed: %s', e)
-            raise InvalidCredentialError(message="Your token authentication expired, try login again.")
+            LOG.exception("OAuth failed: %s", e)
+            raise InvalidCredentialError(
+                message="Your token authentication expired, try login again."
+            )
         except requests.exceptions.ConnectionError:
             raise NetworkConnectionError()
         except requests.exceptions.Timeout:
@@ -83,8 +100,9 @@ def parse_response(func: Callable) -> Callable:
             raise e
 
         if r.status_code == 403:
-            raise InvalidCredentialError(credential="Failed authentication.",
-                                               reason=r.text)
+            raise InvalidCredentialError(
+                credential="Failed authentication.", reason=r.text
+            )
 
         if r.status_code == 429:
             raise TooManyRequestsError(reason=r.text)
@@ -93,7 +111,7 @@ def parse_response(func: Callable) -> Callable:
             error_code = None
             try:
                 data = r.json()
-                reason = data.get('detail', "Unable to find reason.")
+                reason = data.get("detail", "Unable to find reason.")
                 error_code = data.get("error_code", None)
             except Exception as e:
                 reason = r.reason
@@ -113,6 +131,7 @@ def parse_response(func: Callable) -> Callable:
         return data
 
     return wrapper
+
 
 class SafetyAuthSession(OAuth2Session):
 
@@ -170,7 +189,15 @@ class SafetyAuthSession(OAuth2Session):
 
         return AuthenticationType.none
 
-    def request(self, method: str, url: str, withhold_token: bool = False, auth: Optional[Tuple] = None, bearer: bool = True, **kwargs: Any) -> requests.Response:
+    def request(
+        self,
+        method: str,
+        url: str,
+        withhold_token: bool = False,
+        auth: Optional[Tuple] = None,
+        bearer: bool = True,
+        **kwargs: Any,
+    ) -> requests.Response:
         """
         Make an HTTP request with the appropriate authentication.
 
@@ -192,7 +219,9 @@ class SafetyAuthSession(OAuth2Session):
         """
         # By default use the token_auth
         TIMEOUT_KEYWARD = "timeout"
-        func_timeout = kwargs[TIMEOUT_KEYWARD] if TIMEOUT_KEYWARD in kwargs else REQUEST_TIMEOUT
+        func_timeout = (
+            kwargs[TIMEOUT_KEYWARD] if TIMEOUT_KEYWARD in kwargs else REQUEST_TIMEOUT
+        )
 
         if self.api_key:
             key_header = {"X-Api-Key": self.api_key}
@@ -205,42 +234,53 @@ class SafetyAuthSession(OAuth2Session):
             # Fallback to no token auth
             auth = ()
 
-
         # Override proxies
         if self.proxies:
-            kwargs['proxies'] = self.proxies
+            kwargs["proxies"] = self.proxies
 
             if self.proxy_timeout:
-                kwargs['timeout'] = int(self.proxy_timeout) / 1000
+                kwargs["timeout"] = int(self.proxy_timeout) / 1000
 
         if ("proxies" not in kwargs or not self.proxies) and self.proxy_required:
-            output_exception("Proxy connection is required but there is not a proxy setup.", exit_code_output=True)
+            output_exception(
+                "Proxy connection is required but there is not a proxy setup.",
+                exit_code_output=True,
+            )
 
         request_func = super(SafetyAuthSession, self).request
         params = {
-            'method': method,
-            'url': url,
-            'withhold_token': withhold_token,
-            'auth': auth,
+            "method": method,
+            "url": url,
+            "withhold_token": withhold_token,
+            "auth": auth,
         }
         params.update(kwargs)
 
         try:
             return request_func(**params)
         except Exception as e:
-            LOG.debug('Request failed: %s', e)
+            LOG.debug("Request failed: %s", e)
 
             if self.proxy_required:
-                output_exception(f"Proxy is required but the connection failed because: {e}", exit_code_output=True)
+                output_exception(
+                    f"Proxy is required but the connection failed because: {e}",
+                    exit_code_output=True,
+                )
 
-            if ("proxies" in kwargs or self.proxies):
+            if "proxies" in kwargs or self.proxies:
                 params["proxies"] = {}
-                params['timeout'] = func_timeout
+                params["timeout"] = func_timeout
                 self.proxies = {}
-                message = "The proxy configuration failed to function and was disregarded."
+                message = (
+                    "The proxy configuration failed to function and was disregarded."
+                )
                 LOG.debug(message)
-                if message not in [a['message'] for a in SafetyContext.local_announcements]:
-                    SafetyContext.local_announcements.append({'message': message, 'type': 'warning', 'local': True})
+                if message not in [
+                    a["message"] for a in SafetyContext.local_announcements
+                ]:
+                    SafetyContext.local_announcements.append(
+                        {"message": message, "type": "warning", "local": True}
+                    )
 
                 return request_func(**params)
 
@@ -256,16 +296,19 @@ class SafetyAuthSession(OAuth2Session):
         """
         USER_INFO_ENDPOINT = f"{AUTH_SERVER_URL}/userinfo"
 
-        r = self.get(
-            url=USER_INFO_ENDPOINT
-        )
+        r = self.get(url=USER_INFO_ENDPOINT)
 
         return r
 
     @parse_response
-    def check_project(self, scan_stage: str, safety_source: str,
-                      project_slug: Optional[str] = None, git_origin: Optional[str] = None,
-                      project_slug_source: Optional[str] = None) -> Any:
+    def check_project(
+        self,
+        scan_stage: str,
+        safety_source: str,
+        project_slug: Optional[str] = None,
+        git_origin: Optional[str] = None,
+        project_slug_source: Optional[str] = None,
+    ) -> Any:
         """
         Check project information.
 
@@ -280,15 +323,15 @@ class SafetyAuthSession(OAuth2Session):
             Any: The project information.
         """
 
-        data = {"scan_stage": scan_stage, "safety_source": safety_source,
-                "project_slug": project_slug,
-                "project_slug_source": project_slug_source,
-                "git_origin": git_origin}
+        data = {
+            "scan_stage": scan_stage,
+            "safety_source": safety_source,
+            "project_slug": project_slug,
+            "project_slug_source": project_slug_source,
+            "git_origin": git_origin,
+        }
 
-        r = self.post(
-                url=PLATFORM_API_PROJECT_CHECK_ENDPOINT,
-                json=data
-            )
+        r = self.post(url=PLATFORM_API_PROJECT_CHECK_ENDPOINT, json=data)
 
         return r
 
@@ -305,13 +348,12 @@ class SafetyAuthSession(OAuth2Session):
         """
         data = {"project": project_id}
 
-        return self.get(
-            url=PLATFORM_API_PROJECT_ENDPOINT,
-            params=data
-        )
+        return self.get(url=PLATFORM_API_PROJECT_ENDPOINT, params=data)
 
     @parse_response
-    def download_policy(self, project_id: Optional[str], stage: Stage, branch: Optional[str]) -> Any:
+    def download_policy(
+        self, project_id: Optional[str], stage: Stage, branch: Optional[str]
+    ) -> Any:
         """
         Download the project policy.
 
@@ -323,13 +365,13 @@ class SafetyAuthSession(OAuth2Session):
         Returns:
             Any: The policy data.
         """
-        data = {"project": project_id, "stage": STAGE_ID_MAPPING[stage], "branch": branch}
+        data = {
+            "project": project_id,
+            "stage": STAGE_ID_MAPPING[stage],
+            "branch": branch,
+        }
 
-        return self.get(
-            url=PLATFORM_API_POLICY_ENDPOINT,
-            params=data
-        )
-
+        return self.get(url=PLATFORM_API_POLICY_ENDPOINT, params=data)
 
     @parse_response
     def project_scan_request(self, project_id: str) -> Any:
@@ -344,11 +386,7 @@ class SafetyAuthSession(OAuth2Session):
         """
         data = {"project_id": project_id}
 
-        return self.post(
-            url=PLATFORM_API_PROJECT_SCAN_REQUEST_ENDPOINT,
-            json=data
-        )
-
+        return self.post(url=PLATFORM_API_PROJECT_SCAN_REQUEST_ENDPOINT, json=data)
 
     @parse_response
     def upload_report(self, json_report: str) -> Any:
@@ -362,19 +400,36 @@ class SafetyAuthSession(OAuth2Session):
             Any: The upload result.
         """
 
-        headers = {
-            "Content-Type": "application/json"
-        }
-
         return self.post(
             url=PLATFORM_API_PROJECT_UPLOAD_SCAN_ENDPOINT,
             data=json_report,
-            headers=headers
+            headers={"Content-Type": "application/json"},
         )
 
+    def upload_requirements(self, json_payload: str) -> Any:
+        """
+        Upload a scan report.
+        Args:
+            json_payload (str): The JSON payload to upload.
+        Returns:
+            Any: The result of the upload operation.
+        """
+        return self.post(
+            url=PLATFORM_API_REQUIREMENTS_UPLOAD_SCAN_ENDPOINT,
+            data=json.dumps(json_payload),
+            headers={"Content-Type": "application/json"},
+        )
 
     @parse_response
-    def check_updates(self, version: int, safety_version: Optional[str] = None, python_version: Optional[str] = None, os_type: Optional[str] = None, os_release: Optional[str] = None, os_description: Optional[str] = None) -> Any:
+    def check_updates(
+        self,
+        version: int,
+        safety_version: Optional[str] = None,
+        python_version: Optional[str] = None,
+        os_type: Optional[str] = None,
+        os_release: Optional[str] = None,
+        os_description: Optional[str] = None,
+    ) -> Any:
         """
         Check for updates.
 
@@ -389,18 +444,16 @@ class SafetyAuthSession(OAuth2Session):
         Returns:
             Any: The update check result.
         """
-        data = {"version": version,
-                "safety_version": safety_version,
-                "python_version": python_version,
-                "os_type": os_type,
-                "os_release": os_release,
-                "os_description": os_description}
+        data = {
+            "version": version,
+            "safety_version": safety_version,
+            "python_version": python_version,
+            "os_type": os_type,
+            "os_release": os_release,
+            "os_description": os_description,
+        }
 
-        return self.get(
-            url=PLATFORM_API_CHECK_UPDATES_ENDPOINT,
-            params=data
-        )
-
+        return self.get(url=PLATFORM_API_CHECK_UPDATES_ENDPOINT, params=data)
 
     @parse_response
     def initialize_scan(self) -> Any:
@@ -419,8 +472,11 @@ class SafetyAuthSession(OAuth2Session):
             LOG.exception("Exception trying to auth initialize scan", exc_info=True)
         return None
 
+
 class S3PresignedAdapter(HTTPAdapter):
-    def send(self, request: requests.PreparedRequest, **kwargs: Any) -> requests.Response:
+    def send(
+        self, request: requests.PreparedRequest, **kwargs: Any
+    ) -> requests.Response:
         """
         Send a request, removing the Authorization header.
 
@@ -433,9 +489,7 @@ class S3PresignedAdapter(HTTPAdapter):
         """
         request.headers.pop("Authorization", None)
         return super().send(request, **kwargs)
-    
-    
-from functools import lru_cache
+
 
 @lru_cache(maxsize=1)
 def is_jupyter_notebook() -> bool:
@@ -444,7 +498,7 @@ def is_jupyter_notebook() -> bool:
     various cloud-hosted Jupyter notebooks.
 
     Returns:
-        bool: True if the environment is identified as a Jupyter notebook (or 
+        bool: True if the environment is identified as a Jupyter notebook (or
               equivalent cloud-based environment), False otherwise.
 
     Supported environments:
@@ -474,6 +528,7 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect Google Colab
         import google.colab
+
         return True
     except ImportError:
         pass
@@ -481,6 +536,7 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect Amazon SageMaker
         import sagemaker
+
         return True
     except ImportError:
         pass
@@ -488,6 +544,7 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect Azure Notebooks
         import azureml
+
         return True
     except ImportError:
         pass
@@ -495,6 +552,7 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect Kaggle Notebooks
         import kaggle
+
         return True
     except ImportError:
         pass
@@ -502,6 +560,7 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect Databricks
         import dbutils
+
         return True
     except ImportError:
         pass
@@ -509,6 +568,7 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect Datalore
         import datalore
+
         return True
     except ImportError:
         pass
@@ -516,6 +576,7 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect Paperspace Gradient Notebooks
         import gradient
+
         return True
     except ImportError:
         pass
@@ -523,7 +584,8 @@ def is_jupyter_notebook() -> bool:
     try:
         # Detect classic Jupyter Notebook, JupyterLab, and other IPython kernel-based environments
         from IPython import get_ipython
-        if 'IPKernelApp' in get_ipython().config:
+
+        if "IPKernelApp" in get_ipython().config:
             return True
     except:
         pass

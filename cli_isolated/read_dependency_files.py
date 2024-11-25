@@ -3,7 +3,7 @@ from typing import List
 from safety_schemas.models import FileType, ConfigModel
 from inspectable_file_context import InspectableFileContext
 
-def read_dependency_files(file_paths: List[Path], file_types: List[FileType], config=None):
+def process_files(file_paths: List[Path], file_types: List[FileType], config=None):
     """
     Reads and processes a list of dependency files, parsing their content into structured models.
 
@@ -31,3 +31,4 @@ def read_dependency_files(file_paths: List[Path], file_types: List[FileType], co
                 yield file_path, inspectable_file
             else:
                 print(f"Unable to process file: {file_path}")
+

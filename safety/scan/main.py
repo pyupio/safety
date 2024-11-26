@@ -199,7 +199,7 @@ def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, repor
         report_file.write(report)
 
 
-def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None) -> Generator[Tuple[Path, InspectableFile], None, None]:
+def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, post_api: bool = False) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
     Processes the files and yields each file path along with its inspectable file.
 
@@ -210,57 +210,70 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
     Yields:
         Tuple[Path, InspectableFile]: A tuple of file path and inspectable file.
     """
-    SCAN_API_ENDPOINT = "https://platform-host.com/scan"  # Replace
-    SCAN_API_AUTH_TOKEN = "our_api_auth_token"  # Replace
     if not config:
         config = ConfigModel()
 
-    files_metadata = []
-
-    for file_type_key, f_paths in paths.items():
-        file_type = FileType(file_type_key)
-        if not file_type or not file_type.ecosystem:
-            continue
-        for f_path in f_paths:
-            # Calculate the relative file path
-            relative_path = os.path.relpath(f_path, start=os.getcwd())
-
-            # Read the file content
-            try:
-                with open(f_path, "r") as file:
-                    content = file.read()
-            except Exception as e:
-                LOG.error(f"Error reading file {f_path}: {e}")
+    # old GET implementation
+    if not post_api:
+        for file_type_key, f_paths in paths.items():
+            file_type = FileType(file_type_key)
+            if not file_type or not file_type.ecosystem:
                 continue
+            for f_path in f_paths:
+                with InspectableFileContext(f_path, file_type=file_type) as inspectable_file:
+                    if inspectable_file and inspectable_file.file_type:
+                        inspectable_file.inspect(config=config)
+                        inspectable_file.remediate()
+                        yield f_path, inspectable_file
 
-            # Append metadata to the payload
-            files_metadata.append({
-                "name": relative_path,
-                "content": content,
-            })
+    # new POST implementation
+    else:
+        files_metadata = []
+        for file_type_key, f_paths in paths.items():
+            file_type = FileType(file_type_key)
+            if not file_type or not file_type.ecosystem:
+                continue
+            for f_path in f_paths:
 
+                relative_path = os.path.relpath(f_path, start=os.getcwd())
 
-            with InspectableFileContext(f_path, file_type=file_type) as inspectable_file:
-                if inspectable_file and inspectable_file.file_type:
-                    inspectable_file.inspect(config=config)
-                    inspectable_file.remediate()
-                    yield f_path, inspectable_file
+                # Read the file content
+                try:
+                    with open(f_path, "r") as file:
+                        content = file.read()
+                except Exception as e:
+                    LOG.error(f"Error reading file {f_path}: {e}")
+                    continue
 
-    print("Prepared files_metadata payload for API POST request:")
-    print(files_metadata)
-    # Send the payload via API POST request
-    try:
-        headers = {
-            "Authorization": f"Bearer {SCAN_API_AUTH_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        response = requests.post(SCAN_API_ENDPOINT, json={"files_metadata": files_metadata}, headers=headers)
+                # Append metadata to the payload
+                files_metadata.append({
+                    "name": relative_path,
+                    "content": content,
+                })
 
-        if response.status_code == 200:
-            LOG.info("Sccan Payload successfully sent to the API.")
-        else:
-            LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
-            LOG.error(f"Response: {response.text}")
+        print("Prepared files_metadata payload for API POST request: ", files_metadata)
+        # Send the payload via API POST request
 
-    except requests.RequestException as e:
-        LOG.error(f"Error occurred while sending scan payload to the API: {e}")
+        SCAN_API_ENDPOINT = "https://platform-host.com/scan"  # Replace
+        SCAN_API_AUTH_TOKEN = "our_api_auth_token"  # Replace
+        try:
+            headers = {
+                "Authorization": f"Bearer {SCAN_API_AUTH_TOKEN}",
+                "Content-Type": "application/json"
+            }
+            response = requests.post(SCAN_API_ENDPOINT, json={"files_metadata": files_metadata}, headers=headers)
+
+            if response.status_code == 200:
+                LOG.info("Sccan Payload successfully sent to the API.")
+            else:
+                LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
+                LOG.error(f"Response: {response.text}")
+
+        except requests.RequestException as e:
+            LOG.error(f"Error occurred while sending scan payload to the API: {e}")
+
+        json_data = response.json()
+        results = json_data.get("results", [])
+
+        for result in results:
+            yield result["name"], result["inspectable_file"]

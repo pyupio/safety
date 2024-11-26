@@ -241,12 +241,20 @@ def scan(ctx: typer.Context,
                             typer.Option("--apply-fixes",
                                 help=SCAN_APPLY_FIXES,
                                 show_default=False)
-                        ] = False
+                        ] = False,
+        post_api: Annotated[
+        bool,
+        typer.Option(
+            "--post-api",
+            help="Flag to enable posting the payload to the API",
+            show_default=False,
+        ),
+    ] = False,
          ):
     """
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
     """
-    
+
     if not ctx.obj.metadata.authenticated:
         raise SafetyError("Authentication required. Please run 'safety auth login' to authenticate before using this command.")
 
@@ -270,12 +278,13 @@ def scan(ctx: typer.Context,
                              include_files=to_include,
                              console=console)
 
-    # Download necessary assets for each handler
-    for handler in file_finder.handlers:
-        if handler.ecosystem:
-            wait_msg = "Fetching Safety's vulnerability database..."
-            with console.status(wait_msg, spinner=DEFAULT_SPINNER):
-                handler.download_required_assets(ctx.obj.auth.client)
+    if not post_api:
+        # Download necessary assets for each handler
+        for handler in file_finder.handlers:
+            if handler.ecosystem:
+                wait_msg = "Fetching Safety's vulnerability database..."
+                with console.status(wait_msg, spinner=DEFAULT_SPINNER):
+                    handler.download_required_assets(ctx.obj.auth.client)
 
     # Start scanning the project directory
     wait_msg = "Scanning project directory"
@@ -313,7 +322,7 @@ def scan(ctx: typer.Context,
     # Process each file for dependencies and vulnerabilities
     with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
         for path, analyzed_file in process_files(paths=file_paths,
-                                                 config=config):
+                                                 config=config, post_api=post_api):
             count += len(analyzed_file.dependency_results.dependencies)
 
             # Update exit code if vulnerabilities are found
@@ -371,7 +380,7 @@ def scan(ctx: typer.Context,
                                               detailed_output=detailed_output)
 
                     lines = []
-                    
+
                     if spec.remediation.recommended:
                         total_resolved_vulns += spec.remediation.vulnerabilities_found
 
@@ -441,18 +450,18 @@ def scan(ctx: typer.Context,
                 telemetry=telemetry,
                 files=[],
                 projects=[ctx.obj.project])
-    
+
     total_issues_with_duplicates, total_ignored_issues = get_vulnerability_summary(report.as_v30())
-    
+
     print_summary(
-    console=console, 
-    total_issues_with_duplicates=total_issues_with_duplicates, 
+    console=console,
+    total_issues_with_duplicates=total_issues_with_duplicates,
     total_ignored_issues=total_ignored_issues,
-    project=ctx.obj.project, 
-    dependencies_count=count, 
-    fixes_count=fixes_count, 
-    resolved_vulns_per_fix=total_resolved_vulns, 
-    is_detailed_output=detailed_output, 
+    project=ctx.obj.project,
+    dependencies_count=count,
+    fixes_count=fixes_count,
+    resolved_vulns_per_fix=total_resolved_vulns,
+    is_detailed_output=detailed_output,
     ignored_vulns_data=ignored_vulns_data
 )
 
@@ -796,7 +805,7 @@ def get_vulnerability_summary(report: Dict[str, Any]) -> Tuple[int, int]:
 
     Args:
         report (ReportModel): The report containing vulnerability data.
-    
+
     Returns:
         Tuple[int, int]: A tuple containing:
             - Total number of issues (including duplicates)

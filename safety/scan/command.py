@@ -242,11 +242,11 @@ def scan(ctx: typer.Context,
                                 help=SCAN_APPLY_FIXES,
                                 show_default=False)
                         ] = False,
-        post_api: Annotated[
+        use_server_matching: Annotated[
         bool,
         typer.Option(
-            "--post-api",
-            help="Flag to enable posting the payload to the API",
+            "--use-server-matching",
+            help="Flag to enable using server side vulnerability matching",
             show_default=False,
         ),
     ] = False,
@@ -278,7 +278,7 @@ def scan(ctx: typer.Context,
                              include_files=to_include,
                              console=console)
 
-    if not post_api:
+    if not use_server_matching:
         # Download necessary assets for each handler
         for handler in file_finder.handlers:
             if handler.ecosystem:
@@ -322,7 +322,7 @@ def scan(ctx: typer.Context,
     # Process each file for dependencies and vulnerabilities
     with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
         for path, analyzed_file in process_files(paths=file_paths,
-                                                 config=config, post_api=post_api):
+                                                 config=config, use_server_matching=use_server_matching):
             count += len(analyzed_file.dependency_results.dependencies)
 
             # Update exit code if vulnerabilities are found

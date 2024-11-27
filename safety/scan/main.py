@@ -199,7 +199,7 @@ def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, repor
         report_file.write(report)
 
 
-def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, post_api: bool = False) -> Generator[Tuple[Path, InspectableFile], None, None]:
+def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
     Processes the files and yields each file path along with its inspectable file.
 
@@ -214,7 +214,7 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
         config = ConfigModel()
 
     # old GET implementation
-    if not post_api:
+    if not use_server_matching:
         for file_type_key, f_paths in paths.items():
             file_type = FileType(file_type_key)
             if not file_type or not file_type.ecosystem:

@@ -254,23 +254,19 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
         print("Prepared files_metadata payload for API POST request: ", files_metadata)
         # Send the payload via API POST request
 
-        SCAN_API_ENDPOINT = "https://platform-host.com/scan"  # Replace
-        SCAN_API_AUTH_TOKEN = "our_api_auth_token"  # Replace
-        try:
-            headers = {
-                "Authorization": f"Bearer {SCAN_API_AUTH_TOKEN}",
-                "Content-Type": "application/json"
-            }
-            response = requests.post(SCAN_API_ENDPOINT, json={"files_metadata": files_metadata}, headers=headers)
+        SCAN_API_ENDPOINT = "http://localhost:8000/cli/api/v1/process_files/" 
+ 
+        headers = {
+            "Content-Type": "application/json"
+        }
+        response = requests.post(SCAN_API_ENDPOINT, json={"files_metadata": files_metadata}, headers=headers)
 
-            if response.status_code == 200:
-                LOG.info("Sccan Payload successfully sent to the API.")
-            else:
-                LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
-                LOG.error(f"Response: {response.text}")
+        if response.status_code == 200:
+            LOG.info("Sccan Payload successfully sent to the API.")
+        else:
+            LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
+            LOG.error(f"Response: {response.text}")
 
-        except requests.RequestException as e:
-            LOG.error(f"Error occurred while sending scan payload to the API: {e}")
 
         json_data = response.json()
         results = json_data.get("results", [])

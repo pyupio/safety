@@ -43,6 +43,16 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Safety Scan 2",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "scan", "--use-server-matching"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Safety Scan API Key",
             "type": "debugpy",
             "request": "launch",

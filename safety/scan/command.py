@@ -1,6 +1,7 @@
 from enum import Enum
 import logging
 from pathlib import Path
+
 import sys
 from typing import Any, Dict, List, Optional, Set, Tuple
 from typing_extensions import Annotated
@@ -14,7 +15,7 @@ from ..cli_util import SafetyCLICommand, SafetyCLISubGroup, handle_cmd_exception
 from rich.padding import Padding
 import typer
 from safety.auth.constants import SAFETY_PLATFORM_URL
-from safety.cli_util import get_command_for
+from safety.cli_util import get_command_for, get_git_branch_name
 from rich.console import Console
 from safety.errors import SafetyError
 
@@ -139,9 +140,17 @@ def process_report(
             if obj.platform_enabled and report_url:
                 if report.metadata.scan_type is ScanType.scan:
                     project_url = f"{SAFETY_PLATFORM_URL}{obj.project.url_path}"
-                    lines.append(f"Scan report: [link]{report_url}[/link]")
-                    lines.append("Project dashboard: " \
-                                f"[link]{project_url}[/link]")
+                    # Get the current branch name
+                    branch_name = get_git_branch_name()
+
+                    # Append the branch name if available
+                    if branch_name:
+                        project_url_with_branch = f"{project_url}?branch={branch_name}"
+                    else:
+                        project_url_with_branch = project_url
+
+                    lines.append(f"Project dashboard: [link]{project_url_with_branch}[/link]")
+
                 elif report.metadata.scan_type is ScanType.system_scan:
                     lines.append(f"System scan report: [link]{report_url}[/link]")
 
@@ -246,7 +255,7 @@ def scan(ctx: typer.Context,
     """
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
     """
-    
+
     if not ctx.obj.metadata.authenticated:
         raise SafetyError("Authentication required. Please run 'safety auth login' to authenticate before using this command.")
 
@@ -371,7 +380,7 @@ def scan(ctx: typer.Context,
                                               detailed_output=detailed_output)
 
                     lines = []
-                    
+
                     if spec.remediation.recommended:
                         total_resolved_vulns += spec.remediation.vulnerabilities_found
 
@@ -441,18 +450,18 @@ def scan(ctx: typer.Context,
                 telemetry=telemetry,
                 files=[],
                 projects=[ctx.obj.project])
-    
+
     total_issues_with_duplicates, total_ignored_issues = get_vulnerability_summary(report.as_v30())
-    
+
     print_summary(
-    console=console, 
-    total_issues_with_duplicates=total_issues_with_duplicates, 
+    console=console,
+    total_issues_with_duplicates=total_issues_with_duplicates,
     total_ignored_issues=total_ignored_issues,
-    project=ctx.obj.project, 
-    dependencies_count=count, 
-    fixes_count=fixes_count, 
-    resolved_vulns_per_fix=total_resolved_vulns, 
-    is_detailed_output=detailed_output, 
+    project=ctx.obj.project,
+    dependencies_count=count,
+    fixes_count=fixes_count,
+    resolved_vulns_per_fix=total_resolved_vulns,
+    is_detailed_output=detailed_output,
     ignored_vulns_data=ignored_vulns_data
 )
 
@@ -796,7 +805,7 @@ def get_vulnerability_summary(report: Dict[str, Any]) -> Tuple[int, int]:
 
     Args:
         report (ReportModel): The report containing vulnerability data.
-    
+
     Returns:
         Tuple[int, int]: A tuple containing:
             - Total number of issues (including duplicates)

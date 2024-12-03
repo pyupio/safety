@@ -1,5 +1,6 @@
 from collections import defaultdict
 import logging
+import subprocess
 import sys
 from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
 import click
@@ -373,7 +374,7 @@ def format_main_help(obj: Union[click.Command, click.Group],
     from typer.rich_utils import highlighter, STYLE_USAGE_COMMAND, \
         ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE, \
             COMMANDS_PANEL_TITLE
-  
+
     from rich.align import Align
     from rich.padding import Padding
     from rich.console import Console
@@ -794,3 +795,20 @@ def handle_cmd_exception(func):
             output_exception(exception, exit_code_output=True)
 
     return inner
+
+def get_git_branch_name() -> Optional[str]:
+    """
+    Retrieves the current Git branch name.
+
+    Returns:
+        str: The current Git branch name, or None if it cannot be determined.
+    """
+    try:
+        branch_name = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True
+        ).strip()
+        return branch_name if branch_name else None
+    except Exception:
+        return None

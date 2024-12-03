@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import requests
 import os
+import platform
 import time
 from typing import Any, Dict, Generator, Optional, Set, Tuple, Union
 from pydantic import ValidationError
@@ -13,9 +14,11 @@ from ..errors import SafetyError
 from .ecosystems.base import InspectableFile
 from .ecosystems.target import InspectableFileContext
 from .models import ScanExport, UnverifiedProjectModel
+from safety.scan.util import GIT
 
 from safety_schemas.models import FileType, PolicyFileModel, PolicySource, \
     ConfigModel, Stage, ProjectModel, ScanType
+from safety.util import get_safety_version
 
 
 LOG = logging.getLogger(__name__)
@@ -198,6 +201,41 @@ def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, repor
     with open(at, 'w+') as report_file:
         report_file.write(report)
 
+def build_meta(repo_path: str) -> Dict[str, Any]:
+    """
+    Build the meta JSON object for a file.
+
+    Args:
+        repo_path (str): The path of the repository.
+
+    Returns:
+        Dict[str, Any]: The metadata dictionary.
+    """
+    repo_path_obj = Path(repo_path).resolve()
+    git_utils = GIT(repo_path_obj)
+
+    git_data = git_utils.build_git_data()
+    git_metadata = {
+        "git_branch": git_data.branch if git_data else None,
+        "git_commit": git_data.commit if git_data else None,
+        "dirty": git_data.dirty if git_data else None,
+        "tag": git_data.tag if git_data else None,
+        "git_origin": git_data.origin if git_data else None,
+    }
+
+    os_metadata = {
+        "os_type": os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
+        "os_release": os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
+        "os_description": os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
+        "python_version": platform.python_version(),
+        "safety_version": get_safety_version(),
+    }
+
+    return {
+        "repo_path": repo_path,
+        **os_metadata,
+        **git_metadata,
+    }
 
 def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
@@ -228,7 +266,10 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
 
     # new POST implementation
     else:
+
         files_metadata = []
+        repo_path = os.getcwd()
+        meta = build_meta(repo_path)
         for file_type_key, f_paths in paths.items():
             file_type = FileType(file_type_key)
             if not file_type or not file_type.ecosystem:
@@ -251,15 +292,21 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
                     "content": content,
                 })
 
-        print("Prepared files_metadata payload for API POST request: ", files_metadata)
+        # Prepare the payload with metadata at the top level
+        payload = {
+            "meta": meta,
+            "files_metadata": files_metadata,
+        }
+
+        print("Prepared files_metadata payload for API POST request: ", payload["meta"])
         # Send the payload via API POST request
 
-        SCAN_API_ENDPOINT = "http://localhost:8000/cli/api/v1/process_files/" 
- 
+        SCAN_API_ENDPOINT = "http://localhost:8000/cli/api/v1/process_files/"
+
         headers = {
             "Content-Type": "application/json"
         }
-        response = requests.post(SCAN_API_ENDPOINT, json={"files_metadata": files_metadata}, headers=headers)
+        response = requests.post(SCAN_API_ENDPOINT, json=payload, headers=headers)
 
         if response.status_code == 200:
             LOG.info("Sccan Payload successfully sent to the API.")

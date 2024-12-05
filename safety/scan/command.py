@@ -250,7 +250,15 @@ def scan(ctx: typer.Context,
                             typer.Option("--apply-fixes",
                                 help=SCAN_APPLY_FIXES,
                                 show_default=False)
-                        ] = False
+                        ] = False,
+        use_server_matching: Annotated[
+        bool,
+        typer.Option(
+            "--use-server-matching",
+            help="Flag to enable using server side vulnerability matching",
+            show_default=False,
+        ),
+    ] = False,
          ):
     """
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
@@ -279,12 +287,13 @@ def scan(ctx: typer.Context,
                              include_files=to_include,
                              console=console)
 
-    # Download necessary assets for each handler
-    for handler in file_finder.handlers:
-        if handler.ecosystem:
-            wait_msg = "Fetching Safety's vulnerability database..."
-            with console.status(wait_msg, spinner=DEFAULT_SPINNER):
-                handler.download_required_assets(ctx.obj.auth.client)
+    if not use_server_matching:
+        # Download necessary assets for each handler
+        for handler in file_finder.handlers:
+            if handler.ecosystem:
+                wait_msg = "Fetching Safety's vulnerability database..."
+                with console.status(wait_msg, spinner=DEFAULT_SPINNER):
+                    handler.download_required_assets(ctx.obj.auth.client)
 
     # Start scanning the project directory
     wait_msg = "Scanning project directory"
@@ -322,7 +331,7 @@ def scan(ctx: typer.Context,
     # Process each file for dependencies and vulnerabilities
     with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
         for path, analyzed_file in process_files(paths=file_paths,
-                                                 config=config):
+                                                 config=config, use_server_matching=use_server_matching):
             count += len(analyzed_file.dependency_results.dependencies)
 
             # Update exit code if vulnerabilities are found

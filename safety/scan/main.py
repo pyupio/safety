@@ -1,4 +1,5 @@
 import configparser
+import json
 import logging
 from pathlib import Path
 import re
@@ -297,18 +298,21 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
             "meta": meta,
             "files_metadata": files_metadata,
         }
+        file_path = "payload.json"  # Change this path as needed
+        with open(file_path, "w") as file:
+            json.dump(payload, file, indent=4)
 
         print("Prepared files_metadata payload for API POST request: ", payload["meta"])
         # Send the payload via API POST request
 
-        SCAN_API_ENDPOINT = "http://localhost:8000/cli/api/v1/process_files/"
+        SCAN_API_ENDPOINT = "http://host.docker.internal:8000/cli/api/v1/process_files/"
 
         headers = {
             "Content-Type": "application/json"
         }
         response = requests.post(SCAN_API_ENDPOINT, json=payload, headers=headers)
-
-        if response.status_code == 200:
+        
+        if response.status_code == 201:
             LOG.info("Sccan Payload successfully sent to the API.")
         else:
             LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")

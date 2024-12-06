@@ -10,7 +10,7 @@ HOST: str = 'localhost'
 
 CLIENT_ID = get_config_setting("CLIENT_ID")
 AUTH_SERVER_URL = get_config_setting("AUTH_SERVER_URL")
-SAFETY_PLATFORM_URL = get_config_setting("SAFETY_PLATFORM_URL")
+SAFETY_PLATFORM_URL = "http://localhost:8000"
 
 OPENID_CONFIG_URL = f"{AUTH_SERVER_URL}/.well-known/openid-configuration"
 

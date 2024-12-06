@@ -367,6 +367,7 @@ class SafetyAuthSession(OAuth2Session):
         )
 
 
+
     @parse_response
     def check_updates(self, version: int, safety_version: Optional[str] = None, python_version: Optional[str] = None, os_type: Optional[str] = None, os_release: Optional[str] = None, os_description: Optional[str] = None) -> Any:
         """

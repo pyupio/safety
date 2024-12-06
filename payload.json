@@ -1,0 +1,21 @@
+{
+    "meta": {
+        "repo_path": "/workspaces/safety",
+        "os_type": "Linux",
+        "os_release": "6.10.14-linuxkit",
+        "os_description": "Linux-6.10.14-linuxkit-aarch64-with-glibc2.36",
+        "python_version": "3.12.7",
+        "safety_version": "3.2.11",
+        "git_branch": "feature/post-prototype",
+        "git_commit": "9b71c73ccef65dbe66232565feb8299035d0a76d",
+        "dirty": true,
+        "tag": "",
+        "git_origin": "https://github.com/pyupio/safety.git"
+    },
+    "files_metadata": [
+        {
+            "name": "test_requirements.txt",
+            "content": "pytest==7.4.4\npytest-cov==4.1.0\nsetuptools>=65.5.1; python_version>=\"3.7\"\nsetuptools; python_version==\"3.6\"\nClick>=8.0.2\nurllib3>=1.26.5\nrequests\npackaging>=21.0,<=23.0\ndparse>=0.6.4\nruamel.yaml>=0.17.21\ndataclasses==0.8; python_version==\"3.6\"\njinja2; python_version==\"3.6\"\njinja2>=3.1.0; python_version>=\"3.7\"\nmarshmallow; python_version==\"3.6\"\nmarshmallow>=3.15.0; python_version>=\"3.7\"\nAuthlib>=1.2.0\nrich\ntyper\npydantic>=1.10.12\nsafety_schemas>=0.0.8\ntyping-extensions>=4.7.1\nfilelock~=3.12.2\npsutil~=6.0.0\npytest==7.4.4\npytest-cov==4.1.0\nsetuptools>=65.5.1; python_version>=\"3.7\"\nsetuptools; python_version==\"3.6\"\nClick>=8.0.2\nurllib3>=1.26.5\nrequests\npackaging>=21.0,<=23.0\ndparse>=0.6.4\nruamel.yaml>=0.17.21\ndataclasses==0.8; python_version==\"3.6\"\njinja2; python_version==\"3.6\"\njinja2>=3.1.0; python_version>=\"3.7\"\nmarshmallow; python_version==\"3.6\"\nmarshmallow>=3.15.0; python_version>=\"3.7\"\nAuthlib>=1.2.0\nrich\ntyper\npydantic>=1.10.12\nsafety_schemas>=0.0.8\ntyping-extensions>=4.7.1\nfilelock~=3.12.2\npsutil~=6.0.0\nevilpackage==0.1\ncolourama==0.1\npython3-dateutil==2.8.0\nurllib==1.21\nrequest==2.21\nrequirementslib==1.5.0\ndiscord.py-ratelimit==1.0.1\npyjwt==2.0.1\npyshark-parser==0.3.7\nflake2==1.0\nrandom-words==0.1.0\naws-login==0.3.0\npycrypto==2.6.1\nhttpie-unixsocket==1.0.3\nloglib==0.1.2\n\npytest==7.4.4\npytest-cov==4.1.0\nsetuptools>=65.5.1; python_version>=\"3.7\"\nsetuptools; python_version==\"3.6\"\nClick>=8.0.2\nurllib3>=1.26.5\nrequests\npackaging>=21.0,<=23.0\ndparse>=0.6.4\nruamel.yaml>=0.17.21\ndataclasses==0.8; python_version==\"3.6\"\njinja2; python_version==\"3.6\"\njinja2>=3.1.0; python_version>=\"3.7\"\nmarshmallow; python_version==\"3.6\"\nmarshmallow>=3.15.0; python_version>=\"3.7\"\nAuthlib>=1.2.0\nrich\ntyper\npydantic>=1.10.12\nsafety_schemas>=0.0.8\ntyping-extensions>=4.7.1\nfilelock~=3.12.2\npsutil~=6.0.0\n"
+        }
+    ]
+}

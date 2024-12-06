@@ -238,7 +238,7 @@ def build_meta(repo_path: str) -> Dict[str, Any]:
         **git_metadata,
     }
 
-def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False) -> Generator[Tuple[Path, InspectableFile], None, None]:
+def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False):
     """
     Processes the files and yields each file path along with its inspectable file.
 
@@ -302,9 +302,6 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
         with open(file_path, "w") as file:
             json.dump(payload, file, indent=4)
 
-        print("Prepared files_metadata payload for API POST request: ", payload["meta"])
-        # Send the payload via API POST request
-
         SCAN_API_ENDPOINT = "http://host.docker.internal:8000/cli/api/v1/process_files/"
 
         headers = {
@@ -319,8 +316,72 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
             LOG.error(f"Response: {response.text}")
 
 
-        json_data = response.json()
-        results = json_data.get("results", [])
+        json_data = response.data()
+        return json_data
+    
+def process_files2(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False):
+    """
+    Processes the files and yields each file path along with its inspectable file.
 
-        for result in results:
-            yield result["name"], result["inspectable_file"]
+    Args:
+        paths (Dict[str, Set[Path]]): A dictionary of file paths by file type.
+        config (Optional[ConfigModel]): The configuration model (optional).
+
+    Yields:
+        Tuple[Path, InspectableFile]: A tuple of file path and inspectable file.
+    """
+    if not config:
+        config = ConfigModel()
+
+
+
+    files_metadata = []
+    repo_path = os.getcwd()
+    meta = build_meta(repo_path)
+    for file_type_key, f_paths in paths.items():
+        file_type = FileType(file_type_key)
+        if not file_type or not file_type.ecosystem:
+            continue
+        for f_path in f_paths:
+
+            relative_path = os.path.relpath(f_path, start=os.getcwd())
+
+            # Read the file content
+            try:
+                with open(f_path, "r") as file:
+                    content = file.read()
+            except Exception as e:
+                LOG.error(f"Error reading file {f_path}: {e}")
+                continue
+
+            # Append metadata to the payload
+            files_metadata.append({
+                "name": relative_path,
+                "content": content,
+            })
+
+    # Prepare the payload with metadata at the top level
+    payload = {
+        "meta": meta,
+        "files_metadata": files_metadata,
+    }
+    file_path = "payload.json"  # Change this path as needed
+    with open(file_path, "w") as file:
+        json.dump(payload, file, indent=4)
+
+    SCAN_API_ENDPOINT = "http://host.docker.internal:8000/cli/api/v1/process_files/"
+
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.post(SCAN_API_ENDPOINT, json=payload, headers=headers)
+    
+    if response.status_code == 201:
+        LOG.info("Sccan Payload successfully sent to the API.")
+    else:
+        LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
+        LOG.error(f"Response: {response.text}")
+
+
+    json_data = response.json()
+    return json_data

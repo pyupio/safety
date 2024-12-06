@@ -25,7 +25,7 @@ from safety.scan.constants import CMD_PROJECT_NAME, CMD_SYSTEM_NAME, DEFAULT_SPI
     SYSTEM_SCAN_TARGET_HELP, SCAN_APPLY_FIXES, SCAN_DETAILED_OUTPUT, CLI_SCAN_COMMAND_HELP, CLI_SYSTEM_SCAN_COMMAND_HELP
 from safety.scan.decorators import inject_metadata, scan_project_command_init, scan_system_command_init
 from safety.scan.finder.file_finder import should_exclude
-from safety.scan.main import load_policy_file, load_unverified_project_from_config, process_files, save_report_as
+from safety.scan.main import load_policy_file, load_unverified_project_from_config, process_files, process_files2, save_report_as
 from safety.scan.models import ScanExport, ScanOutput, SystemScanExport, SystemScanOutput
 from safety.scan.render import print_detected_ecosystems_section, print_fixes_section, print_summary, render_scan_html, render_scan_spdx, render_to_console
 from safety.scan.util import Stage
@@ -318,122 +318,125 @@ def scan(ctx: typer.Context,
     fix_file_types = [fix_target[0] if isinstance(fix_target[0], str) else fix_target[0].value for fix_target in fixes_target]
     requirements_txt_found = False
     display_apply_fix_suggestion = False
+ 
+    if use_server_matching:
+        json = process_files2(paths=file_paths, config=config, use_server_matching=use_server_matching)
+    else:
+        # Process each file for dependencies and vulnerabilities
+        with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
+            for path, analyzed_file in process_files(paths=file_paths,
+                                                    config=config, use_server_matching=use_server_matching):
+                count += len(analyzed_file.dependency_results.dependencies)
 
-    # Process each file for dependencies and vulnerabilities
-    with console.status(wait_msg, spinner=DEFAULT_SPINNER) as status:
-        for path, analyzed_file in process_files(paths=file_paths,
-                                                 config=config, use_server_matching=use_server_matching):
-            count += len(analyzed_file.dependency_results.dependencies)
+                # Update exit code if vulnerabilities are found
+                if exit_code == 0 and analyzed_file.dependency_results.failed:
+                    exit_code = EXIT_CODE_VULNERABILITIES_FOUND
 
-            # Update exit code if vulnerabilities are found
-            if exit_code == 0 and analyzed_file.dependency_results.failed:
-                exit_code = EXIT_CODE_VULNERABILITIES_FOUND
+                affected_specifications = analyzed_file.dependency_results.get_affected_specifications()
+                affected_count += len(affected_specifications)
 
-            affected_specifications = analyzed_file.dependency_results.get_affected_specifications()
-            affected_count += len(affected_specifications)
+                def sort_vulns_by_score(vuln: Vulnerability) -> int:
+                    if vuln.severity and vuln.severity.cvssv3:
+                        return vuln.severity.cvssv3.get("base_score", 0)
 
-            def sort_vulns_by_score(vuln: Vulnerability) -> int:
-                if vuln.severity and vuln.severity.cvssv3:
-                    return vuln.severity.cvssv3.get("base_score", 0)
+                    return 0
 
-                return 0
+                to_fix_spec = []
+                file_matched_for_fix = analyzed_file.file_type.value in fix_file_types
 
-            to_fix_spec = []
-            file_matched_for_fix = analyzed_file.file_type.value in fix_file_types
-
-            if any(affected_specifications):
-                if not dependency_vuln_detected:
-                    console.print()
-                    console.print("Dependency vulnerabilities detected:")
-                    dependency_vuln_detected = True
-
-                console.print()
-                msg = f":pencil: [file_title]{path.relative_to(target)}:[/file_title]"
-                console.print(msg, emoji=True)
-                for spec in affected_specifications:
-                    if file_matched_for_fix:
-                        to_fix_spec.append(spec)
+                if any(affected_specifications):
+                    if not dependency_vuln_detected:
+                        console.print()
+                        console.print("Dependency vulnerabilities detected:")
+                        dependency_vuln_detected = True
 
                     console.print()
-                    vulns_to_report = sorted(
-                        [vuln for vuln in spec.vulnerabilities if not vuln.ignored],
-                        key=sort_vulns_by_score,
-                        reverse=True)
-                    critical_vulns_count = sum(1 for vuln in vulns_to_report if vuln.severity and vuln.severity.cvssv3 and vuln.severity.cvssv3.get("base_severity", "none").lower() == VulnerabilitySeverityLabels.CRITICAL.value.lower())
+                    msg = f":pencil: [file_title]{path.relative_to(target)}:[/file_title]"
+                    console.print(msg, emoji=True)
+                    for spec in affected_specifications:
+                        if file_matched_for_fix:
+                            to_fix_spec.append(spec)
 
-                    vulns_found = len(vulns_to_report)
-                    vuln_word = pluralize("vulnerability", vulns_found)
+                        console.print()
+                        vulns_to_report = sorted(
+                            [vuln for vuln in spec.vulnerabilities if not vuln.ignored],
+                            key=sort_vulns_by_score,
+                            reverse=True)
+                        critical_vulns_count = sum(1 for vuln in vulns_to_report if vuln.severity and vuln.severity.cvssv3 and vuln.severity.cvssv3.get("base_severity", "none").lower() == VulnerabilitySeverityLabels.CRITICAL.value.lower())
 
-                    msg = f"[dep_name]{spec.name}[/dep_name][specifier]{spec.raw.replace(spec.name, '')}[/specifier]  [{vulns_found} {vuln_word} found"
+                        vulns_found = len(vulns_to_report)
+                        vuln_word = pluralize("vulnerability", vulns_found)
 
-                    if vulns_found > 3 and critical_vulns_count > 0:
-                        msg += f", [brief_severity]including {critical_vulns_count} critical severity {pluralize('vulnerability', critical_vulns_count)}[/brief_severity]"
+                        msg = f"[dep_name]{spec.name}[/dep_name][specifier]{spec.raw.replace(spec.name, '')}[/specifier]  [{vulns_found} {vuln_word} found"
 
-                    console.print(Padding(f"{msg}]", (0, 0, 0, 1)), emoji=True,
-                                  overflow="crop")
+                        if vulns_found > 3 and critical_vulns_count > 0:
+                            msg += f", [brief_severity]including {critical_vulns_count} critical severity {pluralize('vulnerability', critical_vulns_count)}[/brief_severity]"
 
-                    if detailed_output or vulns_found < 3:
-                        for vuln in vulns_to_report:
-                            render_to_console(vuln, console,
-                                              rich_kwargs={"emoji": True,
-                                                           "overflow": "crop"},
-                                              detailed_output=detailed_output)
+                        console.print(Padding(f"{msg}]", (0, 0, 0, 1)), emoji=True,
+                                    overflow="crop")
 
-                    lines = []
+                        if detailed_output or vulns_found < 3:
+                            for vuln in vulns_to_report:
+                                render_to_console(vuln, console,
+                                                rich_kwargs={"emoji": True,
+                                                            "overflow": "crop"},
+                                                detailed_output=detailed_output)
 
-                    if spec.remediation.recommended:
-                        total_resolved_vulns += spec.remediation.vulnerabilities_found
+                        lines = []
 
-                    # Put remediation here
-                    if not spec.remediation.recommended:
-                        lines.append(f"No known fix for [dep_name]{spec.name}[/dep_name][specifier]{spec.raw.replace(spec.name, '')}[/specifier] to fix " \
-                                     f"[number]{spec.remediation.vulnerabilities_found}[/number] " \
-                                        f"{vuln_word}")
-                    else:
-                        msg = f"[rem_brief]Update {spec.raw} to " \
-                                     f"{spec.name}=={spec.remediation.recommended}[/rem_brief] to fix " \
+                        if spec.remediation.recommended:
+                            total_resolved_vulns += spec.remediation.vulnerabilities_found
+
+                        # Put remediation here
+                        if not spec.remediation.recommended:
+                            lines.append(f"No known fix for [dep_name]{spec.name}[/dep_name][specifier]{spec.raw.replace(spec.name, '')}[/specifier] to fix " \
                                         f"[number]{spec.remediation.vulnerabilities_found}[/number] " \
-                                            f"{vuln_word}"
+                                            f"{vuln_word}")
+                        else:
+                            msg = f"[rem_brief]Update {spec.raw} to " \
+                                        f"{spec.name}=={spec.remediation.recommended}[/rem_brief] to fix " \
+                                            f"[number]{spec.remediation.vulnerabilities_found}[/number] " \
+                                                f"{vuln_word}"
 
-                        if spec.remediation.vulnerabilities_found > 3 and critical_vulns_count > 0:
-                            msg += f", [rem_severity]including {critical_vulns_count} critical severity {pluralize('vulnerability', critical_vulns_count)}[/rem_severity] :stop_sign:"
+                            if spec.remediation.vulnerabilities_found > 3 and critical_vulns_count > 0:
+                                msg += f", [rem_severity]including {critical_vulns_count} critical severity {pluralize('vulnerability', critical_vulns_count)}[/rem_severity] :stop_sign:"
 
-                        fixes_count += 1
-                        lines.append(f"{msg}")
-                        if spec.remediation.other_recommended:
-                            other = "[/recommended_ver], [recommended_ver]".join(spec.remediation.other_recommended)
-                            lines.append(f"Versions of {spec.name} with no known vulnerabilities: " \
-                                         f"[recommended_ver]{other}[/recommended_ver]")
+                            fixes_count += 1
+                            lines.append(f"{msg}")
+                            if spec.remediation.other_recommended:
+                                other = "[/recommended_ver], [recommended_ver]".join(spec.remediation.other_recommended)
+                                lines.append(f"Versions of {spec.name} with no known vulnerabilities: " \
+                                            f"[recommended_ver]{other}[/recommended_ver]")
 
-                    for line in lines:
-                        console.print(Padding(line, (0, 0, 0, 1)), emoji=True)
+                        for line in lines:
+                            console.print(Padding(line, (0, 0, 0, 1)), emoji=True)
 
-                    console.print(
-                        Padding(f"Learn more: [link]{spec.remediation.more_info_url}[/link]",
-                                (0, 0, 0, 1)), emoji=True)
-            else:
-                console.print()
-                console.print(f":white_check_mark: [file_title]{path.relative_to(target)}: No issues found.[/file_title]",
-                              emoji=True)
+                        console.print(
+                            Padding(f"Learn more: [link]{spec.remediation.more_info_url}[/link]",
+                                    (0, 0, 0, 1)), emoji=True)
+                else:
+                    console.print()
+                    console.print(f":white_check_mark: [file_title]{path.relative_to(target)}: No issues found.[/file_title]",
+                                emoji=True)
 
-            if(ctx.obj.auth.stage == Stage.development
-               and analyzed_file.ecosystem == Ecosystem.PYTHON
-               and analyzed_file.file_type == FileType.REQUIREMENTS_TXT
-               and any(affected_specifications)
-               and not apply_updates):
-                display_apply_fix_suggestion = True
+                if(ctx.obj.auth.stage == Stage.development
+                and analyzed_file.ecosystem == Ecosystem.PYTHON
+                and analyzed_file.file_type == FileType.REQUIREMENTS_TXT
+                and any(affected_specifications)
+                and not apply_updates):
+                    display_apply_fix_suggestion = True
 
-            if not requirements_txt_found and analyzed_file.file_type is FileType.REQUIREMENTS_TXT:
-                requirements_txt_found = True
+                if not requirements_txt_found and analyzed_file.file_type is FileType.REQUIREMENTS_TXT:
+                    requirements_txt_found = True
 
-            file = FileModel(location=path,
-                               file_type=analyzed_file.file_type,
-                               results=analyzed_file.dependency_results)
+                file = FileModel(location=path,
+                                file_type=analyzed_file.file_type,
+                                results=analyzed_file.dependency_results)
 
-            if file_matched_for_fix:
-                to_fix_files.append((file, to_fix_spec))
+                if file_matched_for_fix:
+                    to_fix_files.append((file, to_fix_spec))
 
-            files.append(file)
+                files.append(file)
 
     if display_apply_fix_suggestion:
         console.print()
@@ -458,7 +461,7 @@ def scan(ctx: typer.Context,
     total_issues_with_duplicates=total_issues_with_duplicates,
     total_ignored_issues=total_ignored_issues,
     project=ctx.obj.project,
-    dependencies_count=count,
+    dependencies_count = json.get("total_dependencies", 0),
     fixes_count=fixes_count,
     resolved_vulns_per_fix=total_resolved_vulns,
     is_detailed_output=detailed_output,

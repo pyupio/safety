@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+## [3.2.13] - 2024-12-10
+- Remove email verification for running scans (#645)
+
 ## [3.2.12] - 2024-12-10
 - Add CVE Details and Single-Key Filtering for JSON Output in safety scan (#643)
 - feature/add-branch-name (#641)

@@ -1,0 +1,28 @@
+name: Add User to SendGrid List on First PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  add-to-sendgrid-list:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Count Merged PRs
+        id: count_prs
+        run: |
+          PR_COUNT=$(gh pr list --author ${{ github.actor }} --state merged --repo ${{ github.repository }} --json number --jq '. | length')
+          echo "PR_COUNT=$PR_COUNT" >> $GITHUB_ENV
+
+      - name: Add User to SendGrid List
+        if: ${{ env.PR_COUNT }} == 1
+        run: |
+          curl --request POST \
+            --url https://api.sendgrid.com/v3/marketing/contacts \
+            --header "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+            --header 'Content-Type: application/json' \
+            --data '{"list_ids":["OUR_LIST_ID"],"contacts":[{"email":"${{ github.actor }}@users.noreply.github.com"}]}'

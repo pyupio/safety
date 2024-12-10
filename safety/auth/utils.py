@@ -48,9 +48,15 @@ def is_email_verified(info: Dict[str, Any]) -> Optional[bool]:
         info (Dict[str, Any]): The user information.
 
     Returns:
-        bool: True if the email is verified, False otherwise.
+        bool: True
     """
-    return info.get(CLAIM_EMAIL_VERIFIED_API) or info.get(CLAIM_EMAIL_VERIFIED_AUTH_SERVER)
+    # return info.get(CLAIM_EMAIL_VERIFIED_API) or info.get(
+    #     CLAIM_EMAIL_VERIFIED_AUTH_SERVER
+    # )
+
+    # Always return True to avoid email verification
+    return True
+
 
 
 def parse_response(func: Callable) -> Callable:

@@ -33,7 +33,7 @@ from safety.scan.render import print_detected_ecosystems_section, print_fixes_se
 from safety.scan.util import Stage
 from safety_schemas.models import Ecosystem, FileModel, FileType, ProjectModel, \
     ReportModel, ScanType, VulnerabilitySeverityLabels, SecurityUpdates, Vulnerability
-
+from safety.scan.fun_mode.easter_eggs import run_easter_egg
 LOG = logging.getLogger(__name__)
 
 
@@ -256,6 +256,9 @@ def generate_cve_details(files: List[FileModel]) -> List[Dict[str, Any]]:
                         "severity": vuln.severity.cvssv3.get("base_severity", "Unknown") if vuln.severity and vuln.severity.cvssv3 else "Unknown",
                     })
     return sort_cve_data(cve_data)
+
+
+
 
 
 def add_cve_details_to_report(report_to_output: str, files: List[FileModel]) -> str:
@@ -620,12 +623,16 @@ def scan(ctx: typer.Context,
         if not no_output:
             console.print("-" * console.size.width)
 
+    if output is ScanOutput.SCREEN:
+        run_easter_egg(console, exit_code)
+
     if output is not ScanOutput.NONE:
         if detailed_output:
             if exit_code > 0:
                 console.print(f":stop_sign: Scan-failing vulnerabilities were found, returning non-zero exit code: {exit_code}")
             else:
                 console.print("No scan-failing vulnerabilities were matched, returning success exit code: 0")
+
         sys.exit(exit_code)
 
     return project_url, report, report_url

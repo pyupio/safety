@@ -1,7 +1,6 @@
 name: Python Package - Contributor
 
 on:
-  workflow_dispatch:
   pull_request:
     branches:
       - main
@@ -41,6 +40,8 @@ jobs:
     env:
       BINARY_OS: '${{ matrix.os }}'
     steps:
+      - name: Debug Author Association
+        run: echo "Author association: ${{ github.event.pull_request.author_association }}"
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5

@@ -7,8 +7,24 @@ on:
       - main
 
 jobs:
+  check-pr-author:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Print PR Author, Action User, and Collaborator Status
+        run: |
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
+          echo "Action User: ${{ github.actor }}"
+          echo "Is Collaborator: ${{ github.event.pull_request.user.collaborator }}"
+          if [[ "${{ github.event.pull_request.user.login }}" == "${{ github.actor }}" ]]; then
+            echo "The PR author is the same as the action user."
+          fi
+          if [[ "${{ github.event.pull_request.user.collaborator }}" != "true" ]]; then
+            echo "The PR author is not a collaborator."
+          fi
+
   test:
-    if: ${{ github.event.pull_request.user.login != 'github.actor' && !github.event.pull_request.user.collaborator }}
+    needs: check-pr-author
+    if: ${{ github.event.pull_request.user.login != github.actor && !github.event.pull_request.user.collaborator }}
     runs-on: ubuntu-20.04
     strategy:
       matrix:

@@ -1,0 +1,63 @@
+name: Python Package - Contributor
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    if: >
+      github.event.pull_request.head.repo.fork == true ||
+      !(
+        contains(github.event.pull_request.author_association, 'COLLABORATOR') ||
+        contains(github.event.pull_request.author_association, 'MEMBER') ||
+        contains(github.event.pull_request.author_association, 'OWNER')
+      )
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Debug event payload
+        run: |
+          echo "Fork: ${{ github.event.pull_request.head.repo.fork }}"
+          echo "Author Association: ${{ github.event.pull_request.author_association }}"
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r test_requirements.txt
+      - name: Run tests with pytest
+        run: |
+          pytest --cov=./ --cov-report=xml
+
+  build-binaries:
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ['windows-latest', 'ubuntu-20.04', 'macos-latest']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python binaries.py install
+      - name: Test Binaries
+        run: python binaries.py test
+      - name: Build Binaries
+        run: python binaries.py dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-binary
+          path: dist/
+          if-no-files-found: error

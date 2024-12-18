@@ -16,6 +16,8 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
+      - name: Debug Author Association
+        run: echo "Author association: ${{ github.event.pull_request.author_association }}"
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,8 +42,6 @@ jobs:
     env:
       BINARY_OS: '${{ matrix.os }}'
     steps:
-      - name: Debug Author Association
-        run: echo "Author association: ${{ github.event.pull_request.author_association }}"
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5

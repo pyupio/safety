@@ -303,7 +303,7 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
             "files": files,
         }
 
-        response = obj.auth.client.upload_requirments(payload)
+        response = obj.auth.client.upload_requirements(payload)
 
         if response.status_code == 200:
             LOG.info("Scan Payload successfully sent to the API.")

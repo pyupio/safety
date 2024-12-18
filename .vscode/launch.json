@@ -43,7 +43,7 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Safety Scan 2",
+            "name": "Safety Scan --use-server-matching",
             "type": "debugpy",
             "request": "launch",
             "module": "safety",

@@ -6,32 +6,9 @@ on:
       - main
 
 jobs:
-  check-pr-source:
-    runs-on: ubuntu-20.04
-    outputs:
-      is_fork: ${{ steps.check_fork.outputs.is_fork }}
-      author_association: ${{ steps.check_fork.outputs.author_association }}
-    steps:
-      - name: Check if PR is from a fork and author association
-        id: check_fork
-        run: |
-          echo "IS_FORK=${{ github.event.pull_request.head.repo.fork }}" >> $GITHUB_OUTPUT
-          echo "AUTHOR_ASSOCIATION=${{ github.event.pull_request.author_association }}" >> $GITHUB_OUTPUT
-
-  skip-all:
-    needs: check-pr-source
-    if: >
-      ${{ needs.check-pr-source.outputs.is_fork == 'false' && (
-           needs.check-pr-source.outputs.author_association == 'COLLABORATOR' ||
-           needs.check-pr-source.outputs.author_association == 'MEMBER' ||
-           needs.check-pr-source.outputs.author_association == 'OWNER') }}
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Skip all jobs
-        run: echo "Skipping all jobs as the PR is not from a fork and user has sufficient permissions."
 
   test:
-    needs: check-pr-source
+    if: github.event.pull_request.head.repo.fork == false && (contains(github.event.pull_request.author_association, 'COLLABORATOR') || contains(github.event.pull_request.author_association, 'MEMBER') || contains(github.event.pull_request.author_association, 'OWNER'))
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -46,7 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r test_requirements.txt
-      - name: Test with pytest
+      - name: Run tests with pytest
         run: |
           pytest --cov=./ --cov-report=xml
 
@@ -56,8 +33,6 @@ jobs:
     strategy:
       matrix:
         os: ['windows-latest', 'ubuntu-20.04', 'macos-latest']
-    env:
-      BINARY_OS: '${{ matrix.os }}'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -65,32 +40,15 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install Dependencies
-        run: python binaries.py install
-      - name: Test Safety
+        run: |
+          python -m pip install --upgrade pip
+          python binaries.py install
+      - name: Test Binaries
         run: python binaries.py test
-      - name: Producing Binaries
+      - name: Build Binaries
         run: python binaries.py dist
       - uses: actions/upload-artifact@v4
-        if: ${{ matrix.os == 'windows-latest' }}
         with:
-          name: safety-win-i686.exe
-          path: dist/safety-win-i686.exe
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: ${{ matrix.os == 'windows-latest' }}
-        with:
-          name: safety-win-x86_64.exe
-          path: dist/safety-win-x86_64.exe
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: ${{ matrix.os == 'ubuntu-20.04' }}
-        with:
-          name: safety-linux-x86_64
-          path: dist/safety-linux-x86_64
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: ${{ matrix.os == 'macos-latest' }}
-        with:
-          name: safety-macos-x86_64
-          path: dist/safety-macos-x86_64
+          name: ${{ matrix.os }}-binary
+          path: dist/
           if-no-files-found: error

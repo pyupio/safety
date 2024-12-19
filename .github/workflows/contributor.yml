@@ -6,14 +6,37 @@ on:
       - main
 
 jobs:
+  check-pr-source:
+    runs-on: ubuntu-20.04
+    outputs:
+      is_fork: ${{ steps.check_fork.outputs.is_fork }}
+      author_association: ${{ steps.check_fork.outputs.author_association }}
+    steps:
+      - name: Check if PR is from a fork and author association
+        id: check_fork
+        run: |
+          echo "Checking if the PR is from a fork..."
+          IS_FORK=${{ github.event.pull_request.head.repo.fork }}
+          AUTHOR_ASSOCIATION=${{ github.event.pull_request.author_association }}
+          echo "::set-output name=is_fork::$IS_FORK"
+          echo "::set-output name=author_association::$AUTHOR_ASSOCIATION"
+
   test:
+    needs: check-pr-source
     if: >
-      ${{ github.event.pull_request.head.repo.fork }}
+      ${{ needs.check-pr-source.outputs.is_fork == 'true' ||
+           needs.check-pr-source.outputs.author_association != 'COLLABORATOR' &&
+           needs.check-pr-source.outputs.author_association != 'MEMBER' &&
+           needs.check-pr-source.outputs.author_association != 'OWNER' }}
     runs-on: ubuntu-20.04
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
+      - name: Debug Author Association and Fork Status
+        run: |
+          echo "Author association: ${{ needs.check-pr-source.outputs.author_association }}"
+          echo "Is PR from fork: ${{ needs.check-pr-source.outputs.is_fork }}"
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5

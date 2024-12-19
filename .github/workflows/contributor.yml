@@ -18,8 +18,8 @@ jobs:
           echo "Checking if the PR is from a fork..."
           IS_FORK=${{ github.event.pull_request.head.repo.fork }}
           AUTHOR_ASSOCIATION=${{ github.event.pull_request.author_association }}
-          echo "::set-output name=is_fork::$IS_FORK"
-          echo "::set-output name=author_association::$AUTHOR_ASSOCIATION"
+          echo "is_fork=$IS_FORK" >> $GITHUB_OUTPUT
+          echo "author_association=$AUTHOR_ASSOCIATION" >> $GITHUB_OUTPUT
 
   test:
     needs: check-pr-source

@@ -8,16 +8,12 @@ on:
 jobs:
   test:
     if: >
-      ${{ github.event.pull_request.author_association != 'COLLABORATOR' &&
-           github.event.pull_request.author_association != 'MEMBER' &&
-           github.event.pull_request.author_association != 'OWNER' }}
+      ${{ github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-20.04
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
-      - name: Debug Author Association
-        run: echo "Author association: ${{ github.event.pull_request.author_association }}"
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5

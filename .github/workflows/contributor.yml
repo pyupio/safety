@@ -6,7 +6,6 @@ on:
       - main
 
 jobs:
-
   test:
     if: github.event.pull_request.head.repo.fork == false && (contains(github.event.pull_request.author_association, 'COLLABORATOR') || contains(github.event.pull_request.author_association, 'MEMBER') || contains(github.event.pull_request.author_association, 'OWNER'))
     runs-on: ubuntu-20.04
@@ -14,6 +13,10 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
+      - name: Debug event payload
+        run: |
+          echo "Fork: ${{ github.event.pull_request.head.repo.fork }}"
+          echo "Author Association: ${{ github.event.pull_request.author_association }}"
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5

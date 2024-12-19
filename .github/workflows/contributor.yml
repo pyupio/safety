@@ -17,43 +17,31 @@ jobs:
         run: |
           echo "IS_FORK=${{ github.event.pull_request.head.repo.fork }}" >> $GITHUB_OUTPUT
           echo "AUTHOR_ASSOCIATION=${{ github.event.pull_request.author_association }}" >> $GITHUB_OUTPUT
-      - name: Debug outputs
-        run: |
-          echo "Is Fork: ${{ steps.check_fork.outputs.is_fork }}"
-          echo "Author Association: ${{ steps.check_fork.outputs.author_association }}"
 
-  downstream-job:
+  skip-all:
     needs: check-pr-source
+    if: >
+      ${{ needs.check-pr-source.outputs.is_fork == 'false' && (
+           needs.check-pr-source.outputs.author_association == 'COLLABORATOR' ||
+           needs.check-pr-source.outputs.author_association == 'MEMBER' ||
+           needs.check-pr-source.outputs.author_association == 'OWNER') }}
     runs-on: ubuntu-20.04
     steps:
-      - name: Use job outputs
-        run: |
-          echo "Is Fork: ${{ needs.check-pr-source.outputs.is_fork }}"
-          echo "Author Association: ${{ needs.check-pr-source.outputs.author_association }}"
+      - name: Skip all jobs
+        run: echo "Skipping all jobs as the PR is not from a fork and user has sufficient permissions."
 
   test:
     needs: check-pr-source
-    if: >
-      ${{ needs.check-pr-source.outputs.is_fork == 'true' ||
-           needs.check-pr-source.outputs.author_association != 'COLLABORATOR' &&
-           needs.check-pr-source.outputs.author_association != 'MEMBER' &&
-           needs.check-pr-source.outputs.author_association != 'OWNER' }}
     runs-on: ubuntu-20.04
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
-      - name: Debug Author Association and Fork Status
-        run: |
-          echo "Author association: ${{ needs.check-pr-source.outputs.author_association }}"
-          echo "Is PR from fork: ${{ needs.check-pr-source.outputs.is_fork }}"
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

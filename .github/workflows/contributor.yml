@@ -15,11 +15,21 @@ jobs:
       - name: Check if PR is from a fork and author association
         id: check_fork
         run: |
-          echo "Checking if the PR is from a fork..."
-          IS_FORK=${{ github.event.pull_request.head.repo.fork }}
-          AUTHOR_ASSOCIATION=${{ github.event.pull_request.author_association }}
-          echo "is_fork=$IS_FORK" >> $GITHUB_OUTPUT
-          echo "author_association=$AUTHOR_ASSOCIATION" >> $GITHUB_OUTPUT
+          echo "IS_FORK=${{ github.event.pull_request.head.repo.fork }}" >> $GITHUB_OUTPUT
+          echo "AUTHOR_ASSOCIATION=${{ github.event.pull_request.author_association }}" >> $GITHUB_OUTPUT
+      - name: Debug outputs
+        run: |
+          echo "Is Fork: ${{ steps.check_fork.outputs.is_fork }}"
+          echo "Author Association: ${{ steps.check_fork.outputs.author_association }}"
+
+  downstream-job:
+    needs: check-pr-source
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Use job outputs
+        run: |
+          echo "Is Fork: ${{ needs.check-pr-source.outputs.is_fork }}"
+          echo "Author Association: ${{ needs.check-pr-source.outputs.author_association }}"
 
   test:
     needs: check-pr-source

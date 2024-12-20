@@ -17,7 +17,6 @@ jobs:
           ORG: "pyupio"
           TEAM: "developers"
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          ACTOR: ${{ github.actor }}
         run: |
           check_membership() {
             local user=$1
@@ -37,16 +36,7 @@ jobs:
           echo "Checking PR author: $PR_AUTHOR"
           if check_membership "$PR_AUTHOR"; then
             echo "proceed=true" >> $GITHUB_ENV
-          else
-            echo "Checking actor: $ACTOR"
-            if [ "$PR_AUTHOR" != "$ACTOR" ] && check_membership "$ACTOR"; then
-              echo "$ACTOR is a member of the $TEAM team."
-              echo "proceed=true" >> $GITHUB_ENV
-            else
-              echo "$ACTOR is NOT a member of the $TEAM team."
-              echo "proceed=false" >> $GITHUB_ENV
-            fi
-          fi
+         
 
   test:
     needs: check-author

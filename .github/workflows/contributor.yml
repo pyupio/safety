@@ -6,14 +6,46 @@ on:
       - main
 
 jobs:
+  check-author:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check if PR author or actor is in Developers team
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORG: "pyupio"  
+          TEAM: "developers"  
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          check_membership() {
+            local user=$1
+            RESPONSE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/orgs/$ORG/teams/$TEAM/memberships/$user")
+            if echo "$RESPONSE" | grep -q '"state": "active"'; then
+              echo "$user is a member of the $TEAM team."
+              return 0
+            else
+              echo "$user is NOT a member of the $TEAM team."
+              return 1
+            fi
+          }
+
+          echo "Checking PR author: $PR_AUTHOR"
+          if check_membership "$PR_AUTHOR"; then
+            echo "::set-output name=proceed::true"
+          else
+            echo "Checking actor: $ACTOR"
+            if [ "$PR_AUTHOR" != "$ACTOR" ] && check_membership "$ACTOR"; then
+              echo "::set-output name=proceed::true"
+            else
+              echo "::set-output name=proceed::false"
+            fi
+          fi
+    outputs:
+      proceed: ${{ steps.check-author.outputs.proceed }}
+
   test:
-    if: >
-      github.event.pull_request.head.repo.fork == true ||
-      !(
-        contains(github.event.pull_request.author_association, 'COLLABORATOR') ||
-        contains(github.event.pull_request.author_association, 'MEMBER') ||
-        contains(github.event.pull_request.author_association, 'OWNER')
-      )
+    if: needs.check-author.outputs.proceed == 'true'
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -38,6 +70,7 @@ jobs:
 
   build-binaries:
     needs: test
+    if: needs.check-author.outputs.proceed == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

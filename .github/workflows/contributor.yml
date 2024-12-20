@@ -1,4 +1,4 @@
-name: Python Package - Contributor
+name: Python Package - Fork PR
 
 on:
   pull_request:
@@ -8,12 +8,7 @@ on:
 jobs:
   test:
     if: >
-      github.event.pull_request.head.repo.fork == true ||
-      !(
-        contains(github.event.pull_request.author_association, 'COLLABORATOR') ||
-        contains(github.event.pull_request.author_association, 'MEMBER') ||
-        contains(github.event.pull_request.author_association, 'OWNER')
-      )
+      github.event.pull_request.head.repo.fork == true 
     runs-on: ubuntu-20.04
     strategy:
       matrix:

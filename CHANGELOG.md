@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
+
+## [3.2.14] - 2024-12-20
+- Add fun-mode (#649)
+- Package version upgrade for psutil and filelock (#652)
+- Package version upgrade for typer (#654)
+- Package version upgrade for pydantic (#655)
+- Add "--use-server-matching" arguement (#640)
+- Bugfix for safety "NoneType is not iterable" error (#657)
+
+
 ## [3.2.13] - 2024-12-10
 - Remove email verification for running scans (#645)
 

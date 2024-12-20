@@ -8,12 +8,14 @@ on:
 jobs:
   check-author:
     runs-on: ubuntu-20.04
+    outputs:
+      proceed: ${{ steps.check-author.outputs.proceed }}
     steps:
       - name: Check if PR author or actor is in Developers team
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ORG: "pyupio"  
-          TEAM: "developers"  
+          ORG: "pyupio"
+          TEAM: "developers"
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           ACTOR: ${{ github.actor }}
         run: |
@@ -21,7 +23,9 @@ jobs:
             local user=$1
             RESPONSE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/orgs/$ORG/teams/$TEAM/memberships/$user")
-            if echo "$RESPONSE" | grep -q '"state": "active"'; then
+            
+            # Use jq for JSON parsing
+            if echo "$RESPONSE" | jq -e '.state == "active"' > /dev/null; then
               echo "$user is a member of the $TEAM team."
               return 0
             else
@@ -32,19 +36,20 @@ jobs:
 
           echo "Checking PR author: $PR_AUTHOR"
           if check_membership "$PR_AUTHOR"; then
-            echo "::set-output name=proceed::true"
+            echo "proceed=true" >> $GITHUB_ENV
           else
             echo "Checking actor: $ACTOR"
             if [ "$PR_AUTHOR" != "$ACTOR" ] && check_membership "$ACTOR"; then
-              echo "::set-output name=proceed::true"
+              echo "$ACTOR is a member of the $TEAM team."
+              echo "proceed=true" >> $GITHUB_ENV
             else
-              echo "::set-output name=proceed::false"
+              echo "$ACTOR is NOT a member of the $TEAM team."
+              echo "proceed=false" >> $GITHUB_ENV
             fi
           fi
-    outputs:
-      proceed: ${{ steps.check-author.outputs.proceed }}
 
   test:
+    needs: check-author
     if: needs.check-author.outputs.proceed == 'true'
     runs-on: ubuntu-20.04
     strategy:

@@ -81,7 +81,8 @@ def ignore_vuln_if_needed(
 
     spec_ignored: bool = False
 
-    if vuln_id in ignore_vulns.keys() and str(specification.specifier) in ignore_vulns[vuln_id].specifications:
+    vuln =  ignore_vulns.get(vuln_id)
+    if vuln is not None and vuln.specifications is not None and str(specification.specifier) in vuln.specifications:
         spec_ignored = True
 
     if (not spec_ignored) and \

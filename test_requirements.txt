@@ -1,23 +1,6 @@
-pytest==7.4.4
-pytest-cov==4.1.0
-setuptools>=65.5.1; python_version>="3.7"
-setuptools; python_version=="3.6"
-Click>=8.0.2
-urllib3>=1.26.5
-requests
-packaging>=21.0,<=23.0
-dparse>=0.6.4
-ruamel.yaml>=0.17.21
-dataclasses==0.8; python_version=="3.6"
-jinja2; python_version=="3.6"
-jinja2>=3.1.0; python_version>="3.7"
-marshmallow; python_version=="3.6"
-marshmallow>=3.15.0; python_version>="3.7"
-Authlib>=1.2.0
-rich
-typer>=0.12.1
-pydantic>=2.6.0,<2.10.0
-safety_schemas==0.0.10
-typing-extensions>=4.7.1
-filelock~=3.16.1
-psutil~=6.1.0
+Django==1.8.0         
+flask==0.12.2        
+requests==2.19.0      
+pillow==6.2.0          
+PyYAML==3.12           
+jinja2==2.7.2         

@@ -247,7 +247,7 @@ def build_meta(target: Path) -> Dict[str, Any]:
         "client": client_metadata,
     }
 
-def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False, obj=None, target=Path(".")) -> Generator[Tuple[Path, InspectableFile], None, None]:
+def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, obj=None, target=Path(".")) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
     Processes the files and yields each file path along with its inspectable file.
 
@@ -262,7 +262,6 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
         config = ConfigModel()
 
     # old GET implementation
-    if not use_server_matching:
         for file_type_key, f_paths in paths.items():
             file_type = FileType(file_type_key)
             if not file_type or not file_type.ecosystem:
@@ -274,39 +273,53 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
                         inspectable_file.remediate()
                         yield f_path, inspectable_file
 
-    # new POST implementation
-    else:
-        files = []
-        meta = build_meta(target)
-        for file_type_key, f_paths in paths.items():
-            file_type = FileType(file_type_key)
-            if not file_type or not file_type.ecosystem:
+   
+
+
+def process_files_online(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, obj=None, target=Path(".")):
+    """
+    Processes the files and yields each file path along with its inspectable file.
+
+    Args:
+        paths (Dict[str, Set[Path]]): A dictionary of file paths by file type.
+        config (Optional[ConfigModel]): The configuration model (optional).
+
+    Yields:
+        Tuple[Path, InspectableFile]: A tuple of file path and inspectable file.
+    """
+    files = []
+    meta = build_meta(target)
+    for file_type_key, f_paths in paths.items():
+        file_type = FileType(file_type_key)
+        if not file_type or not file_type.ecosystem:
+            continue
+        for f_path in f_paths:
+            relative_path = os.path.relpath(f_path, start=os.getcwd())
+            # Read the file content
+            try:
+                with open(f_path, "r") as file:
+                    content = file.read()
+            except Exception as e:
+                LOG.error(f"Error reading file {f_path}: {e}")
                 continue
-            for f_path in f_paths:
-                relative_path = os.path.relpath(f_path, start=os.getcwd())
-                # Read the file content
-                try:
-                    with open(f_path, "r") as file:
-                        content = file.read()
-                except Exception as e:
-                    LOG.error(f"Error reading file {f_path}: {e}")
-                    continue
-                # Append metadata to the payload
-                files.append({
-                    "name": relative_path,
-                    "content": content,
-                })
+            # Append metadata to the payload
+            files.append({
+                "name": relative_path,
+                "content": content,
+            })
 
-        # Prepare the payload with metadata at the top level
-        payload = {
-            "meta": meta,
-            "files": files,
-        }
+    # Prepare the payload with metadata at the top level
+    payload = {
+        "meta": meta,
+        "files": files,
+    }
 
-        response = obj.auth.client.upload_requirements(payload)
+    response = obj.auth.client.upload_requirements(payload)
 
-        if response.status_code == 200:
-            LOG.info("Scan Payload successfully sent to the API.")
-        else:
-            LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
-            LOG.error(f"Response: {response.text}")
+    if response.status_code == 200:
+        LOG.info("Scan Payload successfully sent to the API.")
+    else:
+        LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
+        LOG.error(f"Response: {response.text}")
+
+    return response.json()

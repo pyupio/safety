@@ -1,5 +1,6 @@
 from datetime import datetime
 import itertools
+import json
 import logging
 from typing import List
 from safety_schemas.models import FileType, PythonDependency, ClosestSecureVersion, \
@@ -406,6 +407,10 @@ class PythonFile(InspectableFile, Remediable):
                                  skip_time_verification=True)
         if not db_full:
             return
+        
+        with open("test.json", 'w', encoding='utf-8') as json_file:
+            json.dump(db_full, json_file, ensure_ascii=False, indent=4)
+        
 
         for dependency in self.dependency_results.get_affected_dependencies():
             secure_versions = dependency.secure_versions

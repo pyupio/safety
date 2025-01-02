@@ -295,7 +295,7 @@ def inject_metadata(func):
 
         auth_type = ctx.obj.auth.client.get_authentication_type()
 
-        scan_type = ScanType(ctx.command.name)
+        scan_type = ScanType.scan
         target = kwargs.get("target", None)
         targets = kwargs.get("targets", None)
 

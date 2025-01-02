@@ -42,7 +42,7 @@ from safety.util import get_packages_licenses, initializate_config_dirs, output_
     MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
     get_processed_options, get_safety_version, json_alias, bare_alias, html_alias, SafetyContext, is_a_remote_mirror, \
     filter_announcements, get_fix_options
-from safety.scan.command import scan_project_app, scan_system_app
+from safety.scan.command import scan_project_app, scan_system_app, scan_online_app
 from safety.auth.cli import auth_app
 from safety_schemas.models import ConfigModel, Stage
 
@@ -850,6 +850,7 @@ def check_updates(ctx: typer.Context,
 
 cli.add_command(typer.main.get_command(cli_app), "check-updates")
 cli.add_command(typer.main.get_command(scan_project_app), "scan")
+cli.add_command(typer.main.get_command(scan_online_app), "scan_online")
 cli.add_command(typer.main.get_command(scan_system_app), "system-scan")
 
 cli.add_command(typer.main.get_command(auth_app), "auth")

@@ -124,6 +124,10 @@ def check_project(console, ctx: typer.Context, session: SafetyAuthSession,
     status = print_wait_project_verification(console, data[PRJ_SLUG_KEY] if data.get(PRJ_SLUG_KEY, None) else "-",
                                     (session.check_project, data), on_error_delay=1)
 
+    if status is None:
+        console.print("[yellow]Project verification skipped due to an error.[/yellow]")
+        return {}
+
     return status
 
 
@@ -143,14 +147,16 @@ def verify_project(console, ctx: typer.Context, session: SafetyAuthSession,
     """
 
     verified_prj = False
-
     link_prj = True
 
     while not verified_prj:
         result = check_project(console, ctx, session, unverified_project, stage, git_origin, ask_project_id=not link_prj)
 
-        unverified_slug = result.get("slug")
+        if not result:
+            console.print("[red]Verification failed. Exiting...[/red]")
+            return  # Gracefully exit if verification fails.
 
+        unverified_slug = result.get("slug")
         project = result.get("project", None)
         user_confirm = result.get("user_confirm", False)
 

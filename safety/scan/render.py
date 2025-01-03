@@ -119,7 +119,7 @@ def print_detected_ecosystems_section(console: Console, file_paths: Dict[str, Se
         msg = f"{ecosystem.name.replace('_', ' ').title()} detected. {brief}"
 
         console.print(msg)
-        
+
 
 
 def print_fixes_section(console: Console, requirements_txt_found: bool = False, is_detailed_output: bool = False) -> None:
@@ -167,7 +167,7 @@ def print_summary(
     Prints a concise summary of scan results including vulnerabilities, fixes, and ignored vulnerabilities.
 
     This function summarizes the results of a security scan, displaying the number of dependencies scanned,
-    vulnerabilities found, suggested fixes, and the impact of those fixes. It also optionally provides a 
+    vulnerabilities found, suggested fixes, and the impact of those fixes. It also optionally provides a
     detailed breakdown of ignored vulnerabilities based on predefined policies.
 
     Args:
@@ -190,7 +190,7 @@ def print_summary(
             print_summary(console, unique_issues, 10, 2, project_model, dependencies_count=5, fixes_count=2)
 
     """
-    
+
     from ..util import pluralize
 
     # Set the policy message based on the project source
@@ -210,7 +210,7 @@ def print_summary(
 
     console.print(
                   f"[number]{fixes_count}[/number] {pluralize('fix', fixes_count)} suggested, resolving [number]{resolved_vulns_per_fix}[/number] vulnerabilities.")
-    
+
     if is_detailed_output:
         if not ignored_vulns_data:
             ignored_vulns_data = iter([])
@@ -253,14 +253,14 @@ def print_summary(
                         "of their severity or exploitability impacted the following" \
                         f" {pluralize('package', len(cvss_severity_ignored_pkgs))}: {', '.join(cvss_severity_ignored_pkgs)}"
             )
-            
+
         if environment_ignored:
             count = len(environment_ignored)
             console.print(
                 f"[number]{count}[/number] {pluralize('vulnerability', count)} {pluralize('was', count)} ignored because " \
                         "they are inside an environment dependency."
             )
-            
+
         if unpinned_ignored:
             count = len(unpinned_ignored)
             console.print(
@@ -269,7 +269,7 @@ def print_summary(
                         f"{', '.join(unpinned_ignored_pkgs)}"
             )
 
-       
+
 
 def print_wait_project_verification(console: Console, project_id: str, closure: Tuple[Any, Dict[str, Any]], on_error_delay: int = 1) -> Any:
     """
@@ -293,10 +293,12 @@ def print_wait_project_verification(console: Console, project_id: str, closure: 
             status = f(**kwargs)
         except Exception as e:
             LOG.exception(f'Unable to verify the project, reason: {e}')
-            reason = "We are currently unable to verify the project, " \
-                "and it is necessary to link the scan to a specific " \
-                    f"project. Reason: {e}"
-            raise SafetyException(message=reason)
+            reason = (
+                "We are currently unable to verify the project. "
+                f"Reason: {str(e) if str(e) else 'Unknown error'}"
+            )
+            console.print(f"[red]{reason}[/red]")
+            return None  # Gracefully return None instead of raising
 
         if not status:
             wait_msg = f'Unable to verify "{project_id}". Starting again...'

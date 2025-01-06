@@ -1,19 +1,71 @@
 {
-    "name": "Safety-CLI Dev Container",
-    "build": {
-        "dockerfile": "Dockerfile",
-        "context": "..",
-        "args": {
-            "SAFETY_VERSION": "DEV"
-        }
-    },
-    "extensions": [
-        "ms-python.python",
-        "ms-python.vscode-pylance",
-        "ms-python.debugpy"
-    ],
-    "postCreateCommand": "pip install -r test_requirements.txt && pip install ruff requests pre-commit",
-    "remoteUser": "root",
-    "workspaceFolder": "/workspaces/safety",
-    "forwardPorts": [49152]
+  "name": "Safety CLI Development Environment",
+  
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  "remoteUser": "developer",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+
+
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/developer/.ssh,type=bind,consistency=cached"
+  ],
+
+  "remoteEnv": {
+    "PYTHONPATH": "${localWorkspaceFolder}",
+    "TERM": "xterm-256color"
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/bin/zsh"
+          }
+        },
+        "python.defaultInterpreterPath": "${localWorkspaceFolder}/.hatch/bin/python",
+        "editor.rulers": [80],
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/.pytest_cache": true
+        },
+        "search.exclude": {
+          "**/.hatch": true,
+        }                
+      },
+			"extensions": [
+				"ms-python.vscode-pylance",
+				"ms-python.python",
+				"ms-python.debugpy",
+        "ms-pyright.pyright",
+				"charliermarsh.ruff",
+        "tamasfe.even-better-toml",
+				"GitHub.copilot",
+				"streetsidesoftware.code-spell-checker",
+				"VisualStudioExptTeam.vscodeintellicode",
+				"VisualStudioExptTeam.intellicode-api-usage-examples",
+				"mechatroner.rainbow-csv",
+				"redhat.vscode-yaml",
+				"eamodio.gitlens",
+				"github.vscode-github-actions"
+			]
+    }
+  },
+
+  "postCreateCommand": "hatch env create default && git config --global core.editor nano",
+  "postAttachCommand": "sudo chown root:developer /var/run/docker.sock && sudo chmod 660 /var/run/docker.sock && hatch env remove default && hatch env create default",
+
+  "containerEnv": {
+    "SHELL": "/bin/zsh"
+  },
+
+  "waitFor": "postCreateCommand",
+  "shutdownAction": "stopContainer"
 }

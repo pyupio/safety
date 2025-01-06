@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -17,10 +17,7 @@ jobs:
     
     - name: Safety Version
       run: |
-        pip install packaging
-        package_version=$(cat safety/VERSION)
-        echo $package_version
-        echo "SAFETY_VERSION=$package_version" >> $GITHUB_ENV
+        echo "SAFETY_VERSION=$(python -c 'import tomli; print(tomli.load(open("pyproject.toml", "rb"))["project"]["version"])')" >> $GITHUB_ENV
 
     - name: Extract Major and Minor Version
       run: |

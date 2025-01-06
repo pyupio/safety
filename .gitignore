@@ -1,7 +1,8 @@
 # Other
-.vscode/
 .direnv/
 .envrc
+uv.lock
+.hatch/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

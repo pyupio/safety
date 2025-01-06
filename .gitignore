@@ -78,3 +78,4 @@ venv/
 
 # Mac OS
 .DS_Store
+.safety-project.ini

@@ -43,6 +43,16 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Safety Scan-online",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": [
+                "scan_online"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Safety Scan --use-server-matching",
             "type": "debugpy",
             "request": "launch",

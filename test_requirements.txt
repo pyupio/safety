@@ -1,6 +1,2 @@
 Django==1.8.0         
-flask==0.12.2        
-requests==2.19.0      
-pillow==6.2.0          
-PyYAML==3.12           
-jinja2==2.7.2         
+flask==0.12.2

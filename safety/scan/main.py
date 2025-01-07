@@ -345,6 +345,7 @@ def generate_report(paths, obj):
                 "name": relative_path,
                 "content": content,
             })
+    meta["project_id"] = obj.project.id
 
     # Prepare the payload with metadata at the top level
     payload = {

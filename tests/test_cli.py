@@ -17,6 +17,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
 from safety import cli
+from safety.console import main_console as console
 from safety.models import CVE, SafetyRequirement, Severity, Vulnerability
 from safety.util import Package, SafetyContext, get_safety_version
 from safety.auth.models import Auth
@@ -75,6 +76,10 @@ class TestSafetyCLI(unittest.TestCase):
         self.runner = CliRunner(mix_stderr=False)
         self.output_options = ['screen', 'text', 'json', 'bare']
         self.dirname = os.path.dirname(__file__)
+        # Make sure the console is not quiet
+        # TODO: This is a workaround, we should improve the way the console
+        # is initialized in the CLI
+        console.quiet = False
 
     def test_command_line_interface(self):
         runner = CliRunner()
@@ -528,7 +533,6 @@ class TestSafetyCLI(unittest.TestCase):
     @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
-    @patch('builtins.input', lambda *args: '')
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
         """
@@ -558,7 +562,6 @@ class TestSafetyCLI(unittest.TestCase):
     @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
-    @patch('builtins.input', lambda *args: '')
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag_with_value_1(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
         sys.argv = ['safety', '--debug', '1', 'scan']
@@ -576,7 +579,6 @@ class TestSafetyCLI(unittest.TestCase):
     @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
-    @patch('builtins.input', lambda *args: '')
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
     def test_debug_flag_with_value_true(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
         sys.argv = ['safety', '--debug', 'true', 'scan']

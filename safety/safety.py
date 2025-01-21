@@ -1581,6 +1581,7 @@ def get_packages(files: Optional[List[str]] = None, stdin: bool = False) -> List
     if stdin:
         return list(read_requirements(sys.stdin))
 
+    # TODO: Migrate away from pkg_resources and use importlib
     import pkg_resources
 
     def allowed_version(pkg: str, version: str) -> bool:

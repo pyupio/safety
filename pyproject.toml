@@ -1,3 +1,284 @@
 [build-system]
-requires = ["setuptools>=42"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safety"
+version = "3.2.14"
+description = "Scan dependencies for known vulnerabilities and licenses."
+keywords = ["safety", "vulnerabilities", "dependencies", "licenses", "scan"]
+readme = "README.md"
+authors = [
+    {name = "Safety", email = "cli@safetycli.com"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Security",
+    "Natural Language :: English",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Telecommunications Industry",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.8"
+dependencies = [
+  "Authlib>=1.2.0",
+  "Click>=8.0.2", # Just to set a minimum version, Typer works with >=8.0.0
+  "dparse>=0.6.4",
+  "filelock~=3.16.1",
+  "jinja2>=3.1.0",
+  "marshmallow>=3.15.0", # TODO: To be removed
+  "packaging>=21.0",
+  "psutil~=6.1.0",
+  "pydantic>=2.6.0,<2.10.0",
+  "requests", # TODO: To be replaced by httpx or aiohttp
+  "ruamel.yaml>=0.17.21",
+  "safety-schemas==0.0.10",
+  # TODO: To be removed after migrate away from pkg_resources
+  "setuptools>=65.5.1",
+  "typer>=0.12.1",
+  "typing-extensions>=4.7.1",
+]
+license = "MIT"
+license-files = ["LICENSES/*"]
+
+
+[project.urls]
+homepage = "https://safetycli.com"
+source = "https://github.com/pyupio/safety"
+issues = "https://github.com/pyupio/safety/issues"
+changelog = "https://github.com/pyupio/safety/blob/main/CHANGELOG.md"
+documentation = "https://docs.safetycli.com/safety-docs"
+
+[project.optional-dependencies]
+github = [
+  "pygithub>=1.43.3"
+]
+gitlab = [
+  "python-gitlab>=1.3.0"
+]
+spdx = [
+  "spdx-tools>=0.8.2"
+]
+
+[project.scripts]
+safety = "safety.cli:cli"
+
+
+# Build specific configurations
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "CHANGELOG.md",
+    "README.md",
+    "SECURITY.md",
+    "LICENSES/*",
+    "safety",
+    "tests",
+    "pyproject.toml"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = [
+  "safety"
+]
+include-package-data = true
+zip-safe = false
+
+# Tool specific configurations
+
+## Hatch environments
+[tool.hatch.envs.default]
+installer = "uv"
+type = "virtual"
+# This should always be set to the minimum supported Python version.
+# To test with a different version, modify this value, refresh
+# the environment, and run it via the VSCode launch configuration
+# (it will pick up the new interpreter).
+#
+# To reset the default environment, run:
+# hatch env remove
+# hatch env create
+python = "3.8"
+path = ".hatch"
+
+dependencies = [
+  "coverage[toml]>=6.0",
+  "pytest==8.3.4",
+  "pyinstaller==6.11.1",
+  "commitizen",
+  "tomli"
+]
+
+
+# Common scripts used across environments
+[tool.hatch.envs.default.scripts]
+bump = "cz bump --check-consistency --yes && cz changelog --merge-prerelease"
+beta-bump = "cz bump -pr beta --check-consistency --yes && cz changelog --merge-prerelease"
+local-bump = "cz bump {args} --files-only --yes"
+binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
+
+[tool.hatch.envs.test]
+installer = "uv"
+type = "container"
+
+
+[tool.hatch.envs.test.scripts]
+test = 'pytest -m "" {args:tests}'
+test-cov = 'coverage run -m pytest -m "" {args:tests}'
+cov-report = [
+  "coverage combine",
+  "coverage report --show-missing",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
+
+[tool.hatch.envs.test.overrides]
+matrix.targets.dependencies = [
+    # { value = "pydantic==2.6.0", if = ["pydantic-minimal"] },
+    { value = "pydantic~=2.9.0", if = ["pydantic-latest"] },
+    
+    { value = "typer==0.12.1", if = ["typer-minimal"] },
+    { value = "Click==8.0.2", if = ["typer-minimal"] },
+
+    { value = "typer~=0.13", if = ["typer-latest"] },
+    { value = "Click~=8.1", if = ["typer-latest"] }
+]
+
+# Prevent running the OS specific tests locally
+matrix.os_type.scripts = [
+  { key = "test", value = "echo Skipped", env = ["REMOTE_CONTAINERS=true"]},
+  { key = "test-cov", value = "echo Skipped", env = ["REMOTE_CONTAINERS=true"]},
+  { key = "cov-report", value = "echo Skipped", env = ["REMOTE_CONTAINERS=true"]},
+  { key = "cov", value = "echo Skipped", env = ["REMOTE_CONTAINERS=true"]}
+]
+
+# Note: scripts/matrix.py is used to generate the matrix for
+# the GitHub CI workflow, the script is very naive and a switch in the
+# order of the matrixes can cause the script to fail.
+# This was pragmatic to avoid having to maintain the matrix in two places.
+#
+# Make sure to update the script if you structural changes to the matrixes.
+# Examples:
+# * Add/Remove python versions is okay.
+# * Add/Remove targets is okay.
+# * Reorder matrixes is not okay.
+#
+[[tool.hatch.envs.test.matrix]]
+# Full Python version testing
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+# Critical dependency testing only on boundary versions
+[[tool.hatch.envs.test.matrix]]
+python = [
+  "3.8", "3.13"
+]
+targets = [
+  "typer-minimal",
+  # "pydantic-minimal",
+  "pydantic-latest",
+  "typer-latest"
+]
+
+# Critical tests for OS compatibility
+# This only runs on GitHub CI
+[[tool.hatch.envs.test.matrix]]
+python = [
+  "3.8", "3.13"
+]
+targets = [
+  "typer-latest"
+]
+os_type = [
+  "ubuntu-24.04",
+  "windows-2019",
+  "macos-14",
+]
+
+# Choose what config should be used for the artifacts build
+[tool.project.build.artifacts]
+python = "3.13"
+package_os_type = "ubuntu-24.04"
+targets = [
+  "typer-latest"
+]
+os_type = [
+  "ubuntu-24.04",
+  "windows-2019",
+  "macos-14"
+]
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = [
+  "ruff",
+]
+[tool.hatch.envs.lint.scripts]
+typing = "pyright"
+style = [
+  "ruff check {args:.}",
+  "ruff format --check --diff {args:.}",
+]
+fmt = [
+  "ruff format {args:.}",
+  "ruff --fix {args:.}",
+  "style",
+]
+all = [
+  "style",
+  "typing",
+]
+
+[tool.pyright]
+include = [
+  "safety/scan/"
+]
+pythonVersion = "3.8"
+pythonPlatform = "All"
+reportMissingImports = "error"
+reportMissingTypeStubs = false
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+    "basic: requires no extras",
+]
+
+[tool.coverage.run]
+source_pkgs = ["safety"]
+branch = true
+parallel = true
+omit = [
+]
+
+[tool.coverage.paths]
+source = ["safety", "*/safety"]
+
+[tool.coverage.report]
+exclude_lines = [
+]
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "$version"
+version_scheme = "pep440"
+version_provider = "pep621"
+update_changelog_on_bump = false
+annotated_tag = true
+changelog_incremental = false
+
+
+[tool.flake8]
+exclude = ["docs"]

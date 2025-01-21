@@ -2,241 +2,87 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Safety Auth Login",
+            "name": "[CLI]: Safety CLI",
             "type": "debugpy",
             "request": "launch",
             "module": "safety",
-            "args": [
-                "auth"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Auth Login --headless",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "auth","login","--headless"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Auth Logout",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "auth",
-                "logout"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Scan",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "scan"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Scan --use-server-matching",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "scan", "--use-server-matching"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Scan API Key",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "--key","ADD-YOUR-API-KEY", "scan"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety License",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "license"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Scan --detailed-output",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "scan",
-                "--detailed-output"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Scan --debug",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "--debug",
-                "scan"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Scan --disable-optional-telemetry",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "--disable-optional-telemetry",
-                "scan"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Scan --output json",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "scan",
-                "--output",
-                "json",
-                "--output-file",
-                "test.json"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Check",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "check"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety Check --debug",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "check",
-                "--debug"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Safety --help",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "safety",
-            "args": [
-                "--help"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run All Tests",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_render.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "./tests/scan/test_render.py"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_cli.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/test_cli.py"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_db.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/test_db.py"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_output_utils.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/test_output_utils.py"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_policy_file.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/test_policy_file.py"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_util.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/test_util.py"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_safety.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/test_safety.py"
-            ],
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Run test_models.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": [
-                "tests/test_models.py"
-            ],
+            "args": "${input:mainCommand}",
+            // This uses the default environment which is a virtual environment
+            // created by Hatch
+            "python": "${workspaceFolder}/.hatch/bin/python",
             "console": "integratedTerminal"
         }
+    ],
+    "inputs": [
+        {
+            "id": "testPath",
+            "type": "pickString",
+            "description": "Choose the test path (selecting 'tests' will run all tests)",
+            // Note: This is a manual list and works for now.
+            "options": [
+                "tests",
+                "tests/alerts",
+                "tests/auth",
+                "tests/scan",
+                "tests/formatters",
+                "tests/test_cli.py",
+                "tests/test_models.py",
+                "tests/test_output_utils.py",
+                "tests/test_safety.py",
+                "tests/test_util.py",
+                "tests/test_policy_file.py",
+                "tests/test_db.py"
+            ],
+            "default": "tests/"
+        },
+        {
+            "id": "environment",
+            "type": "pickString",
+            "description": "Select environment",
+            // Note: This is a manual list and works for now.
+            "options": [
+                "py3.8",
+                "py3.9",
+                "py3.10",
+                "py3.11",
+                "py3.12",
+                "py3.13",
+                "py3.8-pydantic-latest",
+                "py3.8-typer-latest",
+                "py3.13-pydantic-latest",
+                "py3.13-typer-latest",
+            ],
+            "default": "py3.8"
+        },
+        {
+            "id": "mainCommand",
+            "type": "pickString",
+            "description": "Select Safety command with options",
+            "options": [
+                // Auth commands
+                "auth",
+                "auth login",
+                "auth login --headless",
+                "auth logout",
+                
+                // Scan commands
+                "scan",
+                "--key ADD-YOUR-API-KEY scan",
+                "scan --use-server-matching",
+                "scan --detailed-output",
+                "--debug scan",
+                "--disable-optional-telemetry scan",
+                "scan --output json --output-file json",
+                
+                // Check commands
+                "check",
+                "--debug check",
+                
+                // Other commands
+                "license",
+                "--help"
+            ],
+            "default": "scan"
+        }                
     ]
 }

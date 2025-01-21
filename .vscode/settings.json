@@ -1,0 +1,26 @@
+{
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  // This uses the default environment which is a virtual environment
+  // created by Hatch
+  "python.testing.pytestPath": "${workspaceFolder}/.hatch/bin/pytest",
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+  "python.testing.pytestArgs": [
+    "-v",
+    "-s",
+    // Disable assertion rewriting, to prevent conflicts with 
+    // debugpy    
+    "--assert=plain",
+  ],
+  "cSpell.words": [
+    "Authlib",
+    "dparse",
+    "filelock",
+    "psutil",
+    "pydantic",
+    "pytest",
+    "ruamel",
+    "setuptools",
+    "typer"
+  ]
+}

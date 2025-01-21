@@ -237,8 +237,8 @@ def get_safety_version() -> str:
     Returns:
         str: The Safety version.
     """
-    from safety import VERSION
-    return VERSION
+    from importlib.metadata import version
+    return version("safety")
 
 
 def get_primary_announcement(announcements: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:

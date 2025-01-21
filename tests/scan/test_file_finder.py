@@ -52,6 +52,3 @@ class TestFileFinder(unittest.TestCase):
 
         self.assertEqual(dir_path, Path('/root'))
         self.assertEqual(len(files), 0)  # No files should be found as we didn't mock the handlers
-
-if __name__ == '__main__':
-    unittest.main()

@@ -1,27 +1,54 @@
-# Use the official Python 3.12 slim image
-FROM python:3.12-slim
+FROM python:3.8-alpine
 
-# Create a non-root user and a directory for the application
-RUN useradd -m appuser && \
-    mkdir /app && \
-    chown appuser:appuser /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Set the working directory
-WORKDIR /app
+RUN apk add --no-cache \
+    git \
+    curl \
+    wget \
+    zsh \
+    jq \
+    sudo \
+    docker \
+    docker-compose \
+    bash \
+    grep \
+    sed \
+    nodejs \
+    npm \
+    # Build dependencies for Python packages
+    gcc \
+    musl-dev \
+    python3-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo \
+    rust \
+    make && npm install -g pyright
 
-# Set environment variables in a single step
-ENV LC_ALL=C.UTF-8 \
-    LANG=C.UTF-8 \
-    PYTHONPATH="/app"
+RUN pip install --no-cache-dir uv \
+    && uv pip install --system hatch hatch-containers
 
-# Install necessary dependencies, clean up after installation to reduce image size
-RUN apt-get update && \
-    apt-get -y install docker.io jq git && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+ARG USERNAME=developer
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
 
-# Copy project files into the container (relative to the build context)
-COPY . /app/
+RUN addgroup -g $USER_GID $USERNAME \
+    && adduser -u $USER_UID -G $USERNAME -s /bin/zsh -D $USERNAME \
+    && echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME \
+    && addgroup $USERNAME docker
 
-# Switch to the non-root user for security reasons
-USER appuser
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+
+RUN sed -i 's|/bin/ash|/bin/zsh|' /etc/passwd
+
+RUN cp -r /root/.oh-my-zsh /home/$USERNAME/ \
+    && cp /root/.zshrc /home/$USERNAME/ \
+    && chown -R $USERNAME:$USERNAME /home/$USERNAME/.oh-my-zsh \
+    && chown $USERNAME:$USERNAME /home/$USERNAME/.zshrc
+
+USER $USERNAME
+
+CMD ["zsh"]

@@ -1,0 +1,183 @@
+name: Build Package and Binaries
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.12"
+      bump-command:
+        required: true
+        type: string
+      branch-name:
+        required: false
+        type: string
+        default: ""
+    outputs:
+      package-version:
+        description: "The version of the package that was built"
+        value: ${{ jobs.prepare.outputs.version }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      slug: ${{ steps.slug.outputs.SLUG }}
+      version: ${{ steps.get-version.outputs.version }}
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Hatch
+      run: |
+        python -m pip install --upgrade pip
+        pip install hatch
+
+    - name: Generate SLUG
+      if: inputs.bump-command == 'local-bump'
+      id: slug
+      run: |
+        if [[ -z "${{ inputs.branch-name }}" ]]; then
+          echo "Error: branch-name is required for local-bump command"
+          exit 1
+        fi
+        BRANCH_NAME="${{ inputs.branch-name }}"
+        SLUG=$(echo "$BRANCH_NAME" | iconv -t ascii//TRANSLIT | sed -r s/[^a-zA-Z0-9]+/-/g | sed -r s/^-+\|-+$//g | tr A-Z a-z)
+        echo "SLUG=$SLUG" >> $GITHUB_OUTPUT
+
+    - name: Version bump (PR)
+      id: get-version
+      if: inputs.branch-name != ''
+      run: |
+        VERSION_STRING="$(hatch version)+${{ steps.slug.outputs.SLUG }}"
+        echo "version=$VERSION_STRING" >> $GITHUB_OUTPUT
+
+    - name: Generate matrix
+      id: set-matrix
+      run: |
+        matrix=$(python .github/scripts/matrix.py pyproject.toml --only-os-matrix)
+        echo "Generated matrix:"
+        echo "$matrix" | jq '.'
+        echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: true
+    
+    runs-on: ${{ matrix.os_type }}
+
+    steps:                
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install Hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+
+      - name: Create temporary CI config
+        run: |
+          python .github/scripts/ci_pyproject.py pyproject.toml
+
+      - name: Set environment name
+        id: set_env
+        shell: bash
+        run: |
+          ENV_NAME="test.py${{ matrix.python-version }}${{ matrix.target && format('-{0}', matrix.target) }}${{ matrix.os_type && format('-{0}', matrix.os_type) }}"
+          echo "env_name=$ENV_NAME" >> $GITHUB_OUTPUT
+
+      - name: Run tests
+        run: |
+          hatch run ${{ steps.set_env.outputs.env_name }}:test
+
+      - name: Check if should build
+        id: should_build
+        shell: bash
+        run: |
+          binary=$(uv -q run .github/scripts/should_build.py binary pyproject.toml \
+            --os-type "${{ matrix.os_type }}" \
+            --python-version "${{ matrix.python-version }}" \
+            --target "${{ matrix.target }}")
+
+          package=$(uv -q run .github/scripts/should_build.py package pyproject.toml \
+            --os-type "${{ matrix.os_type }}" \
+            --python-version "${{ matrix.python-version }}")
+
+          echo "binary=$binary" >> $GITHUB_OUTPUT
+          echo "package=$package" >> $GITHUB_OUTPUT
+
+          if [ "$binary" = "true" ] || [ "$package" = "true" ]; then
+            any="true"
+          else
+            any="false"
+          fi
+
+          echo "any=$any" >> $GITHUB_OUTPUT
+
+      - name: Version bump (PR)
+        if: inputs.branch-name != '' && steps.should_build.outputs.any == 'true'
+        run: |
+          hatch run local-bump "${{ needs.prepare.outputs.version }}"
+
+      - name: Build Python package
+        id: package_build
+        if: steps.should_build.outputs.package == 'true'
+        run: |
+          hatch build
+
+      - name: Upload package artifact
+        if: steps.should_build.outputs.package == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 2       
+
+      - name: Set OS label
+        if: steps.should_build.outputs.binary == 'true'
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os_type }}" == ubuntu* ]]; then
+            OS_LABEL="linux"
+            BIN_EXT=""
+          elif [[ "${{ matrix.os_type }}" == windows* ]]; then
+            OS_LABEL="windows"
+            BIN_EXT=".exe"
+          elif [[ "${{ matrix.os_type }}" == macos* ]]; then
+            OS_LABEL="macos"
+            BIN_EXT=""
+          fi
+
+          DIST_FOLDER="dist-$OS_LABEL"
+
+          echo "OS_LABEL=$OS_LABEL" >> $GITHUB_ENV
+          echo "DIST_FOLDER=$DIST_FOLDER" >> $GITHUB_ENV
+          echo "BIN_EXT=$BIN_EXT" >> $GITHUB_ENV
+          echo "BINARY_PATH=$DIST_FOLDER/safety$BIN_EXT" >> $GITHUB_ENV
+  
+      - name: Build Binary Package
+        if: steps.should_build.outputs.binary == 'true'
+        run: |
+          echo "Building binary package: ${{ steps.set_env.outputs.env_name }} -> ${{ env.DIST_FOLDER }}"
+          hatch run ${{ steps.set_env.outputs.env_name }}:binary-dist --distpath ${{ env.DIST_FOLDER }}         
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        if: steps.should_build.outputs.binary == 'true'
+        with:
+          name: safety-${{ env.OS_LABEL }}
+          path: ${{ env.BINARY_PATH }}
+          if-no-files-found: error

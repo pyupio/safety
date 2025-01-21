@@ -115,6 +115,3 @@ class TestRender(unittest.TestCase):
             call('0 security issues found, 0 fixes suggested.'),
             call('[number]0[/number] fixes suggested, resolving [number]0[/number] vulnerabilities.')
         ])
-
-if __name__ == '__main__':
-    unittest.main()

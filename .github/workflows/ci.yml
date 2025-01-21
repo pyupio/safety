@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+      - chore/*
+      - ci/*
+  pull_request:
+    types:
+      - opened
+      - synchronize
+  schedule:
+    - cron: "0 0 * * 1"
+
+jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Generate matrix
+      id: set-matrix
+      run: |
+        matrix=$(python .github/scripts/matrix.py pyproject.toml --no-os-matrix)
+        echo "Generated matrix:"
+        echo "$matrix" | jq '.'
+        echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  test:
+    needs: matrix
+
+    strategy:
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      fail-fast: true
+    
+    runs-on: ${{ matrix.os_type || 'ubuntu-24.04' }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install Hatch
+      run: |
+        python -m pip install --upgrade pip
+        pip install hatch
+
+    - name: Create temporary CI config
+      run: |
+        python .github/scripts/ci_pyproject.py pyproject.toml
+
+    - name: Run tests
+      run: |
+        hatch run test.py${{ matrix.python-version }}${{ matrix.target && format('-{0}', matrix.target) }}${{ matrix.os_type && format('-{0}', matrix.os_type) }}:test

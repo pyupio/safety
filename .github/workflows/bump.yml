@@ -1,0 +1,101 @@
+name: Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Type of bump to perform'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - stable
+
+jobs:
+  check-and-bump:
+    environment: production
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check current commit
+        run: |
+          COMMIT_MSG=$(git log --format=%B -n 1)
+          echo "Checking commit message: $COMMIT_MSG"
+          if [[ $COMMIT_MSG == bump:* ]]; then
+            echo "Current commit is a bump, skipping"
+            exit 0
+          fi
+
+      - name: Determine bump type
+        id: bump-type
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.bump_type }}" >> $GITHUB_OUTPUT
+          else
+            echo "type=beta" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          
+      - name: Install hatch
+        run: pip install hatch
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'safety-bot'
+          git config --global user.email 'safety-bot@users.noreply.github.com'
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.SAFETY_BOT_GPG_KEY }}
+          passphrase: ${{ secrets.SAFETY_BOT_GPG_PASSPHRASE }}
+          git_config_global: true
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+
+      - name: Get current version
+        id: current-version
+        run: |
+          CURRENT_VERSION=$(hatch version)
+          echo "version -> $CURRENT_VERSION"
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+          if [[ $CURRENT_VERSION =~ .*b[0-9]+$ ]]; then
+            echo "is_beta=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_beta=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Perform version bump
+        id: version-bump
+        run: |
+          if [ "${{ steps.bump-type.outputs.type }}" = "stable" ]; then
+            COMMAND="hatch run bump"
+          else
+            # For beta, only proceed if current version is not beta
+            if [ "${{ steps.current-version.outputs.is_beta }}" = "true" ]; then
+              echo "Current version is already beta, skipping bump"
+              echo "bumped=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            COMMAND="hatch run beta-bump"
+          fi
+
+          # Execute the command
+          if $COMMAND; then
+            echo "bumped=true" >> $GITHUB_OUTPUT
+          else
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push changes
+        if: steps.version-bump.outputs.bumped == 'true'
+        run: |
+          git push --follow-tags

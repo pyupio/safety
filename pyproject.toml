@@ -124,8 +124,8 @@ dependencies = [
 
 # Common scripts used across environments
 [tool.hatch.envs.default.scripts]
-bump = "cz bump --check-consistency --yes && cz changelog --merge-prerelease"
-beta-bump = "cz bump -pr beta --check-consistency --yes && cz changelog --merge-prerelease"
+bump = "cz bump --check-consistency --yes --changelog --gpg-sign --annotated-tag --annotated-tag-message 'Version $(hatch version)'"
+beta-bump = "cz bump -pr beta --check-consistency --yes --changelog --gpg-sign --annotated-tag --annotated-tag-message 'Version $(hatch version)'"
 local-bump = "cz bump {args} --files-only --yes"
 binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
 

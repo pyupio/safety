@@ -247,21 +247,61 @@ def build_meta(target: Path) -> Dict[str, Any]:
         "client": client_metadata,
     }
 
-def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False, obj=None, target=Path(".")) -> Generator[Tuple[Path, InspectableFile], None, None]:
+
+def get_report(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False, obj=None, target=Path(".")):
+    files = []
+    meta = build_meta(target)
+    meta["project_id"] = obj.project.id
+    for file_type_key, f_paths in paths.items():
+        file_type = FileType(file_type_key)
+        if not file_type or not file_type.ecosystem:
+            continue
+        for f_path in f_paths:
+            relative_path = os.path.relpath(f_path, start=os.getcwd())
+            try:
+                with open(f_path, "r") as file:
+                    content = file.read()
+            except Exception as e:
+                LOG.error(f"Error reading file {f_path}: {e}")
+                continue
+            files.append({"name": relative_path, "content": content})
+
+    payload = {"meta": meta, "files": files}
+    response = obj.auth.client.upload_requirements(payload)
+
+    if response.status_code == 200:
+        LOG.info("Scan Payload successfully sent to the API.")
+        return response.json()
+
+    else:
+        LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
+        LOG.error(f"Response: {response.text}")
+        raise SafetyError(f"Failed to send scan payload to the API. Status code: {response.status_code}, Response: {response.text}")
+
+
+
+
+def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False, obj=None, target=Path(".")):
     """
-    Processes the files and yields each file path along with its inspectable file.
+    Processes the files and either yields each file path along with its inspectable file (GET implementation),
+    or sends all files in a single POST request (new POST implementation).
 
     Args:
         paths (Dict[str, Set[Path]]): A dictionary of file paths by file type.
         config (Optional[ConfigModel]): The configuration model (optional).
+        use_server_matching (bool): Whether to use server-side matching (POST implementation).
+        obj: Context object containing the authentication client.
+        target (Path): Target directory for metadata.
 
-    Yields:
-        Tuple[Path, InspectableFile]: A tuple of file path and inspectable file.
+    Returns:
+        Union[Generator[Tuple[Path, InspectableFile], None, None], Dict[str, Any]]:
+            - Generator of file path and inspectable file for the GET implementation.
+            - JSON response from the server for the POST implementation.
     """
+
     if not config:
         config = ConfigModel()
 
-    # old GET implementation
     if not use_server_matching:
         for file_type_key, f_paths in paths.items():
             file_type = FileType(file_type_key)
@@ -273,40 +313,3 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
                         inspectable_file.inspect(config=config)
                         inspectable_file.remediate()
                         yield f_path, inspectable_file
-
-    # new POST implementation
-    else:
-        files = []
-        meta = build_meta(target)
-        for file_type_key, f_paths in paths.items():
-            file_type = FileType(file_type_key)
-            if not file_type or not file_type.ecosystem:
-                continue
-            for f_path in f_paths:
-                relative_path = os.path.relpath(f_path, start=os.getcwd())
-                # Read the file content
-                try:
-                    with open(f_path, "r") as file:
-                        content = file.read()
-                except Exception as e:
-                    LOG.error(f"Error reading file {f_path}: {e}")
-                    continue
-                # Append metadata to the payload
-                files.append({
-                    "name": relative_path,
-                    "content": content,
-                })
-
-        # Prepare the payload with metadata at the top level
-        payload = {
-            "meta": meta,
-            "files": files,
-        }
-
-        response = obj.auth.client.upload_requirements(payload)
-
-        if response.status_code == 200:
-            LOG.info("Scan Payload successfully sent to the API.")
-        else:
-            LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
-            LOG.error(f"Response: {response.text}")

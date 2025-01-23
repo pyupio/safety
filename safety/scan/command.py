@@ -27,7 +27,7 @@ from safety.scan.constants import CMD_PROJECT_NAME, CMD_SYSTEM_NAME, DEFAULT_SPI
     SYSTEM_SCAN_TARGET_HELP, SCAN_APPLY_FIXES, SCAN_DETAILED_OUTPUT, CLI_SCAN_COMMAND_HELP, CLI_SYSTEM_SCAN_COMMAND_HELP
 from safety.scan.decorators import inject_metadata, scan_project_command_init, scan_system_command_init
 from safety.scan.finder.file_finder import should_exclude
-from safety.scan.main import load_policy_file, load_unverified_project_from_config, process_files, save_report_as
+from safety.scan.main import get_report, load_policy_file, load_unverified_project_from_config, process_files, save_report_as
 from safety.scan.models import ScanExport, ScanOutput, SystemScanExport, SystemScanOutput
 from safety.scan.render import print_detected_ecosystems_section, print_fixes_section, print_summary, render_scan_html, render_scan_spdx, render_to_console
 from safety.scan.util import Stage
@@ -98,6 +98,25 @@ scan_project_app = typer.Typer(**cli_apps_opts)
 scan_system_app = typer.Typer(**cli_apps_opts)
 
 
+def safe_get(data: Dict, keys: List[str], default: Any = None) -> Any:
+    """
+    Safely retrieve a value from a nested dictionary using a list of keys.
+
+    Args:
+        data (Dict): The dictionary to retrieve the value from.
+        keys (List[str]): List of keys representing the path to the desired value.
+        default (Any): The default value to return if any key is not found.
+
+    Returns:
+        Any: The value at the specified path, or the default value if the path doesn't exist.
+    """
+    for key in keys:
+        if not isinstance(data, dict):
+            return default
+        data = data.get(key, default)
+    return data
+
+
 class ScannableEcosystems(Enum):
     """Enum representing scannable ecosystems."""
     PYTHON = Ecosystem.PYTHON.value
@@ -106,7 +125,7 @@ class ScannableEcosystems(Enum):
 def process_report(
     obj: Any, console: Console, report: ReportModel, output: str,
     save_as: Optional[Tuple[str, Path]], detailed_output: bool = False,
-    filter_keys: Optional[List[str]] = None,
+    filter_keys: Optional[List[str]] = None, use_server_matching: bool = False,
  **kwargs
 ) -> Optional[str]:
     """
@@ -183,7 +202,7 @@ def process_report(
                            report_to_export)
         report_url = None
 
-        if obj.platform_enabled:
+        if obj.platform_enabled and not use_server_matching:
             status.update(f"{ICON_UPLOAD} {MSG_UPLOADING_REPORT.format(SAFETY_PLATFORM_URL)}")
             try:
                 result = obj.auth.client.upload_report(json_format)
@@ -646,6 +665,218 @@ def process_file_fixes(file_to_fix: FileModel,
     return process_fixes_scan(file_to_fix, specs_to_fix, update_limits, output, no_output=no_output, prompt=prompt)
 
 
+def get_affected_specifications_from_json(dependencies: List[Dict], include_ignored: bool = False) -> List[Dict]:
+    """
+    Mimics the behavior of `get_affected_specifications` for JSON-based data.
+
+    Args:
+        dependencies (List[Dict]): List of dependencies from the JSON response.
+        include_ignored (bool): Whether to include ignored vulnerabilities.
+
+    Returns:
+        List[Dict]: List of affected specifications (as dictionaries).
+    """
+    affected = []
+    for dep in dependencies:
+        for spec in dep.get("specifications", []):
+            vulnerabilities = safe_get(spec, ["vulnerabilities", "known_vulnerabilities"], [])
+            if include_ignored:
+                has_vulnerabilities = bool(vulnerabilities)
+            else:
+                # Filter out ignored vulnerabilities
+                has_vulnerabilities = any(
+                    not safe_get(vuln, ["ignored", "code"]) for vuln in vulnerabilities
+                )
+
+            if has_vulnerabilities:
+                affected.append(spec)
+    return affected
+
+
+def sort_vulns_by_score_json(vuln: Dict) -> int:
+    """
+    Sort vulnerabilities from JSON data by CVSSv3 base score.
+
+    Args:
+        vuln (Dict): A dictionary representing a vulnerability.
+
+    Returns:
+        int: The CVSSv3 base score, or 0 if not present.
+    """
+    cvssv3 = safe_get(vuln, ["cve", "cvssv3"], {})
+    return cvssv3.get("base_score", 0) if cvssv3 else 0
+
+
+def sort_and_filter_vulnerabilities_json(
+    vulnerabilities: List[Dict[str, Any]], key_func: Callable[[Dict[str, Any]], int], reverse: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Sorts and filters vulnerabilities from a JSON structure.
+
+    Args:
+        vulnerabilities (List[Dict[str, Any]]): A list of vulnerability dictionaries to sort and filter.
+        key_func (Callable[[Dict[str, Any]], int]): A function to determine the sort key.
+        reverse (bool): Whether to sort in descending order (default is True).
+
+    Returns:
+        List[Dict[str, Any]]: The sorted and filtered list of vulnerabilities.
+    """
+    return sorted(
+        [
+            vuln
+            for vuln in vulnerabilities
+            if not (safe_get(vuln, ["ignored", "reason"]) or safe_get(vuln, ["ignored", "expires"]))
+        ],
+        key=key_func,
+        reverse=reverse,
+    )
+
+
+def count_critical_vulnerabilities_json(vulnerabilities: List[Dict[str, Any]]) -> int:
+    """
+    Count the number of critical vulnerabilities in a list of JSON vulnerabilities.
+
+    Args:
+        vulnerabilities (List[Dict[str, Any]]): List of vulnerabilities represented as dictionaries.
+
+    Returns:
+        int: The number of vulnerabilities with a critical severity level.
+    """
+    return sum(
+        1 for vuln in vulnerabilities
+            if safe_get(vuln, ["cve", "cvssv3", "base_severity"], "").lower() == "critical"
+    )
+
+
+def render_vulnerabilities_json(vulns_to_report: List[Dict], console: Console, detailed_output: bool) -> None:
+    """
+    Render vulnerabilities from JSON data to the console.
+
+    Args:
+        vulns_to_report (List[Dict]): List of vulnerabilities from JSON to render.
+        console (Console): Console object for printing.
+        detailed_output (bool): Whether to display detailed output.
+    """
+    for vuln in vulns_to_report:
+        render_to_console_json(
+            vuln, console, rich_kwargs=RICH_DEFAULT_KWARGS, detailed_output=detailed_output
+        )
+
+
+def render_to_console_json(vuln: Dict, console: Console, rich_kwargs: Dict, detailed_output: bool) -> None:
+    """
+    Render a single vulnerability from JSON to the console.
+
+    Args:
+        vuln (Dict): A vulnerability dictionary from JSON data.
+        console (Console): Console object for printing.
+        rich_kwargs (Dict): Additional arguments for rich text formatting.
+        detailed_output (bool): Whether to display detailed output.
+    """
+    # Extract details from the vulnerability
+    vuln_id = vuln.get("id", "Unknown ID")
+    advisory = vuln.get("advisory", "No advisory available")
+    cve = safe_get(vuln, ["cve", "name"], "N/A")
+    severity = safe_get(vuln, ["cve", "cvssv3", "base_severity"], "N/A")
+    base_score = safe_get(vuln, ["cve", "cvssv3", "base_score"], "N/A")
+    vector = safe_get(vuln, ["cve", "cvssv3", "vector_string"], "N/A")
+    ignored = safe_get(vuln, ["ignored", "reason"], None)
+
+    # Format the vulnerability information
+    msg = f"[{severity}] {vuln_id}: {advisory} (CVSS Base Score: {base_score})"
+    if cve != "N/A":
+        msg += f" | CVE: {cve}"
+    if vector != "N/A":
+        msg += f" | Vector: {vector}"
+
+    # Display the message
+    console.print(msg, **rich_kwargs)
+
+    # Show ignored reason if available
+    if ignored:
+        console.print(f"Ignored: {ignored}", style="dim")
+
+    # If detailed output is requested, include full advisory details
+    if detailed_output:
+        console.print(advisory, style="italic")
+
+
+def generate_remediation_details_json(spec: Dict, spec_name:str, vuln_word: str, critical_vulns_count: int) -> Tuple[List[str], int, int]:
+    """
+    Generate remediation details for a specific dependency from JSON data.
+
+    Args:
+        spec (Dict): A dictionary representing a dependency specification.
+        vuln_word (str): Pluralized word for vulnerabilities.
+        critical_vulns_count (int): Number of critical vulnerabilities.
+
+    Returns:
+        Tuple[List[str], int, int]: A tuple containing:
+            - List of remediation lines.
+            - Total resolved vulnerabilities.
+            - Fixes count.
+    """
+    lines = []
+    total_resolved_vulns = 0
+    fixes_count = 0
+
+    remediation = safe_get(spec, ["vulnerabilities", "remediation"], {})
+    vulnerabilities_found = remediation.get("vulnerabilities_found", 0)
+    recommended = remediation.get("recommended")
+    other_recommended = remediation.get("other_recommended", [])
+    spec_raw = spec.get("raw", "unknown")
+
+    if not recommended:
+        lines.append(
+            MSG_NO_KNOWN_FIX.format(spec_name, spec_raw.replace(spec_name, ''), vulnerabilities_found, vuln_word)
+        )
+    else:
+        total_resolved_vulns += vulnerabilities_found
+        msg = MSG_RECOMMENDED_UPDATE.format(spec_raw, spec_name, recommended, vulnerabilities_found, vuln_word)
+
+        if vulnerabilities_found > CRITICAL_VULN_THRESHOLD and critical_vulns_count > MIN_CRITICAL_COUNT:
+            msg += f", {TAG_REM_SEVERITY}including {critical_vulns_count} critical severity {pluralize('vulnerability', critical_vulns_count)}{TAG_REM_SEVERITY} {ICON_STOP_SIGN}"
+
+        fixes_count += 1
+        lines.append(msg)
+
+        if other_recommended:
+            other_versions = "[/recommended_ver], [recommended_ver]".join(other_recommended)
+            lines.append(MSG_NO_VULNERABILITIES.format(spec_name, other_versions))
+
+    return lines, total_resolved_vulns, fixes_count
+
+
+def should_display_fix_suggestion_json(
+    ctx: typer.Context,
+    file_data: Dict,
+    affected_specifications: List[Dict],
+    apply_updates: bool
+) -> bool:
+    """
+    Determine whether to display a fix suggestion based on the current context and file analysis (JSON-based).
+
+    Args:
+        ctx (typer.Context): The Typer context object.
+        file_data (Dict): The JSON data for the file being analyzed.
+        affected_specifications (List[Dict]): List of affected specifications (from JSON).
+        apply_updates (bool): Whether fixes are being applied.
+
+    Returns:
+        bool: True if the fix suggestion should be displayed, False otherwise.
+    """
+    ecosystem = file_data.get("categories", [])
+    file_type = file_data.get("type")
+
+    return (
+        ctx.obj.auth.stage == Stage.development
+        and "python" in ecosystem
+        and file_type == "requirements.txt"
+        and any(affected_specifications)
+        and not apply_updates
+    )
+
+
 @scan_project_app.command(
         cls=SafetyCLICommand,
         help=CLI_SCAN_COMMAND_HELP,
@@ -710,7 +941,7 @@ def scan(ctx: typer.Context,
         bool,
         typer.Option(
             "--use-server-matching",
-            help="Flag to enable using server side vulnerability matching. This just sends data to server for now.",
+            help="Flag to enable using server side vulnerability matching.",
             show_default=False,
         ),
     ] = False,
@@ -762,83 +993,186 @@ def scan(ctx: typer.Context,
 
     # Process each file for dependencies and vulnerabilities
     with console.status(wait_msg, spinner=DEFAULT_SPINNER):
-        for path, analyzed_file in process_files(paths=file_paths,
-                                                 config=config, use_server_matching=use_server_matching, obj=ctx.obj, target=target):
 
-            # Update counts and track vulnerabilities
-            count += len(analyzed_file.dependency_results.dependencies)
-            if exit_code == 0 and analyzed_file.dependency_results.failed:
-                exit_code = EXIT_CODE_VULNERABILITIES_FOUND
+        if use_server_matching:
+            response_json = get_report(paths=file_paths, config=config, use_server_matching=True, obj=ctx.obj, target=target)
+            projects = safe_get(response_json, ["scan_results", "projects"], [])
+            for project in projects:
+                project_files = project.get("files", [])
 
-            affected_specifications = analyzed_file.dependency_results.get_affected_specifications()
-            affected_count += len(affected_specifications)
+            for file_data in project_files:
+                file_location = Path(file_data.get("location", "unknown")).resolve()
+                target_path = target.resolve()
+                file_type = file_data.get("type")
+                file_results = file_data.get("results", {})
+                dependencies = file_results.get("dependencies", [])
 
-             # Sort vulnerabilities by severity
-            def sort_vulns_by_score(vuln: Vulnerability) -> int:
-                if vuln.severity and vuln.severity.cvssv3:
-                    return vuln.severity.cvssv3.get("base_score", 0)
-                return 0
-
-            # Prepare to collect files needing fixes
-            to_fix_spec = []
-            file_matched_for_fix = analyzed_file.file_type.value in fix_file_types
-
-            # Handle files with affected specifications
-            if any(affected_specifications):
-                dependency_vuln_detected = detect_dependency_vulnerabilities(console, dependency_vuln_detected)
-                print_file_info(console, path, target)
+                count += len(dependencies)
+                affected_specifications = get_affected_specifications_from_json(dependencies)
+                affected_count += len(affected_specifications)
+                to_fix_spec = []
+                file_matched_for_fix = file_data.get("type") in fix_file_types
 
                 for spec in affected_specifications:
-                    if file_matched_for_fix:
-                        to_fix_spec.append(spec)
+                    if spec["vulnerabilities"]:
+                        if len(spec["vulnerabilities"]["known_vulnerabilities"]) < MIN_DETAILED_OUTPUT_THRESHOLD:
+                            detailed_output = True
+                            break
+   
 
-                    # Print vulnerabilities for each specification
+                # Handle files with affected specifications
+                if any(affected_specifications):
+                    dependency_vuln_detected = detect_dependency_vulnerabilities(console, dependency_vuln_detected)
+                    print_file_info(console, Path(file_location), target)
+
+                    for spec in affected_specifications:
+                        if file_matched_for_fix:
+                            to_fix_spec.append(spec)
+
+                        # Print vulnerabilities for each specification
+                        console.print()
+                        for dependency in dependencies:
+                   
+                       
+                            for specification in dependency.get("specifications", []):
+                                vulns_to_report = sort_and_filter_vulnerabilities_json(
+                                    safe_get(specification, ["vulnerabilities", "known_vulnerabilities"], []),
+                                    key_func=sort_vulns_by_score_json,
+                                )
+                                critical_vulns_count = count_critical_vulnerabilities_json(vulns_to_report)
+                                vulns_found = len(vulns_to_report)
+                                vuln_word = pluralize("vulnerability", vulns_found)
+                                spec_name = dependency.get("name").lower()
+                                spec_raw = specification.get("raw").lower()
+
+
+                                if (spec_name in spec_raw): 
+                                    if vulns_found != 0:
+                                        msg = generate_vulnerability_message(spec_name, spec_raw, vulns_found, critical_vulns_count, vuln_word)
+                                        console.print(Padding(f"{msg}]", PADDING_VALUES), emoji=True, overflow="crop")
+                                        lines, resolved_vulns, fixes = generate_remediation_details_json(spec, spec_name, vuln_word, critical_vulns_count)
+                                        total_resolved_vulns += resolved_vulns
+                                        fixes_count += fixes
+
+                                        for line in lines:
+                                            console.print(Padding(line, PADDING_VALUES), emoji=True)
+
+                                        # construct the url HERE
+                                        # https://data.safetycli.com/p/pypi/django/eda/?from=2.2&to=4.2.17
+                                        # Construct this with 3 inputs- django, raw,
+                                        remediation = safe_get(spec, ["vulnerabilities", "remediation"], {})
+                                        recommended = remediation.get("recommended")
+                                        URL_PREFIX = "https://data.safetycli.com/p/pypi/"
+                                        URL_MIDDLE = "/eda/?from="
+                                        URL_END = "&to="
+                                        more_info_url = URL_PREFIX+spec_name+URL_MIDDLE+spec_raw.split("==")[1]+URL_END+recommended
+
+                                        if more_info_url:
+                                            console.print(
+                                                Padding(MSG_LEARN_MORE.format(more_info_url), PADDING_VALUES), emoji=True
+                                            )
+
+                                    # # Track whether to suggest applying fixes
+                                    #     display_apply_fix_suggestion = should_display_fix_suggestion_json(
+                                    #         ctx, file_data, affected_specifications, apply_updates
+                                    #     )
+                                    if detailed_output:
+                                        render_vulnerabilities_json(vulns_to_report, console, detailed_output)
+                                        
+                else:
+                    # Handle files with no issues
                     console.print()
-                    vulns_to_report = sort_and_filter_vulnerabilities(spec.vulnerabilities, key_func=sort_vulns_by_score)
-                    critical_vulns_count = count_critical_vulnerabilities(vulns_to_report)
-                    vulns_found = len(vulns_to_report)
-                    vuln_word = pluralize("vulnerability", vulns_found)
-
-                    msg = generate_vulnerability_message(spec.name, spec.raw, vulns_found, critical_vulns_count, vuln_word)
-                    console.print(Padding(f"{msg}]", PADDING_VALUES), emoji=True, overflow="crop")
-
-                    # Display detailed vulnerability information if applicable
-                    if detailed_output or vulns_found < MIN_DETAILED_OUTPUT_THRESHOLD:
-                        render_vulnerabilities(vulns_to_report, console, detailed_output)
-
-                    # Generate remediation details and print them
-                    lines, resolved_vulns, fixes = generate_remediation_details(spec, vuln_word, critical_vulns_count)
-                    total_resolved_vulns += resolved_vulns
-                    fixes_count += fixes
-
-                    for line in lines:
-                        console.print(Padding(line, PADDING_VALUES), emoji=True)
-
-                    # Provide a link for additional information
+                    file_location = Path(file_data.get("location", "unknown")).resolve()
                     console.print(
-                        Padding(MSG_LEARN_MORE.format(spec.remediation.more_info_url), PADDING_VALUES), emoji=True)
-            else:
-                # Handle files with no issues
-                console.print()
-                console.print(f"{ICON_CHECKMARK} [file_title]{path.relative_to(target)}: No issues found.[/file_title]",
-                              emoji=True)
+                        f"{ICON_CHECKMARK} [file_title]{file_location.relative_to(target)}: No issues found.[/file_title]",
+                        emoji=True
+                    )
 
-            # Track whether to suggest applying fixes
-            display_apply_fix_suggestion = should_display_fix_suggestion(ctx, analyzed_file, affected_specifications, apply_updates)
+            
 
-            # Track if a requirements.txt file was found
-            if not requirements_txt_found and analyzed_file.file_type is FileType.REQUIREMENTS_TXT:
-                requirements_txt_found = True
+                # Track if a requirements.txt file was found
+                if not requirements_txt_found and file_data.get("type") == "requirements.txt":
+                    requirements_txt_found = True
 
-            # Save file data for further processing
-            file = FileModel(location=path,
-                               file_type=analyzed_file.file_type,
-                               results=analyzed_file.dependency_results)
+                # FileModel steps can be added here for the cve_details section support
 
-            if file_matched_for_fix:
-                to_fix_files.append((file, to_fix_spec))
+        else:
+            # Handle the default case (GET implementation)
+            for path, analyzed_file in process_files(paths=file_paths, config=config, use_server_matching=False, obj=ctx.obj, target=target):
+                # Update counts and track vulnerabilities
+                count += len(analyzed_file.dependency_results.dependencies)
+                if exit_code == 0 and analyzed_file.dependency_results.failed:
+                    exit_code = EXIT_CODE_VULNERABILITIES_FOUND
 
-            files.append(file)
+                affected_specifications = analyzed_file.dependency_results.get_affected_specifications()
+                affected_count += len(affected_specifications)
+
+                # Sort vulnerabilities by severity
+                def sort_vulns_by_score(vuln: Vulnerability) -> int:
+                    if vuln.severity and vuln.severity.cvssv3:
+                        return vuln.severity.cvssv3.get("base_score", 0)
+                    return 0
+
+                # Prepare to collect files needing fixes
+                to_fix_spec = []
+                file_matched_for_fix = analyzed_file.file_type.value in fix_file_types
+
+                # Handle files with affected specifications
+                if any(affected_specifications):
+                    dependency_vuln_detected = detect_dependency_vulnerabilities(console, dependency_vuln_detected)
+                    print_file_info(console, path, target)
+
+                    for spec in affected_specifications:
+                        if file_matched_for_fix:
+                            to_fix_spec.append(spec)
+
+                        # Print vulnerabilities for each specification
+                        console.print()
+                        vulns_to_report = sort_and_filter_vulnerabilities(spec.vulnerabilities, key_func=sort_vulns_by_score)
+                        critical_vulns_count = count_critical_vulnerabilities(vulns_to_report)
+                        vulns_found = len(vulns_to_report)
+                        vuln_word = pluralize("vulnerability", vulns_found)
+
+                        msg = generate_vulnerability_message(spec.name, spec.raw, vulns_found, critical_vulns_count, vuln_word)
+                        console.print(Padding(f"{msg}]", PADDING_VALUES), emoji=True, overflow="crop")
+
+                        # Display detailed vulnerability information if applicable
+                        if detailed_output or vulns_found < MIN_DETAILED_OUTPUT_THRESHOLD:
+                            render_vulnerabilities(vulns_to_report, console, detailed_output)
+
+                        # Generate remediation details and print them
+                        lines, resolved_vulns, fixes = generate_remediation_details(spec, vuln_word, critical_vulns_count)
+                        total_resolved_vulns += resolved_vulns
+                        fixes_count += fixes
+
+                        for line in lines:
+                            console.print(Padding(line, PADDING_VALUES), emoji=True)
+
+                        # Provide a link for additional information
+                        console.print(
+                            Padding(MSG_LEARN_MORE.format(spec.remediation.more_info_url), PADDING_VALUES), emoji=True)
+                else:
+                    # Handle files with no issues
+                    console.print()
+                    console.print(f"{ICON_CHECKMARK} [file_title]{path.relative_to(target)}: No issues found.[/file_title]",
+                                emoji=True)
+
+                # Track whether to suggest applying fixes
+                display_apply_fix_suggestion = should_display_fix_suggestion(ctx, analyzed_file, affected_specifications, apply_updates)
+
+                # Track if a requirements.txt file was found
+                if not requirements_txt_found and analyzed_file.file_type is FileType.REQUIREMENTS_TXT:
+                    requirements_txt_found = True
+
+                # Save file data for further processing
+                file = FileModel(location=path,
+                                file_type=analyzed_file.file_type,
+                                results=analyzed_file.dependency_results)
+
+                if file_matched_for_fix:
+                    to_fix_files.append((file, to_fix_spec))
+
+                files.append(file)
 
     # Suggest fixes if applicable
     if display_apply_fix_suggestion:
@@ -882,6 +1216,7 @@ def scan(ctx: typer.Context,
     save_as=save_as if save_as and all(save_as) else None,
     detailed_output=detailed_output,
     filter_keys=filter_keys,
+    use_server_matching=use_server_matching
     **{k: v for k, v in ctx.params.items() if k not in {"detailed_output", "output", "save_as", "filter_keys"}}
 )
 
@@ -1202,7 +1537,7 @@ def system_scan(ctx: typer.Context,
             console.print(f"[bold]{prj}[/bold] at {data['path']}")
             for detail in [f"{prj} dashboard: {data['project_url']}"]:
                 console.print(Padding(detail, (0, 0, 0, 1)), emoji=True, overflow="crop")
-
+    
     process_report(ctx.obj, console, report, **{**ctx.params})
 
 def get_vulnerability_summary(report: Dict[str, Any]) -> Tuple[int, int]:

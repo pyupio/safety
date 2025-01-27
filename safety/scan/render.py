@@ -381,7 +381,7 @@ def prompt_project_id(console: Console, stage: Stage, prj_root_name: Optional[st
     hint = ""
     if default_prj_id:
         hint = f" If empty Safety will use [bold]{default_prj_id}[/bold]"
-    prompt_text = f"Set a project id for this scan (no spaces).{hint}"
+    prompt_text = f"Set a project id (no spaces).{hint}"
 
     def ask():
         prj_id = None
@@ -421,7 +421,7 @@ def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -
                    f"[bold]Project admin:[/bold] {prj_admin_email}"):
         console.print(Padding(detail, (0, 0, 0, 2)), emoji=True)
 
-    prompt_question = "Do you want to link this scan with this existing project?"
+    prompt_question = "Do you want to link it with this existing project?"
 
     answer = Prompt.ask(prompt=prompt_question, choices=["y", "n"],
                         default="y", show_default=True, console=console).lower()

@@ -593,6 +593,35 @@ class TestSafetyCLI(unittest.TestCase):
         # Assert the preprocessed arguments
         assert preprocessed_args == ['--debug', 'scan'], f"Preprocessed args: {preprocessed_args}"
 
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch.object(Auth, 'is_valid', return_value=True)
+    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
+    @patch('safety.auth.utils.SafetyAuthSession.initialize_scan', return_value={'platform-enabled': True})
+    @patch('safety.auth.utils.SafetyAuthSession.check_project', return_value={'user_confirm': True})
+    @patch('safety.auth.utils.SafetyAuthSession.project', return_value={'slug': 'slug'})
+    def test_init_project(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_initialize_scan, mock_check_project, mock_project):
+        with tempfile.TemporaryDirectory() as tempdir:
+            result = self.runner.invoke(cli.cli, ['init', tempdir])
+            cleaned_stdout = click.unstyle(result.stdout)
+            assert result.exit_code == 1, f"CLI exited with code {result.exit_code}"
+            assert cleaned_stdout.startswith("Set a project id (no spaces). If empty Safety will use"), f"CLI exited with output: {result.output}"
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch.object(Auth, 'is_valid', return_value=True)
+    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
+    @patch('safety.auth.utils.SafetyAuthSession.initialize_scan', return_value={'platform-enabled': True})
+    @patch('safety.auth.utils.SafetyAuthSession.check_project', return_value={'user_confirm': True})
+    @patch('safety.auth.utils.SafetyAuthSession.project', return_value={'slug': 'slug'})
+    def test_existing_project_is_linked(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_initialize_scan, mock_check_project, mock_project):
+        dirname = os.path.dirname(__file__)
+        source_project_file = os.path.join(dirname, "test-safety-project.ini")
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            project_file = os.path.join(tempdir, '.safety-project.ini')
+            shutil.copy(source_project_file, project_file)
+            result = self.runner.invoke(cli.cli, ['init', tempdir])
+            assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
+
 class TestNetworkTelemetry(unittest.TestCase):
 
     @patch('psutil.net_io_counters')

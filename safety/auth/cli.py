@@ -30,7 +30,7 @@ from rich.padding import Padding
 
 LOG = logging.getLogger(__name__)
 
-auth_app = Typer(rich_markup_mode="rich")
+auth_app = Typer(rich_markup_mode="rich", name="auth")
 
 
 

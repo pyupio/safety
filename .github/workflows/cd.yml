@@ -21,6 +21,7 @@ jobs:
   release:
     needs: [ci, build]
     runs-on: ubuntu-24.04
+    environment: production
     permissions:
       contents: write
     steps:
@@ -60,6 +61,7 @@ jobs:
             safety-macos/safety
             dist/*
           prerelease: ${{ contains(steps.get_version.outputs.version, 'b') }}
+          token: ${{ secrets.SAFETY_BOT_TOKEN }}
 
   publish:
     needs: [release]

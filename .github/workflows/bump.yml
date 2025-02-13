@@ -21,6 +21,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          token: ${{ secrets.SAFETY_BOT_TOKEN }}
 
       - name: Check current commit
         run: |

@@ -6,6 +6,12 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.3.0b0 (2025-02-13)
+
+### Feat
+
+- added safety firewall (#671)
+
 ## [3.2.14] - 2024-12-20
 - Add fun-mode (#649)
 - Package version upgrade for psutil and filelock (#652)

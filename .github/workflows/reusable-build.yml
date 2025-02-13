@@ -8,8 +8,9 @@ on:
         type: string
         default: "3.12"
       bump-command:
-        required: true
+        required: false
         type: string
+        default: ""
       branch-name:
         required: false
         type: string

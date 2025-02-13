@@ -79,15 +79,10 @@ jobs:
           if [ "${{ steps.bump-type.outputs.type }}" = "stable" ]; then
             COMMAND="hatch run bump"
           else
-            # For beta, only proceed if current version is not beta
-            if [ "${{ steps.current-version.outputs.is_beta }}" = "true" ]; then
-              echo "Current version is already beta, skipping bump"
-              echo "bumped=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+            # For beta, we should always run the bump
             COMMAND="hatch run beta-bump"
           fi
-
+          
           # Execute the command
           if $COMMAND; then
             echo "bumped=true" >> $GITHUB_OUTPUT

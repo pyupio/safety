@@ -1,21 +1,26 @@
-from dataclasses import asdict
 import json
 import logging
 import os
 import textwrap
+from dataclasses import asdict
 from datetime import datetime
-from typing import List, Tuple, Dict, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import click
-
-from packaging.specifiers import SpecifierSet
-from safety.constants import RED, YELLOW
-from safety.models import Fix, is_pinned_requirement
-from safety.util import get_safety_version, Package, get_terminal_size, \
-    SafetyContext, build_telemetry_data, build_git_data, is_a_remote_mirror, get_remediations_count
-
 from jinja2 import Environment, PackageLoader
 
+from safety.constants import RED, YELLOW
+from safety.meta import get_version
+from safety.models import Fix, is_pinned_requirement
+from safety.util import (
+    Package,
+    SafetyContext,
+    build_git_data,
+    build_telemetry_data,
+    get_remediations_count,
+    get_terminal_size,
+    is_a_remote_mirror,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -956,7 +961,7 @@ def get_report_brief_info(as_dict: bool = False, report_type: int = 1, **kwargs:
     brief_data['api_key'] = bool(key)
     brief_data['account'] = account
     brief_data['local_database_path'] = db if db else None
-    brief_data['safety_version'] = get_safety_version()
+    brief_data['safety_version'] = get_version()
     brief_data['timestamp'] = current_time
     brief_data['packages_found'] = len(packages)
     # Vuln report
@@ -1007,7 +1012,7 @@ def get_report_brief_info(as_dict: bool = False, report_type: int = 1, **kwargs:
     timestamp = [{'style': False, 'value': 'Timestamp '}, {'style': True, 'value': current_time}]
 
     brief_info = [[{'style': False, 'value': 'Safety '},
-     {'style': True, 'value': 'v' + get_safety_version()},
+     {'style': True, 'value': 'v' + get_version()},
      {'style': False, 'value': ' is scanning for '},
      {'style': True, 'value': scanning_types.get(context.command, {}).get('name', '')},
      {'style': True, 'value': '...'}] + safety_policy_used + audit_and_monitor, action_executed

@@ -2,28 +2,25 @@ import json
 from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, List, Optional, Set, Tuple, Union, Dict
+from typing import Any, List, Optional, Set, Union, Dict
 
 from dparse.dependencies import Dependency
 from dparse import parse, filetypes
-from typing import Any, List, Optional
 from packaging.specifiers import SpecifierSet
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
 
 from packaging.version import Version
-from safety_schemas.models import ConfigModel
 
 from safety.errors import InvalidRequirementError
-from safety_schemas.models import MetadataModel, ReportSchemaVersion, TelemetryModel, \
-    PolicyFileModel
 
 try:
     from packaging.version import LegacyVersion as legacyType
 except ImportError:
     legacyType = None
 
+from .requirements import is_pinned_requirement
 
 class DictConverter(object):
     """
@@ -118,24 +115,6 @@ class SafetyRequirement(Requirement):
                         'url': self.url,
                         'found': self.found
                     }
-
-
-def is_pinned_requirement(spec: SpecifierSet) -> bool:
-    """
-    Check if a requirement is pinned.
-
-    Args:
-        spec (SpecifierSet): The specifier set of the requirement.
-
-    Returns:
-        bool: True if the requirement is pinned, False otherwise.
-    """
-    if not spec or len(spec) != 1:
-        return False
-
-    specifier = next(iter(spec))
-
-    return (specifier.operator == '==' and '*' != specifier.version[-1]) or specifier.operator == '==='
 
 
 @dataclass
@@ -454,21 +433,3 @@ class Safety:
     client: Any
     keys: Any
 
-
-from safety.auth.models import Auth
-from rich.console import Console
-
-@dataclass
-class SafetyCLI:
-    """
-    A class representing Safety CLI settings.
-    """
-    auth: Optional[Auth] = None
-    telemetry: Optional[TelemetryModel] = None
-    metadata: Optional[MetadataModel] = None
-    schema: Optional[ReportSchemaVersion] = None
-    project = None
-    config: Optional[ConfigModel] = None
-    console: Optional[Console] = None
-    system_scan_policy: Optional[PolicyFileModel] = None
-    platform_enabled: bool = False

@@ -9,7 +9,7 @@ from authlib.jose.errors import ExpiredTokenError
 from safety.auth.models import Organization
 from safety.auth.constants import CLI_AUTH_LOGOUT, CLI_CALLBACK, AUTH_CONFIG_USER, CLI_AUTH
 from safety.constants import CONFIG
-from safety.scan.util import Stage
+from safety_schemas.models import Stage
 from safety.util import get_proxy_dict
 
 

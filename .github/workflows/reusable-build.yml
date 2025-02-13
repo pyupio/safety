@@ -49,7 +49,7 @@ jobs:
           exit 1
         fi
         BRANCH_NAME="${{ inputs.branch-name }}"
-        SLUG=$(echo "$BRANCH_NAME" | iconv -t ascii//TRANSLIT | sed -r s/[^a-zA-Z0-9]+/-/g | sed -r s/^-+\|-+$//g | tr A-Z a-z)
+        SLUG=$(echo "$BRANCH_NAME" | iconv -t ascii//TRANSLIT | sed -r 's/[^a-zA-Z0-9]+/./g' | sed -r 's/^.+\|.+$//g' | tr A-Z a-z)
         echo "SLUG=$SLUG" >> $GITHUB_OUTPUT
 
     - name: Version bump (PR)

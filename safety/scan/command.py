@@ -5,7 +5,6 @@ from pathlib import Path
 import json
 import sys
 from typing import Any, Dict, List, Optional, Set, Tuple, Callable
-from typing_extensions import Annotated
 
 from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND
 from safety.safety import process_fixes_scan
@@ -27,13 +26,20 @@ from safety.scan.constants import CMD_PROJECT_NAME, CMD_SYSTEM_NAME, DEFAULT_SPI
     SYSTEM_SCAN_TARGET_HELP, SCAN_APPLY_FIXES, SCAN_DETAILED_OUTPUT, CLI_SCAN_COMMAND_HELP, CLI_SYSTEM_SCAN_COMMAND_HELP
 from safety.scan.decorators import inject_metadata, scan_project_command_init, scan_system_command_init
 from safety.scan.finder.file_finder import should_exclude
-from safety.scan.main import load_policy_file, load_unverified_project_from_config, process_files, save_report_as
+from safety.init.main import load_unverified_project_from_config
+from safety.scan.main import load_policy_file, process_files, save_report_as
 from safety.scan.models import ScanExport, ScanOutput, SystemScanExport, SystemScanOutput
 from safety.scan.render import print_detected_ecosystems_section, print_fixes_section, print_summary, render_scan_html, render_scan_spdx, render_to_console
-from safety.scan.util import Stage
 from safety_schemas.models import Ecosystem, FileModel, FileType, ProjectModel, \
-    ReportModel, ScanType, VulnerabilitySeverityLabels, SecurityUpdates, Vulnerability
+    ReportModel, ScanType, VulnerabilitySeverityLabels, SecurityUpdates, Vulnerability, \
+    Stage
 from safety.scan.fun_mode.easter_eggs import run_easter_egg
+
+try:
+    from typing import Annotated
+except ImportError:
+    from typing_extensions import Annotated
+
 LOG = logging.getLogger(__name__)
 
 

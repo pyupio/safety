@@ -63,6 +63,21 @@ class Auth:
         self.email = info.get("email")
         self.email_verified = is_email_verified(info)
 
+    def get_auth_method(self) -> str:
+        """
+        Get the authentication method.
+
+        Returns:
+            str: The authentication method.
+        """
+        if self.client.api_key:
+            return "API Key"
+        
+        if self.client.token:
+            return "Token"
+
+        return "None"
+
 class XAPIKeyAuth(BaseOAuth):
     def __init__(self, api_key: str) -> None:
         """

@@ -3,7 +3,7 @@ from typing import Optional
 from safety.constants import (
     EXIT_CODE_EMAIL_NOT_VERIFIED,
     EXIT_CODE_FAILURE,
-    EXIT_CODE_INVALID_API_KEY,
+    EXIT_CODE_INVALID_AUTH_CREDENTIAL,
     EXIT_CODE_INVALID_PROVIDED_REPORT,
     EXIT_CODE_INVALID_REQUIREMENT,
     EXIT_CODE_MALFORMED_DB,
@@ -200,7 +200,7 @@ class InvalidCredentialError(DatabaseFetchError):
         Returns:
             int: The exit code.
         """
-        return EXIT_CODE_INVALID_API_KEY
+        return EXIT_CODE_INVALID_AUTH_CREDENTIAL
 
 class NotVerifiedEmailError(SafetyError):
     """

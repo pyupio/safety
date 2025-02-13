@@ -1,11 +1,12 @@
-from datetime import datetime
 import logging
 import sys
-from safety.auth.models import Auth
+from datetime import datetime
 
-from safety.auth.utils import is_email_verified
+from safety.auth.models import Auth
+from safety.auth.utils import initialize, is_email_verified
 from safety.console import main_console as console
 from safety.constants import MSG_FINISH_REGISTRATION_TPL, MSG_VERIFICATION_HINT
+from safety.meta import get_version
 
 try:
     from typing import Annotated
@@ -15,22 +16,38 @@ except ImportError:
 from typing import Optional
 
 import click
-from typer import Typer
 import typer
-
-from safety.auth.main import get_auth_info, get_authorization_data, get_token, clean_session
-from safety.auth.server import process_browser_callback
-from ..cli_util import get_command_for, pass_safety_cli_obj, SafetyCLISubGroup
-
-from .constants import MSG_FAIL_LOGIN_AUTHED, MSG_FAIL_REGISTER_AUTHED, MSG_LOGOUT_DONE, MSG_LOGOUT_FAILED, MSG_NON_AUTHENTICATED
-from safety.scan.constants import CLI_AUTH_COMMAND_HELP, CLI_AUTH_HEADLESS_HELP, DEFAULT_EPILOG, CLI_AUTH_LOGIN_HELP, CLI_AUTH_LOGOUT_HELP, CLI_AUTH_STATUS_HELP
-
-
 from rich.padding import Padding
+from typer import Typer
+
+from safety.auth.main import (
+    clean_session,
+    get_auth_info,
+    get_authorization_data,
+    get_token,
+)
+from safety.auth.server import process_browser_callback
+from safety.scan.constants import (
+    CLI_AUTH_COMMAND_HELP,
+    CLI_AUTH_HEADLESS_HELP,
+    CLI_AUTH_LOGIN_HELP,
+    CLI_AUTH_LOGOUT_HELP,
+    CLI_AUTH_STATUS_HELP,
+    DEFAULT_EPILOG,
+)
+
+from ..cli_util import SafetyCLISubGroup, get_command_for, pass_safety_cli_obj
+from .constants import (
+    MSG_FAIL_LOGIN_AUTHED,
+    MSG_FAIL_REGISTER_AUTHED,
+    MSG_LOGOUT_DONE,
+    MSG_LOGOUT_FAILED,
+    MSG_NON_AUTHENTICATED,
+)
 
 LOG = logging.getLogger(__name__)
 
-auth_app = Typer(rich_markup_mode="rich")
+auth_app = Typer(rich_markup_mode="rich", name="auth")
 
 
 
@@ -183,6 +200,8 @@ def login(
 
             render_successful_login(ctx.obj.auth, organization=organization)
 
+            initialize(ctx, refresh=True)
+
             console.print()
             if ctx.obj.auth.org or ctx.obj.auth.email_verified:
                 console.print(
@@ -249,11 +268,12 @@ def status(ctx: typer.Context, ensure_auth: bool = False,
     """
     LOG.info('status started')
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    from safety.util import get_safety_version
-    safety_version = get_safety_version()
+    safety_version = get_version()
     console.print(f"[{current_time}]: Safety {safety_version}")
 
     info = get_auth_info(ctx)
+
+    initialize(ctx, refresh=True)
 
     if ensure_auth:
         console.print("running: safety auth status --ensure-auth")

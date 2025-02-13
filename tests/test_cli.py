@@ -1,27 +1,27 @@
 import json
 import logging
 import os
-import sys
 import shutil
+import socket
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
-import requests
-import socket
-import psutil
 
 import click
+import psutil
+import requests
 from click.testing import CliRunner
-from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-
-from safety import cli
-from safety.console import main_console as console
-from safety.models import CVE, SafetyRequirement, Severity, Vulnerability
-from safety.util import Package, SafetyContext, get_safety_version
-from safety.auth.models import Auth
 from safety_schemas.models.base import AuthenticationType
+
+from safety.auth.models import Auth
+from safety.cli import cli
+from safety.console import main_console as console
+from safety.meta import get_version
+from safety.models import CVE, SafetyCLI, SafetyRequirement, Severity, Vulnerability
+from safety.util import Package, SafetyContext
 
 
 def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
@@ -81,13 +81,23 @@ class TestSafetyCLI(unittest.TestCase):
         # is initialized in the CLI
         console.quiet = False
 
+        # Reset the commands
+        # CLI initialization is made on the import of the module
+        # so we need to reset the commands to avoid side effects
+        # 
+        # TODO: this is a workaround, we should improve the way the 
+        # CLI is initialized
+        cli.commands = cli.all_commands
+        self.cli = cli
+
+
     def test_command_line_interface(self):
         runner = CliRunner()
-        result = runner.invoke(cli.cli)
+        result = runner.invoke(self.cli)
         expected = "Usage: cli [OPTIONS] COMMAND [ARGS]..."
 
         for option in [[], ["--help"]]:
-            result = runner.invoke(cli.cli, option)
+            result = runner.invoke(self.cli, option)
             self.assertEqual(result.exit_code, 0)
             self.assertIn(expected, click.unstyle(result.output))
 
@@ -95,14 +105,14 @@ class TestSafetyCLI(unittest.TestCase):
     def test_check_vulnerabilities_found_default(self, check_func):
         check_func.return_value = [get_vulnerability()], None
         EXPECTED_EXIT_CODE_VULNS_FOUND = 64
-        result = self.runner.invoke(cli.cli, ['check'])
+        result = self.runner.invoke(self.cli, ['check'])
         self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_FOUND)
 
     @patch("safety.safety.check")
     def test_check_vulnerabilities_not_found_default(self, check_func):
         check_func.return_value = [], None
         EXPECTED_EXIT_CODE_VULNS_NOT_FOUND = 0
-        result = self.runner.invoke(cli.cli, ['check'])
+        result = self.runner.invoke(self.cli, ['check'])
         self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_NOT_FOUND)
 
     @patch("safety.safety.check")
@@ -111,7 +121,7 @@ class TestSafetyCLI(unittest.TestCase):
         EXPECTED_EXIT_CODE_VULNS_FOUND = 64
 
         for output in self.output_options:
-            result = self.runner.invoke(cli.cli, ['check', '--output', output])
+            result = self.runner.invoke(self.cli, ['check', '--output', output])
             self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_FOUND)
 
     @patch("safety.safety.check")
@@ -120,7 +130,7 @@ class TestSafetyCLI(unittest.TestCase):
         EXPECTED_EXIT_CODE_VULNS_NOT_FOUND = 0
 
         for output in self.output_options:
-            result = self.runner.invoke(cli.cli, ['check', '--output', output])
+            result = self.runner.invoke(self.cli, ['check', '--output', output])
             self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_NOT_FOUND)
 
     @patch("safety.safety.check")
@@ -131,11 +141,11 @@ class TestSafetyCLI(unittest.TestCase):
         for vulns in [[get_vulnerability()], []]:
             check_func.return_value = vulns, None
 
-            result = self.runner.invoke(cli.cli, ['check', '--continue-on-error'])
+            result = self.runner.invoke(self.cli, ['check', '--continue-on-error'])
             self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_CONTINUE_ON_ERROR)
 
             for output in self.output_options:
-                result = self.runner.invoke(cli.cli, ['check', '--output', output, '--continue-on-error'])
+                result = self.runner.invoke(self.cli, ['check', '--output', output, '--continue-on-error'])
                 self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_CONTINUE_ON_ERROR)
 
     @patch("safety.safety.get_announcements")
@@ -143,7 +153,7 @@ class TestSafetyCLI(unittest.TestCase):
         announcement = {'type': 'error', 'message': 'Please upgrade now'}
         get_announcements_func.return_value = [announcement]
         message = f"* {announcement.get('message')}"
-        result = self.runner.invoke(cli.cli, ['check'])
+        result = self.runner.invoke(self.cli, ['check'])
         self.assertTrue('ANNOUNCEMENTS' in result.stderr)
         self.assertTrue(message in result.stderr)
 
@@ -157,7 +167,7 @@ class TestSafetyCLI(unittest.TestCase):
         dirname = os.path.dirname(__file__)
         reqs_path = os.path.join(dirname, "reqs_4.txt")
 
-        _ = runner.invoke(cli.cli, ['check', '--file', reqs_path, '--ignore', "123,456", '--ignore', "789"])
+        _ = runner.invoke(self.cli, ['check', '--file', reqs_path, '--ignore', "123,456", '--ignore', "789"])
         try:
             check_call_kwargs = check.call_args[1]  # Python < 3.8
         except IndexError:
@@ -171,14 +181,14 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(check_call_kwargs['ignore_vulns'], ignored_transformed)
 
     def test_validate_with_unsupported_argument(self):
-        result = self.runner.invoke(cli.cli, ['validate', 'safety_ci'])
+        result = self.runner.invoke(self.cli, ['validate', 'safety_ci'])
         msg = 'This Safety version only supports "policy_file" validation. "safety_ci" is not supported.\n'
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 
     def test_validate_with_wrong_path(self):
         p = Path('imaginary/path')
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '--path', str(p)])
+        result = self.runner.invoke(self.cli, ['validate', 'policy_file', '--path', str(p)])
         msg = f'The path "{str(p)}" does not exist.\n'
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
@@ -188,7 +198,7 @@ class TestSafetyCLI(unittest.TestCase):
 
         # Test with policy version 2.0
         path = os.path.join(dirname, "test_policy_file", "default_policy_file.yml")
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
+        result = self.runner.invoke(self.cli, ['validate', 'policy_file', '2.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stdout)
         msg = 'The Safety policy file (Valid only for the check command) was successfully parsed with the following values:\n'
         parsed = json.dumps(
@@ -215,7 +225,7 @@ class TestSafetyCLI(unittest.TestCase):
 
         # Test with policy version 3.0
         path = os.path.join(dirname, "test_policy_file", "v3_0", "default_policy_file.yml")
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
+        result = self.runner.invoke(self.cli, ['validate', 'policy_file', '3.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stdout)
         msg = 'The Safety policy (3.0) file (Used for scan and system-scan commands) was successfully parsed with the following values:\n'
 
@@ -292,13 +302,11 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
 
 
-
-
     def test_validate_with_policy_file_using_invalid_keyword(self):
         dirname = os.path.dirname(__file__)
         filename = 'default_policy_file_using_invalid_keyword.yml'
         path = os.path.join(dirname, "test_policy_file", filename)
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
+        result = self.runner.invoke(self.cli, ['validate', 'policy_file', '2.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stderr)
         msg_hint = 'HINT: "security" -> "transitive" is not a valid keyword. Valid keywords in this level are: ' \
                    'ignore-cvss-severity-below, ignore-cvss-unknown-severity, ignore-vulnerabilities, ' \
@@ -309,7 +317,7 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
 
         path = os.path.join(dirname, "test_policy_file", "v3_0", filename)
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '3.0', '--path', path])
+        result = self.runner.invoke(self.cli, ['validate', 'policy_file', '3.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stderr)
         msg = f'Unable to load the Safety Policy file ("{path}"), this command only supports version 3.0, details: 1 validation error for Config'
 
@@ -321,7 +329,7 @@ class TestSafetyCLI(unittest.TestCase):
         dirname = os.path.dirname(__file__)
         filename = 'default_policy_file_using_invalid_typo_keyword.yml'
         path = os.path.join(dirname, "test_policy_file", filename)
-        result = self.runner.invoke(cli.cli, ['validate', 'policy_file', '2.0', '--path', path])
+        result = self.runner.invoke(self.cli, ['validate', 'policy_file', '2.0', '--path', path])
         cleaned_stdout = click.unstyle(result.stderr)
         msg_hint = 'HINT: "security" -> "ignore-vunerabilities" is not a valid keyword. Maybe you meant: ' \
                    'ignore-vulnerabilities\n'
@@ -332,21 +340,21 @@ class TestSafetyCLI(unittest.TestCase):
 
     def test_generate_pass(self):
         with tempfile.TemporaryDirectory() as tempdir:
-            result = self.runner.invoke(cli.cli, ['generate', 'policy_file', '--path', tempdir])
+            result = self.runner.invoke(self.cli, ['generate', 'policy_file', '--path', tempdir])
             cleaned_stdout = click.unstyle(result.stdout)
             msg = f'A default Safety policy file has been generated! Review the file contents in the path {tempdir} ' \
                   f'in the file: .safety-policy.yml\n'
             self.assertEqual(msg, cleaned_stdout)
 
     def test_generate_with_unsupported_argument(self):
-        result = self.runner.invoke(cli.cli, ['generate', 'safety_ci'])
+        result = self.runner.invoke(self.cli, ['generate', 'safety_ci'])
         msg = 'This Safety version only supports "policy_file" generation. "safety_ci" is not supported.\n'
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 
     def test_generate_with_wrong_path(self):
         p = Path('imaginary/path')
-        result = self.runner.invoke(cli.cli, ['generate', 'policy_file', '--path', str(p)])
+        result = self.runner.invoke(self.cli, ['generate', 'policy_file', '--path', str(p)])
         msg = f'The path "{str(p)}" does not exist.\n'
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
@@ -354,13 +362,13 @@ class TestSafetyCLI(unittest.TestCase):
     def test_check_with_fix_does_verify_api_key(self):
         dirname = os.path.dirname(__file__)
         req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
-        result = self.runner.invoke(cli.cli, ['check', '-r', req_file, '--apply-security-updates'])
+        result = self.runner.invoke(self.cli, ['check', '-r', req_file, '--apply-security-updates'])
         self.assertEqual(click.unstyle(result.stderr),
                          "The --apply-security-updates option needs authentication. See https://docs.safetycli.com/safety-docs/support/invalid-api-key-error.\n")
         self.assertEqual(result.exit_code, 65)
 
     def test_check_with_fix_only_works_with_files(self):
-        result = self.runner.invoke(cli.cli, ['check', '--key', 'TEST-API_KEY', '--apply-security-updates'])
+        result = self.runner.invoke(self.cli, ['check', '--key', 'TEST-API_KEY', '--apply-security-updates'])
         self.assertEqual(click.unstyle(result.stderr),
                          '--apply-security-updates only works with files; use the "-r" option to specify files to remediate.\n')
         self.assertEqual(result.exit_code, 1)
@@ -398,13 +406,13 @@ class TestSafetyCLI(unittest.TestCase):
             req_file = os.path.join(tempdir, 'reqs_simple_minor.txt')
             shutil.copy(source_req, req_file)
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY',
+            self.runner.invoke(self.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY',
                                              '--apply-security-updates'])
 
             with open(req_file) as f:
                 self.assertEqual("django==1.8\nsafety==2.3.0\nflask==0.87.0", f.read())
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+            self.runner.invoke(self.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
                                          '--auto-security-updates-limit', 'minor'])
 
             with open(req_file) as f:
@@ -423,12 +431,12 @@ class TestSafetyCLI(unittest.TestCase):
                         "more_info_url": "https://pyup.io/p/pypi/django/52d/"}}
             }
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+            self.runner.invoke(self.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
                                          '-asul', 'minor', '--json'])
             with open(req_file) as f:
                 self.assertEqual("django==1.9\nsafety==2.3.0\nflask==0.87.0", f.read())
 
-            self.runner.invoke(cli.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
+            self.runner.invoke(self.cli, ['check', '-r', req_file, '--key', 'TEST-API_KEY', '--apply-security-updates',
                                          '-asul', 'major', '--output', 'bare'])
 
             with open(req_file) as f:
@@ -440,7 +448,7 @@ class TestSafetyCLI(unittest.TestCase):
         reqs_unpinned = os.path.join(dirname, "reqs_unpinned.txt")
 
         # Test default behavior (ignore_unpinned_requirements is None)
-        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'text'])
+        result = self.runner.invoke(self.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'text'])
 
         # Check for deprecation message
         self.assertIn("DEPRECATED: this command (`check`) has been DEPRECATED", result.output)
@@ -454,14 +462,14 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertIn(expected_warning, result.output)
 
         # Test ignore_unpinned_requirements set to True
-        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--ignore-unpinned-requirements',
+        result = self.runner.invoke(self.cli, ['check', '-r', reqs_unpinned, '--ignore-unpinned-requirements',
                                             '--db', db, '--output', 'text'])
 
         self.assertIn("Warning: django and numpy are unpinned and potential vulnerabilities are", result.output)
         self.assertIn("being ignored given `ignore-unpinned-requirements` is True in your config.", result.output)
 
         # Test check_unpinned_requirements set to True
-        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--json', '-i', 'some id',
+        result = self.runner.invoke(self.cli, ['check', '-r', reqs_unpinned, '--db', db, '--json', '-i', 'some id',
                                           '--check-unpinned-requirements'])
 
         # Check for deprecation message
@@ -490,7 +498,7 @@ class TestSafetyCLI(unittest.TestCase):
         db = os.path.join(dirname, "test_db")
         reqs_unpinned = os.path.join(dirname, "reqs_unpinned.txt")
 
-        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'html'])
+        result = self.runner.invoke(self.cli, ['check', '-r', reqs_unpinned, '--db', db, '--output', 'html'])
 
         ignored = "<p>Found vulnerabilities that were ignored: 2</p>"
         announcement = "Warning: django and numpy are unpinned."
@@ -500,7 +508,7 @@ class TestSafetyCLI(unittest.TestCase):
 
         reqs_affected = os.path.join(dirname, "reqs_pinned_affected.txt")
 
-        result = self.runner.invoke(cli.cli, ['check', '-r', reqs_affected, '--db', db, '--output', 'html'])
+        result = self.runner.invoke(self.cli, ['check', '-r', reqs_affected, '--db', db, '--output', 'html'])
 
         self.assertIn("remediations-suggested", result.stdout)
         self.assertIn("Use API Key", result.stdout)
@@ -526,7 +534,7 @@ class TestSafetyCLI(unittest.TestCase):
 
         dirname = os.path.dirname(__file__)
         test_filename = os.path.join(dirname, "reqs_4.txt")
-        result = self.runner.invoke(cli.cli, ['license', '--key', 'foo', '--file', test_filename])
+        result = self.runner.invoke(self.cli, ['license', '--key', 'foo', '--file', test_filename])
         print(result.stdout)
         self.assertEqual(result.exit_code, 0)
 
@@ -534,7 +542,9 @@ class TestSafetyCLI(unittest.TestCase):
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
-    def test_debug_flag(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+    @patch('safety.auth.utils.initialize', return_value=None)
+    @patch('safety.auth.cli_utils.SafetyCLI', return_value=SafetyCLI(platform_enabled=False, firewall_enabled=False))
+    def test_debug_flag(self, *args):
         """
         Test the behavior of the CLI when invoked with the '--debug' flag.
 
@@ -548,25 +558,26 @@ class TestSafetyCLI(unittest.TestCase):
             mock_get_auth_type: Mock for retrieving the authentication type.
             mock_fetch_database: Mock for database fetching operations.
         """
-        result = self.runner.invoke(cli.cli, ['--debug', 'scan'])
+        result = self.runner.invoke(self.cli, ['--debug', 'scan'])
         assert result.exit_code == 0, (
             f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
         )
-        expected_output_snippet = f"{get_safety_version()} scanning"
+        expected_output_snippet = f"{get_version()} scanning"
         assert expected_output_snippet in result.output, (
             f"Expected output to contain: {expected_output_snippet}, but got: {result.output}"
         )
 
 
-
     @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
-    def test_debug_flag_with_value_1(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+    def test_debug_flag_with_value_1(self, *args):
         sys.argv = ['safety', '--debug', '1', 'scan']
 
-        @cli.preprocess_args
+        from safety.cli import preprocess_args
+
+        @preprocess_args
         def dummy_function():
             pass
 
@@ -580,10 +591,12 @@ class TestSafetyCLI(unittest.TestCase):
     @patch.object(Auth, 'is_valid', return_value=True)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
     @patch('safety.safety.fetch_database', return_value={'vulnerable_packages': []})
-    def test_debug_flag_with_value_true(self, mock_get_auth_info, mock_is_valid, mock_get_auth_type, mock_fetch_database):
+    def test_debug_flag_with_value_true(self, *args):
         sys.argv = ['safety', '--debug', 'true', 'scan']
 
-        @cli.preprocess_args
+        from safety.cli import preprocess_args
+
+        @preprocess_args
         def dummy_function():
             pass
 
@@ -592,6 +605,53 @@ class TestSafetyCLI(unittest.TestCase):
 
         # Assert the preprocessed arguments
         assert preprocessed_args == ['--debug', 'scan'], f"Preprocessed args: {preprocessed_args}"
+
+    @patch('safety.auth.utils.get_config_setting', return_value=None)
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch.object(Auth, 'is_valid', return_value=True)
+    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
+    @patch('safety.auth.utils.SafetyAuthSession.check_project', return_value={'user_confirm': True})
+    @patch('safety.auth.utils.SafetyAuthSession.project', return_value={'slug': 'slug'})
+    @patch('safety.auth.cli_utils.SafetyCLI', return_value=SafetyCLI(platform_enabled=True, firewall_enabled=True))
+    def test_init_project(self, *args):
+        # Workarounds
+        from safety.console import main_console as test_console
+
+        test_cases = [
+            (False,
+             "Configured PIP global settings\nConfigured PIP alias\n", 0),
+            (True, 
+             "Set a project id (no spaces). If empty Safety will use", 1)]
+
+        for interactive, output, exit_code in test_cases:
+            with self.subTest(output=output, exit_code=exit_code):
+                with patch('safety.cli.console', 
+                           new=test_console) as t_console, \
+                     tempfile.TemporaryDirectory() as tempdir:
+                    
+                    t_console.is_interactive = interactive
+                    
+                    result = self.runner.invoke(self.cli, ['init', tempdir])
+                    cleaned_stdout = click.unstyle(result.stdout)
+                    assert result.exit_code == exit_code, f"CLI exited with non-zero exit code {result.exit_code}"
+                    assert cleaned_stdout.startswith(output), f"CLI exited with output: {result.output}"
+
+
+    @patch('safety.auth.cli.get_auth_info', return_value={'email': 'test@test.com'})
+    @patch.object(Auth, 'is_valid', return_value=True)
+    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value=AuthenticationType.TOKEN)
+    @patch('safety.auth.utils.SafetyAuthSession.check_project', return_value={'user_confirm': True})
+    @patch('safety.auth.utils.SafetyAuthSession.project', return_value={'slug': 'slug'})
+    @patch('safety.auth.cli_utils.SafetyCLI', return_value=SafetyCLI(platform_enabled=True, firewall_enabled=True))
+    def test_existing_project_is_linked(self, *args):
+        dirname = os.path.dirname(__file__)
+        source_project_file = os.path.join(dirname, "test-safety-project.ini")
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            project_file = os.path.join(tempdir, '.safety-project.ini')
+            shutil.copy(source_project_file, project_file)
+            result = self.runner.invoke(self.cli, ['init', tempdir])
+            assert result.exit_code == 0, f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
 
 class TestNetworkTelemetry(unittest.TestCase):
 
@@ -615,7 +675,8 @@ class TestNetworkTelemetry(unittest.TestCase):
         mock_requests_get.return_value = mock_response
 
         # Run the function
-        result = cli.get_network_telemetry()
+        from safety.cli import get_network_telemetry
+        result = get_network_telemetry()
 
         # Assert the network telemetry data
         self.assertEqual(result['bytes_sent'], 1000)
@@ -635,7 +696,8 @@ class TestNetworkTelemetry(unittest.TestCase):
     @patch('requests.get', side_effect=requests.RequestException('Network error'))
     def test_get_network_telemetry_request_exception(self, mock_requests_get):
         # Run the function
-        result = cli.get_network_telemetry()
+        from safety.cli import get_network_telemetry
+        result = get_network_telemetry()
 
         # Assert the download_speed is None and error is captured
         self.assertIsNone(result['download_speed'])
@@ -644,7 +706,8 @@ class TestNetworkTelemetry(unittest.TestCase):
     @patch('psutil.net_io_counters', side_effect=psutil.AccessDenied('Access denied'))
     def test_get_network_telemetry_access_denied(self, mock_net_io_counters):
         # Run the function
-        result = cli.get_network_telemetry()
+        from safety.cli import get_network_telemetry
+        result = get_network_telemetry()
 
         # Assert the error is captured
         self.assertIn('error', result)
@@ -658,6 +721,8 @@ class TestConfigureLogger(unittest.TestCase):
         mock_get_network_telemetry.return_value = {'dummy_key': 'dummy_value'}
         mock_config_read.return_value = None
 
+        from safety.cli import configure_logger
+
         ctx = Mock()
         param = Mock()
         debug = True
@@ -666,7 +731,7 @@ class TestConfigureLogger(unittest.TestCase):
         patch('logging.basicConfig') as mock_basicConfig, \
         patch('configparser.ConfigParser.items', return_value=[('key', 'value')]), \
         patch('configparser.ConfigParser.sections', return_value=['section']):
-            cli.configure_logger(ctx, param, debug)
+            configure_logger(ctx, param, debug)
             mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.DEBUG)
 
         # Check if network telemetry logging was called
@@ -680,6 +745,8 @@ class TestConfigureLogger(unittest.TestCase):
         param = Mock()
         debug = False
 
+        from safety.cli import configure_logger
+
         with patch('logging.basicConfig') as mock_basicConfig:
-            cli.configure_logger(ctx, param, debug)
+            configure_logger(ctx, param, debug)
         mock_basicConfig.assert_called_with(format='%(asctime)s %(name)s => %(message)s', level=logging.CRITICAL)

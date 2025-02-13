@@ -1,31 +1,39 @@
-from collections import defaultdict
-from datetime import datetime
+import datetime
 import itertools
 import json
 import logging
-from pathlib import Path
 import time
+from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
-from rich.prompt import Prompt
-from rich.text import Text
+
+import typer
 from rich.console import Console
 from rich.padding import Padding
-from safety_schemas.models import Vulnerability, ReportModel
-import typer
+from rich.prompt import Prompt
+from rich.text import Text
+from safety_schemas.models import (
+    Ecosystem,
+    FileType,
+    IgnoreCodes,
+    PolicyFileModel,
+    PolicySource,
+    ProjectModel,
+    PythonDependency,
+    ReportModel,
+    Vulnerability,
+)
+
 from safety import safety
 from safety.auth.constants import SAFETY_PLATFORM_URL
 from safety.errors import SafetyException
+from safety.meta import get_version
 from safety.output_utils import parse_html
 from safety.scan.constants import DEFAULT_SPINNER
-
-from safety_schemas.models import Ecosystem, FileType, PolicyFileModel, \
-    PolicySource, ProjectModel, IgnoreCodes, Stage, PythonDependency
-
-from safety.util import get_basic_announcements, get_safety_version
+from safety.util import clean_project_id, get_basic_announcements
 
 LOG = logging.getLogger(__name__)
 
-import datetime
 
 def render_header(targets: List[Path], is_system_scan: bool) -> Text:
     """
@@ -38,7 +46,7 @@ def render_header(targets: List[Path], is_system_scan: bool) -> Text:
     Returns:
         Text: Rendered header text.
     """
-    version = get_safety_version()
+    version = get_version()
     scan_datetime = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S %Z")
 
     action = f"scanning {', '.join([str(t) for t in targets])}"
@@ -356,51 +364,36 @@ def print_wait_policy_download(console: Console, closure: Tuple[Any, Dict[str, A
     return policy
 
 
-def prompt_project_id(console: Console, stage: Stage, prj_root_name: Optional[str], do_not_exit: bool = True) -> Optional[str]:
+def prompt_project_id(
+        console: Console,
+        default_id: str) -> str:
     """
-    Prompt the user to set a project ID for the scan.
-
-    Args:
-        console (Console): The console for output.
-        stage (Stage): The current stage.
-        prj_root_name (Optional[str]): The root name of the project.
-        do_not_exit (bool): Indicates if the function should not exit on failure.
-
-    Returns:
-        Optional[str]: The project ID.
+    Prompt the user to set a project ID, on a non-interactive mode it will 
+    fallback to the default ID parameter.
     """
-    from safety.util import clean_project_id
-    default_prj_id = clean_project_id(prj_root_name) if prj_root_name else None
+    default_prj_id = clean_project_id(default_id)
 
-    non_interactive_mode = console.quiet or not console.is_interactive
-    if stage is not Stage.development and non_interactive_mode:
-        # Fail here
-        console.print("The scan needs to be linked to a project.")
-        raise typer.Exit(code=1)
+    interactive_mode = console.is_interactive and not console.quiet
 
-    hint = ""
-    if default_prj_id:
-        hint = f" If empty Safety will use [bold]{default_prj_id}[/bold]"
-    prompt_text = f"Set a project id for this scan (no spaces).{hint}"
+    if not interactive_mode:
+        LOG.info("Fallback to default project id, because of " \
+                 "non-interactive mode.")
+        
+        return default_prj_id
 
-    def ask():
-        prj_id = None
+    hint = f" If empty Safety will use [bold]{default_prj_id}[/bold]"
+    prompt_text = f"Set a project id (no spaces).{hint}"
 
-        result = Prompt.ask(prompt_text, default=None, console=console)
+    while True:
+        result = Prompt.ask(
+            prompt_text,
+            console=console,
+            default=default_prj_id,
+            show_default=False
+        )
 
-        if result:
-            prj_id = clean_project_id(result)
-        elif default_prj_id:
-            prj_id = default_prj_id
-
-        return prj_id
-
-    project_id = ask()
-
-    while not project_id and do_not_exit:
-        project_id = ask()
-
-    return project_id
+        return clean_project_id(result) if result != default_prj_id \
+            else default_prj_id
 
 
 def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -> bool:
@@ -421,7 +414,7 @@ def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -
                    f"[bold]Project admin:[/bold] {prj_admin_email}"):
         console.print(Padding(detail, (0, 0, 0, 2)), emoji=True)
 
-    prompt_question = "Do you want to link this scan with this existing project?"
+    prompt_question = "Do you want to link it with this existing project?"
 
     answer = Prompt.ask(prompt=prompt_question, choices=["y", "n"],
                         default="y", show_default=True, console=console).lower()
@@ -577,9 +570,8 @@ def generate_spdx_creation_info(spdx_version: str, project_identifier: str) -> A
     DOC_COMMENT = f"This document was created using SPDX {spdx_version}"
     CREATOR_COMMENT = "Safety CLI automatically created this SPDX document from a scan report."
 
-    from ..util import get_safety_version
     TOOL_ID = "safety"
-    TOOL_VERSION = get_safety_version()
+    TOOL_VERSION = get_version()
 
     doc_creator = Actor(
         actor_type=ActorType.TOOL,
@@ -635,11 +627,10 @@ def create_packages(dependencies: List[PythonDependency]) -> List[Any]:
     Returns:
         List[Any]: List of SPDX packages.
     """
-    from spdx_tools.spdx.model.spdx_no_assertion import SpdxNoAssertion
-
     from spdx_tools.spdx.model import (
         Package,
     )
+    from spdx_tools.spdx.model.spdx_no_assertion import SpdxNoAssertion
 
     doc_pkgs = []
     pkgs_added = set([])
@@ -736,10 +727,7 @@ def render_scan_spdx(report: ReportModel, obj: Any, spdx_version: Optional[str])
     Returns:
         Optional[Any]: The rendered SPDX document in JSON format.
     """
-    from spdx_tools.spdx.writer.write_utils import (
-        convert,
-        validate_and_deduplicate
-    )
+    from spdx_tools.spdx.writer.write_utils import convert, validate_and_deduplicate
 
     # Set to latest supported if a version is not specified
     if not spdx_version:

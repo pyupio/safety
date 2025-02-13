@@ -1,11 +1,11 @@
-from safety.util import get_safety_version
+from safety.meta import get_version
 
 # Console Help Theme
 CONSOLE_HELP_THEME = {
     "nhc": "grey82"
 }
 
-CLI_VERSION = get_safety_version()
+CLI_VERSION = get_version()
 CLI_WEBSITE_URL="https://safetycli.com"
 CLI_DOCUMENTATION_URL="https://docs.safetycli.com"
 CLI_SUPPORT_EMAIL="support@safetycli.com"
@@ -52,6 +52,8 @@ CLI_GENERATE_HELP = "Generate a boilerplate Safety CLI policy file for customize
 
 CLI_VALIDATE_HELP = "Check if your local Safety CLI policy file is valid."\
 "\nExample: Example: safety validate --path /path/to/policy.yml"
+
+CLI_GATEWAY_CONFIGURE_COMMAND_HELP = "Configures the project in the working directory to use Gateway."
 
 # Global options help
 _CLI_PROXY_TIP_HELP = f"[nhc]Note: proxy details can be set globally in a config file.[/nhc]\n\nSee [bold]safety configure --help[/bold]\n\n"
@@ -144,6 +146,8 @@ CLI_CONFIGURE_SAVE_TO_SYSTEM = "Save the configuration to a system config file.\
 # Generate options
 CLI_GENERATE_PATH = "The path where the generated file will be saved (default: current directory).\n\n" \
 "[bold]Example: safety generate policy_file --path .my-project-safety-policy.yml[/bold]"
+CLI_GENERATE_MINIMUM_CVSS_SEVERITY = "The minimum CVSS severity to generate the installation policy for.\n\n" \
+"[bold]Example: safety generate installation_policy --minimum-cvss-severity high[/bold]"
 
 # Command default settings
 CMD_PROJECT_NAME = "scan"

@@ -3,7 +3,7 @@ import configparser
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 JSON_SCHEMA_VERSION = '2.0.0'
 
@@ -55,6 +55,8 @@ SYSTEM_CONFIG_DIR = get_system_dir()
 CACHE_FILE_DIR = USER_CONFIG_DIR / f"{JSON_SCHEMA_VERSION.replace('.', '')}"
 DB_CACHE_FILE = CACHE_FILE_DIR / "cache.json"
 
+PIP_LOCK = USER_CONFIG_DIR / "pip.lock"
+
 CONFIG_FILE_NAME = "config.ini"
 CONFIG_FILE_SYSTEM = SYSTEM_CONFIG_DIR / CONFIG_FILE_NAME if SYSTEM_CONFIG_DIR else None
 CONFIG_FILE_USER = USER_CONFIG_DIR / CONFIG_FILE_NAME
@@ -76,8 +78,32 @@ class URLSettings(Enum):
     AUTH_SERVER_URL = f'https://auth.{DEFAULT_DOMAIN}'
     SAFETY_PLATFORM_URL = f"https://platform.{DEFAULT_DOMAIN}"
 
+class FeatureType(Enum):
+    """
+    Defines server-controlled features for dynamic feature management.
 
-def get_config_setting(name: str) -> Optional[str]:
+    Each enum value represents a toggleable feature controlled through 
+    server-side configuration, enabling gradual rollouts to different user 
+    segments. Features are cached during CLI initialization.
+
+    History:
+        Created to support progressive feature rollouts and A/B testing without
+        disturbing users.
+    """
+    FIREWALL = "firewall"
+    PLATFORM = "platform"
+
+    @property
+    def config_key(self) -> str:
+        """For JSON/config lookup e.g. 'feature-a-enabled'"""
+        return f"{self.name.lower()}-enabled"
+    
+    @property
+    def attr_name(self) -> str:
+        """For Python attribute access e.g. 'feature_a_enabled'"""
+        return f"{self.name.lower()}_enabled"
+
+def get_config_setting(name: str, default=None) -> Optional[str]:
     """
     Get the configuration setting from the config file or defaults.
 
@@ -89,8 +115,6 @@ def get_config_setting(name: str) -> Optional[str]:
     """
     config = configparser.ConfigParser()
     config.read(CONFIG)
-
-    default = None
 
     if name in [setting.name for setting in URLSettings]:
         default = URLSettings[name]
@@ -113,7 +137,7 @@ PLATFORM_API_PROJECT_SCAN_REQUEST_ENDPOINT = f"{PLATFORM_API_BASE_URL}/project-s
 PLATFORM_API_PROJECT_UPLOAD_SCAN_ENDPOINT = f"{PLATFORM_API_BASE_URL}/scan"
 PLATFORM_API_REQUIREMENTS_UPLOAD_SCAN_ENDPOINT = f"{PLATFORM_API_BASE_URL}/process_files"
 PLATFORM_API_CHECK_UPDATES_ENDPOINT = f"{PLATFORM_API_BASE_URL}/versions-and-configs"
-PLATFORM_API_INITIALIZE_SCAN_ENDPOINT = f"{PLATFORM_API_BASE_URL}/initialize-scan"
+PLATFORM_API_INITIALIZE_ENDPOINT = f"{PLATFORM_API_BASE_URL}/initialize"
 
 
 API_MIRRORS = [
@@ -176,7 +200,7 @@ MSG_NO_VERIFIED_EMAIL_TPL = \
 EXIT_CODE_OK = 0
 EXIT_CODE_FAILURE = 1
 EXIT_CODE_VULNERABILITIES_FOUND = 64
-EXIT_CODE_INVALID_API_KEY = 65
+EXIT_CODE_INVALID_AUTH_CREDENTIAL = 65
 EXIT_CODE_TOO_MANY_REQUESTS = 66
 EXIT_CODE_UNABLE_TO_LOAD_LOCAL_VULNERABILITY_DB = 67
 EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB = 68
@@ -187,3 +211,8 @@ EXIT_CODE_EMAIL_NOT_VERIFIED = 72
 
 #For Depreciated Messages
 BAR_LINE = "+===========================================================================================================================================================================================+"
+
+BETA_PANEL_DESCRIPTION_HELP = "These commands are experimental and part of our commitment to delivering innovative features. As we refine functionality, they may be significantly altered or, in rare cases, removed without prior notice. We welcome your feedback and encourage cautious use."
+
+CONTEXT_COMMAND_TYPE = "command_type"
+CONTEXT_FEATURE_TYPE = "feature_type"

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 from pathlib import Path
 import datetime
 
-from safety.scan.render import print_announcements, print_summary, render_header
+from safety.scan.render import print_announcements, print_summary, render_header, prompt_project_id
 from safety_schemas.models import ProjectModel, IgnoreCodes, PolicySource
 
 class TestRender(unittest.TestCase):
@@ -15,7 +15,7 @@ class TestRender(unittest.TestCase):
         self.project.policy = MagicMock()
         self.project.policy.source = PolicySource.cloud
 
-    @patch('safety.scan.render.get_safety_version')
+    @patch('safety.scan.render.get_version')
     def test_render_header(self, mock_get_safety_version):
         mock_get_safety_version.return_value = '3.0.0'
 
@@ -115,3 +115,101 @@ class TestRender(unittest.TestCase):
             call('0 security issues found, 0 fixes suggested.'),
             call('[number]0[/number] fixes suggested, resolving [number]0[/number] vulnerabilities.')
         ])
+
+    @patch("safety.scan.render.clean_project_id")
+    def test_prompt_project_id_non_interactive(self, clean_project_id):
+        """
+        Under these cases, the default project ID should be cleaned and 
+        returned. The prompt should not be shown.
+        """
+        
+        test_cases = [
+            # Non-interactive mode
+            (True, False, "default_a", "default_a_cleaned"),
+            # Quiet mode like JSON output under interactive mode
+            (True, True, "default_b", "default_b_cleaned"),
+            # No Quiet and Not interactive mode
+            (False, False, "default_c", "default_c_cleaned"),
+        ]
+        
+        for quiet, is_interactive, default_id, expected_result in test_cases:
+            with self.subTest(quiet=quiet, is_interactive=is_interactive):        
+        
+                clean_project_id.return_value = f"{default_id}_cleaned"    
+                console = MagicMock(quiet=quiet, is_interactive=is_interactive)
+                
+                result = prompt_project_id(console, default_id)
+
+                assert result == expected_result
+
+                assert result == expected_result, (
+                    f"Failed for quiet={quiet}, "
+                    f"is_interactive={is_interactive}\n"
+                    f"Expected: {expected_result}\n"
+                    f"Got: {result}\n"
+                    f"Default ID was: {default_id}"
+                )
+
+                try:
+                    clean_project_id.assert_called_once_with(default_id)
+                except AssertionError:
+                    raise AssertionError(
+                        f"Mock wasn't called correctly for "
+                        f"quiet={quiet}, is_interactive={is_interactive}\n"
+                        f"Expected (1) call with: {default_id}\n"
+                        f"Actual calls were "
+                        f"({len(clean_project_id.call_args_list)}): "
+                        f"{clean_project_id.call_args_list}"
+                    )
+
+                clean_project_id.reset_mock()
+
+
+    @patch("safety.scan.render.clean_project_id")
+    def test_prompt_project_id_interactive(self, clean_project_id):
+        default_id = "default-project"
+        default_id_cleaned = f"{default_id}_cleaned"
+        
+        test_cases = [("custom-project", "custom-project_cleaned"),
+                      ("", default_id_cleaned)]
+
+        for user_input, expected in test_cases:
+            with self.subTest(user_input=user_input):
+                console = MagicMock(quiet=False, is_interactive=True)
+
+                clean_project_id.side_effect = lambda input_string: (
+                    f"{input_string}_cleaned"
+                )
+                
+                with patch('safety.scan.render.Prompt.ask') as ask:
+
+                    # We mimic the behavior of Prompt.ask on empty input
+                    ask.side_effect = lambda *args, **kwargs: (
+                        kwargs['default'] if user_input == "" else user_input
+                    )
+                    
+                    result = prompt_project_id(console, default_id)
+
+                    # Verify Prompt.ask was called correctly
+                    ask.assert_called_once_with(
+                        f"Set a project id (no spaces). If empty Safety will use [bold]{default_id_cleaned}[/bold]",
+                        console=console,
+                        default=default_id_cleaned,
+                        show_default=False
+                    )
+
+                    calls = [call(default_id)]
+                    call_count = 1
+
+                    if user_input != "":
+                        calls.append(call(user_input))
+                        call_count = 2
+                    
+                    clean_project_id.assert_has_calls(calls)                    
+                    assert clean_project_id.call_count == call_count
+
+                    print(result, expected)                    
+                    assert result == expected
+                    
+                # Reset mocks for next test case
+                clean_project_id.reset_mock()

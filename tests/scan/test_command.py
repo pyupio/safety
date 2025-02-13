@@ -17,14 +17,17 @@ class TestScanCommand(unittest.TestCase):
         # is initialized in the CLI
         console.quiet = False
 
+        cli.commands = cli.all_commands
+        self.cli = cli
+
     @patch.object(Auth, 'is_valid', return_value=False)
     @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value="unauthenticated")
     def test_scan(self, mock_is_valid, mock_get_auth_type):
-        result = self.runner.invoke(cli, ["scan", "--target", self.target, "--output", "json"])
+        result = self.runner.invoke(self.cli, ["scan", "--target", self.target, "--output", "json"])
         self.assertEqual(result.exit_code, 1)
 
-        result = self.runner.invoke(cli, ["--stage", "production", "scan", "--target", self.target, "--output", "json"])
+        result = self.runner.invoke(self.cli, ["--stage", "production", "scan", "--target", self.target, "--output", "json"])
         self.assertEqual(result.exit_code, 1)
 
-        result = self.runner.invoke(cli, ["--stage", "cicd", "scan", "--target", self.target, "--output", "screen"])
+        result = self.runner.invoke(self.cli, ["--stage", "cicd", "scan", "--target", self.target, "--output", "screen"])
         self.assertEqual(result.exit_code, 1)

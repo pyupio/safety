@@ -12,7 +12,7 @@ from safety.auth.constants import (
 )
 from safety.constants import (
     PLATFORM_API_CHECK_UPDATES_ENDPOINT,
-    PLATFORM_API_INITIALIZE_SCAN_ENDPOINT,
+    PLATFORM_API_INITIALIZE_ENDPOINT,
     PLATFORM_API_POLICY_ENDPOINT,
     PLATFORM_API_PROJECT_CHECK_ENDPOINT,
     PLATFORM_API_PROJECT_ENDPOINT,
@@ -20,7 +20,10 @@ from safety.constants import (
     PLATFORM_API_PROJECT_UPLOAD_SCAN_ENDPOINT,
     PLATFORM_API_REQUIREMENTS_UPLOAD_SCAN_ENDPOINT,
     REQUEST_TIMEOUT,
+    FeatureType,
+    get_config_setting
 )
+from safety.models import SafetyCLI
 from safety.scan.util import AuthenticationType
 
 from safety.util import SafetyContext, output_exception
@@ -99,9 +102,17 @@ def parse_response(func: Callable) -> Callable:
         except requests.exceptions.RequestException as e:
             raise e
 
+        # TODO: Handle content as JSON and fallback to text for all responses
+
         if r.status_code == 403:
+            reason = None
+            try:
+                reason = r.json().get("detail")
+            except Exception:
+                LOG.debug("Failed to parse 403 response: %s", r.text)
+                
             raise InvalidCredentialError(
-                credential="Failed authentication.", reason=r.text
+                credential="Failed authentication.", reason=reason
             )
 
         if r.status_code == 429:
@@ -456,20 +467,22 @@ class SafetyAuthSession(OAuth2Session):
         return self.get(url=PLATFORM_API_CHECK_UPDATES_ENDPOINT, params=data)
 
     @parse_response
-    def initialize_scan(self) -> Any:
+    def initialize(self) -> Any:
         """
-        Initialize a scan.
+        Initialize a run.
 
         Returns:
             Any: The initialization result.
         """
         try:
-            response = self.get(url=PLATFORM_API_INITIALIZE_SCAN_ENDPOINT, timeout=5)
+            response = self.get(url=PLATFORM_API_INITIALIZE_ENDPOINT,
+                                headers={"Content-Type": "application/json"},
+                                timeout=5)
             return response
         except requests.exceptions.Timeout:
-            LOG.error("Auth request to initialize scan timed out after 5 seconds.")
-        except Exception as e:
-            LOG.exception("Exception trying to auth initialize scan", exc_info=True)
+            LOG.error("Auth request to initialize timed out after 5 seconds.")
+        except Exception:
+            LOG.exception("Exception trying to auth initialize", exc_info=True)
         return None
 
 
@@ -591,3 +604,113 @@ def is_jupyter_notebook() -> bool:
         pass
 
     return False
+
+
+def save_flags_config(flags: Dict[FeatureType, bool]) -> None:
+    """
+    Save feature flags configuration to file.
+    
+    This function attempts to save feature flags to the configuration file
+    but will fail silently if unable to do so (e.g., due to permission issues
+    or disk problems). Silent failure is chosen to prevent configuration issues
+    from disrupting core application functionality.
+
+    Note that if saving fails, the application will continue using existing
+    or default flag values until the next restart.
+
+    Args:
+        flags: Dictionary mapping feature types to their enabled/disabled state
+
+    The operation will be logged (with stack trace) if it fails.
+    """
+    import configparser
+    from safety.constants import CONFIG_FILE_USER
+
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE_USER)
+
+    flag_settings = {key.name.upper(): str(value) for key, value in flags.items()}
+
+    if not config.has_section('settings'):
+        config.add_section('settings')
+
+    settings = dict(config.items('settings'))
+    settings.update(flag_settings)
+
+    for key, value in settings.items():
+        config.set('settings', key, value)
+
+    try:
+        with open(CONFIG_FILE_USER, 'w') as config_file:
+            config.write(config_file)
+    except Exception:
+        LOG.exception("Unable to save flags configuration.")
+
+
+def get_feature_name(feature: FeatureType, as_attr: bool = False) -> str:
+    """Returns a formatted feature name with enabled suffix.
+    
+    Args:
+        feature: The feature to format the name for
+        as_attr: If True, formats for attribute usage (underscore), 
+                otherwise uses hyphen
+    
+    Returns:
+        Formatted feature name string with enabled suffix
+    """
+    name = feature.name.lower()
+    separator = '_' if as_attr else '-'
+    return f"{name}{separator}enabled"
+
+
+def str_to_bool(value) -> Optional[bool]:
+    """Convert basic string representations to boolean."""
+    if isinstance(value, bool):
+        return value
+        
+    if isinstance(value, str):
+        value = value.lower().strip()
+        if value in ('true'):
+            return True
+        if value in ('false'):
+            return False
+    
+    return None
+
+
+def initialize(ctx: Any, refresh: bool = True) -> None:
+    """
+    Initializes the run by loading settings.
+
+    Args:
+        ctx (Any): The context object.
+        refresh (bool): Whether to refresh settings from the server. Defaults to True.
+    """
+    settings = None
+    current_values = {}
+
+    if not ctx.obj:        
+        ctx.obj = SafetyCLI()
+
+    for feature in FeatureType:
+        value = get_config_setting(feature.name)
+        current_values[feature] = str_to_bool(value)
+
+    if refresh:
+        try:
+            settings = ctx.obj.auth.client.initialize()
+        except Exception:
+            LOG.info("Unable to initialize, continue with default values.")
+
+    if settings:
+        for feature in FeatureType:
+            server_value = str_to_bool(settings.get(feature.config_key))
+            if server_value is not None:
+                if current_values[feature] != server_value:
+                    current_values[feature] = server_value
+
+        save_flags_config(current_values)
+
+    for feature, value in current_values.items():
+        if value is not None:
+            setattr(ctx.obj, feature.attr_name, value)

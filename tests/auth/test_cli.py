@@ -1,17 +1,17 @@
-from unittest.mock import Mock, PropertyMock, patch, ANY
-import click
+from unittest.mock import patch, ANY
 from click.testing import CliRunner
 import unittest
 
 from safety.cli import cli
-from safety.cli_util import get_command_for
-
 
 class TestSafetyAuthCLI(unittest.TestCase):
 
     def setUp(self):
         self.maxDiff = None
         self.runner = CliRunner(mix_stderr=False)
+
+        cli.commands = cli.all_commands
+        self.cli = cli
 
     @unittest.skip("We are bypassing email verification for now")
     @patch("safety.auth.cli.fail_if_authenticated")
@@ -26,7 +26,7 @@ class TestSafetyAuthCLI(unittest.TestCase):
             "email": "user@safetycli.com",
             "name": "Safety User",
         }
-        result = self.runner.invoke(cli, ["auth"])
+        result = self.runner.invoke(self.cli, ["auth"])
 
         fail_if_authenticated.assert_called_once()
         get_authorization_data.assert_called_once()

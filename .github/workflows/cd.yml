@@ -48,7 +48,12 @@ jobs:
           echo "## What's Changed" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
+      - name: Rename executables
+        run: |
+          mv safety-linux/safety safety-linux/safety-linux
+          mv safety-macos/safety safety-macos/safety-macos
+
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2.0.1
@@ -56,9 +61,9 @@ jobs:
           name: Version ${{ steps.get_version.outputs.version }}
           body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
           files: |
-            safety-linux/safety
+            safety-linux/safety-linux
             safety-windows/safety.exe
-            safety-macos/safety
+            safety-macos/safety-macos
             dist/*
           prerelease: ${{ contains(steps.get_version.outputs.version, 'b') }}
           token: ${{ secrets.SAFETY_BOT_TOKEN }}

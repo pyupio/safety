@@ -9,7 +9,7 @@ from safety.auth.main import get_authorization_data, \
 
 
 
-class TestMain(unittest.TestCase):
+class TestAuthMain(unittest.TestCase):
 
     def setUp(self):
         self.assets = Path(__file__).parent / Path("test_assets/")

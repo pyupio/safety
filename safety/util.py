@@ -7,22 +7,33 @@ from collections import defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock
-from typing import List, Optional, Dict, Generator, Tuple, Union, Any
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import click
 from click import BadParameter
-from dparse import parse, filetypes
+from dparse import filetypes, parse
+from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
-from packaging.specifiers import SpecifierSet
 from requests import PreparedRequest
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
-
-from safety.constants import EXIT_CODE_FAILURE, EXIT_CODE_OK, HASH_REGEX_GROUPS, SYSTEM_CONFIG_DIR, USER_CONFIG_DIR
-from safety.errors import InvalidProvidedReportError
-from safety.models import Package, RequirementFile, is_pinned_requirement, SafetyRequirement
 from safety_schemas.models import TelemetryModel
+
+from safety.constants import (
+    EXIT_CODE_FAILURE,
+    EXIT_CODE_OK,
+    HASH_REGEX_GROUPS,
+    SYSTEM_CONFIG_DIR,
+    USER_CONFIG_DIR,
+)
+from safety.errors import InvalidProvidedReportError
+from safety.models import (
+    Package,
+    RequirementFile,
+    SafetyRequirement,
+    is_pinned_requirement,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -230,7 +241,7 @@ def get_used_options() -> Dict[str, Dict[str, int]]:
     return used_options
 
 
-def get_safety_version() -> str:
+def get_version() -> str:
     """
     Get the version of Safety.
 
@@ -320,7 +331,7 @@ def build_telemetry_data(telemetry: bool = True,
         'safety_options': get_used_options()
     } if telemetry else {}
 
-    body['safety_version'] = get_safety_version()
+    body['safety_version'] = get_version()
     body['safety_source'] = os.environ.get("SAFETY_SOURCE", None) or context.safety_source
 
     if not 'safety_options' in body:

@@ -10,7 +10,8 @@
             // This uses the default environment which is a virtual environment
             // created by Hatch
             "python": "${workspaceFolder}/.hatch/bin/python",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": false,
         }
     ],
     "inputs": [
@@ -64,15 +65,26 @@
                 "auth login",
                 "auth login --headless",
                 "auth logout",
+                "auth status",
                 
                 // Scan commands
                 "scan",
-                "--key ADD-YOUR-API-KEY scan",
+                "--key $SAFETY_API_KEY scan",
+                "--stage cicd --key $SAFETY_API_KEY scan",
                 "scan --use-server-matching",
                 "scan --detailed-output",
                 "--debug scan",
                 "--disable-optional-telemetry scan",
                 "scan --output json --output-file json",
+                "scan --help",
+
+                // Firewall commands
+                "init --help",
+                "init local_prj", // Directory has to be created manually
+                "init",
+                "pip list",
+                "pip install insecure-package",
+                "pip install fastapi",
                 
                 // Check commands
                 "check",
@@ -80,7 +92,10 @@
                 
                 // Other commands
                 "license",
-                "--help"
+                "--help",
+                "validate --help",
+                "--key foo --help",
+                "configure"
             ],
             "default": "scan"
         }                

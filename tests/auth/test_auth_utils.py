@@ -1,8 +1,10 @@
 import unittest
 from unittest.mock import MagicMock, Mock, patch, call
-from safety.auth.utils import initialize
+
+from safety.auth.utils import initialize, extract_detail, FeatureType, \
+    str_to_bool, get_config_setting, save_flags_config
 from safety.errors import InvalidCredentialError
-from safety.auth.utils import FeatureType, str_to_bool, get_config_setting, save_flags_config
+
 
 class TestUtils(unittest.TestCase):
 
@@ -137,3 +139,24 @@ class TestUtils(unittest.TestCase):
             
             # Verify number of calls matches number of features
             self.assertEqual(mock_setattr.call_count, len(FeatureType))
+
+    def test_extract_detail(self):
+        # Test valid JSON with detail
+        response = Mock()
+        response.json.return_value = {"detail": "Error message"}
+        detail = extract_detail(response)
+        self.assertEqual(detail, "Error message")
+
+        # Test valid JSON without detail
+        response.json.return_value = {"message": "Something else"}
+        detail = extract_detail(response)
+        self.assertIsNone(detail)
+
+        # Test invalid JSON
+        response.json.side_effect = ValueError()
+        detail = extract_detail(response)
+        self.assertIsNone(detail)
+
+        # Test empty response
+        response.json.side_effect = None
+        response.json.return_value = {}

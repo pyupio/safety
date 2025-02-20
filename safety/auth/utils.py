@@ -76,6 +76,27 @@ def is_email_verified(info: Dict[str, Any]) -> Optional[bool]:
     return True
 
 
+def extract_detail(response: requests.Response) -> Optional[str]:
+    """
+    Extract the reason from an HTTP response.
+
+    Args:
+        response (requests.Response): The response.
+
+    Returns:
+        Optional[str]: The reason.
+    """
+    detail = None
+
+    try:
+        detail = response.json().get("detail")
+    except Exception:
+        LOG.debug("Failed to extract detail from response: %s",
+                  response.status_code)
+
+    return detail
+
+
 def parse_response(func: Callable) -> Callable:
     """
     Decorator to parse the response from an HTTP request.
@@ -105,12 +126,8 @@ def parse_response(func: Callable) -> Callable:
         # TODO: Handle content as JSON and fallback to text for all responses
 
         if r.status_code == 403:
-            reason = None
-            try:
-                reason = r.json().get("detail")
-            except Exception:
-                LOG.debug("Failed to parse 403 response: %s", r.text)
-                
+            reason = extract_detail(response=r)
+
             raise InvalidCredentialError(
                 credential="Failed authentication.", reason=reason
             )
@@ -130,7 +147,10 @@ def parse_response(func: Callable) -> Callable:
             raise SafetyError(message=reason, error_code=error_code)
 
         if r.status_code >= 500:
-            raise ServerError(reason=f"{r.reason} - {r.text}")
+            reason = extract_detail(response=r)
+            LOG.debug("ServerError %s -> Response returned: %s",
+                      r.status_code, r.text)
+            raise ServerError(reason=reason)
 
         data = None
 

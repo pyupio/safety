@@ -281,7 +281,6 @@ class ServerError(DatabaseFetchError):
     """
     def __init__(self, reason: Optional[str] = None,
                  message: str = "Sorry, something went wrong.\n"
-                                "Safety CLI cannot connect to the server.\n"
                                 "Our engineers are working quickly to resolve the issue."):
         info = f" Reason: {reason}"
         self.message = message + (info if reason else "")

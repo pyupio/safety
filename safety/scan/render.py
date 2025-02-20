@@ -303,7 +303,7 @@ def print_wait_project_verification(console: Console, project_id: str, closure: 
             LOG.exception(f'Unable to verify the project, reason: {e}')
             reason = "We are currently unable to verify the project, " \
                 "and it is necessary to link the scan to a specific " \
-                    f"project. Reason: {e}"
+                    f"project. \n\nAdditional Information: \n{e}"
             raise SafetyException(message=reason)
 
         if not status:

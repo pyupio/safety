@@ -8,7 +8,7 @@ from sys import platform
 from tempfile import mkstemp
 
 import typer
-from Levenshtein import distance
+import nltk
 from filelock import FileLock
 from rich.padding import Padding
 from rich.prompt import Prompt
@@ -227,7 +227,7 @@ class PipInstallCommand(PipCommand):
 
         for pkg in MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES:
             if (abs(len(pkg) - len(package_name)) <= max_edit_distance
-                and distance(pkg, package_name) <= max_edit_distance):
+                and nltk.edit_distance(pkg, package_name) <= max_edit_distance):
                 return (False, pkg)
 
         return (True, package_name)

@@ -1,6 +1,7 @@
 import http.server
 import json
 import logging
+import random
 import socket
 import sys
 import time
@@ -28,7 +29,8 @@ def find_available_port() -> Optional[int]:
         Optional[int]: An available port number, or None if no ports are available.
     """
     # Dynamic ports IANA
-    port_range = range(49152, 65536)
+    port_range = list(range(49152, 65536))
+    random.shuffle(port_range)
 
     for port in port_range:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -136,6 +138,8 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
             if isinstance(c_type, list) and len(c_type) == 1 and isinstance(c_type[0], str):
                 callback_type = c_type[0]
         except Exception:
+            msg = "Unable to process the callback, try again."
+            self.send_error(400, msg)
             click.secho("Unable to process the callback, try again.")
             return
 
@@ -158,8 +162,10 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
             location (str): The URL to redirect to.
             params (dict): Additional parameters for the redirection.
         """
-        self.send_response(301)
+        self.send_response(302)
         self.send_header('Location', location)
+        self.send_header('Connection', 'close')
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
         self.end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:

@@ -49,7 +49,7 @@ dependencies = [
   "setuptools>=65.5.1",
   "typer>=0.12.1",
   "typing-extensions>=4.7.1",
-  "python-levenshtein>=0.25.1",
+  "nltk>=3.9",
 ]
 license = "MIT"
 license-files = ["LICENSES/*"]

@@ -2,6 +2,12 @@ name: Publish Docker image
 
 on:
   workflow_dispatch:
+    inputs:
+      update_latest:
+        description: 'Update the "latest" tag (only applies to stable versions)'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   build-and-push:
@@ -10,14 +16,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
+        python-version: "3.13"
         cache: "pip"
     
     - name: Safety Version
       run: |
-        echo "SAFETY_VERSION=$(python -c 'import tomli; print(tomli.load(open("pyproject.toml", "rb"))["project"]["version"])')" >> $GITHUB_ENV
+        pip install packaging
+        echo "SAFETY_VERSION=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')" >> $GITHUB_ENV
 
     - name: Extract Major and Minor Version
       run: |
@@ -32,6 +39,23 @@ jobs:
     - name: Log into registry
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
+    - name: Check for Beta Version
+      id: beta_check
+      run: |
+        if [[ ${{ env.SAFETY_VERSION }} =~ .*b[0-9]+$ ]]; then
+          echo "is_beta=true" >> $GITHUB_ENV
+        else
+          echo "is_beta=false" >> $GITHUB_ENV
+        fi
+
+    - name: Determine Latest Tag Update
+      run: |
+        if [[ "${{ env.is_beta }}" == "true" ]]; then
+          echo "update_latest=false" >> $GITHUB_ENV
+        else
+          echo "update_latest=${{ github.event.inputs.update_latest }}" >> $GITHUB_ENV
+        fi
+
     - name: Docker meta
       id: meta
       uses: docker/metadata-action@v5
@@ -41,9 +65,10 @@ jobs:
         tags: |
           type=raw,value=${{ env.SAFETY_VERSION }},suffix=-{{ sha }}
           type=raw,value=${{ env.SAFETY_VERSION }}
-          type=raw,value=${{ env.SAFETY_MAJOR_VERSION }}.${{ env.SAFETY_MINOR_VERSION }}
-          type=raw,value=${{ env.SAFETY_MAJOR_VERSION }}
-          type=raw,value=latest
+          ${{ env.is_beta != 'true' && format('type=raw,value={0}.{1}', env.SAFETY_MAJOR_VERSION, env.SAFETY_MINOR_VERSION) || '' }}
+          ${{ env.is_beta != 'true' && format('type=raw,value={0}', env.SAFETY_MAJOR_VERSION) || '' }}
+          ${{ env.update_latest == 'true' && 'type=raw,value=latest' || '' }}
+          ${{ env.is_beta == 'true' && 'type=raw,value=beta' || '' }}
         labels: |
           org.opencontainers.image.title=Safety CLI
           org.opencontainers.image.description=Safety CLI is a Python dependency vulnerability scanner that enhances software supply chain security at every stage of development.
@@ -60,4 +85,3 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         build-args: SAFETY_VERSION=${{ env.SAFETY_VERSION }} 
-

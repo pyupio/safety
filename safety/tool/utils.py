@@ -32,7 +32,10 @@ from safety_schemas.models.events.types import ToolType
 
 from typing_extensions import List
 
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    pass
 
 
 def is_os_supported():
@@ -52,11 +55,12 @@ class BuildFileConfigurator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def configure(self, file: Path) -> None:
+    def configure(self, file: Path, project_id: Optional[str]) -> None:
         """
         Configures specific file.
         Args:
             file (str): The file to configure.
+            project_id (str): The project id.
         """
         pass
 
@@ -67,8 +71,8 @@ class PipRequirementsConfigurator(BuildFileConfigurator):
     def is_supported(self, file: Path) -> bool:
         return self.__file_name_pattern.match(os.path.basename(file)) is not None
 
-    def configure(self, file: Path) -> None:
-        Pip.configure_requirements(file)
+    def configure(self, file: Path, project_id: Optional[str]) -> None:
+        Pip.configure_requirements(file, project_id)
 
 
 class PoetryPyprojectConfigurator(BuildFileConfigurator):
@@ -79,8 +83,8 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
             os.path.basename(file)
         ) is not None and Poetry.is_poetry_project_file(file)
 
-    def configure(self, file: Path) -> None:
-        Poetry.configure_pyproject(file)
+    def configure(self, file: Path, project_id: Optional[str]) -> None:
+        Poetry.configure_pyproject(file, project_id)
 
 
 # TODO: Review if we should move this/hook up this into interceptors.

@@ -1,13 +1,13 @@
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
 import sys
 
 from rich.console import Console
+import urllib.parse
 
 from safety.console import main_console
-from safety.tool.pip import REPOSITORY_URL
+from safety.tool.constants import PUBLIC_REPOSITORY_URL
 from safety.tool.resolver import get_unwrapped_command
 
 if sys.version_info >= (3, 11):
@@ -37,7 +37,7 @@ class Poetry:
 
     @classmethod
     def configure_pyproject(
-        cls, file: Path, console: Optional[Console] = main_console
+        cls, file: Path, project_id: str, console: Console = main_console
     ) -> None:
         """
         Configures index url for specified requirements file.
@@ -49,13 +49,16 @@ class Poetry:
         if not cls.is_installed():
             console.log("Poetry is not installed.")
 
+        repository_url = PUBLIC_REPOSITORY_URL + urllib.parse.urlencode(
+            {"project-id": project_id}
+        )
         subprocess.run(
             [
                 get_unwrapped_command(name="poetry"),
                 "source",
                 "add",
                 "safety",
-                REPOSITORY_URL,
+                repository_url,
             ],
             capture_output=True,
         )

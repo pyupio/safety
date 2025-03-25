@@ -1,11 +1,14 @@
-from functools import lru_cache
+import importlib.util
 import json
 import logging
-from typing import Any, Optional, Dict, Callable, Tuple
-from authlib.integrations.requests_client import OAuth2Session
-from authlib.integrations.base_client.errors import OAuthError
+from functools import lru_cache
+from typing import Any, Callable, Dict, Optional, Tuple
+
 import requests
+from authlib.integrations.base_client.errors import OAuthError
+from authlib.integrations.requests_client import OAuth2Session
 from requests.adapters import HTTPAdapter
+from safety_schemas.models import STAGE_ID_MAPPING, Stage
 
 from safety.auth.constants import (
     AUTH_SERVER_URL,
@@ -21,21 +24,20 @@ from safety.constants import (
     PLATFORM_API_REQUIREMENTS_UPLOAD_SCAN_ENDPOINT,
     REQUEST_TIMEOUT,
     FeatureType,
-    get_config_setting
+    get_config_setting,
 )
-from safety.models import SafetyCLI
-from safety.scan.util import AuthenticationType
-
-from safety.util import SafetyContext, output_exception
-from safety_schemas.models import STAGE_ID_MAPPING, Stage
+from safety.error_handlers import output_exception
 from safety.errors import (
     InvalidCredentialError,
     NetworkConnectionError,
     RequestTimeoutError,
+    SafetyError,
     ServerError,
     TooManyRequestsError,
-    SafetyError,
 )
+from safety.models import SafetyCLI
+from safety.scan.util import AuthenticationType
+from safety.util import SafetyContext
 
 LOG = logging.getLogger(__name__)
 
@@ -91,8 +93,7 @@ def extract_detail(response: requests.Response) -> Optional[str]:
     try:
         detail = response.json().get("detail")
     except Exception:
-        LOG.debug("Failed to extract detail from response: %s",
-                  response.status_code)
+        LOG.debug("Failed to extract detail from response: %s", response.status_code)
 
     return detail
 
@@ -141,15 +142,14 @@ def parse_response(func: Callable) -> Callable:
                 data = r.json()
                 reason = data.get("detail", "Unable to find reason.")
                 error_code = data.get("error_code", None)
-            except Exception as e:
+            except Exception:
                 reason = r.reason
 
             raise SafetyError(message=reason, error_code=error_code)
 
         if r.status_code >= 500:
             reason = extract_detail(response=r)
-            LOG.debug("ServerError %s -> Response returned: %s",
-                      r.status_code, r.text)
+            LOG.debug("ServerError %s -> Response returned: %s", r.status_code, r.text)
             raise ServerError(reason=reason)
 
         data = None
@@ -165,7 +165,6 @@ def parse_response(func: Callable) -> Callable:
 
 
 class SafetyAuthSession(OAuth2Session):
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the SafetyAuthSession.
@@ -256,7 +255,7 @@ class SafetyAuthSession(OAuth2Session):
 
         if self.api_key:
             key_header = {"X-Api-Key": self.api_key}
-            if not "headers" in kwargs:
+            if "headers" not in kwargs:
                 kwargs["headers"] = key_header
             else:
                 kwargs["headers"]["X-Api-Key"] = self.api_key
@@ -495,9 +494,11 @@ class SafetyAuthSession(OAuth2Session):
             Any: The initialization result.
         """
         try:
-            response = self.get(url=PLATFORM_API_INITIALIZE_ENDPOINT,
-                                headers={"Content-Type": "application/json"},
-                                timeout=5)
+            response = self.get(
+                url=PLATFORM_API_INITIALIZE_ENDPOINT,
+                headers={"Content-Type": "application/json"},
+                timeout=5,
+            )
             return response
         except requests.exceptions.Timeout:
             LOG.error("Auth request to initialize timed out after 5 seconds.")
@@ -543,84 +544,30 @@ def is_jupyter_notebook() -> bool:
     - Datalore by JetBrains
     - Paperspace Gradient Notebooks
     - Classic Jupyter Notebook and JupyterLab
-
-    Detection is done by attempting to import environment-specific packages:
-    - Google Colab: `google.colab`
-    - Amazon SageMaker: `sagemaker`
-    - Azure Notebooks: `azureml`
-    - Kaggle Notebooks: `kaggle`
-    - Databricks Notebooks: `dbutils`
-    - Datalore: `datalore`
-    - Paperspace Gradient: `gradient`
-    - Classic Jupyter: Checks if 'IPKernelApp' is in IPython config.
-
-    Example:
-        >>> is_jupyter_notebook()
-        True
     """
-    try:
-        # Detect Google Colab
-        import google.colab
-
+    if (
+        (
+            importlib.util.find_spec("google")
+            and importlib.util.find_spec("google.colab")
+        )
+        is not None
+        or importlib.util.find_spec("sagemaker") is not None
+        or importlib.util.find_spec("azureml") is not None
+        or importlib.util.find_spec("kaggle") is not None
+        or importlib.util.find_spec("dbutils") is not None
+        or importlib.util.find_spec("datalore") is not None
+        or importlib.util.find_spec("gradient") is not None
+    ):
         return True
-    except ImportError:
-        pass
 
+    # Detect classic Jupyter Notebook, JupyterLab, and other IPython kernel-based environments
     try:
-        # Detect Amazon SageMaker
-        import sagemaker
-
-        return True
-    except ImportError:
-        pass
-
-    try:
-        # Detect Azure Notebooks
-        import azureml
-
-        return True
-    except ImportError:
-        pass
-
-    try:
-        # Detect Kaggle Notebooks
-        import kaggle
-
-        return True
-    except ImportError:
-        pass
-
-    try:
-        # Detect Databricks
-        import dbutils
-
-        return True
-    except ImportError:
-        pass
-
-    try:
-        # Detect Datalore
-        import datalore
-
-        return True
-    except ImportError:
-        pass
-
-    try:
-        # Detect Paperspace Gradient Notebooks
-        import gradient
-
-        return True
-    except ImportError:
-        pass
-
-    try:
-        # Detect classic Jupyter Notebook, JupyterLab, and other IPython kernel-based environments
         from IPython import get_ipython
 
-        if "IPKernelApp" in get_ipython().config:
+        ipython = get_ipython()
+        if ipython is not None and "IPKernelApp" in ipython.config:
             return True
-    except:
+    except (ImportError, AttributeError, NameError):
         pass
 
     return False
@@ -629,7 +576,7 @@ def is_jupyter_notebook() -> bool:
 def save_flags_config(flags: Dict[FeatureType, bool]) -> None:
     """
     Save feature flags configuration to file.
-    
+
     This function attempts to save feature flags to the configuration file
     but will fail silently if unable to do so (e.g., due to permission issues
     or disk problems). Silent failure is chosen to prevent configuration issues
@@ -644,6 +591,7 @@ def save_flags_config(flags: Dict[FeatureType, bool]) -> None:
     The operation will be logged (with stack trace) if it fails.
     """
     import configparser
+
     from safety.constants import CONFIG_FILE_USER
 
     config = configparser.ConfigParser()
@@ -651,17 +599,17 @@ def save_flags_config(flags: Dict[FeatureType, bool]) -> None:
 
     flag_settings = {key.name.upper(): str(value) for key, value in flags.items()}
 
-    if not config.has_section('settings'):
-        config.add_section('settings')
+    if not config.has_section("settings"):
+        config.add_section("settings")
 
-    settings = dict(config.items('settings'))
+    settings = dict(config.items("settings"))
     settings.update(flag_settings)
 
     for key, value in settings.items():
-        config.set('settings', key, value)
+        config.set("settings", key, value)
 
     try:
-        with open(CONFIG_FILE_USER, 'w') as config_file:
+        with open(CONFIG_FILE_USER, "w") as config_file:
             config.write(config_file)
     except Exception:
         LOG.exception("Unable to save flags configuration.")
@@ -669,17 +617,17 @@ def save_flags_config(flags: Dict[FeatureType, bool]) -> None:
 
 def get_feature_name(feature: FeatureType, as_attr: bool = False) -> str:
     """Returns a formatted feature name with enabled suffix.
-    
+
     Args:
         feature: The feature to format the name for
-        as_attr: If True, formats for attribute usage (underscore), 
+        as_attr: If True, formats for attribute usage (underscore),
                 otherwise uses hyphen
-    
+
     Returns:
         Formatted feature name string with enabled suffix
     """
     name = feature.name.lower()
-    separator = '_' if as_attr else '-'
+    separator = "_" if as_attr else "-"
     return f"{name}{separator}enabled"
 
 
@@ -687,14 +635,14 @@ def str_to_bool(value) -> Optional[bool]:
     """Convert basic string representations to boolean."""
     if isinstance(value, bool):
         return value
-        
+
     if isinstance(value, str):
         value = value.lower().strip()
-        if value in ('true'):
+        if value in ("true"):
             return True
-        if value in ('false'):
+        if value in ("false"):
             return False
-    
+
     return None
 
 
@@ -709,12 +657,13 @@ def initialize(ctx: Any, refresh: bool = True) -> None:
     settings = None
     current_values = {}
 
-    if not ctx.obj:        
+    if not ctx.obj:
         ctx.obj = SafetyCLI()
 
     for feature in FeatureType:
         value = get_config_setting(feature.name)
-        current_values[feature] = str_to_bool(value)
+        if value is not None:
+            current_values[feature] = str_to_bool(value)
 
     if refresh:
         try:
@@ -726,7 +675,10 @@ def initialize(ctx: Any, refresh: bool = True) -> None:
         for feature in FeatureType:
             server_value = str_to_bool(settings.get(feature.config_key))
             if server_value is not None:
-                if current_values[feature] != server_value:
+                if (
+                    feature not in current_values
+                    or current_values[feature] != server_value
+                ):
                     current_values[feature] = server_value
 
         save_flags_config(current_values)

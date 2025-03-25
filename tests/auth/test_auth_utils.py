@@ -104,14 +104,16 @@ class TestUtils(unittest.TestCase):
             "organization": "Test",
             "plan": {},
             "firewall-enabled": "false",
-            "platform-enabled": "true"
+            "platform-enabled": "true",
+            "events-enabled": "false"
         }
 
         mock_initialize = Mock(
             return_value={"organization": "Test",
                           "plan": {},
                           "firewall-enabled": "false",
-                          "platform-enabled": "true"})
+                          "platform-enabled": "true",
+                          "events-enabled": "false"})
         mock_client = Mock()
         mock_client.initialize = mock_initialize
         mock_auth = Mock()

@@ -15,8 +15,8 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-class Poetry:
 
+class Poetry:
     @classmethod
     def is_installed(cls) -> bool:
         """
@@ -32,11 +32,13 @@ class Poetry:
         try:
             cfg = tomllib.loads(file.read_text())
             return cfg.get("build-system", {}).get("requires") == "poetry-core"
-        except (IOError, ValueError) as e:
+        except (IOError, ValueError):
             return False
 
     @classmethod
-    def configure_pyproject(cls, file: Path, console: Optional[Console] = main_console) -> None:
+    def configure_pyproject(
+        cls, file: Path, console: Optional[Console] = main_console
+    ) -> None:
         """
         Configures index url for specified requirements file.
 
@@ -47,5 +49,14 @@ class Poetry:
         if not cls.is_installed():
             console.log("Poetry is not installed.")
 
-        subprocess.run([get_unwrapped_command(name="poetry"), "source", "add", "safety", REPOSITORY_URL], capture_output=True)
+        subprocess.run(
+            [
+                get_unwrapped_command(name="poetry"),
+                "source",
+                "add",
+                "safety",
+                REPOSITORY_URL,
+            ],
+            capture_output=True,
+        )
         console.print(f"Configured {file} file")

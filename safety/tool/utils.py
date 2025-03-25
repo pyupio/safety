@@ -1,37 +1,45 @@
 import abc
+import json
 import os.path
 import re
 import subprocess
-from abc import abstractmethod
 from pathlib import Path
 from sys import platform
 from tempfile import mkstemp
+import time
 
-import typer
 import nltk
+import typer
 from filelock import FileLock
 from rich.padding import Padding
 from rich.prompt import Prompt
 
 from safety.console import main_console as console
 from safety.constants import PIP_LOCK
-from safety.tool.constants import MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES, PROJECT_CONFIG, REPOSITORY_URL
+from safety.models import ToolResult
+from safety.tool.constants import (
+    MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES,
+    PROJECT_CONFIG,
+)
 from safety.tool.pip import Pip
 from safety.tool.poetry import Poetry
 from safety.tool.resolver import get_unwrapped_command
+from safety.tool.environment_diff import PipEnvironmentDiffTracker
+
+from safety.events.utils import emit_diff_operations, emit_tool_command_executed
+
+from safety_schemas.models.events.types import ToolType
 
 from typing_extensions import List
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from subprocess import CompletedProcess
+from typing import Any, Dict
 
 
 def is_os_supported():
     return platform in ["linux", "linux2", "darwin", "win32"]
 
-class BuildFileConfigurator(abc.ABC):
 
+class BuildFileConfigurator(abc.ABC):
     @abc.abstractmethod
     def is_supported(self, file: Path) -> bool:
         """
@@ -67,8 +75,9 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
     __file_name_pattern = re.compile("^pyproject.toml$")
 
     def is_supported(self, file: Path) -> bool:
-        return self.__file_name_pattern.match(os.path.basename(file)) is not None and Poetry.is_poetry_project_file(
-            file)
+        return self.__file_name_pattern.match(
+            os.path.basename(file)
+        ) is not None and Poetry.is_poetry_project_file(file)
 
     def configure(self, file: Path) -> None:
         Poetry.configure_pyproject(file)
@@ -76,7 +85,6 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
 
 # TODO: Review if we should move this/hook up this into interceptors.
 class ToolConfigurator(abc.ABC):
-
     @abc.abstractmethod
     def configure(self) -> None:
         """
@@ -91,8 +99,8 @@ class ToolConfigurator(abc.ABC):
         """
         pass
 
-class PipConfigurator(ToolConfigurator):
 
+class PipConfigurator(ToolConfigurator):
     def configure(self) -> None:
         Pip.configure_system()
 
@@ -100,20 +108,82 @@ class PipConfigurator(ToolConfigurator):
         Pip.reset_system()
 
 
-class PipCommand(abc.ABC):
+class BaseCommand(abc.ABC):
+    @abc.abstractmethod
+    def execute(self, ctx: typer.Context) -> None:
+        """
+        Executes the command.
+        Args:
+            ctx (typer.Context): The context.
+        """
+        pass
 
+    @abc.abstractmethod
+    def before(self, ctx: typer.Context) -> None:
+        """
+        Executes before the command.
+        Args:
+            ctx (typer.Context): The context.
+        """
+        pass
+
+    @abc.abstractmethod
+    def after(self, ctx: typer.Context, result: ToolResult) -> None:
+        """
+        Executes after the command.
+        Args:
+            ctx (typer.Context): The context.
+            result (ToolResult): The result.
+        """
+        pass
+
+    @abc.abstractmethod
+    def env(self, ctx: typer.Context) -> dict:
+        """
+        Returns the environment.
+        Args:
+            ctx (typer.Context): The context.
+        Returns:
+            dict: The environment.
+        """
+        pass
+
+
+class PipCommand(BaseCommand):
     def __init__(self, args: List[str], capture_output: bool = False) -> None:
         self._args = args
         self.__capture_output = capture_output
         self.__filelock = FileLock(PIP_LOCK, 10)
+        self._diff_tracker = PipEnvironmentDiffTracker()
+        self._name = ["pip"]
 
-    @abstractmethod
+    def _initialize_diff_tracker(self, ctx: typer.Context):
+        """
+        Common implementation to initialize the diff tracker.
+        Can be called by child classes in their before() implementation.
+        """
+        current_packages = self._get_installed_packages(ctx)
+        self._diff_tracker.set_before_state(current_packages)
+
+    def _handle_command_result(self, ctx: typer.Context, result: ToolResult):
+        """
+        Common implementation to handle command results.
+        Can be called by child classes in their after() implementation.
+        """
+        process = result.process
+        if process:
+            if process.returncode == 0:
+                self._perform_diff(ctx)
+
+            emit_tool_command_executed(
+                ctx.obj.event_bus, ctx, tool=ToolType.PIP, result=result
+            )
+
     def before(self, ctx: typer.Context):
-        pass
+        self._initialize_diff_tracker(ctx)
 
-    @abstractmethod
-    def after(self, ctx: typer.Context, result):
-        pass
+    def after(self, ctx: typer.Context, result: ToolResult):
+        self._handle_command_result(ctx, result)
 
     def execute(self, ctx: typer.Context):
         with self.__filelock:
@@ -121,15 +191,26 @@ class PipCommand(abc.ABC):
             # TODO: Safety should redirect to the proper pip, if the user is
             # using pip3, it should be redirected to pip3, not pip to avoid any
             # issues.
-            args = [get_unwrapped_command(name="pip")] + self.__remove_safety_args(self._args)
-            result = subprocess.run(args, capture_output=self.__capture_output, env=self.env(ctx))
+
+            pre_args = [get_unwrapped_command(name=self._name[0])]
+            args = pre_args + self.__remove_safety_args(self._args)
+
+            started_at = time.monotonic()
+            process = subprocess.run(
+                args, capture_output=self.__capture_output, env=self.env(ctx)
+            )
+
+            duration_ms = int((time.monotonic() - started_at) * 1000)
+
+            result = ToolResult(process=process, duration_ms=duration_ms)
+
             self.after(ctx, result)
 
     def env(self, ctx: typer.Context):
         return os.environ.copy()
 
     @classmethod
-    def from_args(self, args):
+    def from_args(cls, args: List[str]):
         if "install" in args:
             return PipInstallCommand(args)
         elif "uninstall" in args:
@@ -140,80 +221,129 @@ class PipCommand(abc.ABC):
     def __remove_safety_args(self, args: List[str]):
         return [arg for arg in args if not arg.startswith("--safety")]
 
+    def _get_installed_packages(self, ctx: typer.Context) -> List[Dict[str, Any]]:
+        """
+        Get the currently installed packages as a Python dictionary.
+        """
+        pre_args = [get_unwrapped_command(name=self._name[0])] + self._name[1:]
+        args = pre_args + ["list", "--format=json"]
+        result = subprocess.run(args, capture_output=True, env=self.env(ctx), text=True)
+        # TODO: Handle error
+        return json.loads(result.stdout)
+
+    def _perform_diff(self, ctx: typer.Context):
+        """
+        Perform the diff operation.
+        Can be called by child classes when appropriate.
+        """
+        current_packages = self._get_installed_packages(ctx)
+        self._diff_tracker.set_after_state(current_packages)
+        added, removed, updated = self._diff_tracker.get_diff()
+
+        emit_diff_operations(
+            ctx.obj.event_bus,
+            ctx,
+            added=added,
+            removed=removed,
+            updated=updated,
+            by_tool=ToolType.PIP,
+        )
+
 
 class PipGenericCommand(PipCommand):
-
-    def __init__(self, args: List[str]) -> None:
-        super().__init__(args)
-
-    def before(self, ctx: typer.Context):
-        pass
-
-    def after(self, ctx: typer.Context, result):
-        pass
+    pass
 
 
 class PipInstallCommand(PipCommand):
-
     def __init__(self, args: List[str]) -> None:
         super().__init__(args)
         self.package_names = []
         self.__index_url = None
 
     def before(self, ctx: typer.Context):
+        super().before(ctx)
         args = self._args
 
         ranges_to_delete = []
         for ind, val in enumerate(args):
-            if ind > 0 and (args[ind - 1].startswith("-i") or args[ind - 1].startswith("--index-url")):
+            if ind > 0 and (
+                args[ind - 1].startswith("-i")
+                or args[ind - 1].startswith("--index-url")
+            ):
                 if args[ind].startswith("https://pkgs.safetycli.com"):
                     self.__index_url = args[ind]
 
                 ranges_to_delete.append((ind - 1, ind))
-            elif ind > 0 and (args[ind - 1] == "-r" or args[ind - 1] == "--requirement"):
+            elif ind > 0 and (
+                args[ind - 1] == "-r" or args[ind - 1] == "--requirement"
+            ):
                 requirement_file = args[ind]
 
                 if not Path(requirement_file).is_file():
                     continue
 
                 with open(requirement_file, "r") as f:
-                    fd, tmp_requirements_path = mkstemp(suffix="safety-requirements.txt", text=True)
+                    fd, tmp_requirements_path = mkstemp(
+                        suffix="safety-requirements.txt", text=True
+                    )
                     with os.fdopen(fd, "w") as tf:
-                        requirements = re.sub(r"^(-i|--index-url).*$", "", f.read(), flags=re.MULTILINE)
+                        requirements = re.sub(
+                            r"^(-i|--index-url).*$", "", f.read(), flags=re.MULTILINE
+                        )
                         tf.write(requirements)
 
                     args[ind] = tmp_requirements_path
-            elif ind > 0 and (not args[ind - 1].startswith("-e") or not args[ind - 1].startswith("--editable")) and not args[ind].startswith("-"):
-                if args[ind] == '.':
+            elif (
+                ind > 0
+                and (
+                    not args[ind - 1].startswith("-e")
+                    or not args[ind - 1].startswith("--editable")
+                )
+                and not args[ind].startswith("-")
+            ):
+                if args[ind] == ".":
                     continue
 
                 package_name = args[ind]
-                (valid, candidate_package_name) = self.__check_typosquatting(package_name)
+                (valid, candidate_package_name) = self.__check_typosquatting(
+                    package_name
+                )
                 if not valid:
                     prompt = f"You are about to install {package_name} package. Did you mean to install {candidate_package_name}?"
-                    answer = Prompt.ask(prompt=prompt, choices=["y", "n"],
-                                        default="y", show_default=True, console=console).lower()
-                    if answer == 'y':
+                    answer = Prompt.ask(
+                        prompt=prompt,
+                        choices=["y", "n"],
+                        default="y",
+                        show_default=True,
+                        console=console,
+                    ).lower()
+                    if answer == "y":
                         package_name = candidate_package_name
                         console.print(f"Installing {package_name} package instead.")
                         args[ind] = package_name
 
                 self.__add_package_name(package_name)
 
-        for (start, end) in ranges_to_delete:
-            args = args[:start] + args[end + 1:]
+        for start, end in ranges_to_delete:
+            args = args[:start] + args[end + 1 :]
 
         self._args = args
 
-    def after(self, ctx: typer.Context, result: 'CompletedProcess[str]'):
-        if result and result.returncode == 0:
+    def after(self, ctx: typer.Context, result: ToolResult):
+        super().after(ctx, result)
+
+        if result.process and result.process.returncode == 0:
             self.__run_scan()
         else:
             self.__render_package_details()
 
     def env(self, ctx: typer.Context) -> dict:
         env = super().env(ctx)
-        env["PIP_INDEX_URL"] = Pip.build_index_url(ctx, self.__index_url) if not self.__is_check_disabled() else Pip.default_index_url()
+        env["PIP_INDEX_URL"] = (
+            Pip.build_index_url(ctx, self.__index_url)
+            if not self.__is_check_disabled()
+            else Pip.default_index_url()
+        )
         return env
 
     def __is_check_disabled(self):
@@ -226,8 +356,10 @@ class PipInstallCommand(PipCommand):
             return (True, package_name)
 
         for pkg in MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES:
-            if (abs(len(pkg) - len(package_name)) <= max_edit_distance
-                and nltk.edit_distance(pkg, package_name) <= max_edit_distance):
+            if (
+                abs(len(pkg) - len(package_name)) <= max_edit_distance
+                and nltk.edit_distance(pkg, package_name) <= max_edit_distance
+            ):
                 return (False, pkg)
 
         return (True, package_name)
@@ -240,11 +372,11 @@ class PipInstallCommand(PipCommand):
         if Path(os.path.join(target, PROJECT_CONFIG)).is_file():
             try:
                 subprocess.Popen(
-                ['safety', 'scan'],
-                     stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL,
-                     stdin=subprocess.DEVNULL,
-                     start_new_session=True
+                    ["safety", "scan"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True,
                 )
             except Exception:
                 pass
@@ -258,17 +390,43 @@ class PipInstallCommand(PipCommand):
     def __render_package_details(self):
         for package_name in self.package_names:
             console.print(
-                Padding(f"Learn more: [link]https://data.safetycli.com/packages/pypi/{package_name}/[/link]",
-                        (0, 0, 0, 1)), emoji=True)
+                Padding(
+                    f"Learn more: [link]https://data.safetycli.com/packages/pypi/{package_name}/[/link]",
+                    (0, 0, 0, 1),
+                ),
+                emoji=True,
+            )
 
 
 class PipUninstallCommand(PipCommand):
+    pass
 
+
+class UVBaseCommand(PipCommand):
     def __init__(self, args: List[str]) -> None:
         super().__init__(args)
+        self._name = ["uv", "pip"]
 
+
+class UvInstallCommand(PipInstallCommand, UVBaseCommand):
     def before(self, ctx: typer.Context):
         pass
 
-    def after(self, ctx: typer.Context, result):
-        pass
+
+class UvUninstallCommand(PipUninstallCommand, UVBaseCommand):
+    pass
+
+
+class UvGenericCommand(PipGenericCommand, UVBaseCommand):
+    pass
+
+
+class UvCommand:
+    @classmethod
+    def from_args(cls, args: List[str]):
+        if "install" in args:
+            return UvInstallCommand(args)
+        elif "uninstall" in args:
+            return UvUninstallCommand(args)
+        else:
+            return UvGenericCommand(args)

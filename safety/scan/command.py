@@ -11,12 +11,15 @@ from safety.safety import process_fixes_scan
 from safety.scan.finder.handlers import ECOSYSTEM_HANDLER_MAPPING, FileHandler
 from safety.scan.validators import output_callback, save_as_callback
 from safety.util import pluralize
-from ..cli_util import SafetyCLICommand, SafetyCLISubGroup, handle_cmd_exception
+from ..cli_util import SafetyCLICommand, SafetyCLISubGroup
+from safety.error_handlers import handle_cmd_exception
 from rich.padding import Padding
 import typer
 from safety.auth.constants import SAFETY_PLATFORM_URL
 from safety.cli_util import get_command_for, get_git_branch_name
 from rich.console import Console
+
+from safety.decorators import notify
 from safety.errors import SafetyError
 
 from safety.scan.finder import FileFinder
@@ -663,6 +666,7 @@ def process_file_fixes(file_to_fix: FileModel,
 @handle_cmd_exception
 @scan_project_command_init
 @inject_metadata
+@notify
 def scan(ctx: typer.Context,
          target: Annotated[
              Path,
@@ -934,9 +938,10 @@ def scan(ctx: typer.Context,
         hidden=True,
         options_metavar="[COMMAND-OPTIONS]",
         name=CMD_SYSTEM_NAME, epilog=DEFAULT_EPILOG)
-@handle_cmd_exception
 @inject_metadata
 @scan_system_command_init
+@handle_cmd_exception
+@notify
 def system_scan(ctx: typer.Context,
          policy_file_path: Annotated[
                         Optional[Path],

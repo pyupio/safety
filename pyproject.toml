@@ -43,8 +43,10 @@ dependencies = [
   "psutil~=6.1.0",
   "pydantic>=2.6.0,<2.10.0",
   "requests", # TODO: To be replaced by httpx or aiohttp
+  "httpx",
+  "tenacity",
   "ruamel.yaml>=0.17.21",
-  "safety-schemas==0.0.11",
+  "safety-schemas==0.0.12",
   # TODO: To be removed after migrate away from pkg_resources
   "setuptools>=65.5.1",
   "typer>=0.12.1",
@@ -235,7 +237,7 @@ style = [
 ]
 fmt = [
   "ruff format {args:.}",
-  "ruff --fix {args:.}",
+  "ruff check --fix {args:.}",
   "style",
 ]
 all = [

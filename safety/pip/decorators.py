@@ -3,8 +3,9 @@ from pathlib import Path
 
 from safety_schemas.models import ProjectModel
 
-from ..cli_util import process_auth_status_not_ready
 from safety.console import main_console
+
+from ..cli_util import process_auth_status_not_ready
 from ..init.main import load_unverified_project_from_config, verify_project
 from ..scan.util import GIT
 
@@ -49,5 +50,26 @@ def optional_project_command(func):
         ctx.obj.project.upload_request_id = upload_request_id
 
         return func(ctx, target=target, *args, **kwargs)
+
+    return inner
+
+
+def register_event_handlers(func):
+    @wraps(func)
+    def inner(ctx, *args, **kwargs):
+        if event_bus := ctx.obj.event_bus:
+            from safety_schemas.models.events import EventType
+
+            event_bus.subscribe(
+                [
+                    EventType.PACKAGE_UNINSTALLED,
+                    EventType.PACKAGE_INSTALLED,
+                    EventType.PACKAGE_UPDATED,
+                    EventType.TOOL_COMMAND_EXECUTED,
+                ],
+                ctx.obj.security_events_handler,
+            )
+
+        return func(ctx, *args, **kwargs)
 
     return inner

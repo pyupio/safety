@@ -1,63 +1,109 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
-import configparser
-from dataclasses import asdict
-from datetime import date, datetime, timedelta
-from enum import Enum
-import requests
-import time
 
+import configparser
 import json
 import logging
 import os
-from pathlib import Path
 import platform
 import sys
+import time
+from dataclasses import asdict
+from datetime import date, datetime, timedelta
+from enum import Enum
 from functools import wraps
-from packaging import version as packaging_version
-from packaging.version import InvalidVersion
+from pathlib import Path
 
 import click
+import requests
 import typer
-from safety_schemas.models.config import VulnerabilityDefinition
+from packaging import version as packaging_version
+from packaging.version import InvalidVersion
+from safety_schemas.config.schemas.v3_0 import main as v3_0
+from safety_schemas.models import (
+    ConfigModel,
+    Ecosystem,
+    Stage,
+    VulnerabilitySeverityLabels,
+)
 
 from safety import safety
-from safety.console import main_console as console
 from safety.alerts import alert
-from safety.auth import proxy_options, auth_options
+from safety.auth import auth_options, proxy_options
+from safety.auth.cli import auth_app
 from safety.auth.models import Organization
-from safety.pip.command import pip_app
-from safety.init.command import init_app
-from safety.scan import command
-from safety.scan.constants import CLI_LICENSES_COMMAND_HELP, CLI_MAIN_INTRODUCTION, CLI_DEBUG_HELP, \
-    CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP, \
-    DEFAULT_EPILOG, DEFAULT_SPINNER, CLI_CHECK_COMMAND_HELP, CLI_CHECK_UPDATES_HELP, CLI_CONFIGURE_HELP, \
-    CLI_GENERATE_HELP, CLI_GENERATE_MINIMUM_CVSS_SEVERITY, \
-    CLI_CONFIGURE_PROXY_TIMEOUT, CLI_CONFIGURE_PROXY_REQUIRED, CLI_CONFIGURE_ORGANIZATION_ID, \
-    CLI_CONFIGURE_ORGANIZATION_NAME, \
-    CLI_CONFIGURE_SAVE_TO_SYSTEM, CLI_CONFIGURE_PROXY_HOST_HELP, CLI_CONFIGURE_PROXY_PORT_HELP, \
-    CLI_CONFIGURE_PROXY_PROTOCOL_HELP, \
-    CLI_GENERATE_PATH
-from .cli_util import CommandType, SafetyCLICommand, SafetyCLILegacyGroup, SafetyCLILegacyCommand, SafetyCLISubGroup, \
-    handle_cmd_exception
-from safety.constants import BAR_LINE, CONFIG_FILE_USER, CONFIG_FILE_SYSTEM, EXIT_CODE_VULNERABILITIES_FOUND, \
-    EXIT_CODE_OK, EXIT_CODE_FAILURE, CONTEXT_COMMAND_TYPE
-from safety.errors import InvalidCredentialError, SafetyException, SafetyError
+from safety.decorators import notify
+from safety.console import main_console as console
+from safety.constants import (
+    BAR_LINE,
+    CONFIG_FILE_SYSTEM,
+    CONFIG_FILE_USER,
+    CONTEXT_COMMAND_TYPE,
+    EXIT_CODE_FAILURE,
+    EXIT_CODE_OK,
+    EXIT_CODE_VULNERABILITIES_FOUND,
+)
+from safety.error_handlers import handle_cmd_exception, output_exception
+from safety.errors import InvalidCredentialError, SafetyError, SafetyException
+from safety.firewall.command import firewall_app
 from safety.formatter import SafetyFormatter
+from safety.init.command import init_app
+from safety.meta import get_version
 from safety.output_utils import should_add_nl
+from safety.pip.command import pip_app
+from safety.uv.command import uv_app
 from safety.safety import get_packages, process_fixes
+from safety.scan.command import scan_project_app, scan_system_app
+from safety.scan.constants import (
+    CLI_CHECK_COMMAND_HELP,
+    CLI_CHECK_UPDATES_HELP,
+    CLI_CONFIGURE_HELP,
+    CLI_CONFIGURE_ORGANIZATION_ID,
+    CLI_CONFIGURE_ORGANIZATION_NAME,
+    CLI_CONFIGURE_PROXY_HOST_HELP,
+    CLI_CONFIGURE_PROXY_PORT_HELP,
+    CLI_CONFIGURE_PROXY_PROTOCOL_HELP,
+    CLI_CONFIGURE_PROXY_REQUIRED,
+    CLI_CONFIGURE_PROXY_TIMEOUT,
+    CLI_CONFIGURE_SAVE_TO_SYSTEM,
+    CLI_DEBUG_HELP,
+    CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP,
+    CLI_GENERATE_HELP,
+    CLI_GENERATE_MINIMUM_CVSS_SEVERITY,
+    CLI_GENERATE_PATH,
+    CLI_LICENSES_COMMAND_HELP,
+    CLI_MAIN_INTRODUCTION,
+    DEFAULT_EPILOG,
+    DEFAULT_SPINNER,
+)
 from safety.scan.finder import FileFinder
 from safety.scan.main import process_files
-from safety.util import get_packages_licenses, initializate_config_dirs, output_exception, \
-    MutuallyExclusiveOption, DependentOption, transform_ignore, SafetyPolicyFile, active_color_if_needed, \
-    get_processed_options, json_alias, bare_alias, html_alias, SafetyContext, is_a_remote_mirror, \
-    filter_announcements, get_fix_options
-from safety.meta import get_version
-from safety.scan.command import scan_project_app, scan_system_app
-from safety.auth.cli import auth_app
-from safety.firewall.command import firewall_app
-from safety_schemas.config.schemas.v3_0 import main as v3_0
-from safety_schemas.models import ConfigModel, Stage, Ecosystem, VulnerabilitySeverityLabels
+from safety.util import (
+    DependentOption,
+    MutuallyExclusiveOption,
+    SafetyContext,
+    SafetyPolicyFile,
+    active_color_if_needed,
+    bare_alias,
+    filter_announcements,
+    get_fix_options,
+    get_packages_licenses,
+    get_processed_options,
+    html_alias,
+    initialize_config_dirs,
+    initialize_event_bus,
+    is_a_remote_mirror,
+    json_alias,
+    transform_ignore,
+)
+
+from .cli_util import (
+    CommandType,
+    SafetyCLICommand,
+    SafetyCLILegacyCommand,
+    SafetyCLILegacyGroup,
+    SafetyCLISubGroup,
+)
 
 try:
     from typing import Annotated, Optional
@@ -190,7 +236,9 @@ def cli(ctx, debug, disable_optional_telemetry):
     LOG.info(f'Telemetry enabled: {ctx.obj.config.telemetry_enabled}')
 
     # Before any command make sure that the parent dirs for Safety config are present.
-    initializate_config_dirs()
+    initialize_config_dirs()
+
+    initialize_event_bus(ctx=ctx)
 
 
 def clean_check_command(f):
@@ -365,6 +413,8 @@ def print_deprecation_message(
               help="Select the JSON version to be used in the output", show_default=True)
 @click.pass_context
 @clean_check_command
+@handle_cmd_exception
+@notify
 def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_requirements, output, json,
           html, bare, exit_code, policy_file, audit_and_monitor, project,
           save_json, save_html, apply_remediations,
@@ -380,103 +430,95 @@ def check(ctx, db, full_report, stdin, files, cache, ignore, ignore_unpinned_req
     prompt_mode = bool(not non_interactive and not stdin and not is_silent_output) and not no_prompt
     kwargs = {'version': json_version} if output == 'json' else {}
     print_deprecation_message("check", date(2024, 6, 1), new_command="scan")
-    try:
-        packages = get_packages(files, stdin)
+    # try:
+    packages = get_packages(files, stdin)
 
-        ignore_severity_rules = None
-        ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements, project = \
-            get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements,
-                                  project)
-        is_env_scan = not stdin and not files
+    ignore_severity_rules = None
+    ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements, project = \
+        get_processed_options(policy_file, ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements,
+                                project)
+    is_env_scan = not stdin and not files
 
-        params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
-                  'ignore_severity_rules': ignore_severity_rules, 'project': project,
-                  'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
-                  'auto_remediation_limit': auto_remediation_limit,
-                  'apply_remediations': apply_remediations,
-                  'ignore_unpinned_requirements': ignore_unpinned_requirements}
+    params = {'stdin': stdin, 'files': files, 'policy_file': policy_file, 'continue_on_error': not exit_code,
+                'ignore_severity_rules': ignore_severity_rules, 'project': project,
+                'audit_and_monitor': audit_and_monitor, 'prompt_mode': prompt_mode,
+                'auto_remediation_limit': auto_remediation_limit,
+                'apply_remediations': apply_remediations,
+                'ignore_unpinned_requirements': ignore_unpinned_requirements}
 
-        LOG.info('Calling the check function')
-        vulns, db_full = safety.check(session=ctx.obj.auth.client, packages=packages, db_mirror=db, cached=cache,
-                                      ignore_vulns=ignore,
-                                      ignore_severity_rules=ignore_severity_rules, proxy=None,
-                                      include_ignored=True, is_env_scan=is_env_scan,
-                                      telemetry=ctx.obj.config.telemetry_enabled,
-                                      params=params)
-        LOG.debug('Vulnerabilities returned: %s', vulns)
-        LOG.debug('full database returned is None: %s', db_full is None)
+    LOG.info('Calling the check function')
+    vulns, db_full = safety.check(session=ctx.obj.auth.client, packages=packages, db_mirror=db, cached=cache,
+                                    ignore_vulns=ignore,
+                                    ignore_severity_rules=ignore_severity_rules, proxy=None,
+                                    include_ignored=True, is_env_scan=is_env_scan,
+                                    telemetry=ctx.obj.config.telemetry_enabled,
+                                    params=params)
+    LOG.debug('Vulnerabilities returned: %s', vulns)
+    LOG.debug('full database returned is None: %s', db_full is None)
 
-        LOG.info('Safety is going to calculate remediations')
+    LOG.info('Safety is going to calculate remediations')
 
-        remediations = safety.calculate_remediations(vulns, db_full)
+    remediations = safety.calculate_remediations(vulns, db_full)
 
-        announcements = []
-        if not db or is_a_remote_mirror(db):
-            LOG.info('Not local DB used, Getting announcements')
-            announcements = safety.get_announcements(ctx.obj.auth.client, telemetry=ctx.obj.config.telemetry_enabled)
+    announcements = []
+    if not db or is_a_remote_mirror(db):
+        LOG.info('Not local DB used, Getting announcements')
+        announcements = safety.get_announcements(ctx.obj.auth.client, telemetry=ctx.obj.config.telemetry_enabled)
 
-        announcements.extend(safety.add_local_notifications(packages, ignore_unpinned_requirements))
+    announcements.extend(safety.add_local_notifications(packages, ignore_unpinned_requirements))
 
-        LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
+    LOG.info('Safety is going to render the vulnerabilities report using %s output', output)
 
-        fixes = []
+    fixes = []
 
-        if apply_remediations and is_silent_output:
-            # it runs and apply only automatic fixes.
-            fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=True,
-                                  prompt=False)
+    if apply_remediations and is_silent_output:
+        # it runs and apply only automatic fixes.
+        fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=True,
+                                prompt=False)
 
-        output_report = SafetyFormatter(output, **kwargs).render_vulnerabilities(announcements, vulns, remediations,
-                                                                                 full_report, packages, fixes)
+    output_report = SafetyFormatter(output, **kwargs).render_vulnerabilities(announcements, vulns, remediations,
+                                                                                full_report, packages, fixes)
 
-        # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
-        stderr_announcements = filter_announcements(announcements=announcements, by_type='error')
-        if stderr_announcements and non_interactive:
-            LOG.info('sys.stdout is not a tty, error announcements are going to be send to stderr')
-            click.secho(SafetyFormatter(output='text').render_announcements(stderr_announcements), fg="red",
-                        file=sys.stderr)
+    # Announcements are send to stderr if not terminal, it doesn't depend on "exit_code" value
+    stderr_announcements = filter_announcements(announcements=announcements, by_type='error')
+    if stderr_announcements and non_interactive:
+        LOG.info('sys.stdout is not a tty, error announcements are going to be send to stderr')
+        click.secho(SafetyFormatter(output='text').render_announcements(stderr_announcements), fg="red",
+                    file=sys.stderr)
 
-        found_vulns = list(filter(lambda v: not v.ignored, vulns))
-        LOG.info('Vulnerabilities found (Not ignored): %s', len(found_vulns))
-        LOG.info('All vulnerabilities found (ignored and Not ignored): %s', len(vulns))
+    found_vulns = list(filter(lambda v: not v.ignored, vulns))
+    LOG.info('Vulnerabilities found (Not ignored): %s', len(found_vulns))
+    LOG.info('All vulnerabilities found (ignored and Not ignored): %s', len(vulns))
 
-        click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
+    click.secho(output_report, nl=should_add_nl(output, found_vulns), file=sys.stdout)
 
-        post_processing_report = (save_json or audit_and_monitor or apply_remediations)
+    post_processing_report = (save_json or audit_and_monitor or apply_remediations)
 
-        if post_processing_report:
-            if apply_remediations and not is_silent_output:
-                # prompt_mode fixing after main check output if prompt is enabled.
-                fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=False,
-                                      prompt=prompt_mode)
+    if post_processing_report:
+        if apply_remediations and not is_silent_output:
+            # prompt_mode fixing after main check output if prompt is enabled.
+            fixes = process_fixes(files, remediations, auto_remediation_limit, output, no_output=False,
+                                    prompt=prompt_mode)
 
-            # Render fixes
-            json_report = output_report if output == 'json' else \
-                SafetyFormatter(output='json', version=json_version).render_vulnerabilities(announcements, vulns,
-                                                                                            remediations, full_report,
-                                                                                            packages, fixes)
+        # Render fixes
+        json_report = output_report if output == 'json' else \
+            SafetyFormatter(output='json', version=json_version).render_vulnerabilities(announcements, vulns,
+                                                                                        remediations, full_report,
+                                                                                        packages, fixes)
 
-            safety.save_report(save_json, 'safety-report.json', json_report)
+        safety.save_report(save_json, 'safety-report.json', json_report)
 
-        if save_html:
-            html_report = output_report if output == 'html' else SafetyFormatter(output='html').render_vulnerabilities(
-                announcements, vulns, remediations, full_report, packages, fixes)
+    if save_html:
+        html_report = output_report if output == 'html' else SafetyFormatter(output='html').render_vulnerabilities(
+            announcements, vulns, remediations, full_report, packages, fixes)
 
-            safety.save_report(save_html, 'safety-report.html', html_report)
-        print_deprecation_message("check", date(2024, 6, 1), new_command="scan")
-        if exit_code and found_vulns:
-            LOG.info('Exiting with default code for vulnerabilities found')
-            sys.exit(EXIT_CODE_VULNERABILITIES_FOUND)
+        safety.save_report(save_html, 'safety-report.html', html_report)
+    print_deprecation_message("check", date(2024, 6, 1), new_command="scan")
+    if exit_code and found_vulns:
+        LOG.info('Exiting with default code for vulnerabilities found')
+        sys.exit(EXIT_CODE_VULNERABILITIES_FOUND)
 
-        sys.exit(EXIT_CODE_OK)
-
-    except SafetyError as e:
-        LOG.exception('Expected SafetyError happened: %s', e)
-        output_exception(e, exit_code_output=exit_code)
-    except Exception as e:
-        LOG.exception('Unexpected Exception happened: %s', e)
-        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
-        output_exception(exception, exit_code_output=exit_code)
+    sys.exit(EXIT_CODE_OK)
 
 
 def clean_license_command(f):
@@ -513,6 +555,8 @@ def clean_license_command(f):
               help="Read input from one (or multiple) requirement files. Default: empty")
 @click.pass_context
 @clean_license_command
+@handle_cmd_exception
+@notify
 def license(ctx, db, output, cache, files):
     """
     Find the open source licenses used by your Python dependencies.
@@ -524,16 +568,8 @@ def license(ctx, db, output, cache, files):
 
     SafetyContext().params = ctx.params
 
-    try:
-        licenses_db = safety.get_licenses(session=ctx.obj.auth.client, db_mirror=db, cached=cache,
-                                          telemetry=ctx.obj.config.telemetry_enabled)
-    except SafetyError as e:
-        LOG.exception('Expected SafetyError happened: %s', e)
-        output_exception(e, exit_code_output=False)
-    except Exception as e:
-        LOG.exception('Unexpected Exception happened: %s', e)
-        exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
-        output_exception(exception, exit_code_output=False)
+    licenses_db = safety.get_licenses(session=ctx.obj.auth.client, db_mirror=db, cached=cache,
+                                        telemetry=ctx.obj.config.telemetry_enabled)
 
     filtered_packages_licenses = get_packages_licenses(packages=packages, licenses_db=licenses_db)
 
@@ -555,6 +591,8 @@ def license(ctx, db, output, cache, files):
 @click.option("--minimum-cvss-severity", default="critical", help=CLI_GENERATE_MINIMUM_CVSS_SEVERITY)
 @click.argument('name', required=True)
 @click.pass_context
+@handle_cmd_exception
+@notify
 def generate(ctx, name, path, minimum_cvss_severity):
     """Create a boilerplate Safety CLI policy file
 
@@ -672,6 +710,8 @@ def generate_policy_file(name, path):
 @click.argument('name')
 @click.argument('version', required=False)
 @click.pass_context
+@handle_cmd_exception
+@notify
 def validate(ctx, name, version, path):
     """Verify that a local policy file is valid. NAME is the name of the file type to validate. Valid values are: policy_file
     """
@@ -759,9 +799,14 @@ def validate(ctx, name, version, path):
               cls=DependentOption,
               required_options=['organization_id'],
               help=CLI_CONFIGURE_ORGANIZATION_NAME)
+@click.option("--stage", "-stg", multiple=False, default=Stage.development.value,
+              type=click.Choice([stage.value for stage in Stage]),
+              help="The project development stage to be tied to the current device.")
 @click.option("--save-to-system/--save-to-user", default=False, is_flag=True,
               help=CLI_CONFIGURE_SAVE_TO_SYSTEM)
 @click.pass_context
+@handle_cmd_exception
+@notify
 def configure(ctx, proxy_protocol, proxy_host, proxy_port, proxy_timeout,
               proxy_required, organization_id, organization_name, stage,
               save_to_system):
@@ -857,6 +902,7 @@ class Output(str, Enum):
                       CONTEXT_COMMAND_TYPE: CommandType.UTILITY},
 )
 @handle_cmd_exception
+@notify
 def check_updates(ctx: typer.Context,
                   version: Annotated[
                       int,
@@ -977,6 +1023,7 @@ cli.add_command(typer.main.get_command(init_app), name="init")
 cli.add_command(typer.main.get_command(scan_project_app), name="scan")
 cli.add_command(typer.main.get_command(scan_system_app), name="system-scan")
 cli.add_command(typer.main.get_command(pip_app), name="pip")
+cli.add_command(typer.main.get_command(uv_app), name="uv")
 
 cli.add_command(typer.main.get_command(auth_app), name="auth")
 cli.add_command(typer.main.get_command(firewall_app), name="firewall")

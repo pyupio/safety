@@ -69,7 +69,7 @@ def check_project(
         default_id = unverified_project.project_path.parent.name
 
         if not default_id:
-            # Sometimes the parent directory is empty, so we generate 
+            # Sometimes the parent directory is empty, so we generate
             # a random ID
             default_id = str(uuid.uuid4())[:10]
 
@@ -206,7 +206,7 @@ def save_verified_project(
     ctx.obj.project = ProjectModel(
         id=slug, name=name, project_path=project_path, url_path=url_path
     )
-    
+
     save_project_info(project=ctx.obj.project, project_path=project_path)
 
 
@@ -220,7 +220,7 @@ def save_project_info(project: ProjectModel, project_path: Path) -> bool:
         project_path (Path): The path to the configuration file.
 
     Returns:
-        bool: True if the project information was saved successfully, False 
+        bool: True if the project information was saved successfully, False
               otherwise.
     """
     config = configparser.ConfigParser()
@@ -245,9 +245,7 @@ def save_project_info(project: ProjectModel, project_path: Path) -> bool:
     return True
 
 
-def create_project(
-    ctx: typer.Context, console: Console, target: Path
-):
+def create_project(ctx: typer.Context, console: Console, target: Path):
     """
     Loads existing project from the specified target locations or creates a new project.
 

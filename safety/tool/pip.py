@@ -2,18 +2,18 @@ import base64
 import json
 import shutil
 import subprocess
+import urllib
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit, urlencode
 
 import typer
 from rich.console import Console
 
+from safety.tool.constants import PUBLIC_REPOSITORY_URL
 from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
-
-REPOSITORY_URL = "https://pkgs.safetycli.com/repository/public/pypi/simple/"
 
 
 class Pip:
@@ -29,7 +29,7 @@ class Pip:
 
     @classmethod
     def configure_requirements(
-        cls, file: Path, console: Console = main_console
+        cls, file: Path, project_id: str, console: Console = main_console
     ) -> None:
         """
         Configures Safety index url for specified requirements file.
@@ -42,7 +42,10 @@ class Pip:
         with open(file, "r+") as f:
             content = f.read()
 
-            index_config = f"-i {REPOSITORY_URL}\n"
+            repository_url = PUBLIC_REPOSITORY_URL + urllib.parse.urlencode(
+                {"project-id": project_id}
+            )
+            index_config = f"-i {repository_url}\n"
             if content.find(index_config) == -1:
                 f.seek(0)
                 f.write(index_config + content)
@@ -63,7 +66,7 @@ class Pip:
                     "config",
                     "set",
                     "global.index-url",
-                    REPOSITORY_URL,
+                    PUBLIC_REPOSITORY_URL,
                 ],
                 capture_output=True,
             )
@@ -106,7 +109,9 @@ class Pip:
     @classmethod
     def build_index_url(cls, ctx: typer.Context, index_url: Optional[str]) -> str:
         if index_url is None:
-            index_url = REPOSITORY_URL
+            index_url = PUBLIC_REPOSITORY_URL + urlencode(
+                {"project-id": ctx.obj.project.id}
+            )
 
         url = urlsplit(index_url)
 

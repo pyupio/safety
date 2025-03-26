@@ -1,5 +1,6 @@
 import os.path
 from pathlib import Path
+from typing import Optional
 
 from safety.console import main_console as console
 from safety.tool.utils import (
@@ -49,7 +50,7 @@ def configure_alias():
     console.print("Configured PIP alias")
 
 
-def configure_local_directory(directory: Path):
+def configure_local_directory(directory: Path, project_id: Optional[str]):
     configurators = [PipRequirementsConfigurator(), PoetryPyprojectConfigurator()]
 
     for file_name in os.listdir(directory):
@@ -57,4 +58,4 @@ def configure_local_directory(directory: Path):
             file = Path(file_name)
             for configurator in configurators:
                 if configurator.is_supported(file):
-                    configurator.configure(file)
+                    configurator.configure(file, project_id)

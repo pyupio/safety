@@ -130,7 +130,7 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
             ).lower()
 
         if answer == "y":
-            configure_local_directory(project_dir)
+            configure_local_directory(project_dir, ctx.obj.project.id)
 
         if prompt_user:
             prompt = "It looks like your current directory contains a requirements.txt file. Would you like Safety to scan it?"

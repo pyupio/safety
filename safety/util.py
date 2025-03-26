@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
 from threading import Lock
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
 
 import click
 from click import BadParameter
@@ -21,19 +21,28 @@ from ruamel.yaml.error import MarkedYAMLError
 from safety_schemas.models import TelemetryModel
 
 from safety.constants import (
-    EXIT_CODE_FAILURE,
-    EXIT_CODE_OK,
     HASH_REGEX_GROUPS,
     SYSTEM_CONFIG_DIR,
     USER_CONFIG_DIR,
 )
 from safety.errors import InvalidProvidedReportError
+from safety.events.event_bus import start_event_bus
 from safety.models import (
     Package,
     RequirementFile,
     SafetyRequirement,
     is_pinned_requirement,
 )
+
+
+if TYPE_CHECKING:
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+    from safety.auth.models import Auth
+    from safety.auth.utils import SafetyAuthSession
+
+    import typer
+
 
 LOG = logging.getLogger(__name__)
 
@@ -61,8 +70,16 @@ def is_supported_by_parser(path: str) -> bool:
     Returns:
         bool: True if the file path is supported, False otherwise.
     """
-    supported_types = (".txt", ".in", ".yml", ".ini", "Pipfile",
-                       "Pipfile.lock", "setup.cfg", "poetry.lock")
+    supported_types = (
+        ".txt",
+        ".in",
+        ".yml",
+        ".ini",
+        "Pipfile",
+        "Pipfile.lock",
+        "setup.cfg",
+        "poetry.lock",
+    )
     return path.endswith(supported_types)
 
 
@@ -80,8 +97,8 @@ def parse_requirement(dep: Any, found: str) -> SafetyRequirement:
     req = SafetyRequirement(dep)
     req.found = found
 
-    if req.specifier == SpecifierSet(''):
-        req.specifier = SpecifierSet('>=0')
+    if req.specifier == SpecifierSet(""):
+        req.specifier = SpecifierSet(">=0")
 
     return req
 
@@ -120,29 +137,30 @@ def read_requirements(fh: Any, resolve: bool = True) -> Generator[Package, None,
     Returns:
         Generator: Yields Package objects.
     """
-    is_temp_file = not hasattr(fh, 'name')
+    is_temp_file = not hasattr(fh, "name")
     path = None
-    found = 'temp_file'
+    found = "temp_file"
     file_type = filetypes.requirements_txt
     absolute_path: Optional[str] = None
 
     if not is_temp_file and is_supported_by_parser(fh.name):
-        LOG.debug('not temp and a compatible file')
+        LOG.debug("not temp and a compatible file")
         path = fh.name
         absolute_path = os.path.abspath(path)
         SafetyContext().scanned_full_path.append(absolute_path)
         found = path
         file_type = None
 
-    LOG.debug(f'Path: {path}')
-    LOG.debug(f'File Type: {file_type}')
-    LOG.debug('Trying to parse file using dparse...')
+    LOG.debug(f"Path: {path}")
+    LOG.debug(f"File Type: {file_type}")
+    LOG.debug("Trying to parse file using dparse...")
     content = fh.read()
-    LOG.debug(f'Content: {content}')
-    dependency_file = parse(content, path=path, resolve=resolve,
-                            file_type=file_type)
-    LOG.debug(f'Dependency file: {dependency_file.serialize()}')
-    LOG.debug(f'Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}')
+    LOG.debug(f"Content: {content}")
+    dependency_file = parse(content, path=path, resolve=resolve, file_type=file_type)
+    LOG.debug(f"Dependency file: {dependency_file.serialize()}")
+    LOG.debug(
+        f"Parsed, dependencies: {[dep.serialize() for dep in dependency_file.resolved_dependencies]}"
+    )
 
     reqs_pkg = defaultdict(list)
 
@@ -150,20 +168,28 @@ def read_requirements(fh: Any, resolve: bool = True) -> Generator[Package, None,
         reqs_pkg[canonicalize_name(req.name)].append(req)
 
     for pkg, reqs in reqs_pkg.items():
-        requirements = list(map(lambda req: parse_requirement(req, absolute_path), reqs))
+        requirements = list(
+            map(lambda req: parse_requirement(req, absolute_path), reqs)
+        )
         version = find_version(requirements)
 
-        yield Package(name=pkg, version=version,
-                      requirements=requirements,
-                      found=found,
-                      absolute_path=absolute_path,
-                      insecure_versions=[],
-                      secure_versions=[], latest_version=None,
-                      latest_version_without_known_vulnerabilities=None,
-                      more_info_url=None)
+        yield Package(
+            name=pkg,
+            version=version,
+            requirements=requirements,
+            found=found,
+            absolute_path=absolute_path,
+            insecure_versions=[],
+            secure_versions=[],
+            latest_version=None,
+            latest_version_without_known_vulnerabilities=None,
+            more_info_url=None,
+        )
 
 
-def get_proxy_dict(proxy_protocol: str, proxy_host: str, proxy_port: int) -> Optional[Dict[str, str]]:
+def get_proxy_dict(
+    proxy_protocol: str, proxy_host: str, proxy_port: int
+) -> Optional[Dict[str, str]]:
     """
     Get the proxy dictionary for requests.
 
@@ -177,7 +203,7 @@ def get_proxy_dict(proxy_protocol: str, proxy_host: str, proxy_port: int) -> Opt
     """
     if proxy_protocol and proxy_host and proxy_port:
         # Safety only uses https request, so only https dict will be passed to requests
-        return {'https': f"{proxy_protocol}://{proxy_host}:{str(proxy_port)}"}
+        return {"https": f"{proxy_protocol}://{proxy_host}:{str(proxy_port)}"}
     return None
 
 
@@ -192,7 +218,7 @@ def get_license_name_by_id(license_id: int, db: Dict[str, Any]) -> Optional[str]
     Returns:
         Optional[str]: The license name if found, None otherwise.
     """
-    licenses = db.get('licenses', [])
+    licenses = db.get("licenses", [])
     for name, id in licenses.items():
         if id == license_id:
             return name
@@ -229,12 +255,14 @@ def get_used_options() -> Dict[str, Dict[str, int]]:
     used_options = {}
 
     for arg in sys.argv:
-        cleaned_arg = arg if '=' not in arg else arg.split('=')[0]
+        cleaned_arg = arg if "=" not in arg else arg.split("=")[0]
         if cleaned_arg in flags:
             option_used = flags.get(cleaned_arg)
 
             if option_used in used_options:
-                used_options[option_used][cleaned_arg] = used_options[option_used].get(cleaned_arg, 0) + 1
+                used_options[option_used][cleaned_arg] = (
+                    used_options[option_used].get(cleaned_arg, 0) + 1
+                )
             else:
                 used_options[option_used] = {cleaned_arg: 1}
 
@@ -249,10 +277,13 @@ def get_version() -> str:
         str: The Safety version.
     """
     from importlib.metadata import version
+
     return version("safety")
 
 
-def get_primary_announcement(announcements: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def get_primary_announcement(
+    announcements: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
     """
     Get the primary announcement from a list of announcements.
 
@@ -263,12 +294,13 @@ def get_primary_announcement(announcements: List[Dict[str, Any]]) -> Optional[Di
         Optional[Dict[str, Any]]: The primary announcement if found, None otherwise.
     """
     for announcement in announcements:
-        if announcement.get('type', '').lower() == 'primary_announcement':
+        if announcement.get("type", "").lower() == "primary_announcement":
             try:
                 from safety.output_utils import build_primary_announcement
+
                 build_primary_announcement(announcement, columns=80)
             except Exception as e:
-                LOG.debug(f'Failed to build primary announcement: {str(e)}')
+                LOG.debug(f"Failed to build primary announcement: {str(e)}")
                 return None
 
             return announcement
@@ -276,7 +308,9 @@ def get_primary_announcement(announcements: List[Dict[str, Any]]) -> Optional[Di
     return None
 
 
-def get_basic_announcements(announcements: List[Dict[str, Any]], include_local: bool = True) -> List[Dict[str, Any]]:
+def get_basic_announcements(
+    announcements: List[Dict[str, Any]], include_local: bool = True
+) -> List[Dict[str, Any]]:
     """
     Get the basic announcements from a list of announcements.
 
@@ -287,12 +321,18 @@ def get_basic_announcements(announcements: List[Dict[str, Any]], include_local: 
     Returns:
         List[Dict[str, Any]]: The list of basic announcements.
     """
-    return [announcement for announcement in announcements if
-            announcement.get('type', '').lower() != 'primary_announcement' and not announcement.get('local', False)
-            or (announcement.get('local', False) and include_local)]
+    return [
+        announcement
+        for announcement in announcements
+        if announcement.get("type", "").lower() != "primary_announcement"
+        and not announcement.get("local", False)
+        or (announcement.get("local", False) and include_local)
+    ]
 
 
-def filter_announcements(announcements: List[Dict[str, Any]], by_type: str = 'error') -> List[Dict[str, Any]]:
+def filter_announcements(
+    announcements: List[Dict[str, Any]], by_type: str = "error"
+) -> List[Dict[str, Any]]:
     """
     Filter announcements by type.
 
@@ -303,13 +343,18 @@ def filter_announcements(announcements: List[Dict[str, Any]], by_type: str = 'er
     Returns:
         List[Dict[str, Any]]: The filtered announcements.
     """
-    return [announcement for announcement in announcements if
-            announcement.get('type', '').lower() == by_type]
+    return [
+        announcement
+        for announcement in announcements
+        if announcement.get("type", "").lower() == by_type
+    ]
 
 
-def build_telemetry_data(telemetry: bool = True,
-                         command: Optional[str] = None,
-                         subcommand: Optional[str] = None) -> TelemetryModel:
+def build_telemetry_data(
+    telemetry: bool = True,
+    command: Optional[str] = None,
+    subcommand: Optional[str] = None,
+) -> TelemetryModel:
     """Build telemetry data for the Safety context.
 
     Args:
@@ -322,22 +367,30 @@ def build_telemetry_data(telemetry: bool = True,
     """
     context = SafetyContext()
 
-    body = {
-        'os_type': os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
-        'os_release': os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
-        'os_description': os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
-        'python_version': platform.python_version(),
-        'safety_command': command if command else context.command,
-        'safety_options': get_used_options()
-    } if telemetry else {}
+    body = (
+        {
+            "os_type": os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
+            "os_release": os.environ.get("SAFETY_OS_RELEASE", None)
+            or platform.release(),
+            "os_description": os.environ.get("SAFETY_OS_DESCRIPTION", None)
+            or platform.platform(),
+            "python_version": platform.python_version(),
+            "safety_command": command if command else context.command,
+            "safety_options": get_used_options(),
+        }
+        if telemetry
+        else {}
+    )
 
-    body['safety_version'] = get_version()
-    body['safety_source'] = os.environ.get("SAFETY_SOURCE", None) or context.safety_source
+    body["safety_version"] = get_version()
+    body["safety_source"] = (
+        os.environ.get("SAFETY_SOURCE", None) or context.safety_source
+    )
 
-    if not 'safety_options' in body:
-        body['safety_options'] = {}
+    if "safety_options" not in body:
+        body["safety_options"] = {}
 
-    LOG.debug(f'Telemetry body built: {body}')
+    LOG.debug(f"Telemetry body built: {body}")
 
     return TelemetryModel(**body)
 
@@ -351,7 +404,13 @@ def build_git_data() -> Dict[str, Any]:
     import subprocess
 
     def git_command(commandline: List[str]) -> str:
-        return subprocess.run(commandline, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8').strip()
+        return (
+            subprocess.run(
+                commandline, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+            )
+            .stdout.decode("utf-8")
+            .strip()
+        )
 
     try:
         is_git = git_command(["git", "rev-parse", "--is-inside-work-tree"])
@@ -359,57 +418,32 @@ def build_git_data() -> Dict[str, Any]:
         is_git = False
 
     if is_git == "true":
-        result = {
-            "branch": "",
-            "tag": "",
-            "commit": "",
-            "dirty": "",
-            "origin": ""
-        }
+        result = {"branch": "", "tag": "", "commit": "", "dirty": "", "origin": ""}
 
         try:
-            result['branch'] = git_command(["git", "symbolic-ref", "--short", "-q", "HEAD"])
-            result['tag'] = git_command(["git", "describe", "--tags", "--exact-match"])
+            result["branch"] = git_command(
+                ["git", "symbolic-ref", "--short", "-q", "HEAD"]
+            )
+            result["tag"] = git_command(["git", "describe", "--tags", "--exact-match"])
 
-            commit = git_command(["git", "describe", '--match=""', '--always', '--abbrev=40', '--dirty'])
-            result['dirty'] = commit.endswith('-dirty')
-            result['commit'] = commit.split("-dirty")[0]
+            commit = git_command(
+                ["git", "describe", '--match=""', "--always", "--abbrev=40", "--dirty"]
+            )
+            result["dirty"] = commit.endswith("-dirty")
+            result["commit"] = commit.split("-dirty")[0]
 
-            result['origin'] = git_command(["git", "remote", "get-url", "origin"])
+            result["origin"] = git_command(["git", "remote", "get-url", "origin"])
         except Exception:
             pass
 
         return result
     else:
-        return {
-            "error": "not-git-repo"
-        }
+        return {"error": "not-git-repo"}
 
 
-def output_exception(exception: Exception, exit_code_output: bool = True) -> None:
-    """
-    Output an exception message to the console and exit.
-
-    Args:
-        exception (Exception): The exception to output.
-        exit_code_output (bool): Whether to output the exit code.
-
-    Exits:
-        Exits the program with the appropriate exit code.
-    """
-    click.secho(str(exception), fg="red", file=sys.stderr)
-
-    if exit_code_output:
-        exit_code = EXIT_CODE_FAILURE
-        if hasattr(exception, 'get_exit_code'):
-            exit_code = exception.get_exit_code()
-    else:
-        exit_code = EXIT_CODE_OK
-
-    sys.exit(exit_code)
-
-def build_remediation_info_url(base_url: str, version: Optional[str], spec: str,
-                               target_version: Optional[str] = '') -> str:
+def build_remediation_info_url(
+    base_url: str, version: Optional[str], spec: str, target_version: Optional[str] = ""
+) -> str:
     """
     Build the remediation info URL.
 
@@ -423,20 +457,26 @@ def build_remediation_info_url(base_url: str, version: Optional[str], spec: str,
         str: The remediation info URL.
     """
 
-    params = {'from': version, 'to': target_version}
+    params = {"from": version, "to": target_version}
 
     # No pinned version
     if not version:
-        params = {'spec': spec}
+        params = {"spec": spec}
 
     req = PreparedRequest()
     req.prepare_url(base_url, params)
 
     return req.url
 
-def get_processed_options(policy_file: Dict[str, Any], ignore: Dict[str, Any], ignore_severity_rules: Dict[str, Any],
-    exit_code: bool, ignore_unpinned_requirements: Optional[bool] = None,
-    project: Optional[str] = None) -> Tuple[Dict[str, Any], Dict[str, Any], bool, Optional[bool], Optional[str]]:
+
+def get_processed_options(
+    policy_file: Dict[str, Any],
+    ignore: Dict[str, Any],
+    ignore_severity_rules: Dict[str, Any],
+    exit_code: bool,
+    ignore_unpinned_requirements: Optional[bool] = None,
+    project: Optional[str] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any], bool, Optional[bool], Optional[str]]:
     """
     Get processed options from the policy file.
 
@@ -452,30 +492,43 @@ def get_processed_options(policy_file: Dict[str, Any], ignore: Dict[str, Any], i
         Tuple[Dict[str, Any], Dict[str, Any], bool, Optional[bool], Optional[str]]: The processed options.
     """
     if policy_file:
-        project_config = policy_file.get('project', {})
-        security = policy_file.get('security', {})
+        project_config = policy_file.get("project", {})
+        security = policy_file.get("security", {})
         ctx = click.get_current_context()
         source = ctx.get_parameter_source("exit_code")
 
         if not project:
-            project_id = project_config.get('id', None)
+            project_id = project_config.get("id", None)
             if not project_id:
                 project_id = None
             project = project_id
 
-        if ctx.get_parameter_source("ignore_unpinned_requirements") == click.core.ParameterSource.DEFAULT:
-            ignore_unpinned_requirements = security.get('ignore-unpinned-requirements', None)
+        if (
+            ctx.get_parameter_source("ignore_unpinned_requirements")
+            == click.core.ParameterSource.DEFAULT
+        ):
+            ignore_unpinned_requirements = security.get(
+                "ignore-unpinned-requirements", None
+            )
 
         if not ignore:
-            ignore = security.get('ignore-vulnerabilities', {})
+            ignore = security.get("ignore-vulnerabilities", {})
         if source == click.core.ParameterSource.DEFAULT:
-            exit_code = not security.get('continue-on-vulnerability-error', False)
-        ignore_cvss_below = security.get('ignore-cvss-severity-below', 0.0)
-        ignore_cvss_unknown = security.get('ignore-cvss-unknown-severity', False)
-        ignore_severity_rules = {'ignore-cvss-severity-below': ignore_cvss_below,
-                                 'ignore-cvss-unknown-severity': ignore_cvss_unknown}
+            exit_code = not security.get("continue-on-vulnerability-error", False)
+        ignore_cvss_below = security.get("ignore-cvss-severity-below", 0.0)
+        ignore_cvss_unknown = security.get("ignore-cvss-unknown-severity", False)
+        ignore_severity_rules = {
+            "ignore-cvss-severity-below": ignore_cvss_below,
+            "ignore-cvss-unknown-severity": ignore_cvss_unknown,
+        }
 
-    return ignore, ignore_severity_rules, exit_code, ignore_unpinned_requirements, project
+    return (
+        ignore,
+        ignore_severity_rules,
+        exit_code,
+        ignore_unpinned_requirements,
+        project,
+    )
 
 
 def get_fix_options(policy_file: Dict[str, Any], auto_remediation_limit: int) -> int:
@@ -496,8 +549,8 @@ def get_fix_options(policy_file: Dict[str, Any], auto_remediation_limit: int) ->
         return auto_remediation_limit
 
     if policy_file:
-        fix = policy_file.get('security-updates', {})
-        auto_fix = fix.get('auto-security-updates-limit', None)
+        fix = policy_file.get("security-updates", {})
+        auto_fix = fix.get("auto-security-updates-limit", None)
         if not auto_fix:
             auto_fix = []
 
@@ -510,18 +563,27 @@ class MutuallyExclusiveOption(click.Option):
     """
 
     def __init__(self, *args, **kwargs):
-        self.mutually_exclusive = set(kwargs.pop('mutually_exclusive', []))
-        self.with_values = kwargs.pop('with_values', {})
-        help = kwargs.get('help', '')
+        self.mutually_exclusive = set(kwargs.pop("mutually_exclusive", []))
+        self.with_values = kwargs.pop("with_values", {})
+        help = kwargs.get("help", "")
         if self.mutually_exclusive:
-            ex_str = ', '.join(["{0} with values {1}".format(item, self.with_values.get(item)) if item in self.with_values else item for item in self.mutually_exclusive])
-            kwargs['help'] = help + (
-                ' NOTE: This argument is mutually exclusive with '
-                ' arguments: [' + ex_str + '].'
+            ex_str = ", ".join(
+                [
+                    "{0} with values {1}".format(item, self.with_values.get(item))
+                    if item in self.with_values
+                    else item
+                    for item in self.mutually_exclusive
+                ]
+            )
+            kwargs["help"] = help + (
+                " NOTE: This argument is mutually exclusive with "
+                " arguments: [" + ex_str + "]."
             )
         super(MutuallyExclusiveOption, self).__init__(*args, **kwargs)
 
-    def handle_parse_result(self, ctx: click.Context, opts: Dict[str, Any], args: List[str]) -> Tuple[Any, List[str]]:
+    def handle_parse_result(
+        self, ctx: click.Context, opts: Dict[str, Any], args: List[str]
+    ) -> Tuple[Any, List[str]]:
         """
         Handle the parse result for mutually exclusive options.
 
@@ -541,39 +603,44 @@ class MutuallyExclusiveOption(click.Option):
             value_used = opts.get(used, None)
             if not isinstance(value_used, List):
                 value_used = [value_used]
-            if value_used and set(self.with_values.get(used, [])).intersection(value_used):
+            if value_used and set(self.with_values.get(used, [])).intersection(
+                value_used
+            ):
                 exclusive_value_used = True
 
         if option_used and (not self.with_values or exclusive_value_used):
-            options = ', '.join(self.opts)
-            prohibited = ''.join(["\n * --{0} with {1}".format(item, self.with_values.get(
-                        item)) if item in self.with_values else f"\n * {item}" for item in self.mutually_exclusive])
+            options = ", ".join(self.opts)
+            prohibited = "".join(
+                [
+                    "\n * --{0} with {1}".format(item, self.with_values.get(item))
+                    if item in self.with_values
+                    else f"\n * {item}"
+                    for item in self.mutually_exclusive
+                ]
+            )
             raise click.UsageError(
                 f"Illegal usage: `{options}` is mutually exclusive with: {prohibited}"
             )
 
-        return super(MutuallyExclusiveOption, self).handle_parse_result(
-            ctx,
-            opts,
-            args
-        )
+        return super(MutuallyExclusiveOption, self).handle_parse_result(ctx, opts, args)
 
 
 class DependentOption(click.Option):
     """
     A click option that depends on other options.
     """
+
     def __init__(self, *args, **kwargs):
-        self.required_options = set(kwargs.pop('required_options', []))
-        help = kwargs.get('help', '')
+        self.required_options = set(kwargs.pop("required_options", []))
+        help = kwargs.get("help", "")
         if self.required_options:
-            ex_str = ', '.join(self.required_options)
-            kwargs['help'] = help + (
-                f" Requires: [ {ex_str} ]"
-            )
+            ex_str = ", ".join(self.required_options)
+            kwargs["help"] = help + (f" Requires: [ {ex_str} ]")
         super(DependentOption, self).__init__(*args, **kwargs)
 
-    def handle_parse_result(self, ctx: click.Context, opts: Dict[str, Any], args: List[str]) -> Tuple[Any, List[str]]:
+    def handle_parse_result(
+        self, ctx: click.Context, opts: Dict[str, Any], args: List[str]
+    ) -> Tuple[Any, List[str]]:
         """
         Handle the parse result for dependent options.
 
@@ -592,21 +659,17 @@ class DependentOption(click.Option):
 
         if missing_required_arguments:
             raise click.UsageError(
-                "Illegal usage: `{}` needs the "
-                "arguments `{}`.".format(
-                    self.name,
-                    ', '.join(missing_required_arguments)
+                "Illegal usage: `{}` needs the arguments `{}`.".format(
+                    self.name, ", ".join(missing_required_arguments)
                 )
             )
 
-        return super(DependentOption, self).handle_parse_result(
-            ctx,
-            opts,
-            args
-        )
+        return super(DependentOption, self).handle_parse_result(ctx, opts, args)
 
 
-def transform_ignore(ctx: click.Context, param: click.Parameter, value: Tuple[str]) -> Dict[str, Dict[str, Optional[str]]]:
+def transform_ignore(
+    ctx: click.Context, param: click.Parameter, value: Tuple[str]
+) -> Dict[str, Dict[str, Optional[str]]]:
     """
     Transform ignore parameters into a dictionary.
 
@@ -618,20 +681,22 @@ def transform_ignore(ctx: click.Context, param: click.Parameter, value: Tuple[st
     Returns:
         Dict[str, Dict[str, Optional[str]]]: The transformed ignore parameters.
     """
-    ignored_default_dict = {'reason': '', 'expires': None}
+    ignored_default_dict = {"reason": "", "expires": None}
     if isinstance(value, tuple) and any(value):
         # Following code is required to support the 2 ways of providing 'ignore'
         # --ignore=1234,567,789
         # or, the historical way (supported for backward compatibility)
         # -i 1234 -i 567
-        combined_value = ','.join(value)
-        ignore_ids = {vuln_id.strip() for vuln_id in combined_value.split(',')}
+        combined_value = ",".join(value)
+        ignore_ids = {vuln_id.strip() for vuln_id in combined_value.split(",")}
         return {ignore_id: dict(ignored_default_dict) for ignore_id in ignore_ids}
 
     return {}
 
 
-def active_color_if_needed(ctx: click.Context, param: click.Parameter, value: str) -> str:
+def active_color_if_needed(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> str:
     """
     Activate color if needed based on the context and environment variables.
 
@@ -643,7 +708,7 @@ def active_color_if_needed(ctx: click.Context, param: click.Parameter, value: st
     Returns:
         str: The parameter value.
     """
-    if value == 'screen':
+    if value == "screen":
         ctx.color = True
 
     color = os.environ.get("SAFETY_COLOR", None)
@@ -651,15 +716,17 @@ def active_color_if_needed(ctx: click.Context, param: click.Parameter, value: st
     if color is not None:
         color = color.lower()
 
-        if color == '1' or color == 'true':
+        if color == "1" or color == "true":
             ctx.color = True
-        elif color == '0' or color == 'false':
+        elif color == "0" or color == "false":
             ctx.color = False
 
     return value
 
 
-def json_alias(ctx: click.Context, param: click.Parameter, value: bool) -> Optional[bool]:
+def json_alias(
+    ctx: click.Context, param: click.Parameter, value: bool
+) -> Optional[bool]:
     """
     Set the SAFETY_OUTPUT environment variable to 'json' if the parameter is used.
 
@@ -672,10 +739,13 @@ def json_alias(ctx: click.Context, param: click.Parameter, value: bool) -> Optio
         bool: The parameter value.
     """
     if value:
-        os.environ['SAFETY_OUTPUT'] = 'json'
+        os.environ["SAFETY_OUTPUT"] = "json"
         return value
 
-def html_alias(ctx: click.Context, param: click.Parameter, value: bool) -> Optional[bool]:
+
+def html_alias(
+    ctx: click.Context, param: click.Parameter, value: bool
+) -> Optional[bool]:
     """
     Set the SAFETY_OUTPUT environment variable to 'html' if the parameter is used.
 
@@ -688,11 +758,13 @@ def html_alias(ctx: click.Context, param: click.Parameter, value: bool) -> Optio
         bool: The parameter value.
     """
     if value:
-        os.environ['SAFETY_OUTPUT'] = 'html'
+        os.environ["SAFETY_OUTPUT"] = "html"
         return value
 
 
-def bare_alias(ctx: click.Context, param: click.Parameter, value: bool) -> Optional[bool]:
+def bare_alias(
+    ctx: click.Context, param: click.Parameter, value: bool
+) -> Optional[bool]:
     """
     Set the SAFETY_OUTPUT environment variable to 'bare' if the parameter is used.
 
@@ -705,7 +777,7 @@ def bare_alias(ctx: click.Context, param: click.Parameter, value: bool) -> Optio
         bool: The parameter value.
     """
     if value:
-        os.environ['SAFETY_OUTPUT'] = 'bare'
+        os.environ["SAFETY_OUTPUT"] = "bare"
         return value
 
 
@@ -735,8 +807,8 @@ def clean_project_id(input_string: str) -> str:
     Returns:
         str: The cleaned project ID.
     """
-    input_string = re.sub(r'[^a-zA-Z0-9]+', '-', input_string)
-    input_string = input_string.strip('-')
+    input_string = re.sub(r"[^a-zA-Z0-9]+", "-", input_string)
+    input_string = input_string.strip("-")
     input_string = input_string.lower()
 
     return input_string
@@ -756,13 +828,13 @@ def validate_expiration_date(expiration_date: str) -> Optional[datetime]:
 
     if expiration_date:
         try:
-            d = datetime.strptime(expiration_date, '%Y-%m-%d')
-        except ValueError as e:
+            d = datetime.strptime(expiration_date, "%Y-%m-%d")
+        except ValueError:
             pass
 
         try:
-            d = datetime.strptime(expiration_date, '%Y-%m-%d %H:%M:%S')
-        except ValueError as e:
+            d = datetime.strptime(expiration_date, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
             pass
 
     return d
@@ -770,7 +842,7 @@ def validate_expiration_date(expiration_date: str) -> Optional[datetime]:
 
 class SafetyPolicyFile(click.ParamType):
     """
-       Custom Safety Policy file to hold validations.
+    Custom Safety Policy file to hold validations.
     """
 
     name = "filename"
@@ -781,12 +853,14 @@ class SafetyPolicyFile(click.ParamType):
         mode: str = "r",
         encoding: Optional[str] = None,
         errors: str = "strict",
-        pure: bool = os.environ.get('SAFETY_PURE_YAML', 'false').lower() == 'true'
+        pure: bool = os.environ.get("SAFETY_PURE_YAML", "false").lower() == "true",
     ) -> None:
         self.mode = mode
         self.encoding = encoding
         self.errors = errors
-        self.basic_msg = '\n' + click.style('Unable to load the Safety Policy file "{name}".', fg='red')
+        self.basic_msg = "\n" + click.style(
+            'Unable to load the Safety Policy file "{name}".', fg="red"
+        )
         self.pure = pure
 
     def to_info_dict(self) -> Dict[str, Any]:
@@ -800,8 +874,15 @@ class SafetyPolicyFile(click.ParamType):
         info_dict.update(mode=self.mode, encoding=self.encoding)
         return info_dict
 
-    def fail_if_unrecognized_keys(self, used_keys: List[str], valid_keys: List[str], param: Optional[click.Parameter] = None,
-        ctx: Optional[click.Context] = None, msg: str = '{hint}', context_hint: str = '') -> None:
+    def fail_if_unrecognized_keys(
+        self,
+        used_keys: List[str],
+        valid_keys: List[str],
+        param: Optional[click.Parameter] = None,
+        ctx: Optional[click.Context] = None,
+        msg: str = "{hint}",
+        context_hint: str = "",
+    ) -> None:
         """
         Fail if unrecognized keys are found in the policy file.
 
@@ -827,12 +908,23 @@ class SafetyPolicyFile(click.ParamType):
                             match = option
                             max_ratio = ratio
 
-                maybe_msg = f' Maybe you meant: {match}' if max_ratio > 0.7 else \
-                            f' Valid keywords in this level are: {", ".join(valid_keys)}'
+                maybe_msg = (
+                    f" Maybe you meant: {match}"
+                    if max_ratio > 0.7
+                    else f" Valid keywords in this level are: {', '.join(valid_keys)}"
+                )
 
-                self.fail(msg.format(hint=f'{context_hint}"{keyword}" is not a valid keyword.{maybe_msg}'), param, ctx)
+                self.fail(
+                    msg.format(
+                        hint=f'{context_hint}"{keyword}" is not a valid keyword.{maybe_msg}'
+                    ),
+                    param,
+                    ctx,
+                )
 
-    def fail_if_wrong_bool_value(self, keyword: str, value: Any, msg: str = '{hint}') -> None:
+    def fail_if_wrong_bool_value(
+        self, keyword: str, value: Any, msg: str = "{hint}"
+    ) -> None:
         """
         Fail if a boolean value is invalid.
 
@@ -845,10 +937,16 @@ class SafetyPolicyFile(click.ParamType):
             click.UsageError: If the boolean value is invalid.
         """
         if value is not None and not isinstance(value, bool):
-            self.fail(msg.format(hint=f"'{keyword}' value needs to be a boolean. "
-                                      "You can use True, False, TRUE, FALSE, true or false"))
+            self.fail(
+                msg.format(
+                    hint=f"'{keyword}' value needs to be a boolean. "
+                    "You can use True, False, TRUE, FALSE, true or false"
+                )
+            )
 
-    def convert(self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]) -> Any:
+    def convert(
+        self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
+    ) -> Any:
         """
         Convert the parameter value to a Safety policy file.
 
@@ -869,18 +967,23 @@ class SafetyPolicyFile(click.ParamType):
                 return value
 
             # Prepare the error message template
-            msg = self.basic_msg.format(name=value) + '\n' + click.style('HINT:', fg='yellow') + ' {hint}'
+            msg = (
+                self.basic_msg.format(name=value)
+                + "\n"
+                + click.style("HINT:", fg="yellow")
+                + " {hint}"
+            )
 
             # Open the file stream
             f, _ = click.types.open_stream(
                 value, self.mode, self.encoding, self.errors, atomic=False
             )
-            filename = ''
+            filename = ""
 
             try:
                 # Read the content of the file
                 raw = f.read()
-                yaml = YAML(typ='safe', pure=self.pure)
+                yaml = YAML(typ="safe", pure=self.pure)
                 safety_policy = yaml.load(raw)
                 filename = f.name
                 f.close()
@@ -889,56 +992,96 @@ class SafetyPolicyFile(click.ParamType):
                 show_parsed_hint = isinstance(e, MarkedYAMLError)
                 hint = str(e)
                 if show_parsed_hint:
-                    hint = f'{str(e.problem).strip()} {str(e.context).strip()} {str(e.context_mark).strip()}'
+                    hint = f"{str(e.problem).strip()} {str(e.context).strip()} {str(e.context_mark).strip()}"
 
                 self.fail(msg.format(name=value, hint=hint), param, ctx)
 
             # Validate the structure of the safety policy
-            if not safety_policy or not isinstance(safety_policy, dict) or not safety_policy.get('security', None):
+            if (
+                not safety_policy
+                or not isinstance(safety_policy, dict)
+                or not safety_policy.get("security", None)
+            ):
                 hint = "you are missing the security root tag"
                 try:
                     version = safety_policy["version"]
                     if version:
-                        hint = f"{filename} is a policy file version {version}. " \
-                            "Legacy policy file parser only accepts versions minor than 3.0" \
+                        hint = (
+                            f"{filename} is a policy file version {version}. "
+                            "Legacy policy file parser only accepts versions minor than 3.0"
                             "\nNote: `safety check` command accepts policy file versions <= 2.0. Versions >= 2.0 are not supported."
+                        )
                 except Exception:
                     pass
-                self.fail(
-                    msg.format(hint=hint), param, ctx)
+                self.fail(msg.format(hint=hint), param, ctx)
 
             # Validate 'security' section keys
-            security_config = safety_policy.get('security', {})
-            security_keys = ['ignore-cvss-severity-below', 'ignore-cvss-unknown-severity', 'ignore-vulnerabilities',
-                             'continue-on-vulnerability-error', 'ignore-unpinned-requirements']
-            self.fail_if_unrecognized_keys(security_config.keys(), security_keys, param=param, ctx=ctx, msg=msg,
-                                           context_hint='"security" -> ')
+            security_config = safety_policy.get("security", {})
+            security_keys = [
+                "ignore-cvss-severity-below",
+                "ignore-cvss-unknown-severity",
+                "ignore-vulnerabilities",
+                "continue-on-vulnerability-error",
+                "ignore-unpinned-requirements",
+            ]
+            self.fail_if_unrecognized_keys(
+                security_config.keys(),
+                security_keys,
+                param=param,
+                ctx=ctx,
+                msg=msg,
+                context_hint='"security" -> ',
+            )
 
             # Validate 'ignore-cvss-severity-below' value
-            ignore_cvss_security_below = security_config.get('ignore-cvss-severity-below', None)
+            ignore_cvss_security_below = security_config.get(
+                "ignore-cvss-severity-below", None
+            )
             if ignore_cvss_security_below:
                 limit = 0.0
                 try:
                     limit = float(ignore_cvss_security_below)
-                except ValueError as e:
-                    self.fail(msg.format(hint="'ignore-cvss-severity-below' value needs to be an integer or float."))
+                except ValueError:
+                    self.fail(
+                        msg.format(
+                            hint="'ignore-cvss-severity-below' value needs to be an integer or float."
+                        )
+                    )
                 if limit < 0 or limit > 10:
-                    self.fail(msg.format(hint="'ignore-cvss-severity-below' needs to be a value between 0 and 10"))
+                    self.fail(
+                        msg.format(
+                            hint="'ignore-cvss-severity-below' needs to be a value between 0 and 10"
+                        )
+                    )
 
             # Validate 'continue-on-vulnerability-error' value
-            continue_on_vulnerability_error = security_config.get('continue-on-vulnerability-error', None)
-            self.fail_if_wrong_bool_value('continue-on-vulnerability-error', continue_on_vulnerability_error, msg)
+            continue_on_vulnerability_error = security_config.get(
+                "continue-on-vulnerability-error", None
+            )
+            self.fail_if_wrong_bool_value(
+                "continue-on-vulnerability-error", continue_on_vulnerability_error, msg
+            )
 
             # Validate 'ignore-cvss-unknown-severity' value
-            ignore_cvss_unknown_severity = security_config.get('ignore-cvss-unknown-severity', None)
-            self.fail_if_wrong_bool_value('ignore-cvss-unknown-severity', ignore_cvss_unknown_severity, msg)
+            ignore_cvss_unknown_severity = security_config.get(
+                "ignore-cvss-unknown-severity", None
+            )
+            self.fail_if_wrong_bool_value(
+                "ignore-cvss-unknown-severity", ignore_cvss_unknown_severity, msg
+            )
 
             # Validate 'ignore-vulnerabilities' section
-            ignore_vulns = safety_policy.get('security', {}).get('ignore-vulnerabilities', {})
+            ignore_vulns = safety_policy.get("security", {}).get(
+                "ignore-vulnerabilities", {}
+            )
             if ignore_vulns:
                 if not isinstance(ignore_vulns, dict):
-                    self.fail(msg.format(hint="Vulnerability IDs under the 'ignore-vulnerabilities' key, need to "
-                                              "follow the convention 'ID_NUMBER:', probably you are missing a colon."))
+                    self.fail(
+                        msg.format(
+                            hint="Vulnerability IDs under the 'ignore-vulnerabilities' key, need to "
+                            "follow the convention 'ID_NUMBER:', probably you are missing a colon."
+                        )
+                    )
 
                 normalized = {}
 
@@ -947,54 +1090,80 @@ class SafetyPolicyFile(click.ParamType):
 
                     if not isinstance(ignored_vuln_config, dict):
                         self.fail(
-                            msg.format(hint=f"Wrong configuration under the vulnerability with ID: {ignored_vuln_id}"))
+                            msg.format(
+                                hint=f"Wrong configuration under the vulnerability with ID: {ignored_vuln_id}"
+                            )
+                        )
 
                     context_msg = f'"security" -> "ignore-vulnerabilities" -> "{ignored_vuln_id}" -> '
 
-                    self.fail_if_unrecognized_keys(ignored_vuln_config.keys(), ['reason', 'expires'], param=param,
-                                                   ctx=ctx, msg=msg, context_hint=context_msg)
+                    self.fail_if_unrecognized_keys(
+                        ignored_vuln_config.keys(),
+                        ["reason", "expires"],
+                        param=param,
+                        ctx=ctx,
+                        msg=msg,
+                        context_hint=context_msg,
+                    )
 
-                    reason = ignored_vuln_config.get('reason', '')
+                    reason = ignored_vuln_config.get("reason", "")
                     reason = str(reason) if reason else None
-                    expires = ignored_vuln_config.get('expires', '')
+                    expires = ignored_vuln_config.get("expires", "")
                     expires = str(expires) if expires else None
 
                     try:
                         if int(ignored_vuln_id) < 0:
-                            raise ValueError('Negative Vulnerability ID')
-                    except ValueError as e:
-                        self.fail(msg.format(
-                            hint=f"vulnerability id {ignored_vuln_id} under the 'ignore-vulnerabilities' root needs to "
-                                 f"be a positive integer")
+                            raise ValueError("Negative Vulnerability ID")
+                    except ValueError:
+                        self.fail(
+                            msg.format(
+                                hint=f"vulnerability id {ignored_vuln_id} under the 'ignore-vulnerabilities' root needs to "
+                                f"be a positive integer"
+                            )
                         )
 
                     # Validate expires date
                     d = validate_expiration_date(expires)
 
                     if expires and not d:
-                        self.fail(msg.format(hint=f"{context_msg}expires: \"{expires}\" isn't a valid format "
-                                                  f"for the expires keyword, "
-                                                  "valid options are: YYYY-MM-DD or "
-                                                  "YYYY-MM-DD HH:MM:SS")
-                                  )
+                        self.fail(
+                            msg.format(
+                                hint=f'{context_msg}expires: "{expires}" isn\'t a valid format '
+                                f"for the expires keyword, "
+                                "valid options are: YYYY-MM-DD or "
+                                "YYYY-MM-DD HH:MM:SS"
+                            )
+                        )
 
-                    normalized[str(ignored_vuln_id)] = {'reason': reason, 'expires': d}
+                    normalized[str(ignored_vuln_id)] = {"reason": reason, "expires": d}
 
-                safety_policy['security']['ignore-vulnerabilities'] = normalized
-                safety_policy['filename'] = filename
-                safety_policy['raw'] = raw
+                safety_policy["security"]["ignore-vulnerabilities"] = normalized
+                safety_policy["filename"] = filename
+                safety_policy["raw"] = raw
             else:
-                safety_policy['security']['ignore-vulnerabilities'] = {}
+                safety_policy["security"]["ignore-vulnerabilities"] = {}
 
             # Validate 'fix' section keys
-            fix_config = safety_policy.get('fix', {})
-            self.fail_if_unrecognized_keys(fix_config.keys(), ['auto-security-updates-limit'], param=param, ctx=ctx, msg=msg, context_hint='"fix" -> ')
-            auto_remediation_limit = fix_config.get('auto-security-updates-limit', None)
+            fix_config = safety_policy.get("fix", {})
+            self.fail_if_unrecognized_keys(
+                fix_config.keys(),
+                ["auto-security-updates-limit"],
+                param=param,
+                ctx=ctx,
+                msg=msg,
+                context_hint='"fix" -> ',
+            )
+            auto_remediation_limit = fix_config.get("auto-security-updates-limit", None)
 
             if auto_remediation_limit:
-                self.fail_if_unrecognized_keys(auto_remediation_limit, ['patch', 'minor', 'major'], param=param, ctx=ctx,
-                                               msg=msg,
-                                               context_hint='"auto-security-updates-limit" -> ')
+                self.fail_if_unrecognized_keys(
+                    auto_remediation_limit,
+                    ["patch", "minor", "major"],
+                    param=param,
+                    ctx=ctx,
+                    msg=msg,
+                    context_hint='"auto-security-updates-limit" -> ',
+                )
 
             return safety_policy
         except BadParameter as expected_e:
@@ -1003,12 +1172,20 @@ class SafetyPolicyFile(click.ParamType):
             # Handle file not found errors gracefully, don't fail in the default case
             if ctx and isinstance(e, OSError):
                 default = ctx.get_parameter_source
-                source = default("policy_file") if default("policy_file") else default("policy_file_path")
-                if e.errno == 2 and source == click.core.ParameterSource.DEFAULT and value == '.safety-policy.yml':
+                source = (
+                    default("policy_file")
+                    if default("policy_file")
+                    else default("policy_file_path")
+                )
+                if (
+                    e.errno == 2
+                    and source == click.core.ParameterSource.DEFAULT
+                    and value == ".safety-policy.yml"
+                ):
                     return None
 
             problem = click.style("Policy file YAML is not valid.")
-            hint = click.style("HINT: ", fg='yellow') + str(e)
+            hint = click.style("HINT: ", fg="yellow") + str(e)
             self.fail(f"{problem}\n{hint}", param, ctx)
 
     def shell_complete(
@@ -1054,6 +1231,7 @@ class SafetyContext(metaclass=SingletonMeta):
     """
     A singleton class to hold the Safety context.
     """
+
     packages = []
     key = False
     db_mirror = False
@@ -1070,17 +1248,17 @@ class SafetyContext(metaclass=SingletonMeta):
     subcommand: Optional[str] = None
     review = None
     params = {}
-    safety_source = 'code'
+    safety_source = "code"
     local_announcements = []
     scanned_full_path = []
     account = None
-
 
 
 def sync_safety_context(f):
     """
     Decorator to sync the Safety context with the function arguments.
     """
+
     def new_func(*args, **kwargs):
         ctx = SafetyContext()
 
@@ -1102,7 +1280,11 @@ def sync_safety_context(f):
 
 
 @sync_safety_context
-def get_packages_licenses(*, packages: Optional[List[Package]] = None, licenses_db: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def get_packages_licenses(
+    *,
+    packages: Optional[List[Package]] = None,
+    licenses_db: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
     """
     Get the licenses for the specified packages based on their version.
 
@@ -1113,14 +1295,14 @@ def get_packages_licenses(*, packages: Optional[List[Package]] = None, licenses_
     Returns:
         List[Dict[str, Any]]: The list of packages and their licenses.
     """
-    SafetyContext().command = 'license'
+    SafetyContext().command = "license"
 
     if not packages:
         packages = []
     if not licenses_db:
         licenses_db = {}
 
-    packages_licenses_db = licenses_db.get('packages', {})
+    packages_licenses_db = licenses_db.get("packages", {})
     filtered_packages_licenses = []
 
     for pkg in packages:
@@ -1143,11 +1325,11 @@ def get_packages_licenses(*, packages: Optional[List[Package]] = None, licenses_
         license_id = None
         license_name = None
         for pkg_version in pkg_licenses:
-            license_start_version = parse_version(pkg_version['start_version'])
+            license_start_version = parse_version(pkg_version["start_version"])
             # Stops and return the previous stored license when a new
             # license starts on a version above the requested one.
             if version_requested >= license_start_version:
-                license_id = pkg_version['license_id']
+                license_id = pkg_version["license_id"]
             else:
                 # We found the license for the version requested
                 break
@@ -1157,11 +1339,9 @@ def get_packages_licenses(*, packages: Optional[List[Package]] = None, licenses_
         if not license_id or not license_name:
             license_name = "unknown"
 
-        filtered_packages_licenses.append({
-            "package": pkg_name,
-            "version": pkg.version,
-            "license": license_name
-        })
+        filtered_packages_licenses.append(
+            {"package": pkg_name, "version": pkg.version, "license": license_name}
+        )
 
     return filtered_packages_licenses
 
@@ -1187,7 +1367,9 @@ def get_requirements_content(files: List[click.File]) -> Dict[str, str]:
             requirements_files[f.name] = f.read()
             f.close()
         except Exception as e:
-            raise InvalidProvidedReportError(message=f"Unable to read a requirement file scanned in the report. {e}")
+            raise InvalidProvidedReportError(
+                message=f"Unable to read a requirement file scanned in the report. {e}"
+            )
 
     return requirements_files
 
@@ -1202,7 +1384,7 @@ def is_ignore_unpinned_mode(version: str) -> bool:
     Returns:
         bool: True if unpinned mode is enabled, False otherwise.
     """
-    ignore = SafetyContext().params.get('ignore_unpinned_requirements')
+    ignore = SafetyContext().params.get("ignore_unpinned_requirements")
     return (ignore is None or ignore) and not version
 
 
@@ -1231,8 +1413,12 @@ def get_hashes(dependency: Any) -> List[Dict[str, str]]:
     """
     pattern = re.compile(HASH_REGEX_GROUPS)
 
-    return [{'method': method, 'hash': hsh} for method, hsh in
-               (pattern.match(d_hash).groups() for d_hash in dependency.hashes)]
+    return [
+        {"method": method, "hash": hsh}
+        for method, hsh in (
+            pattern.match(d_hash).groups() for d_hash in dependency.hashes
+        )
+    ]
 
 
 def pluralize(word: str, count: int = 0) -> str:
@@ -1254,8 +1440,13 @@ def pluralize(word: str, count: int = 0) -> str:
     if word in default:
         return default[word]
 
-    if word.endswith("s") or word.endswith("x") or word.endswith("z") \
-        or word.endswith("ch") or word.endswith("sh"):
+    if (
+        word.endswith("s")
+        or word.endswith("x")
+        or word.endswith("z")
+        or word.endswith("ch")
+        or word.endswith("sh")
+    ):
         return word + "es"
 
     if word.endswith("y"):
@@ -1267,7 +1458,7 @@ def pluralize(word: str, count: int = 0) -> str:
     return word + "s"
 
 
-def initializate_config_dirs() -> None:
+def initialize_config_dirs() -> None:
     """
     Initialize the configuration directories.
     """
@@ -1275,5 +1466,54 @@ def initializate_config_dirs() -> None:
 
     try:
         SYSTEM_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
+    except Exception:
         pass
+
+
+def initialize_event_bus(ctx: Union["CustomContext", "typer.Context"]) -> bool:
+    """
+    Initializes the event bus for the given context. This should be called one
+    time only per command run.
+    The event bus requires the following conditions to be met:
+    - Platform OR Platform and Firewall features enabled
+    - Authenticated user
+    Args:
+        ctx (CustomContext): The context object containing necessary
+                             information.
+    Returns:
+        bool: True if the event bus was successfully initialized,
+              False otherwise.
+    """
+    try:
+        obj: "SafetyCLI" = ctx.obj
+        auth: Optional["Auth"] = None
+
+        if obj and obj.events_enabled and (auth := getattr(obj, "auth", None)):
+            client: "SafetyAuthSession" = auth.client
+            token = client.token.get("access_token")
+
+            # Start the event bus if the user has set up authn
+            if client and bool(token or client.api_key):
+                start_event_bus(obj, client)
+
+                if event_bus := obj.event_bus:
+                    # Trigger here CLI GROUP LOADED event
+                    from safety.events.utils import (
+                        create_internal_event,
+                        InternalEventType,
+                        InternalPayload,
+                    )
+
+                    event = create_internal_event(
+                        event_type=InternalEventType.EVENT_BUS_READY,
+                        payload=InternalPayload(ctx=ctx),
+                    )
+
+                    event_bus.emit(event)
+
+                    return True
+
+    except Exception as e:
+        LOG.exception("Error starting event bus: %s", e)
+
+    return False

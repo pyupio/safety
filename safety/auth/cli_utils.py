@@ -165,10 +165,6 @@ def inject_session(ctx: click.Context, proxy_protocol: Optional[str] = None,
             stage: Optional[Stage] = None,
             invoked_command: str = "") -> Any:
 
-    # Skip injection for specific commands that do not require authentication
-    if invoked_command in ["configure"]:
-        return
-
     org: Optional[Organization] = get_organization()
 
     if not stage:
@@ -212,3 +208,31 @@ def inject_session(ctx: click.Context, proxy_protocol: Optional[str] = None,
     def clean_up_on_close():
         LOG.debug('Closing requests session.')
         ctx.obj.auth.client.close()
+
+        if ctx.obj.event_bus:
+            from safety.events.utils import create_internal_event, \
+                InternalEventType, InternalPayload
+
+            payload = InternalPayload(ctx=ctx)
+
+            flush_event = create_internal_event(
+                event_type=InternalEventType.FLUSH_SECURITY_TRACES,
+                payload=payload
+            )
+            close_event = create_internal_event(
+                event_type=InternalEventType.CLOSE_RESOURCES,
+                payload=payload
+            )
+            
+            flush_future = ctx.obj.event_bus.emit(flush_event)
+            close_future = ctx.obj.event_bus.emit(close_event)
+            
+            # Wait for both events to be processed
+            if flush_future and close_future:
+                try:
+                    flush_future.result()
+                    close_future.result()
+                except Exception as e:
+                    LOG.warning(f"Error waiting for events to process: {e}")
+
+            ctx.obj.event_bus.stop()

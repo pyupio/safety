@@ -152,7 +152,9 @@ cov = [
 [tool.hatch.envs.test.overrides]
 matrix.targets.dependencies = [
     # { value = "pydantic==2.6.0", if = ["pydantic-minimal"] },
-    { value = "pydantic~=2.9.0", if = ["pydantic-latest"] },
+    { value = "pydantic~=2.9.0", if = ["pydantic-stable"] },
+    { value = "pydantic~=2.10", if = ["pydantic-2_10"] },
+    { value = "pydantic~=2.11", if = ["pydantic-latest"] },
     
     { value = "typer==0.12.1", if = ["typer-minimal"] },
     { value = "Click==8.0.2", if = ["typer-minimal"] },
@@ -192,6 +194,8 @@ python = [
 targets = [
   "typer-minimal",
   # "pydantic-minimal",
+  "pydantic-stable",
+  "pydantic-2_10",
   "pydantic-latest",
   "typer-latest"
 ]
@@ -225,12 +229,15 @@ os_type = [
 ]
 
 [tool.hatch.envs.lint]
-detached = true
+# We decided don't detach so the type checker can find the dependencies
+# in the virtual environment. This is a trade off.
+# detached = true
 dependencies = [
   "ruff",
+  "pyright",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "pyright"
+typing = "pyright {args:.}"
 style = [
   "ruff check {args:.}",
   "ruff format --check --diff {args:.}",

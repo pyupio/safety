@@ -55,11 +55,14 @@ class BuildFileConfigurator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def configure(self, file: Path, project_id: Optional[str]) -> None:
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> None:
         """
         Configures specific file.
         Args:
             file (str): The file to configure.
+            org_slug (str): The organization slug.
             project_id (str): The project id.
         """
         pass
@@ -71,8 +74,10 @@ class PipRequirementsConfigurator(BuildFileConfigurator):
     def is_supported(self, file: Path) -> bool:
         return self.__file_name_pattern.match(os.path.basename(file)) is not None
 
-    def configure(self, file: Path, project_id: Optional[str]) -> None:
-        Pip.configure_requirements(file, project_id)
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> None:
+        Pip.configure_requirements(file, org_slug, project_id)  # type: ignore
 
 
 class PoetryPyprojectConfigurator(BuildFileConfigurator):
@@ -83,16 +88,20 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
             os.path.basename(file)
         ) is not None and Poetry.is_poetry_project_file(file)
 
-    def configure(self, file: Path, project_id: Optional[str]) -> None:
-        Poetry.configure_pyproject(file, project_id)
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> None:
+        Poetry.configure_pyproject(file, org_slug, project_id)  # type: ignore
 
 
 # TODO: Review if we should move this/hook up this into interceptors.
 class ToolConfigurator(abc.ABC):
     @abc.abstractmethod
-    def configure(self) -> None:
+    def configure(self, org_slug: Optional[str]) -> None:
         """
         Configures specific tool.
+        Args:
+            org_slug (str): The organization slug.
         """
         pass
 
@@ -105,8 +114,8 @@ class ToolConfigurator(abc.ABC):
 
 
 class PipConfigurator(ToolConfigurator):
-    def configure(self) -> None:
-        Pip.configure_system()
+    def configure(self, org_slug: Optional[str]) -> None:
+        Pip.configure_system(org_slug)
 
     def reset(self) -> None:
         Pip.reset_system()
@@ -180,7 +189,10 @@ class PipCommand(BaseCommand):
                 self._perform_diff(ctx)
 
             emit_tool_command_executed(
-                ctx.obj.event_bus, ctx, tool=ToolType.PIP, result=result
+                ctx.obj.event_bus,
+                ctx,  # type: ignore
+                tool=ToolType.PIP,
+                result=result,
             )
 
     def before(self, ctx: typer.Context):
@@ -246,7 +258,7 @@ class PipCommand(BaseCommand):
 
         emit_diff_operations(
             ctx.obj.event_bus,
-            ctx,
+            ctx,  # type: ignore
             added=added,
             removed=removed,
             updated=updated,

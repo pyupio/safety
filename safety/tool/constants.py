@@ -1,4 +1,5 @@
 PUBLIC_REPOSITORY_URL = "https://pkgs.safetycli.com/repository/public/pypi/simple/"
+ORGANIZATION_REPOSITORY_URL = "https://pkgs.safetycli.com/repository/{}/pypi/simple/"
 PROJECT_CONFIG = ".safety-project.ini"
 
 MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES = [

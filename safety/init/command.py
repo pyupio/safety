@@ -31,7 +31,7 @@ from safety_schemas.models.events.payloads import AliasConfig, IndexConfig
 
 
 try:
-    from typing import Annotated
+    from typing import Annotated  # type: ignore
 except ImportError:
     from typing_extensions import Annotated
 
@@ -56,7 +56,7 @@ def init(
     ctx: typer.Context,
     directory: Annotated[
         Path,
-        typer.Argument(
+        typer.Argument(  # type: ignore
             exists=True,
             file_okay=False,
             dir_okay=True,
@@ -97,7 +97,7 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
         ).lower()
 
     if answer == "y":
-        configure_system()
+        configure_system(ctx.obj.org.get("slug"))
         # Naive approach, we'll revamp the init command soon.
         alias_configured.is_configured = True
 
@@ -118,7 +118,7 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
 
     exit_code = None
 
-    if has_local_tool_files(project_dir):
+    if has_local_tool_files(project_dir):  # type: ignore
         if prompt_user:
             prompt = "Do you want to enable proactive malicious package prevention for any project in working directory?"
             answer = Prompt.ask(
@@ -130,7 +130,11 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
             ).lower()
 
         if answer == "y":
-            configure_local_directory(project_dir, ctx.obj.project.id)
+            configure_local_directory(
+                project_dir,  # type: ignore
+                ctx.obj.org.get("slug"),
+                ctx.obj.project.id,
+            )
 
         if prompt_user:
             prompt = "It looks like your current directory contains a requirements.txt file. Would you like Safety to scan it?"

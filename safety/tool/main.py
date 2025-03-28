@@ -26,11 +26,11 @@ def has_local_tool_files(directory: Path) -> bool:
     return False
 
 
-def configure_system():
+def configure_system(org_slug: Optional[str]):
     configurators = [PipConfigurator()]
 
     for configurator in configurators:
-        configurator.configure()
+        configurator.configure(org_slug)
 
 
 def reset_system():
@@ -50,7 +50,9 @@ def configure_alias():
     console.print("Configured PIP alias")
 
 
-def configure_local_directory(directory: Path, project_id: Optional[str]):
+def configure_local_directory(
+    directory: Path, org_slug: Optional[str], project_id: Optional[str]
+):
     configurators = [PipRequirementsConfigurator(), PoetryPyprojectConfigurator()]
 
     for file_name in os.listdir(directory):
@@ -58,4 +60,4 @@ def configure_local_directory(directory: Path, project_id: Optional[str]):
             file = Path(file_name)
             for configurator in configurators:
                 if configurator.is_supported(file):
-                    configurator.configure(file, project_id)
+                    configurator.configure(file, org_slug, project_id)

@@ -12,15 +12,99 @@ on:
       - opened
       - synchronize
   schedule:
-    - cron: "0 0 * * 1"
+    - cron: "0 0 * * *"
 
 jobs:
+  validate-commits:
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && '10' || '2' }}
+          
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+    
+      - name: Install Hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+          
+      - name: Validate commit messages
+        run: |
+          # For PRs, validate all commits in the PR
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Validating PR commits..."
+            hatch run cz check --rev-range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+          # For pushes to main branches, validate the latest commit
+          else
+            echo "Validating pushed commit..."
+            hatch run cz check --rev-range HEAD~1..HEAD
+          fi
+
+  lint:
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && '10' || '2' }}
+
+      - name: Check for changed Python files
+        id: check-files
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.py$')
+          else
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT HEAD^ HEAD | grep '\.py$')
+          fi
+          
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+            echo "should_check=true" >> $GITHUB_OUTPUT
+          else
+            echo "No Python files to check"
+            echo "should_check=false" >> $GITHUB_OUTPUT
+          fi
+  
+      - name: Set up Python
+        if: steps.check-files.outputs.should_check == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+  
+      - name: Install Hatch
+        if: steps.check-files.outputs.should_check == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+  
+      - name: Run style and typing checks
+        if: steps.check-files.outputs.should_check == 'true'
+        run: |
+          echo "Running checks on files: ${{ steps.check-files.outputs.files }}"
+          hatch run lint:all ${{ steps.check-files.outputs.files }}
+
   matrix:
+    if: ${{ always() }}
+    needs: lint
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     
     steps:
+
+    - name: Check lint status
+      if: ${{ needs.lint.result != 'success' && needs.lint.result != 'skipped' }}
+      run: |
+        echo "lint job failed with result: ${{ needs.lint.result }}"
+        exit 1
+      
     - uses: actions/checkout@v4
     
     - name: Set up Python
@@ -63,5 +147,6 @@ jobs:
         python .github/scripts/ci_pyproject.py pyproject.toml
 
     - name: Run tests
+      continue-on-error: ${{ matrix.experimental || false }}
       run: |
         hatch run test.py${{ matrix.python-version }}${{ matrix.target && format('-{0}', matrix.target) }}${{ matrix.os_type && format('-{0}', matrix.os_type) }}:test

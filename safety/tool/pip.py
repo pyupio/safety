@@ -10,7 +10,7 @@ from urllib.parse import urlsplit, urlunsplit, urlencode
 import typer
 from rich.console import Console
 
-from safety.tool.constants import PUBLIC_REPOSITORY_URL
+from safety.tool.constants import PUBLIC_REPOSITORY_URL, ORGANIZATION_REPOSITORY_URL
 from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
@@ -29,20 +29,23 @@ class Pip:
 
     @classmethod
     def configure_requirements(
-        cls, file: Path, project_id: str, console: Console = main_console
+        cls, file: Path, org_slug: Optional[str], project_id: str, console: Console = main_console
     ) -> None:
         """
         Configures Safety index url for specified requirements file.
 
         Args:
             file (Path): Path to requirements.txt file.
+            org_slug (str): Organization slug.
+            project_id (str): Project id.
             console (Console): Console instance.
         """
 
         with open(file, "r+") as f:
             content = f.read()
 
-            repository_url = PUBLIC_REPOSITORY_URL + urllib.parse.urlencode(
+            repository_url = ORGANIZATION_REPOSITORY_URL.format(org_slug) if org_slug else PUBLIC_REPOSITORY_URL
+            repository_url = repository_url + '?' + urllib.parse.urlencode(
                 {"project-id": project_id}
             )
             index_config = f"-i {repository_url}\n"
@@ -55,18 +58,19 @@ class Pip:
                 console.print(f"{file} is already configured. Skipping.")
 
     @classmethod
-    def configure_system(cls, console: Console = main_console):
+    def configure_system(cls, org_slug: Optional[str], console: Console = main_console):
         """
         Configures PIP system to use to Safety index url.
         """
         try:
+            repository_url = ORGANIZATION_REPOSITORY_URL.format(org_slug) if org_slug else PUBLIC_REPOSITORY_URL
             subprocess.run(
                 [
                     get_unwrapped_command(name="pip"),
                     "config",
                     "set",
                     "global.index-url",
-                    PUBLIC_REPOSITORY_URL,
+                    repository_url,
                 ],
                 capture_output=True,
             )
@@ -109,7 +113,7 @@ class Pip:
     @classmethod
     def build_index_url(cls, ctx: typer.Context, index_url: Optional[str]) -> str:
         if index_url is None:
-            index_url = PUBLIC_REPOSITORY_URL + urlencode(
+            index_url = PUBLIC_REPOSITORY_URL + '?' + urlencode(
                 {"project-id": ctx.obj.project.id}
             )
 

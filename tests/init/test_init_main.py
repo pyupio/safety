@@ -71,7 +71,8 @@ class TestInitMain(unittest.TestCase):
             'id': "test-project",
             'name': "Test Project",
             'project_path': Path("/path/to/project"),
-            'url_path': "/test/url"
+            'url_path': "/test/url",
+            'organization': {'name': 'Test Organization', 'slug': 'test-org'},
         }
 
         save_verified_project(ctx, slug=values['id'],
@@ -80,7 +81,11 @@ class TestInitMain(unittest.TestCase):
         # Assert project is correct type and values
         self.assertIsInstance(ctx.obj.project, ProjectModel)
         for attr, expected in values.items():
-            self.assertEqual(getattr(ctx.obj.project, attr), expected)
+            if attr != 'organization':
+                self.assertEqual(getattr(ctx.obj.project, attr), expected)
+
+        self.assertEqual(ctx.obj.org.get('name'), values['organization'].get('name'))
+        self.assertEqual(ctx.obj.org.get('slug'), values['organization'].get('slug'))
 
         mock_save_project_info.assert_called_once_with(
             project=ctx.obj.project,

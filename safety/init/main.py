@@ -140,7 +140,7 @@ def verify_project(
 
         verified_prj = print_wait_project_verification(
             console,
-            unverified_slug,
+            unverified_slug,  # type: ignore
             (session.project, {"project_id": unverified_slug}),
             on_error_delay=1,
         )
@@ -156,6 +156,7 @@ def verify_project(
                 verified_prj.get("name", None),
                 unverified_project.project_path,
                 verified_prj.get("url", None),
+                verified_prj.get("organization", None),
             )
         else:
             verified_prj = False
@@ -192,6 +193,7 @@ def save_verified_project(
     name: Optional[str],
     project_path: Path,
     url_path: Optional[str],
+    organization: Optional[dict],
 ):
     """
     Save the verified project information to the context and project info file.
@@ -202,12 +204,20 @@ def save_verified_project(
         name (Optional[str]): The project name.
         project_path (Path): The project path.
         url_path (Optional[str]): The project URL path.
+        organization (Optional[str]): The project organization.
     """
     ctx.obj.project = ProjectModel(
         id=slug, name=name, project_path=project_path, url_path=url_path
     )
 
     save_project_info(project=ctx.obj.project, project_path=project_path)
+
+    ctx.obj.org = {}
+    if organization:
+        ctx.obj.org = {
+            "name": organization.get("name"),
+            "slug": organization.get("slug"),
+        }
 
 
 def save_project_info(project: ProjectModel, project_path: Path) -> bool:

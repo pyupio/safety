@@ -59,9 +59,9 @@ jobs:
         id: check-files
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.py$')
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.py$' || true)
           else
-            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT HEAD^ HEAD | grep '\.py$')
+            CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT HEAD^ HEAD | grep '\.py$' || true)
           fi
           
           if [ -n "$CHANGED_FILES" ]; then

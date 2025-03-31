@@ -6,6 +6,14 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.4.0b0 (2025-03-31)
+
+### Feat
+
+- Generating organization slug
+- configuring the repository URL using project id (#693)
+- add security events for firewall users (#694)
+
 ## 3.3.1 (2025-02-24)
 
 ## 3.3.1b0 (2025-02-21)

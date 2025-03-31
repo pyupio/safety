@@ -89,8 +89,9 @@ jobs:
       - name: Run style and typing checks
         if: steps.check-files.outputs.should_check == 'true'
         run: |
-          echo "Running checks on files: ${{ steps.check-files.outputs.files }}"
-          hatch run lint:all ${{ steps.check-files.outputs.files }}
+          FILES=$(echo "${{ steps.check-files.outputs.files }}" | tr '\n' ' ')
+          echo "Running checks on files: ${FILES}"
+          hatch run lint:all ${FILES}
 
   matrix:
     if: ${{ always() }}

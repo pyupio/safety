@@ -65,7 +65,9 @@ jobs:
           fi
           
           if [ -n "$CHANGED_FILES" ]; then
-            echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+            echo "files<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
             echo "should_check=true" >> $GITHUB_OUTPUT
           else
             echo "No Python files to check"

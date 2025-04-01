@@ -6,6 +6,12 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.4.0b1 (2025-04-01)
+
+### Fix
+
+- prevent AttributeError on event bus start when only API Key is used (#700)
+
 ## 3.4.0b0 (2025-03-31)
 
 ### Feat

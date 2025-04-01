@@ -110,11 +110,19 @@ class Pip:
 
     @classmethod
     def index_credentials(cls, ctx: typer.Context):
+        api_key = None
+        token = None
+
+        if auth := getattr(ctx.obj, "auth", None):
+            client = auth.client
+            token = client.token.get("access_token") if client.token else None
+            api_key = client.api_key
+
         auth_envelop = json.dumps(
             {
                 "version": "1.0",
-                "access_token": ctx.obj.auth.client.token["access_token"],
-                "api_key": ctx.obj.auth.client.api_key,
+                "access_token": token,
+                "api_key": api_key,
                 "project_id": ctx.obj.project.id if ctx.obj.project else None,
             }
         )

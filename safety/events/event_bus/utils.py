@@ -31,10 +31,12 @@ def start_event_bus(obj: "SafetyCLI", session: "SafetyAuthSession"):
     event_bus.start()
     obj.event_bus = event_bus
 
+    token = session.token.get("access_token") if session.token else None
+
     obj.security_events_handler = SecurityEventsHandler(
         api_endpoint=PLATFORM_API_EVENTS_ENDPOINT,
         proxies=session.proxies,  # type: ignore
-        auth_token=session.token.get("access_token"),
+        auth_token=token,
         api_key=session.api_key,
     )
 

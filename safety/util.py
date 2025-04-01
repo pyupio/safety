@@ -83,7 +83,7 @@ def is_supported_by_parser(path: str) -> bool:
     return path.endswith(supported_types)
 
 
-def parse_requirement(dep: Any, found: str) -> SafetyRequirement:
+def parse_requirement(dep: Any, found: Optional[str]) -> SafetyRequirement:
     """
     Parse a requirement.
 
@@ -126,7 +126,7 @@ def find_version(requirements: List[SafetyRequirement]) -> Optional[str]:
     return ver
 
 
-def read_requirements(fh: Any, resolve: bool = True) -> Generator[Package, None, None]:
+def read_requirements(fh: Any, resolve: bool = True) -> Generator[Package, None, None]:  # type: ignore
     """
     Reads requirements from a file-like object and (optionally) from referenced files.
 
@@ -429,7 +429,7 @@ def build_git_data() -> Dict[str, Any]:
             commit = git_command(
                 ["git", "describe", '--match=""', "--always", "--abbrev=40", "--dirty"]
             )
-            result["dirty"] = commit.endswith("-dirty")
+            result["dirty"] = str(commit.endswith("-dirty"))
             result["commit"] = commit.split("-dirty")[0]
 
             result["origin"] = git_command(["git", "remote", "get-url", "origin"])
@@ -443,7 +443,7 @@ def build_git_data() -> Dict[str, Any]:
 
 def build_remediation_info_url(
     base_url: str, version: Optional[str], spec: str, target_version: Optional[str] = ""
-) -> str:
+) -> Optional[str]:
     """
     Build the remediation info URL.
 
@@ -531,7 +531,9 @@ def get_processed_options(
     )
 
 
-def get_fix_options(policy_file: Dict[str, Any], auto_remediation_limit: int) -> int:
+def get_fix_options(
+    policy_file: Dict[str, Any], auto_remediation_limit: int
+) -> Union[int, List[str]]:
     """
     Get fix options from the policy file.
 
@@ -581,7 +583,7 @@ class MutuallyExclusiveOption(click.Option):
             )
         super(MutuallyExclusiveOption, self).__init__(*args, **kwargs)
 
-    def handle_parse_result(
+    def handle_parse_result(  # type: ignore
         self, ctx: click.Context, opts: Dict[str, Any], args: List[str]
     ) -> Tuple[Any, List[str]]:
         """
@@ -638,7 +640,7 @@ class DependentOption(click.Option):
             kwargs["help"] = help + (f" Requires: [ {ex_str} ]")
         super(DependentOption, self).__init__(*args, **kwargs)
 
-    def handle_parse_result(
+    def handle_parse_result(  # type: ignore
         self, ctx: click.Context, opts: Dict[str, Any], args: List[str]
     ) -> Tuple[Any, List[str]]:
         """
@@ -814,7 +816,7 @@ def clean_project_id(input_string: str) -> str:
     return input_string
 
 
-def validate_expiration_date(expiration_date: str) -> Optional[datetime]:
+def validate_expiration_date(expiration_date: Optional[str]) -> Optional[datetime]:
     """
     Validate an expiration date string.
 
@@ -975,7 +977,7 @@ class SafetyPolicyFile(click.ParamType):
             )
 
             # Open the file stream
-            f, _ = click.types.open_stream(
+            f, _ = click.types.open_stream(  # type: ignore
                 value, self.mode, self.encoding, self.errors, atomic=False
             )
             filename = ""
@@ -1098,7 +1100,7 @@ class SafetyPolicyFile(click.ParamType):
                     context_msg = f'"security" -> "ignore-vulnerabilities" -> "{ignored_vuln_id}" -> '
 
                     self.fail_if_unrecognized_keys(
-                        ignored_vuln_config.keys(),
+                        ignored_vuln_config.keys(),  # type: ignore
                         ["reason", "expires"],
                         param=param,
                         ctx=ctx,
@@ -1265,7 +1267,8 @@ def sync_safety_context(f):
         legacy_key_added = False
         if "session" in kwargs:
             legacy_key_added = True
-            kwargs["key"] = kwargs.get("session").api_key
+            session = kwargs.get("session")
+            kwargs["key"] = session.api_key if session else None
 
         for attr in dir(ctx):
             if attr in kwargs:
@@ -1346,7 +1349,7 @@ def get_packages_licenses(
     return filtered_packages_licenses
 
 
-def get_requirements_content(files: List[click.File]) -> Dict[str, str]:
+def get_requirements_content(files: List[Any]) -> Dict[str, str]:
     """
     Get the content of the requirements files.
 
@@ -1416,7 +1419,8 @@ def get_hashes(dependency: Any) -> List[Dict[str, str]]:
     return [
         {"method": method, "hash": hsh}
         for method, hsh in (
-            pattern.match(d_hash).groups() for d_hash in dependency.hashes
+            pattern.match(d_hash).groups()  # type: ignore
+            for d_hash in dependency.hashes
         )
     ]
 
@@ -1490,7 +1494,7 @@ def initialize_event_bus(ctx: Union["CustomContext", "typer.Context"]) -> bool:
 
         if obj and obj.events_enabled and (auth := getattr(obj, "auth", None)):
             client: "SafetyAuthSession" = auth.client
-            token = client.token.get("access_token")
+            token = client.token.get("access_token") if client.token else None
 
             # Start the event bus if the user has set up authn
             if client and bool(token or client.api_key):

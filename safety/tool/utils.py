@@ -55,15 +55,12 @@ class BuildFileConfigurator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def configure(
-        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
-    ) -> None:
+    def configure(self, file: Path, org_slug: Optional[str]) -> None:
         """
         Configures specific file.
         Args:
             file (str): The file to configure.
             org_slug (str): The organization slug.
-            project_id (str): The project id.
         """
         pass
 
@@ -74,10 +71,8 @@ class PipRequirementsConfigurator(BuildFileConfigurator):
     def is_supported(self, file: Path) -> bool:
         return self.__file_name_pattern.match(os.path.basename(file)) is not None
 
-    def configure(
-        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
-    ) -> None:
-        Pip.configure_requirements(file, org_slug, project_id)  # type: ignore
+    def configure(self, file: Path, org_slug: Optional[str]) -> None:
+        Pip.configure_requirements(file, org_slug)  # type: ignore
 
 
 class PoetryPyprojectConfigurator(BuildFileConfigurator):
@@ -88,10 +83,8 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
             os.path.basename(file)
         ) is not None and Poetry.is_poetry_project_file(file)
 
-    def configure(
-        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
-    ) -> None:
-        Poetry.configure_pyproject(file, org_slug, project_id)  # type: ignore
+    def configure(self, file: Path, org_slug: Optional[str]) -> None:
+        Poetry.configure_pyproject(file, org_slug)  # type: ignore
 
 
 # TODO: Review if we should move this/hook up this into interceptors.

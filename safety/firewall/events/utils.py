@@ -23,6 +23,9 @@ def register_event_handlers(event_bus: "EventBus", obj: "SafetyCLI") -> None:
                 EventType.FIREWALL_CONFIGURED,
                 EventType.FIREWALL_HEARTBEAT,
                 EventType.FIREWALL_DISABLED,
+                EventType.PACKAGE_INSTALLED,
+                EventType.PACKAGE_UNINSTALLED,
+                EventType.PACKAGE_UPDATED,
             ],
             sec_events_handler,
         )

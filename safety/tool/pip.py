@@ -2,10 +2,9 @@ import base64
 import json
 import shutil
 import subprocess
-import urllib
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlsplit, urlunsplit, urlencode
+from urllib.parse import urlsplit, urlunsplit
 
 import typer
 from rich.console import Console
@@ -32,7 +31,6 @@ class Pip:
         cls,
         file: Path,
         org_slug: Optional[str],
-        project_id: str,
         console: Console = main_console,
     ) -> None:
         """
@@ -41,7 +39,6 @@ class Pip:
         Args:
             file (Path): Path to requirements.txt file.
             org_slug (str): Organization slug.
-            project_id (str): Project id.
             console (Console): Console instance.
         """
 
@@ -52,11 +49,6 @@ class Pip:
                 ORGANIZATION_REPOSITORY_URL.format(org_slug)
                 if org_slug
                 else PUBLIC_REPOSITORY_URL
-            )
-            repository_url = (
-                repository_url
-                + "?"
-                + urllib.parse.urlencode({"project-id": project_id})  # type: ignore
             )
             index_config = f"-i {repository_url}\n"
             if content.find(index_config) == -1:
@@ -135,11 +127,7 @@ class Pip:
     @classmethod
     def build_index_url(cls, ctx: typer.Context, index_url: Optional[str]) -> str:
         if index_url is None:
-            index_url = (
-                PUBLIC_REPOSITORY_URL
-                + "?"
-                + urlencode({"project-id": ctx.obj.project.id})
-            )
+            index_url = PUBLIC_REPOSITORY_URL
 
         url = urlsplit(index_url)
 

@@ -133,7 +133,6 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
             configure_local_directory(
                 project_dir,  # type: ignore
                 ctx.obj.org.get("slug"),
-                ctx.obj.project.id,
             )
 
         if prompt_user:

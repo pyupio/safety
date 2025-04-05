@@ -1,5 +1,7 @@
 import base64
 import json
+import logging
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -13,6 +15,9 @@ from safety.tool.constants import PUBLIC_REPOSITORY_URL, ORGANIZATION_REPOSITORY
 from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
+
+
+logger = logging.getLogger(__name__)
 
 
 class Pip:
@@ -57,10 +62,10 @@ class Pip:
 
                 console.print(f"Configured {file} file")
             else:
-                console.print(f"{file} is already configured. Skipping.")
+                logger.info(f"{file} is already configured. Skipping.")
 
     @classmethod
-    def configure_system(cls, org_slug: Optional[str], console: Console = main_console):
+    def configure_system(cls, org_slug: Optional[str], console: Console = main_console) -> Optional[Path]:
         """
         Configures PIP system to use to Safety index url.
         """
@@ -70,7 +75,7 @@ class Pip:
                 if org_slug
                 else PUBLIC_REPOSITORY_URL
             )
-            subprocess.run(
+            result = subprocess.run(
                 [
                     get_unwrapped_command(name="pip"),
                     "config",
@@ -80,9 +85,20 @@ class Pip:
                 ],
                 capture_output=True,
             )
-            console.print("Configured PIP global settings")
+
+            output = result.stdout.decode('utf-8')
+            match = re.search(r'Writing to (.+)', output)
+
+            if match:
+                config_file_path = match.group(1)
+                return Path(config_file_path)
+
+            logger.error("Failed to match the config file path written by pip.")
+            return Path()
         except Exception:
-            console.print("Failed to configure PIP global settings.")
+            logger.exception("Failed to configure PIP global settings.")
+        
+        return None
 
     @classmethod
     def reset_system(cls, console: Console = main_console):

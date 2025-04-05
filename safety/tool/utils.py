@@ -90,7 +90,7 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
 # TODO: Review if we should move this/hook up this into interceptors.
 class ToolConfigurator(abc.ABC):
     @abc.abstractmethod
-    def configure(self, org_slug: Optional[str]) -> None:
+    def configure(self, org_slug: Optional[str]) -> Any:
         """
         Configures specific tool.
         Args:
@@ -107,8 +107,8 @@ class ToolConfigurator(abc.ABC):
 
 
 class PipConfigurator(ToolConfigurator):
-    def configure(self, org_slug: Optional[str]) -> None:
-        Pip.configure_system(org_slug)
+    def configure(self, org_slug: Optional[str]) -> Optional[Path]:
+        return Pip.configure_system(org_slug)
 
     def reset(self) -> None:
         Pip.reset_system()

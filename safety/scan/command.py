@@ -393,14 +393,14 @@ def validate_save_as(ctx: typer.Context, save_as: Optional[Tuple[ScanExport, Pat
         ctx.params["save_as"] = None
 
 
-def initialize_file_finder(ctx: typer.Context, target: Path, console: Console, ecosystems: List[Ecosystem]) -> FileFinder:
+def initialize_file_finder(ctx: typer.Context, target: Path, console: Optional[Console], ecosystems: List[Ecosystem]) -> FileFinder:
     """
     Initializes the FileFinder for scanning files in the target directory.
 
     Args:
         ctx (typer.Context): The Typer context object.
         target (Path): The target directory to scan.
-        console (Console): The console object for logging.
+        console (Optional[Console]): The console object for logging.
         ecosystems (List[Ecosystem]): The list of scannable ecosystems.
 
     Returns:
@@ -418,19 +418,21 @@ def initialize_file_finder(ctx: typer.Context, target: Path, console: Console, e
         max_level=ctx.obj.config.scan.max_depth,
         exclude=ctx.obj.config.scan.ignore,
         include_files=to_include,
-        console=console,
     )
 
     # Download necessary assets for each handler
     for handler in file_finder.handlers:
         if handler.ecosystem:
-            with console.status(WAIT_MSG_FETCHING_DB, spinner=DEFAULT_SPINNER):
+            if console:
+                with console.status(WAIT_MSG_FETCHING_DB, spinner=DEFAULT_SPINNER):
+                    handler.download_required_assets(ctx.obj.auth.client)
+            else:
                 handler.download_required_assets(ctx.obj.auth.client)
 
     return file_finder
 
 
-def scan_project_directory(file_finder: FileFinder, console: Console) -> Tuple[Path, Dict]:
+def scan_project_directory(file_finder: FileFinder, console: Optional[Console]) -> Tuple[Path, Dict]:
     """
     Scans the project directory and identifies relevant files for analysis.
 
@@ -441,9 +443,13 @@ def scan_project_directory(file_finder: FileFinder, console: Console) -> Tuple[P
     Returns:
         Tuple[Path, Dict]: The base path of the project and a dictionary of file paths grouped by type.
     """
-    with console.status(WAIT_MSG_SCANNING_DIRECTORY, spinner=DEFAULT_SPINNER):
+    if console:
+        with console.status(WAIT_MSG_SCANNING_DIRECTORY, spinner=DEFAULT_SPINNER):
+            path, file_paths = file_finder.search()
+            print_detected_ecosystems_section(console, file_paths, include_safety_prjs=True)
+    else:
         path, file_paths = file_finder.search()
-        print_detected_ecosystems_section(console, file_paths, include_safety_prjs=True)
+
     return path, file_paths
 
 

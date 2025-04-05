@@ -381,8 +381,7 @@ def prompt_project_id(
         
         return default_prj_id
 
-    hint = f" If empty Safety will use [bold]{default_prj_id}[/bold]"
-    prompt_text = f"Set a project id (no spaces).{hint}"
+    prompt_text = f"\nEnter a name for this codebase (or press [bold]Enter[/bold] to use '\[{default_prj_id}]')"
 
     while True:
         result = Prompt.ask(
@@ -408,13 +407,14 @@ def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -
     Returns:
         bool: True if the user wants to link the scan, False otherwise.
     """
-    console.print("[bold]Safety found an existing project with this name in your organization:[/bold]")
+    console.print("[bold]Safety found an existing codebase with this name in your organization:[/bold]")
 
-    for detail in (f"[bold]Project name:[/bold] {prj_name}",
-                   f"[bold]Project admin:[/bold] {prj_admin_email}"):
+    for detail in (f"[bold]Codebase name:[/bold] {prj_name}",
+                   f"[bold]Codebase admin:[/bold] {prj_admin_email}"):
         console.print(Padding(detail, (0, 0, 0, 2)), emoji=True)
 
-    prompt_question = "Do you want to link it with this existing project?"
+    console.print()
+    prompt_question = "Do you want to link it with this existing codebase?"
 
     answer = Prompt.ask(prompt=prompt_question, choices=["y", "n"],
                         default="y", show_default=True, console=console).lower()

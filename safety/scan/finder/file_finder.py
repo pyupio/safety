@@ -52,7 +52,6 @@ class FileFinder():
         max_level: int,
         ecosystems: List[Ecosystem],
         target: Path,
-        console,
         live_status=None,
         exclude: Optional[List[str]] = None,
         include_files: Optional[Dict[FileType, List[Path]]] = None,
@@ -94,7 +93,6 @@ class FileFinder():
                 else:
                     self.exclude_files.add(path)
 
-        self.console = console
         self.live_status = live_status
 
     def process_directory(self, dir_path: str, max_deep: Optional[int] = None) -> Tuple[str, Dict[str, Set[Path]]]:

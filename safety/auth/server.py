@@ -263,6 +263,7 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
                                 client=ctx.obj.auth.client)
         else:
             # Wait for the browser authentication in non-headless mode
+            console.print()
             wait_msg = "waiting for browser authentication"
             with console.status(wait_msg, spinner="bouncingBar"):
                 time.sleep(2)

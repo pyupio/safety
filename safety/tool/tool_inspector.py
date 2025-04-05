@@ -206,6 +206,7 @@ class ToolInspector:
         """
         Check if a tool at a specific path is reachable and get its version.
         """
+        proc = None
         try:
             version_arg = self.VERSION_ARGS[tool_type]
             proc = await asyncio.create_subprocess_exec(
@@ -219,7 +220,13 @@ class ToolInspector:
                 stdout, stderr = await asyncio.wait_for(
                     proc.communicate(), timeout=self.timeout
                 )
+
+                # Get data we need
                 output = stdout.decode() + stderr.decode()
+                returncode = proc.returncode
+
+                # Clear references to help garbage collection
+                proc = None
 
                 # Extract version
                 version_match = re.search(self.VERSION_REGEX[tool_type], output)
@@ -232,12 +239,15 @@ class ToolInspector:
                     type=tool_type,
                     command_path=path,
                     version=version,
-                    reachable=proc.returncode == 0,
+                    reachable=returncode == 0,
                     alias_config=None,
                     index_config=None,
                 )
             except (asyncio.TimeoutError, TimeoutError):
-                self._kill_process(proc)
+                if proc:
+                    self._kill_process(proc)
+                    # Clear references to help garbage collection
+                    proc = None
 
                 # Command timed out
                 return ToolStatus(
@@ -248,6 +258,11 @@ class ToolInspector:
                 )
         except Exception:
             # Any other error means the tool is not reachable
+            if proc:
+                self._kill_process(proc)
+                # Clear reference to help garbage collection
+                proc = None
+
             return ToolStatus(
                 type=tool_type, command_path=path, version="unknown", reachable=False
             )

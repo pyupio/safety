@@ -112,6 +112,8 @@ except ImportError:
     from typing_extensions import Annotated, Optional
 
 
+import safety.asyncio_patch  # noqa: F401
+
 LOG = logging.getLogger(__name__)
 
 

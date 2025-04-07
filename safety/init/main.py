@@ -11,7 +11,7 @@ from safety_schemas.models import ProjectModel, Stage
 from safety.scan.util import GIT
 from ..auth.utils import SafetyAuthSession
 
-from typing import Optional
+from typing import Optional, Tuple
 from safety.scan.render import (
     print_wait_project_verification,
     prompt_project_id,
@@ -94,7 +94,7 @@ def verify_project(
     unverified_project: UnverifiedProjectModel,
     stage: Stage,
     git_origin: Optional[str],
-):
+) -> Tuple[bool, Optional[str]]:
     """
     Verify the project, linking it if necessary and saving the verified project information.
 
@@ -110,6 +110,7 @@ def verify_project(
     verified_prj = False
 
     link_prj = True
+    project_status = (True, "created")
 
     while not verified_prj:
         result = check_project(
@@ -135,8 +136,13 @@ def verify_project(
                     prj_name=prj_name, prj_admin_email=prj_admin_email, console=console
                 )
 
+                if link_prj:
+                    project_status = (True, "linked")
+
                 if not link_prj:
                     continue
+        else:
+            project_status = (True, "linked")
 
         verified_prj = print_wait_project_verification(
             console,
@@ -160,6 +166,9 @@ def verify_project(
             )
         else:
             verified_prj = False
+            project_status = (False, None)
+
+    return project_status
 
 
 def load_unverified_project_from_config(project_root: Path) -> UnverifiedProjectModel:
@@ -255,7 +264,9 @@ def save_project_info(project: ProjectModel, project_path: Path) -> bool:
     return True
 
 
-def create_project(ctx: typer.Context, console: Console, target: Path):
+def create_project(
+    ctx: typer.Context, console: Console, target: Path
+) -> Tuple[bool, Optional[str]]:
     """
     Loads existing project from the specified target locations or creates a new project.
 
@@ -277,6 +288,11 @@ def create_project(ctx: typer.Context, console: Console, target: Path):
         origin = git_data.origin
 
     if ctx.obj.platform_enabled:
-        verify_project(console, ctx, session, unverified_project, stage, origin)
+        result = verify_project(
+            console, ctx, session, unverified_project, stage, origin
+        )
+        ctx.obj.project.git = git_data
+        return result
     else:
         console.print("Project creation is not supported for your account.")
+        return (False, None)

@@ -1,8 +1,8 @@
+from typing import List
 import os.path
 from pathlib import Path
 from typing import Optional
 
-from safety.console import main_console as console
 from safety.tool.utils import (
     PipConfigurator,
     PipRequirementsConfigurator,
@@ -12,25 +12,34 @@ from safety.tool.utils import (
 
 from .interceptors import create_interceptor
 
+import logging
 
-def has_local_tool_files(directory: Path) -> bool:
+logger = logging.getLogger(__name__)
+
+
+def find_local_tool_files(directory: Path) -> List[Path]:
     configurators = [PipRequirementsConfigurator(), PoetryPyprojectConfigurator()]
+
+    results = []
 
     for file_name in os.listdir(directory):
         if os.path.isfile(file_name):
             file = Path(file_name)
             for configurator in configurators:
                 if configurator.is_supported(file):
-                    return True
+                    results.append(file)
 
-    return False
+    return results
 
 
-def configure_system(org_slug: Optional[str]):
+def configure_system(org_slug: Optional[str]) -> List[Optional[Path]]:
     configurators = [PipConfigurator()]
 
+    results = []
     for configurator in configurators:
-        configurator.configure(org_slug)
+        result = configurator.configure(org_slug)
+        results.append(result)
+    return results
 
 
 def reset_system():
@@ -40,14 +49,18 @@ def reset_system():
         configurator.reset()
 
 
-def configure_alias():
+def configure_alias() -> Optional[List[Optional[Path]]]:
     if not is_os_supported():
-        return
+        logger.warning("OS not supported for alias configuration.")
+        return None
 
     interceptor = create_interceptor()
-    interceptor.install_interceptors()
+    result = interceptor.install_interceptors()
 
-    console.print("Configured PIP alias")
+    if result:
+        return [Path("~/.safety-profile")]
+
+    return [None]
 
 
 def configure_local_directory(directory: Path, org_slug: Optional[str]):

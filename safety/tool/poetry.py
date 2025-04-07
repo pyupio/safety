@@ -1,3 +1,4 @@
+import logging
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,6 +16,8 @@ if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
+
+logger = logging.getLogger(__name__)
 
 
 class Poetry:
@@ -72,4 +75,4 @@ class Poetry:
             ],
             capture_output=True,
         )
-        console.print(f"Configured {file} file")
+        logger.info(f"Configured {file} file")

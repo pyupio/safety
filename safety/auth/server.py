@@ -1,3 +1,4 @@
+# type: ignore
 import http.server
 import json
 import logging
@@ -9,12 +10,16 @@ from typing import Any, Optional, Dict, Tuple
 import urllib.parse
 import threading
 import click
-from safety.auth.cli_utils import load_auth_session
 
 from safety.auth.utils import is_jupyter_notebook
 from safety.console import main_console as console
 
-from safety.auth.constants import AUTH_SERVER_URL, CLI_AUTH_SUCCESS, CLI_LOGOUT_SUCCESS, HOST
+from safety.auth.constants import (
+    AUTH_SERVER_URL,
+    CLI_AUTH_SUCCESS,
+    CLI_LOGOUT_SUCCESS,
+    HOST,
+)
 from safety.auth.main import save_auth_config
 from rich.prompt import Prompt
 
@@ -35,15 +40,18 @@ def find_available_port() -> Optional[int]:
     for port in port_range:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
-                result = s.connect(('localhost', port))
+                s.connect(("localhost", port))
                 # If the connect succeeds, the port is already in use
-            except socket.error as e:
+            except socket.error:
                 # If the connect fails, the port is available
                 return port
 
     return None
 
-def auth_process(code: str, state: str, initial_state: str, code_verifier: str, client: Any) -> Any:
+
+def auth_process(
+    code: str, state: str, initial_state: str, code_verifier: str, client: Any
+) -> Any:
     """
     Process the authentication callback and exchange the authorization code for tokens.
 
@@ -63,32 +71,40 @@ def auth_process(code: str, state: str, initial_state: str, code_verifier: str, 
     err = None
 
     if initial_state is None or initial_state != state:
-        err = "The state parameter value provided does not match the expected " \
-                "value. The state parameter is used to protect against Cross-Site " \
-                "Request Forgery (CSRF) attacks. For security reasons, the " \
-                "authorization process cannot proceed with an invalid state " \
-                "parameter value. Please try again, ensuring that the state " \
-                "parameter value provided in the authorization request matches " \
-                "the value returned in the callback."
+        err = (
+            "The state parameter value provided does not match the expected "
+            "value. The state parameter is used to protect against Cross-Site "
+            "Request Forgery (CSRF) attacks. For security reasons, the "
+            "authorization process cannot proceed with an invalid state "
+            "parameter value. Please try again, ensuring that the state "
+            "parameter value provided in the authorization request matches "
+            "the value returned in the callback."
+        )
 
     if err:
-        click.secho(f'Error: {err}', fg='red')
+        click.secho(f"Error: {err}", fg="red")
         sys.exit(1)
 
     try:
-        tokens = client.fetch_token(url=f'{AUTH_SERVER_URL}/oauth/token',
-                                        code_verifier=code_verifier,
-                                        client_id=client.client_id,
-                                        grant_type='authorization_code', code=code)
+        tokens = client.fetch_token(
+            url=f"{AUTH_SERVER_URL}/oauth/token",
+            code_verifier=code_verifier,
+            client_id=client.client_id,
+            grant_type="authorization_code",
+            code=code,
+        )
 
-        save_auth_config(access_token=tokens['access_token'],
-                            id_token=tokens['id_token'],
-                            refresh_token=tokens['refresh_token'])
+        save_auth_config(
+            access_token=tokens["access_token"],
+            id_token=tokens["id_token"],
+            refresh_token=tokens["refresh_token"],
+        )
         return client.fetch_user_info()
 
     except Exception as e:
         LOG.exception(e)
         sys.exit(1)
+
 
 class CallbackHandler(http.server.BaseHTTPRequestHandler):
     def auth(self, code: str, state: str, err: str, error_description: str) -> None:
@@ -104,11 +120,13 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
         initial_state = self.server.initial_state
         ctx = self.server.ctx
 
-        result = auth_process(code=code,
-                              state=state,
-                              initial_state=initial_state,
-                              code_verifier=ctx.obj.auth.code_verifier,
-                              client=ctx.obj.auth.client)
+        result = auth_process(
+            code=code,
+            state=state,
+            initial_state=initial_state,
+            code_verifier=ctx.obj.auth.code_verifier,
+            client=ctx.obj.auth.client,
+        )
 
         self.server.callback = result
         self.do_redirect(location=CLI_AUTH_SUCCESS, params={})
@@ -134,8 +152,12 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
         callback_type: Optional[str] = None
 
         try:
-            c_type = params.get('type', [])
-            if isinstance(c_type, list) and len(c_type) == 1 and isinstance(c_type[0], str):
+            c_type = params.get("type", [])
+            if (
+                isinstance(c_type, list)
+                and len(c_type) == 1
+                and isinstance(c_type[0], str)
+            ):
                 callback_type = c_type[0]
         except Exception:
             msg = "Unable to process the callback, try again."
@@ -143,14 +165,14 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
             click.secho("Unable to process the callback, try again.")
             return
 
-        if callback_type == 'logout':
+        if callback_type == "logout":
             self.logout()
             return
 
-        code = params.get('code', [''])[0]
-        state = params.get('state', [''])[0]
-        err = params.get('error', [''])[0]
-        error_description = params.get('error_description', [''])[0]
+        code = params.get("code", [""])[0]
+        state = params.get("state", [""])[0]
+        err = params.get("error", [""])[0]
+        error_description = params.get("error_description", [""])[0]
 
         self.auth(code=code, state=state, err=err, error_description=error_description)
 
@@ -163,9 +185,9 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
             params (dict): Additional parameters for the redirection.
         """
         self.send_response(302)
-        self.send_header('Location', location)
-        self.send_header('Connection', 'close')
-        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+        self.send_header("Location", location)
+        self.send_header("Connection", "close")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
         self.end_headers()
 
     def log_message(self, format: str, *args: Any) -> None:
@@ -235,7 +257,7 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
             server.ctx = ctx
             server_thread = threading.Thread(target=server.handle_request)
             server_thread.start()
-            message = f"If the browser does not automatically open in 5 seconds, copy and paste this url into your browser:"
+            message = "If the browser does not automatically open in 5 seconds, copy and paste this url into your browser:"
 
         target = uri if headless else f"{uri}&port={PORT}"
 
@@ -243,12 +265,14 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
             console.print(f"{message} {target}")
         else:
             console.print(f"{message} [link={target}]{target}[/link]")
-        
+
         if headless:
             # Handle the headless mode where user manually provides the response
             exchange_data = None
             while not exchange_data:
-                auth_code_text = Prompt.ask("Paste the response here", default=None, console=console)
+                auth_code_text = Prompt.ask(
+                    "Paste the response here", default=None, console=console
+                )
                 try:
                     exchange_data = json.loads(auth_code_text)
                     state = exchange_data["state"]
@@ -256,13 +280,16 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
                 except Exception:
                     code = state = None
 
-            return auth_process(code=code,
-                                state=state,
-                                initial_state=initial_state,
-                                code_verifier=ctx.obj.auth.code_verifier,
-                                client=ctx.obj.auth.client)
+            return auth_process(
+                code=code,
+                state=state,
+                initial_state=initial_state,
+                code_verifier=ctx.obj.auth.code_verifier,
+                client=ctx.obj.auth.client,
+            )
         else:
             # Wait for the browser authentication in non-headless mode
+            console.print()
             wait_msg = "waiting for browser authentication"
             with console.status(wait_msg, spinner="bouncingBar"):
                 time.sleep(2)

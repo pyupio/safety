@@ -140,8 +140,8 @@ class UnixAliasInterceptor(CommandInterceptor):
 
             return True
 
-        except Exception as e:
-            print(f"Failed to batch install aliases: {e}")
+        except Exception:
+            LOG.exception("Failed to batch install aliases")
             return False
 
     def _batch_remove_tools(self, tools: List[Tool]) -> bool:

@@ -1,3 +1,4 @@
+# type: ignore
 import logging
 import sys
 from datetime import datetime
@@ -128,7 +129,7 @@ def render_successful_login(auth: Auth, organization: Optional[str] = None) -> N
     name = auth.name if auth.name else DEFAULT
     email = auth.email if auth.email else DEFAULT
     email_note = render_email_note(auth)
-
+    console.print()
     console.print("[bold][green]You're authenticated[/green][/bold]")
     if name and name != email:
         details = [f"[green][bold]Account:[/bold] {name}, {email}[/green] {email_note}"]
@@ -215,10 +216,11 @@ def login(
 
             console.print()
             if ctx.obj.auth.org or ctx.obj.auth.email_verified:
-                console.print(
-                    "[tip]Tip[/tip]: now try [bold]`safety scan`[/bold] in your project’s root "
-                    "folder to run a project scan or [bold]`safety -–help`[/bold] to learn more."
-                )
+                if not getattr(ctx.obj, "only_auth_msg", False):
+                    console.print(
+                        "[tip]Tip[/tip]: now try [bold]`safety scan`[/bold] in your project’s root "
+                        "folder to run a project scan or [bold]`safety -–help`[/bold] to learn more."
+                    )
             else:
                 console.print(
                     MSG_FINISH_REGISTRATION_TPL.format(email=ctx.obj.auth.email)
@@ -372,12 +374,13 @@ def register(ctx: typer.Context) -> None:
     )
 
     console.print(
-        "Redirecting your browser to register for a free account. Once registered, return here to start using Safety."
+        "\nRedirecting your browser to register for a free account. Once registered, return here to start using Safety."
     )
     console.print()
 
     # Process the browser callback to complete the registration
     info = process_browser_callback(uri, initial_state=initial_state, ctx=ctx)
+    console.print()
 
     if info:
         console.print(f"[green]Successfully registered {info.get('email')}[/green]")

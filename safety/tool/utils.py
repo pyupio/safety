@@ -55,7 +55,7 @@ class BuildFileConfigurator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def configure(self, file: Path, org_slug: Optional[str]) -> None:
+    def configure(self, file: Path, org_slug: Optional[str]) -> Optional[Path]:
         """
         Configures specific file.
         Args:
@@ -83,8 +83,10 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
             os.path.basename(file)
         ) is not None and Poetry.is_poetry_project_file(file)
 
-    def configure(self, file: Path, org_slug: Optional[str]) -> None:
-        Poetry.configure_pyproject(file, org_slug)  # type: ignore
+    def configure(self, file: Path, org_slug: Optional[str]) -> Optional[Path]:
+        if self.is_supported(file):
+            return Poetry.configure_pyproject(file, org_slug)  # type: ignore
+        return None
 
 
 # TODO: Review if we should move this/hook up this into interceptors.
@@ -348,15 +350,8 @@ class PipInstallCommand(PipCommand):
 
     def env(self, ctx: typer.Context) -> dict:
         env = super().env(ctx)
-        env["PIP_INDEX_URL"] = (
-            Pip.build_index_url(ctx, self.__index_url)
-            if not self.__is_check_disabled()
-            else Pip.default_index_url()
-        )
+        env["PIP_INDEX_URL"] = Pip.build_index_url(ctx, self.__index_url)
         return env
-
-    def __is_check_disabled(self):
-        return "--safety-disable-check" in self._args
 
     def __check_typosquatting(self, package_name):
         max_edit_distance = 2 if len(package_name) > 5 else 1

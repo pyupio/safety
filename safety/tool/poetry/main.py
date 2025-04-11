@@ -24,10 +24,10 @@ class Poetry:
     @classmethod
     def is_installed(cls) -> bool:
         """
-        Checks if the PIP program is installed
+        Checks if the Poetry program is installed
 
         Returns:
-            True if PIP is installed on system, or false otherwise
+            True if Poetry is installed on system, or false otherwise
         """
         return shutil.which("poetry") is not None
 
@@ -35,7 +35,10 @@ class Poetry:
     def is_poetry_project_file(cls, file: Path) -> bool:
         try:
             cfg = tomllib.loads(file.read_text())
-            return cfg.get("build-system", {}).get("requires") == "poetry-core"
+            return cfg.get("build-system", {}).get("requires") in [
+                ["poetry-core"],
+                "poetry-core",
+            ]
         except (IOError, ValueError):
             return False
 
@@ -44,14 +47,16 @@ class Poetry:
         cls,
         file: Path,
         org_slug: Optional[str],
-        project_id: str,
+        project_id: Optional[str] = None,
         console: Console = main_console,
-    ) -> None:
+    ) -> Optional[Path]:
         """
         Configures index url for specified requirements file.
 
         Args:
             file (Path): Path to requirements.txt file.
+            org_slug (Optional[str]): Organization slug.
+            project_id (Optional[str]): Project ID.
             console (Console): Console instance.
         """
         if not cls.is_installed():
@@ -62,10 +67,11 @@ class Poetry:
             if org_slug
             else PUBLIC_REPOSITORY_URL
         )
-        repository_url = repository_url + urllib.parse.urlencode(
-            {"project-id": project_id}
-        )
-        subprocess.run(
+        if project_id:
+            repository_url = repository_url + urllib.parse.urlencode(
+                {"project-id": project_id}
+            )
+        result = subprocess.run(
             [
                 get_unwrapped_command(name="poetry"),
                 "source",
@@ -75,4 +81,9 @@ class Poetry:
             ],
             capture_output=True,
         )
-        logger.info(f"Configured {file} file")
+
+        if result.returncode != 0:
+            logger.error(f"Failed to configure {file} file")
+            return None
+
+        return file

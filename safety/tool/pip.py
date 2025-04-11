@@ -37,7 +37,7 @@ class Pip:
         file: Path,
         org_slug: Optional[str],
         console: Console = main_console,
-    ) -> None:
+    ) -> Optional[Path]:
         """
         Configures Safety index url for specified requirements file.
 
@@ -61,8 +61,11 @@ class Pip:
                 f.write(index_config + content)
 
                 logger.info(f"Configured {file} file")
+                return file
             else:
                 logger.info(f"{file} is already configured. Skipping.")
+
+        return None
 
     @classmethod
     def configure_system(
@@ -98,7 +101,7 @@ class Pip:
             match = re.search(r"Writing to (.+)", output)
 
             if match:
-                config_file_path = match.group(1)
+                config_file_path = match.group(1).strip()
                 return Path(config_file_path)
 
             logger.error("Failed to match the config file path written by pip.")

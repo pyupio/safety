@@ -26,6 +26,7 @@ def register_event_handlers(event_bus: "EventBus", obj: "SafetyCLI") -> None:
                 EventType.PACKAGE_INSTALLED,
                 EventType.PACKAGE_UNINSTALLED,
                 EventType.PACKAGE_UPDATED,
+                EventType.TOOL_COMMAND_EXECUTED,
             ],
             sec_events_handler,
         )

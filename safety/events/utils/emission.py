@@ -10,6 +10,7 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Union,
 )
 import uuid
 
@@ -82,39 +83,48 @@ def emit_firewall_configured(
     event_bus: "EventBus",
     ctx: Optional["CustomContext"] = None,
     *,
-    alias_config: AliasConfig,
-    index_config: IndexConfig,
+    status: Dict[ToolType, Dict[str, Union[AliasConfig, IndexConfig]]],
 ):
-    PIP_TOOL = "pip"
-    command_path = shutil.which(PIP_TOOL)
-    reachable = False
-    version = "unknown"
+    tools = []
+    for tool_type, configs in status.items():
+        alias_config = (
+            configs["alias"] if isinstance(configs["alias"], AliasConfig) else None
+        )
+        index_config = (
+            configs["index"] if isinstance(configs["index"], IndexConfig) else None
+        )
 
-    if command_path:
-        args = [command_path, "--version"]
-        result = subprocess.run(args, capture_output=True, text=True)
+        tool = tool_type.value
+        command_path = shutil.which(tool)
+        reachable = False
+        version = "unknown"
 
-        if result.returncode == 0:
-            output = result.stdout
-            reachable = True
+        if command_path:
+            args = [command_path, "--version"]
+            result = subprocess.run(args, capture_output=True, text=True)
 
-            # Extract version
-            version_match = re.search(r"pip (\d+\.\d+(?:\.\d+)?)", output)
-            if version_match:
-                version = version_match.group(1)
-    else:
-        command_path = PIP_TOOL
+            if result.returncode == 0:
+                output = result.stdout
+                reachable = True
 
-    tool = ToolStatus(
-        type=ToolType.PIP,
-        command_path=command_path,
-        version=version,
-        reachable=reachable,
-        alias_config=alias_config,
-        index_config=index_config,
-    )
+                # Extract version
+                version_match = re.search(r"(\d+\.\d+(?:\.\d+)?)", output)
+                if version_match:
+                    version = version_match.group(1)
+        else:
+            command_path = tool
 
-    payload = FirewallConfiguredPayload(tools=[tool])
+        tool = ToolStatus(
+            type=tool_type,
+            command_path=command_path,
+            version=version,
+            reachable=reachable,
+            alias_config=alias_config,
+            index_config=index_config,
+        )
+        tools.append(tool)
+
+    payload = FirewallConfiguredPayload(tools=tools)
 
     event = create_event(payload=payload, event_type=EventType.FIREWALL_CONFIGURED)
 
@@ -218,22 +228,22 @@ def emit_tool_command_executed(
 def emit_command_executed(
     event_bus: "EventBus", ctx: "CustomContext", *, returned_code: int
 ) -> None:
-    params: List[CommandParam] = []
-
     root_context = get_root_context(ctx)
+    NA = ""
 
-    if root_context and hasattr(root_context, "started_at") and root_context.started_at:
-        duration_ms = int((time.monotonic() - root_context.started_at) * 1000)
+    started_at = getattr(root_context, "started_at", None) if root_context else None
+    if started_at is not None:
+        duration_ms = int((time.monotonic() - started_at) * 1000)
     else:
         duration_ms = 1
 
-    command_name = ctx.command.name
+    command_name = ctx.command.name if ctx.command.name is not None else NA
     raw_command = [clean_parameter("", arg) for arg in sys.argv]
 
     params: List[CommandParam] = []
 
     for idx, param in enumerate(ctx.command.params):
-        param_name = param.name
+        param_name = param.name if param.name is not None else NA
         param_value = ctx.params.get(param_name)
 
         # Scrub the parameter value if sensitive

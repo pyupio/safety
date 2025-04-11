@@ -40,6 +40,7 @@ class TestFirewallEventsUtils(unittest.TestCase):
                 EventType.PACKAGE_INSTALLED,
                 EventType.PACKAGE_UNINSTALLED,
                 EventType.PACKAGE_UPDATED,
+                EventType.TOOL_COMMAND_EXECUTED,
             ],
             self.safety_cli.security_events_handler,
         )

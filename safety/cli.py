@@ -52,6 +52,7 @@ from safety.meta import get_version
 from safety.output_utils import should_add_nl
 from safety.pip.command import pip_app
 from safety.uv.command import uv_app
+from safety.tool import tool_commands
 from safety.scan.command import scan_project_app, scan_system_app
 from safety.scan.constants import (
     CLI_CHECK_COMMAND_HELP,
@@ -1413,6 +1414,8 @@ cli.add_command(typer.main.get_command(scan_project_app), name="scan")
 cli.add_command(typer.main.get_command(scan_system_app), name="system-scan")
 cli.add_command(typer.main.get_command(pip_app), name="pip")
 cli.add_command(typer.main.get_command(uv_app), name="uv")
+
+tool_commands.auto_register_tools(group=cli)
 
 cli.add_command(typer.main.get_command(auth_app), name="auth")
 cli.add_command(typer.main.get_command(firewall_app), name="firewall")

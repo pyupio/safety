@@ -17,6 +17,8 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
+from safety.tool.utils import ToolType
+
 
 from .render import load_emoji, progressive_print, render_header, typed_print
 from safety.scan.init_scan import start_scan
@@ -256,7 +258,7 @@ def generate_status_updates(state: InitScanState, spinner_phase=0):
             "error": "❌",
         }
         status_key = state.status_action if state.status_action is not None else "init"
-        action_symbol.get(status_key, "ℹ️ ")
+        action_symbol = action_symbol.get(status_key, "ℹ️ ")
 
         text.append("\n")
         text.append(f"{action_symbol} Status: ", style="bold cyan")
@@ -541,9 +543,17 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
     """
     project_dir = directory.resolve()
 
-    # Initialize configuration status
-    alias_configured = AliasConfig(is_configured=False)
-    index_configured = IndexConfig(is_configured=False)
+    status = {
+        ToolType.PIP: {
+            "alias": AliasConfig(is_configured=False),
+            "index": IndexConfig(is_configured=False),
+        },
+        ToolType.POETRY: {
+            "alias": AliasConfig(is_configured=False),
+            "index": IndexConfig(is_configured=False),
+        },
+    }
+    all_completed = False
 
     typed_print(MSG_WELCOME_TITLE)
 
@@ -611,15 +621,14 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
             console=console,
         ).lower()
 
+    completed_tools = ""
+
     if firewall_choice == "y":
         configured_index = configure_system(org_slug)
         configured_alias = configure_alias()
         if configured_alias is None:
             configured_alias = []
 
-        # Only handle pip, assume pip is the first one
-        configured_index = configured_index[:1]
-        configured_alias = configured_alias[:1]
         console.print()
 
         # Aliased pip to safety
@@ -630,33 +639,51 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
         if configured_alias:
             configured["alias"] = configured_alias
 
-        if any(configured_index) or any(configured_alias):
-            for key, paths in configured.items():
-                for path in paths:
+        if any([item[1] for item in configured_index]) or any(
+            [item[1] for item in configured_alias]
+        ):
+            for key, results in configured.items():
+                for tool_type, path in results:
+                    tool_name = tool_type.value
+                    index_type = "project" if tool_type is ToolType.POETRY else "global"
                     if path:
                         if key == "index":
-                            index_configured.is_configured = True
-                            msg = "Configured pip’s global index"
+                            msg = f"Configured {tool_name}’s {index_type} index"
                         else:
-                            alias_configured.is_configured = True
-                            msg = "Aliased pip to safety"
+                            msg = f"Aliased {tool_name} to safety"
 
+                        status[tool_type][key].is_configured = True
                         configured_msg = f"{emoji_check} {msg}"
+
+                        path = path.resolve()
+
                         if len(path.parts) > 1:
                             progressive_print([f"{configured_msg} (`{path}`)"])
                         else:
                             progressive_print([configured_msg])
                     else:
                         if key == "index":
-                            index_configured.is_configured = False
-                            msg = "pip’s global index"
+                            msg = f"{tool_name}’s {index_type} index"
                         else:
-                            alias_configured.is_configured = False
-                            msg = "pip alias"
+                            msg = f"{tool_name} alias"
+
+                        prefix_msg = "Failed to configure"
+                        emoji = {"text": "x ", "style": "red bold"}
+
+                        # If there is a non-compatible pyproject file
+                        if tool_type is ToolType.POETRY:
+                            prefix_msg = "Skipped"
+                            emoji = {"text": "- ", "style": "gray bold"}
+                            # TODO: Set None for now, to avoid mixing
+                            # no configured with skipped because no current
+                            # Poetry use in the pyproject file
+                            status[tool_type][key] = None
+                        else:
+                            status[tool_type][key].is_configured = False
 
                         error = Text()
-                        error.append("x ", style="red bold")
-                        error.append(f"Failed to configure {msg}")
+                        error.append(**emoji)
+                        error.append(f"{prefix_msg} {msg}")
                         progressive_print([error])
 
             console.line()
@@ -666,14 +693,25 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
             error.append("Failed to configure system")
             progressive_print([error])
 
-            # Naive approach, we'll add support for multiple tools soon.
-            alias_configured.is_configured = False
-            index_configured.is_configured = False
+        all_completed = all(
+            [
+                status[tool_type][key].is_configured
+                for tool_type in status
+                for key in status[tool_type]
+                if status[tool_type][key]
+            ]
+        )
+        tools = [key.value.title() for key in status]
+        completed_tools = (
+            ", ".join(tools[:-1]) + " and " + tools[-1] if len(tools) > 1 else tools[0]
+        )
 
-        if alias_configured.is_configured and index_configured.is_configured:
-            console.print(f"{emoji_check} Pip {MSG_SETUP_PACKAGE_FIREWALL_RESULT}")
+        if all_completed:
+            console.print(
+                f"{emoji_check} {completed_tools} {MSG_SETUP_PACKAGE_FIREWALL_RESULT}"
+            )
             console.print(MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS)
-        elif alias_configured.is_configured != index_configured.is_configured:
+        else:
             error = Text()
             error.append(Text.from_markup(MSG_SETUP_INCOMPLETE))
             progressive_print([error])
@@ -730,11 +768,7 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
     console.line()
     render_header(MSG_SETUP_COMPLETE_TITLE, emoji="🏆")
 
-    is_setup_complete = (
-        alias_configured.is_configured
-        and index_configured.is_configured
-        and project_scan_state
-    )
+    is_setup_complete = all_completed and project_scan_state
 
     if is_setup_complete:
         typed_print(MSG_SETUP_COMPLETE_SUBTITLE)
@@ -742,16 +776,28 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
 
     wrap_up_msg = []
 
-    if alias_configured.is_configured and index_configured.is_configured:
+    all_missing = False
+
+    if not all_completed:
+        all_missing = all(
+            [
+                not status[tool_type][key].is_configured
+                for tool_type in status
+                for key in status[tool_type]
+            ]
+        )
+
+    if all_completed:
         wrap_up_msg.append(
             MSG_COMPLETE_TOOL_SECURED.format(
-                firewall_url="https://platform.safetycli.com/firewall/"
+                tools=completed_tools,
+                firewall_url="https://platform.safetycli.com/firewall/",
             )
         )
-    elif alias_configured.is_configured != index_configured.is_configured:
-        wrap_up_msg.append(Text.from_markup(MSG_SETUP_INCOMPLETE))
-    else:
+    elif all_missing:
         wrap_up_msg.append(Text.from_markup(MSG_TOOLS_NOT_CONFIGURED))
+    else:
+        wrap_up_msg.append(Text.from_markup(MSG_SETUP_INCOMPLETE))
 
     wrap_up_msg.append("")
 
@@ -783,6 +829,5 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
     # Emit event for firewall configuration
     emit_firewall_configured(
         event_bus=ctx.obj.event_bus,
-        alias_config=alias_configured,
-        index_config=index_configured,
+        status=status,
     )

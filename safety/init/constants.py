@@ -50,7 +50,7 @@ MSG_SETUP_CODEBASE_PROMPT = (
     f"[bold]Would you like to secure this codebase with Safety? {ASK_HINT}[/bold]"
 )
 
-MSG_SETUP_CODEBASE_NO_PROJECT = "We didn't find any dependency specification files in the current directory. Please navigate to a Python codebase directory and run:\n\n`safety project init`"
+MSG_SETUP_CODEBASE_NO_PROJECT = "We didn't find any dependency specification files in the current directory. Please navigate to a Python codebase directory and run:\n\n`safety init`"
 
 MSG_ANALYZE_CODEBASE_TITLE = " Analyze {project_name} for Vulnerabilities"
 
@@ -68,7 +68,7 @@ MSG_SETUP_COMPLETE_SUBTITLE = "Setup complete!"
 
 MSG_TOOLS_NOT_CONFIGURED = "[bold red]x[/bold red] No package managers configured"
 MSG_CODEBASE_NOT_CONFIGURED = "[bold red]x[/bold red] No codebase configured"
-MSG_COMPLETE_TOOL_SECURED = "✅ Pip secured - Safety is automatically analyzing all package installations for risk. To configure or audit you installations visit [link]{firewall_url}[/link]"
+MSG_COMPLETE_TOOL_SECURED = "✅ {tools} secured - Safety is automatically analyzing all package installations for risk. To configure or audit you installations visit [link]{firewall_url}[/link]"
 MSG_COMPLETE_SECURED = "✅ Codebase secured - to see your vulnerable packages, visit [link]{codebase_url}[/link]"
 
 MSG_SETUP_NEXT_STEPS_SUBTITLE = " Next steps:"

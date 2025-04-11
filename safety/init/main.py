@@ -188,7 +188,7 @@ def load_unverified_project_from_config(project_root: Path) -> UnverifiedProject
     url = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_URL, fallback=None)
     name = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_NAME, fallback=None)
     created = True
-    if id:
+    if not id:
         created = False
 
     return UnverifiedProjectModel(

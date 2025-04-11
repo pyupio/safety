@@ -1,12 +1,14 @@
-from typing import List
+from typing import Any, Dict, List, Tuple
 import os.path
 from pathlib import Path
 from typing import Optional
 
+from safety.constants import USER_CONFIG_DIR
 from safety.tool.utils import (
     PipConfigurator,
     PipRequirementsConfigurator,
     PoetryPyprojectConfigurator,
+    ToolType,
     is_os_supported,
 )
 
@@ -32,13 +34,23 @@ def find_local_tool_files(directory: Path) -> List[Path]:
     return results
 
 
-def configure_system(org_slug: Optional[str]) -> List[Optional[Path]]:
-    configurators = [PipConfigurator()]
+# TODO: Refactor this function, Poetry is not a system configuration, but
+# now we should be able to run global and project configurations in one step
+# as the UI requires show the index setup status for Poetry
+def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[Path]]]:
+    configurators: List[Tuple[ToolType, Any, Dict[str, Any]]] = [
+        (ToolType.PIP, PipConfigurator(), {"org_slug": org_slug}),
+        (
+            ToolType.POETRY,
+            PoetryPyprojectConfigurator(),
+            {"file": Path("pyproject.toml").resolve(), "org_slug": org_slug},
+        ),
+    ]
 
     results = []
-    for configurator in configurators:
-        result = configurator.configure(org_slug)
-        results.append(result)
+    for tool_type, configurator, kwargs in configurators:
+        result = configurator.configure(**kwargs)
+        results.append((tool_type, result))
     return results
 
 
@@ -49,7 +61,7 @@ def reset_system():
         configurator.reset()
 
 
-def configure_alias() -> Optional[List[Optional[Path]]]:
+def configure_alias() -> Optional[List[Tuple[ToolType, Optional[Path]]]]:
     if not is_os_supported():
         logger.warning("OS not supported for alias configuration.")
         return None
@@ -58,9 +70,13 @@ def configure_alias() -> Optional[List[Optional[Path]]]:
     result = interceptor.install_interceptors()
 
     if result:
-        return [Path("~/.safety-profile")]
+        config = Path(f"{USER_CONFIG_DIR}/.safety_profile")
+        return [
+            (ToolType.PIP, config),
+            (ToolType.POETRY, config),
+        ]
 
-    return [None]
+    return [(ToolType.PIP, None), (ToolType.POETRY, None)]
 
 
 def configure_local_directory(directory: Path, org_slug: Optional[str]):

@@ -16,9 +16,6 @@ from rich.text import Text
 from typer.core import MarkupMode, TyperCommand, TyperGroup
 from click.utils import make_str
 
-from safety.auth.constants import CLI_AUTH, MSG_NON_AUTHENTICATED
-from safety.auth.models import Auth
-from safety.auth.cli_utils import inject_session
 
 from safety.constants import (
     BETA_PANEL_DESCRIPTION_HELP,
@@ -37,6 +34,7 @@ from safety.models import SafetyCLI
 
 if TYPE_CHECKING:
     from click.core import Command, Context
+    from safety.auth.models import Auth
 
 
 LOG = logging.getLogger(__name__)
@@ -572,7 +570,7 @@ def format_main_help(
             console.print(Padding(Align(epilogue_text, pad=False), 1))
 
 
-def process_auth_status_not_ready(console, auth: Auth, ctx: typer.Context) -> None:
+def process_auth_status_not_ready(console, auth: "Auth", ctx: typer.Context) -> None:
     """
     Handle the process when the authentication status is not ready.
 
@@ -583,6 +581,7 @@ def process_auth_status_not_ready(console, auth: Auth, ctx: typer.Context) -> No
     """
     from rich.prompt import Confirm, Prompt
     from safety_schemas.models import Stage
+    from safety.auth.constants import CLI_AUTH, MSG_NON_AUTHENTICATED
 
     if not auth.client or not auth.client.is_using_auth_credentials():
         if auth.stage is Stage.development:
@@ -713,7 +712,7 @@ class SafetyCLISubGroup(TyperGroup):
         self,
         *args: Any,
         **kwargs: Any,
-    ) -> click.Command:
+    ) -> click.Command:  # type: ignore[override]
         """
         Create a new command.
 
@@ -875,6 +874,9 @@ class SafetyCLILegacyGroup(click.Group):
             "stage": ctx.params.pop("stage", None),
         }
         invoked_command = make_str(next(iter(ctx.protected_args), ""))
+
+        from safety.auth.cli_utils import inject_session
+
         inject_session(**session_kwargs, invoked_command=invoked_command)
 
         # call initialize if the --key is used.

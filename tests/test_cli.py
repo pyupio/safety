@@ -785,7 +785,7 @@ class TestSafetyCLI(unittest.TestCase):
             "Next steps:",
             "Configured pip’s global index",
             "Aliased pip to safety",
-            "Pip configured and secured",
+            "Pip and Poetry configured and secured",
         ]
 
         test_cases = [

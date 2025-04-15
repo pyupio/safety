@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from safety.auth.models import Auth
     from safety.events.handlers import SecurityEventsHandler
     from safety.events.event_bus import EventBus
+    from safety_schemas.models.events import Event
 
 
 @dataclass
@@ -36,3 +37,4 @@ class SafetyCLI:
     event_bus: Optional["EventBus"] = None
     security_events_handler: Optional["SecurityEventsHandler"] = None
     correlation_id: Optional[str] = None
+    pending_events: List["Event"] = field(default_factory=list)

@@ -1,6 +1,17 @@
 import platform
 import time
+
+from rich.prompt import Prompt
+import typer
 from safety.console import main_console as console
+from safety.events.utils.emission import (
+    emit_codebase_setup_response_created,
+    emit_firewall_setup_response_created,
+)
+from safety.init.constants import (
+    MSG_SETUP_CODEBASE_PROMPT,
+    MSG_SETUP_PACKAGE_FIREWALL_PROMPT,
+)
 
 
 def load_emoji(emoji):
@@ -61,3 +72,77 @@ def render_header(title, emoji="🛡", margin_left=0, margin_right=2):
     typed_print(header_text, style="bold white", delay=0.01, console=console)
     console.print(underline)
     console.print()
+
+
+def ask_firewall_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
+    """
+    Ask the user if they want to set up Safety Firewall.
+
+    As a side effect, this function emits an event with the response.
+
+    Args:
+        ctx: The CLI context
+        prompt_user: Whether to prompt the user for input
+
+    Returns:
+        bool: True if the user wants to set up Safety Firewall, False otherwise
+    """
+    firewall_choice = "y"
+
+    if prompt_user:
+        firewall_choice = Prompt.ask(
+            MSG_SETUP_PACKAGE_FIREWALL_PROMPT,
+            choices=["y", "n", "Y", "N"],
+            default="y",
+            show_default=False,
+            show_choices=False,
+            console=console,
+        ).lower()
+
+    should_setup_firewall = firewall_choice == "y"
+
+    emit_firewall_setup_response_created(
+        event_bus=ctx.obj.event_bus,
+        ctx=ctx,
+        user_consent_requested=prompt_user,
+        user_consent=should_setup_firewall if prompt_user else None,
+    )
+
+    return should_setup_firewall
+
+
+def ask_codebase_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
+    """
+    Ask the user if they want to set up a codebase.
+
+    As a side effect, this function emits an event with the response.
+
+    Args:
+        ctx: The CLI context
+        prompt_user: Whether to prompt the user for input
+
+    Returns:
+        bool: True if the user wants to set up a codebase, False otherwise
+    """
+    codebase_response = "y"
+
+    if prompt_user:
+        codebase_response = Prompt.ask(
+            MSG_SETUP_CODEBASE_PROMPT,
+            choices=["y", "n", "Y", "N"],
+            default="y",
+            show_default=False,
+            show_choices=False,
+            console=console,
+        ).lower()
+
+    should_setup_codebase = codebase_response == "y"
+
+    emit_codebase_setup_response_created(
+        event_bus=ctx.obj.event_bus,
+        ctx=ctx,
+        user_consent_requested=prompt_user,
+        user_consent=should_setup_codebase if prompt_user else None,
+    )
+
+    return should_setup_codebase

@@ -1,4 +1,6 @@
+from concurrent.futures import Future
 import logging
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -14,11 +16,20 @@ from typing import (
 )
 import uuid
 
-from safety_schemas.models.events import EventType
+from safety_schemas.models.events import Event, EventType
 from safety_schemas.models.events.types import ToolType
 from safety_schemas.models.events.payloads import (
+    CodebaseDetectionStatusPayload,
+    CodebaseSetupCompletedPayload,
+    CodebaseSetupResponseCreatedPayload,
+    DependencyFile,
     FirewallConfiguredPayload,
     FirewallDisabledPayload,
+    FirewallSetupCompletedPayload,
+    FirewallSetupResponseCreatedPayload,
+    InitExitStep,
+    InitExitedPayload,
+    InitScanCompletedPayload,
     PackageInstalledPayload,
     PackageUninstalledPayload,
     PackageUpdatedPayload,
@@ -31,9 +42,14 @@ from safety_schemas.models.events.payloads import (
     CommandParam,
     ProcessStatus,
     FirewallHeartbeatPayload,
+    InitStartedPayload,
+    AuthStartedPayload,
+    AuthCompletedPayload,
 )
+import typer
 
 from ..event_bus import EventBus
+from ..types.base import InternalEventType, InternalPayload
 
 from .creation import (
     create_event,
@@ -51,8 +67,45 @@ from .conditions import conditional_emitter, should_emit_firewall_heartbeat
 if TYPE_CHECKING:
     from safety.models import SafetyCLI, ToolResult
     from safety.cli_util import CustomContext
+    from safety.init.types import FirewallConfigStatus
 
 logger = logging.getLogger(__name__)
+
+
+@conditional_emitter
+def send_and_flush(event_bus: "EventBus", event: Event) -> Optional[Future]:
+    """
+    Emit an event and immediately flush the event bus without closing it.
+
+    Args:
+        event_bus: The event bus to emit on
+        event: The event to emit
+    """
+    future = event_bus.emit(event)
+
+    # Create and emit flush event
+    flush_payload = InternalPayload()
+    flush_event = create_event(
+        payload=flush_payload, event_type=InternalEventType.FLUSH_SECURITY_TRACES
+    )
+
+    # Emit flush event and wait for it to complete
+    flush_future = event_bus.emit(flush_event)
+
+    # Wait for both events to complete
+    if future:
+        try:
+            future.result(timeout=0.5)
+        except Exception:
+            logger.error("Emit Failed %s (%s)", event.type, event.id)
+
+    if flush_future:
+        try:
+            return flush_future.result(timeout=0.5)
+        except Exception:
+            logger.error("Flush Failed for event %s", event.id)
+
+    return None
 
 
 @conditional_emitter(conditions=[should_emit_firewall_heartbeat])
@@ -78,13 +131,7 @@ def emit_firewall_disabled(
     event_bus.emit(event)
 
 
-@conditional_emitter
-def emit_firewall_configured(
-    event_bus: "EventBus",
-    ctx: Optional["CustomContext"] = None,
-    *,
-    status: Dict[ToolType, Dict[str, Union[AliasConfig, IndexConfig]]],
-):
+def status_to_tool_status(status: "FirewallConfigStatus") -> List[ToolStatus]:
     tools = []
     for tool_type, configs in status.items():
         alias_config = (
@@ -123,6 +170,18 @@ def emit_firewall_configured(
             index_config=index_config,
         )
         tools.append(tool)
+
+    return tools
+
+
+@conditional_emitter
+def emit_firewall_configured(
+    event_bus: "EventBus",
+    ctx: Optional["CustomContext"] = None,
+    *,
+    status: "FirewallConfigStatus",
+):
+    tools = status_to_tool_status(status)
 
     payload = FirewallConfiguredPayload(tools=tools)
 
@@ -322,3 +381,283 @@ def emit_command_error(
     )
 
     event_bus.emit(event)
+
+
+def emit_init_started(
+    event_bus: "EventBus", ctx: Union["CustomContext", typer.Context]
+) -> None:
+    """
+    Emit an InitStartedEvent and store it as a pending event in SafetyCLI object.
+
+    Args:
+        event_bus: The event bus to emit on
+        ctx: The Click context containing the SafetyCLI object
+    """
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = InitStartedPayload()
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.INIT_STARTED,
+    )
+
+    if not send_and_flush(event_bus, event):
+        # Store as pending event
+        obj.pending_events.append(event)
+
+
+def emit_auth_started(event_bus: "EventBus", ctx: "CustomContext") -> None:
+    """
+    Emit an AuthStartedEvent and store it as a pending event in SafetyCLI object.
+
+    Args:
+        event_bus: The event bus to emit on
+        ctx: The Click context containing the SafetyCLI object
+    """
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = AuthStartedPayload()
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.AUTH_STARTED,
+    )
+
+    if not send_and_flush(event_bus, event):
+        # Store as pending event
+        obj.pending_events.append(event)
+
+
+@conditional_emitter
+def emit_auth_completed(
+    event_bus: "EventBus",
+    ctx: "CustomContext",
+    *,
+    success: bool = True,
+    error_message: Optional[str] = None,
+) -> None:
+    """
+    Emit an AuthCompletedEvent and submit all pending events together.
+
+    Args:
+        event_bus: The event bus to emit on
+        ctx: The Click context containing the SafetyCLI object
+        success: Whether authentication was successful
+        error_message: Optional error message if authentication failed
+    """
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = AuthCompletedPayload(success=success, error_message=error_message)
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.AUTH_COMPLETED,
+    )
+
+    for pending_event in obj.pending_events:
+        event_bus.emit(pending_event)
+
+    obj.pending_events.clear()
+
+    # Emit auth completed event and flush
+    send_and_flush(event_bus, event)
+
+
+@conditional_emitter
+def emit_firewall_setup_response_created(
+    event_bus: "EventBus",
+    ctx: Union["CustomContext", typer.Context],
+    *,
+    user_consent_requested: bool,
+    user_consent: Optional[bool] = None,
+) -> None:
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = FirewallSetupResponseCreatedPayload(
+        user_consent_requested=user_consent_requested, user_consent=user_consent
+    )
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.FIREWALL_SETUP_RESPONSE_CREATED,
+    )
+
+    # Emit and flush
+    send_and_flush(event_bus, event)
+
+
+@conditional_emitter
+def emit_codebase_setup_response_created(
+    event_bus: "EventBus",
+    ctx: Union["CustomContext", typer.Context],
+    *,
+    user_consent_requested: bool,
+    user_consent: Optional[bool] = None,
+) -> None:
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = CodebaseSetupResponseCreatedPayload(
+        user_consent_requested=user_consent_requested, user_consent=user_consent
+    )
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.CODEBASE_SETUP_RESPONSE_CREATED,
+    )
+
+    # Emit and flush
+    send_and_flush(event_bus, event)
+
+
+@conditional_emitter
+def emit_codebase_detection_status(
+    event_bus: "EventBus",
+    ctx: Union["CustomContext", typer.Context],
+    *,
+    detected: bool,
+    detected_files: Optional[List[Path]] = None,
+) -> None:
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = CodebaseDetectionStatusPayload(
+        detected=detected,
+        dependency_files=[
+            DependencyFile(file_path=str(file)) for file in detected_files
+        ]
+        if detected_files
+        else None,
+    )
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.CODEBASE_DETECTION_STATUS,
+    )
+
+    # Emit and flush
+    send_and_flush(event_bus, event)
+
+
+@conditional_emitter
+def emit_init_scan_completed(
+    event_bus: "EventBus",
+    ctx: Union["CustomContext", typer.Context],
+    *,
+    scan_id: Optional[str],
+) -> None:
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = InitScanCompletedPayload(scan_id=scan_id)
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.INIT_SCAN_COMPLETED,
+    )
+
+    # Emit and flush
+    send_and_flush(event_bus, event)
+
+
+@conditional_emitter
+def emit_codebase_setup_completed(
+    event_bus: "EventBus",
+    ctx: Union["CustomContext", typer.Context],
+    *,
+    is_created: bool,
+    codebase_id: Optional[str] = None,
+) -> None:
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = CodebaseSetupCompletedPayload(
+        is_created=is_created, codebase_id=codebase_id
+    )
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.CODEBASE_SETUP_COMPLETED,
+    )
+
+    # Emit and flush
+    send_and_flush(event_bus, event)
+
+
+@conditional_emitter
+def emit_firewall_setup_completed(
+    event_bus: "EventBus",
+    ctx: "CustomContext",
+    *,
+    status: "FirewallConfigStatus",
+) -> None:
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    tools = status_to_tool_status(status)
+
+    payload = FirewallSetupCompletedPayload(
+        tools=tools,
+    )
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.FIREWALL_SETUP_COMPLETED,
+    )
+
+    # Emit and flush
+    send_and_flush(event_bus, event)
+
+
+@conditional_emitter
+def emit_init_exited(
+    event_bus: "EventBus",
+    ctx: Union["CustomContext", typer.Context],
+    *,
+    exit_step: InitExitStep,
+) -> None:
+    obj: "SafetyCLI" = ctx.obj
+
+    if not obj.correlation_id:
+        obj.correlation_id = str(uuid.uuid4())
+
+    payload = InitExitedPayload(exit_step=exit_step)
+
+    event = create_event(
+        correlation_id=obj.correlation_id,
+        payload=payload,
+        event_type=EventType.INIT_EXITED,
+    )
+
+    # Emit and flush
+    send_and_flush(event_bus, event)

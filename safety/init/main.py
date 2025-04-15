@@ -1,17 +1,33 @@
 import logging
 import uuid
+from rich.prompt import Prompt
+from rich.text import Text
 import typer
 from rich.console import Console
+
+from safety.events.utils.emission import emit_firewall_setup_completed
+from safety.init.render import load_emoji, progressive_print
+
+from ..tool import configure_system, configure_alias
+
+from .constants import (
+    MSG_AUTH_PROMPT,
+    MSG_NEED_AUTHENTICATION,
+    MSG_SETUP_INCOMPLETE,
+    MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS,
+    MSG_SETUP_PACKAGE_FIREWALL_RESULT,
+)
 
 from .models import UnverifiedProjectModel
 
 import configparser
 from pathlib import Path
 from safety_schemas.models import ProjectModel, Stage
+from safety_schemas.models.events.types import ToolType
 from safety.scan.util import GIT
 from ..auth.utils import SafetyAuthSession
 
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 from safety.scan.render import (
     print_wait_project_verification,
     prompt_project_id,
@@ -24,8 +40,11 @@ PROJECT_CONFIG_ID = "id"
 PROJECT_CONFIG_URL = "url"
 PROJECT_CONFIG_NAME = "name"
 
+if TYPE_CHECKING:
+    from safety.models import SafetyCLI
+    from .types import FirewallConfigStatus
 
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def check_project(
@@ -258,7 +277,7 @@ def save_project_info(project: ProjectModel, project_path: Path) -> bool:
         with open(project_path, "w") as configfile:
             config.write(configfile)
     except Exception:
-        LOG.exception("Error saving project info")
+        logger.exception("Error saving project info")
         return False
 
     return True
@@ -296,3 +315,190 @@ def create_project(
     else:
         console.print("Project creation is not supported for your account.")
         return (False, None)
+
+
+def launch_auth_if_needed(ctx: typer.Context, console: Console) -> Optional[str]:
+    """
+    Launch the authentication flow if needed.
+
+    Args:
+        ctx: The CLI context
+
+    Returns:
+        Optional[str]: The organization slug if authentication is successful
+    """
+    obj: "SafetyCLI" = ctx.obj
+    org_slug = None
+
+    if (
+        not obj.auth
+        or not obj.auth.client
+        or not obj.auth.client.is_using_auth_credentials()
+    ):
+        console.print(MSG_NEED_AUTHENTICATION)
+        auth_choice = Prompt.ask(
+            MSG_AUTH_PROMPT,
+            choices=["r", "l", "R", "L"],
+            default="L",
+            show_choices=False,
+            show_default=True,
+            console=console,
+        ).lower()
+
+        from safety.auth.cli import auth_app
+        from safety.cli_util import get_command_for
+
+        login_command = get_command_for(name="login", typer_instance=auth_app)
+        register_command = get_command_for(name="register", typer_instance=auth_app)
+
+        ctx.obj.only_auth_msg = True
+
+        if auth_choice == "r":
+            ctx.invoke(register_command)
+        else:
+            ctx.invoke(login_command)
+    else:
+        data = None
+        try:
+            data = ctx.obj.auth.client.initialize()
+        except Exception:
+            logger.exception("Unable to load data on the init command")
+
+        if data:
+            org_slug = data.get("organization-data", {}).get("slug")
+
+    return org_slug
+
+
+def setup_firewall(
+    ctx: Any, status: "FirewallConfigStatus", org_slug: Optional[str], console: Console
+) -> Tuple[str, bool, bool, "FirewallConfigStatus"]:
+    """
+    Setup the firewall, this function also handles the output.
+
+    Args:
+        ctx: The CLI context
+        status: The current status of the firewall
+        org_slug: The organization slug
+        console: The console object
+
+    Returns:
+        Tuple[bool, bool, FirewallConfigStatus]: A tuple containing the following:
+            - bool: True if all tools are configured, False otherwise
+            - bool: True if all tools are missing, False otherwise
+            - FirewallConfigStatus: The current status of the firewall
+    """
+    emoji_check = f"[green]{load_emoji('✓')}[/green]"
+
+    configured_index = configure_system(org_slug)
+    configured_alias = configure_alias()
+    if configured_alias is None:
+        configured_alias = []
+
+    console.line()
+
+    configured = {}
+    if configured_index:
+        configured["index"] = configured_index
+
+    if configured_alias:
+        configured["alias"] = configured_alias
+
+    if any([item[1] for item in configured_index]) or any(
+        [item[1] for item in configured_alias]
+    ):
+        for config_type, results in configured.items():
+            for tool_type, path in results:
+                tool_name = tool_type.value
+                index_type = "project" if tool_type is ToolType.POETRY else "global"
+
+                tool_config = status[tool_type]
+                is_configured = False
+
+                if path:
+                    if config_type == "index":
+                        msg = f"Configured {tool_name}’s {index_type} index"
+                    else:
+                        msg = f"Aliased {tool_name} to safety"
+
+                    is_configured = True
+                    configured_msg = f"{emoji_check} {msg}"
+
+                    path = path.resolve()
+
+                    if len(path.parts) > 1:
+                        progressive_print([f"{configured_msg} (`{path}`)"])
+                    else:
+                        progressive_print([configured_msg])
+                else:
+                    if config_type == "index":
+                        msg = f"{tool_name}’s {index_type} index"
+                    else:
+                        msg = f"{tool_name} alias"
+
+                    prefix_msg = "Failed to configure"
+                    emoji = {"text": "x ", "style": "red bold"}
+
+                    # If there is a non-compatible pyproject file
+                    if tool_type is ToolType.POETRY:
+                        prefix_msg = "Skipped"
+                        emoji = {"text": "- ", "style": "gray bold"}
+                        # TODO: Set None for now, to avoid mixing
+                        # no configured with skipped because no current
+                        # Poetry use in the pyproject file
+                        tool_config[config_type] = None
+                    else:
+                        is_configured = False
+
+                    error = Text()
+                    error.append(**emoji)
+                    error.append(f"{prefix_msg} {msg}")
+                    progressive_print([error])
+
+                if config_obj := tool_config[config_type]:
+                    config_obj.is_configured = is_configured
+
+        console.line()
+    else:
+        error = Text()
+        error.append("x ", style="red bold")
+        error.append("Failed to configure system")
+        progressive_print([error])
+
+    completed = []
+    missing = []
+    for tool_type, tool_status in status.items():
+        for config_type, config_obj in tool_status.items():
+            if config_obj:
+                if config_obj.is_configured:
+                    completed.append(config_obj)
+                else:
+                    missing.append(config_obj)
+
+    all_completed = not missing
+    all_missing = not completed
+
+    tools = [tool_type.value.title() for tool_type in status]
+    completed_tools = (
+        ", ".join(tools[:-1]) + " and " + tools[-1] if len(tools) > 1 else tools[0]
+    )
+
+    if all_completed:
+        console.print(
+            f"{emoji_check} {completed_tools} {MSG_SETUP_PACKAGE_FIREWALL_RESULT}"
+        )
+        console.print(MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS)
+    else:
+        error = Text()
+        error.append(Text.from_markup(MSG_SETUP_INCOMPLETE))
+        progressive_print([error])
+
+    console.line()
+
+    emit_firewall_setup_completed(
+        event_bus=ctx.obj.event_bus,
+        ctx=ctx,
+        status=status,
+    )
+
+    return completed_tools, all_completed, all_missing, status

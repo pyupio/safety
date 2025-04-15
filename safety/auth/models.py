@@ -6,6 +6,7 @@ from authlib.integrations.base_client import BaseOAuth
 
 from safety_schemas.models import Stage
 
+
 @dataclass
 class Organization:
     id: str
@@ -18,7 +19,8 @@ class Organization:
         Returns:
             dict: The dictionary representation of the organization.
         """
-        return {'id': self.id, 'name': self.name}
+        return {"id": self.id, "name": self.name}
+
 
 @dataclass
 class Auth:
@@ -61,7 +63,7 @@ class Auth:
 
         self.name = info.get("name")
         self.email = info.get("email")
-        self.email_verified = is_email_verified(info)
+        self.email_verified = is_email_verified(info)  # type: ignore
 
     def get_auth_method(self) -> str:
         """
@@ -72,11 +74,12 @@ class Auth:
         """
         if self.client.api_key:
             return "API Key"
-        
+
         if self.client.token:
             return "Token"
 
         return "None"
+
 
 class XAPIKeyAuth(BaseOAuth):
     def __init__(self, api_key: str) -> None:
@@ -98,5 +101,5 @@ class XAPIKeyAuth(BaseOAuth):
         Returns:
             Any: The modified request object.
         """
-        r.headers['X-API-Key'] = self.api_key
+        r.headers["X-API-Key"] = self.api_key
         return r

@@ -2,7 +2,7 @@ import importlib.util
 import json
 import logging
 from functools import lru_cache
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, List
 
 import requests
 from authlib.integrations.base_client.errors import OAuthError
@@ -25,6 +25,7 @@ from safety.constants import (
     REQUEST_TIMEOUT,
     FeatureType,
     get_config_setting,
+    FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT,
 )
 from safety.error_handlers import output_exception
 from safety.errors import (
@@ -56,7 +57,7 @@ def get_keys(
         Optional[Dict[str, Any]]: The keys, if available.
     """
     if "jwks_uri" in openid_config:
-        return client_session.get(url=openid_config["jwks_uri"], bearer=False).json()
+        return client_session.get(url=openid_config["jwks_uri"], bearer=False).json()  # type: ignore
     return None
 
 
@@ -273,7 +274,7 @@ class SafetyAuthSession(OAuth2Session):
 
         if ("proxies" not in kwargs or not self.proxies) and self.proxy_required:
             output_exception(
-                "Proxy connection is required but there is not a proxy setup.",
+                "Proxy connection is required but there is not a proxy setup.",  # type: ignore
                 exit_code_output=True,
             )
 
@@ -293,7 +294,7 @@ class SafetyAuthSession(OAuth2Session):
 
             if self.proxy_required:
                 output_exception(
-                    f"Proxy is required but the connection failed because: {e}",
+                    f"Proxy is required but the connection failed because: {e}",  # type: ignore
                     exit_code_output=True,
                 )
 
@@ -486,6 +487,20 @@ class SafetyAuthSession(OAuth2Session):
         return self.get(url=PLATFORM_API_CHECK_UPDATES_ENDPOINT, params=data)
 
     @parse_response
+    def audit_packages(self, packages: List[str]) -> Any:
+        """
+        Audits packages for vulnerabilities
+        Args:
+            packages: list of package specifiers
+
+        Returns:
+            Any: The packages audit result.
+        """
+        data = {"packages": [{"package_specifier": package} for package in packages]}
+
+        return self.post(url=FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT, json=data)
+
+    @parse_response
     def initialize(self) -> Any:
         """
         Initialize a run.
@@ -508,7 +523,7 @@ class SafetyAuthSession(OAuth2Session):
 
 
 class S3PresignedAdapter(HTTPAdapter):
-    def send(
+    def send(  # type: ignore
         self, request: requests.PreparedRequest, **kwargs: Any
     ) -> requests.Response:
         """
@@ -562,7 +577,7 @@ def is_jupyter_notebook() -> bool:
 
     # Detect classic Jupyter Notebook, JupyterLab, and other IPython kernel-based environments
     try:
-        from IPython import get_ipython
+        from IPython import get_ipython  # type: ignore
 
         ipython = get_ipython()
         if ipython is not None and "IPKernelApp" in ipython.config:
@@ -667,7 +682,7 @@ def initialize(ctx: Any, refresh: bool = True) -> None:
 
     if refresh:
         try:
-            settings = ctx.obj.auth.client.initialize()
+            settings = ctx.obj.auth.client.initialize()  # type: ignore
         except Exception:
             LOG.info("Unable to initialize, continue with default values.")
 

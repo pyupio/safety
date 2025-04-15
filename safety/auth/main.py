@@ -7,15 +7,25 @@ from authlib.jose import jwt
 from authlib.jose.errors import ExpiredTokenError
 
 from safety.auth.models import Organization
-from safety.auth.constants import CLI_AUTH_LOGOUT, CLI_CALLBACK, AUTH_CONFIG_USER, CLI_AUTH
+from safety.auth.constants import (
+    CLI_AUTH_LOGOUT,
+    CLI_CALLBACK,
+    AUTH_CONFIG_USER,
+    CLI_AUTH,
+)
 from safety.constants import CONFIG
 from safety_schemas.models import Stage
 from safety.util import get_proxy_dict
 
 
-def get_authorization_data(client, code_verifier: str,
-                           organization: Optional[Organization] = None,
-                           sign_up: bool = False, ensure_auth: bool = False, headless: bool = False) -> Tuple[str, str]:
+def get_authorization_data(
+    client,
+    code_verifier: str,
+    organization: Optional[Organization] = None,
+    sign_up: bool = False,
+    ensure_auth: bool = False,
+    headless: bool = False,
+) -> Tuple[str, str]:
     """
     Generate the authorization URL for the authentication process.
 
@@ -31,13 +41,19 @@ def get_authorization_data(client, code_verifier: str,
         Tuple[str, str]: The authorization URL and initial state.
     """
 
-    kwargs = {'sign_up': sign_up, 'locale': 'en', 'ensure_auth': ensure_auth, 'headless': headless}
+    kwargs = {
+        "sign_up": sign_up,
+        "locale": "en",
+        "ensure_auth": ensure_auth,
+        "headless": headless,
+    }
     if organization:
-        kwargs['organization'] = organization.id
+        kwargs["organization"] = organization.id
 
-    return client.create_authorization_url(CLI_AUTH,
-                                           code_verifier=code_verifier,
-                                           **kwargs)
+    return client.create_authorization_url(
+        CLI_AUTH, code_verifier=code_verifier, **kwargs
+    )
+
 
 def get_logout_url(id_token: str) -> str:
     """
@@ -49,7 +65,8 @@ def get_logout_url(id_token: str) -> str:
     Returns:
         str: The logout URL.
     """
-    return f'{CLI_AUTH_LOGOUT}?id_token={id_token}'
+    return f"{CLI_AUTH_LOGOUT}?id_token={id_token}"
+
 
 def get_redirect_url() -> str:
     """
@@ -59,6 +76,7 @@ def get_redirect_url() -> str:
         str: The redirect URL.
     """
     return CLI_CALLBACK
+
 
 def get_organization() -> Optional[Organization]:
     """
@@ -70,20 +88,23 @@ def get_organization() -> Optional[Organization]:
     config = configparser.ConfigParser()
     config.read(CONFIG)
 
-    org_conf: Union[Dict[str, str], configparser.SectionProxy] = config[
-        'organization'] if 'organization' in config.sections() else {}
-    org_id: Optional[str] = org_conf['id'].replace("\"", "") if org_conf.get('id', None) else None
-    org_name: Optional[str] = org_conf['name'].replace("\"", "") if org_conf.get('name', None) else None
+    org_conf: Union[Dict[str, str], configparser.SectionProxy] = (
+        config["organization"] if "organization" in config.sections() else {}
+    )
+    org_id: Optional[str] = (
+        org_conf["id"].replace('"', "") if org_conf.get("id", None) else None
+    )
+    org_name: Optional[str] = (
+        org_conf["name"].replace('"', "") if org_conf.get("name", None) else None
+    )
 
     if not org_id:
         return None
 
-    org = Organization(
-        id=org_id,
-        name=org_name
-    )
+    org = Organization(id=org_id, name=org_name)  # type: ignore
 
     return org
+
 
 def get_auth_info(ctx) -> Optional[Dict]:
     """
@@ -100,9 +121,9 @@ def get_auth_info(ctx) -> Optional[Dict]:
     info = None
     if ctx.obj.auth.client.token:
         try:
-            info = get_token_data(get_token(name='id_token'), keys=ctx.obj.auth.keys)
+            info = get_token_data(get_token(name="id_token"), keys=ctx.obj.auth.keys)  # type: ignore
 
-            verified = is_email_verified(info)
+            verified = is_email_verified(info)  # type: ignore
             if not verified:
                 user_info = ctx.obj.auth.client.fetch_user_info()
                 verified = is_email_verified(user_info)
@@ -111,12 +132,17 @@ def get_auth_info(ctx) -> Optional[Dict]:
                     # refresh only if needed
                     raise ExpiredTokenError
 
-        except ExpiredTokenError as e:
+        except ExpiredTokenError:
             # id_token expired. So fire a manually a refresh
             try:
-                ctx.obj.auth.client.refresh_token(ctx.obj.auth.client.metadata.get('token_endpoint'),
-                                         refresh_token=ctx.obj.auth.client.token.get('refresh_token'))
-                info = get_token_data(get_token(name='id_token'), keys=ctx.obj.auth.keys)
+                ctx.obj.auth.client.refresh_token(
+                    ctx.obj.auth.client.metadata.get("token_endpoint"),
+                    refresh_token=ctx.obj.auth.client.token.get("refresh_token"),
+                )
+                info = get_token_data(
+                    get_token(name="id_token"),  # type: ignore
+                    keys=ctx.obj.auth.keys,  # type: ignore
+                )
             except Exception as _e:
                 clean_session(ctx.obj.auth.client)
         except Exception as _g:
@@ -124,7 +150,10 @@ def get_auth_info(ctx) -> Optional[Dict]:
 
     return info
 
-def get_token_data(token: str, keys: Any, silent_if_expired: bool = False) -> Optional[Dict]:
+
+def get_token_data(
+    token: str, keys: Any, silent_if_expired: bool = False
+) -> Optional[Dict]:
     """
     Decode and validate the token data.
 
@@ -145,8 +174,9 @@ def get_token_data(token: str, keys: Any, silent_if_expired: bool = False) -> Op
 
     return claims
 
-def get_token(name: str = 'access_token') -> Optional[str]:
-    """"
+
+def get_token(name: str = "access_token") -> Optional[str]:
+    """ "
     Retrieve a token from the local authentication configuration.
 
     This returns tokens saved in the local auth configuration.
@@ -161,12 +191,13 @@ def get_token(name: str = 'access_token') -> Optional[str]:
     config = configparser.ConfigParser()
     config.read(AUTH_CONFIG_USER)
 
-    if 'auth' in config.sections() and name in config['auth']:
-        value = config['auth'][name]
+    if "auth" in config.sections() and name in config["auth"]:
+        value = config["auth"][name]
         if value:
             return value
 
     return None
+
 
 def get_host_config(key_name: str) -> Optional[Any]:
     """
@@ -197,6 +228,7 @@ def get_host_config(key_name: str) -> Optional[Any]:
 
     return None
 
+
 def str_to_bool(s: str) -> bool:
     """
     Convert a string to a boolean value.
@@ -210,12 +242,13 @@ def str_to_bool(s: str) -> bool:
     Raises:
         ValueError: If the string cannot be converted.
     """
-    if s.lower() == 'true' or s == '1':
+    if s.lower() == "true" or s == "1":
         return True
-    elif s.lower() == 'false' or s == '0':
+    elif s.lower() == "false" or s == "0":
         return False
     else:
         raise ValueError(f"Cannot convert '{s}' to a boolean value.")
+
 
 def get_proxy_config() -> Tuple[Optional[Dict[str, str]], Optional[int], bool]:
     """
@@ -227,7 +260,7 @@ def get_proxy_config() -> Tuple[Optional[Dict[str, str]], Optional[int], bool]:
     config = configparser.ConfigParser()
     config.read(CONFIG)
 
-    proxy_dictionary =  None
+    proxy_dictionary = None
     required = False
     timeout = None
     proxy = None
@@ -237,14 +270,18 @@ def get_proxy_config() -> Tuple[Optional[Dict[str, str]], Optional[int], bool]:
 
     if proxy:
         try:
-            proxy_dictionary = get_proxy_dict(proxy['protocol'], proxy['host'],
-                                                proxy['port'])
+            proxy_dictionary = get_proxy_dict(
+                proxy["protocol"],
+                proxy["host"],
+                proxy["port"],  # type: ignore
+            )
             required = str_to_bool(proxy["required"])
             timeout = proxy["timeout"]
-        except Exception as e:
+        except Exception:
             pass
 
-    return proxy_dictionary, timeout, required
+    return proxy_dictionary, timeout, required  # type: ignore
+
 
 def clean_session(client) -> bool:
     """
@@ -257,16 +294,21 @@ def clean_session(client) -> bool:
         bool: Always returns True.
     """
     config = configparser.ConfigParser()
-    config['auth'] = {'access_token': '', 'id_token': '', 'refresh_token':''}
+    config["auth"] = {"access_token": "", "id_token": "", "refresh_token": ""}
 
-    with open(AUTH_CONFIG_USER, 'w') as configfile:
+    with open(AUTH_CONFIG_USER, "w") as configfile:
         config.write(configfile)
 
     client.token = None
 
     return True
 
-def save_auth_config(access_token: Optional[str] = None, id_token: Optional[str] = None, refresh_token: Optional[str] = None) -> None:
+
+def save_auth_config(
+    access_token: Optional[str] = None,
+    id_token: Optional[str] = None,
+    refresh_token: Optional[str] = None,
+) -> None:
     """
     Save the authentication configuration.
 
@@ -277,8 +319,11 @@ def save_auth_config(access_token: Optional[str] = None, id_token: Optional[str]
     """
     config = configparser.ConfigParser()
     config.read(AUTH_CONFIG_USER)
-    config['auth'] = {'access_token': access_token, 'id_token': id_token,
-                      'refresh_token': refresh_token}
+    config["auth"] = {  # type: ignore
+        "access_token": access_token,
+        "id_token": id_token,
+        "refresh_token": refresh_token,
+    }
 
-    with open(AUTH_CONFIG_USER, 'w') as configfile:
-        config.write(configfile)
+    with open(AUTH_CONFIG_USER, "w") as configfile:
+        config.write(configfile)  # type: ignore

@@ -268,7 +268,7 @@ class PipGenericCommand(PipCommand):
 class PipInstallCommand(PipCommand):
     def __init__(self, args: List[str]) -> None:
         super().__init__(args)
-        self.package_names = []
+        self.__packages = []
         self.__index_url = None
 
     def before(self, ctx: typer.Context):
@@ -343,6 +343,7 @@ class PipInstallCommand(PipCommand):
     def after(self, ctx: typer.Context, result: ToolResult):
         super().after(ctx, result)
 
+        self.__render_installation_warnings(ctx)
         if result.process and result.process.returncode == 0:
             self.__run_scan()
         else:
@@ -385,14 +386,40 @@ class PipInstallCommand(PipCommand):
             except Exception:
                 pass
 
-    def __add_package_name(self, package_name):
+    def __add_package_name(self, package_name: str):
         r = re.compile(r"^([a-zA-Z_-]+)(([~<>=]=)[a-zA-Z0-9._-]+)?")
         match = r.match(package_name)
         if match:
-            self.package_names.append(match.group(1))
+            self.__packages.append((match.group(1), match.group(2)))
+
+    def __render_installation_warnings(self, ctx: typer.Context):
+        packages_audit = self.__audit_packages(ctx)
+
+        printed_report_header = False
+        for audited_package in packages_audit.get("audit", {}).get("packages", []):
+            vulnerabilities = audited_package.get("vulnerabilities", {})
+            critical_vulnerabilities = vulnerabilities.get("critical", 0)
+            total_vulnerabilities = 0
+            for count in vulnerabilities.values():
+                total_vulnerabilities += count
+
+            if total_vulnerabilities == 0:
+                continue
+
+            if not printed_report_header:
+                printed_report_header = True
+                console.print()
+                console.print("=== Safety Report ===")
+
+            warning_message = f"[Warning] {audited_package.get('package_specifier')} contains {total_vulnerabilities} vulnerabilities"
+            if critical_vulnerabilities > 0:
+                warning_message += f", including {critical_vulnerabilities} critical severity vulnerabilities"
+
+            warning_message += "."
+            console.print(Padding(warning_message, (0, 0, 0, 1)))
 
     def __render_package_details(self):
-        for package_name in self.package_names:
+        for package_name, version_specifier in self.__packages:
             console.print(
                 Padding(
                     f"Learn more: [link]https://data.safetycli.com/packages/pypi/{package_name}/[/link]",
@@ -400,6 +427,18 @@ class PipInstallCommand(PipCommand):
                 ),
                 emoji=True,
             )
+
+    def __audit_packages(self, ctx: typer.Context) -> Any:
+        try:
+            return ctx.obj.auth.client.audit_packages(
+                [
+                    f"{package_name}{version if version else ''}"
+                    for (package_name, version) in self.__packages
+                ]
+            )
+        except Exception:
+            # do not propagate the error in case the audit failed
+            return dict()
 
 
 class PipUninstallCommand(PipCommand):

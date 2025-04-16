@@ -3,19 +3,28 @@ import logging
 import os
 from pathlib import Path
 import subprocess
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
-import typer
 
-from safety.scan.finder.handlers import FileHandler, PythonFileHandler, SafetyProjectFileHandler
+from safety.scan.finder.handlers import (
+    FileHandler,
+    PythonFileHandler,
+    SafetyProjectFileHandler,
+)
 from safety_schemas.models import Stage
 
+if TYPE_CHECKING:
+    from safety_schemas.models import GITModel
+
+
 LOG = logging.getLogger(__name__)
+
 
 class Language(str, Enum):
     """
     Enum representing supported programming languages.
     """
+
     python = "python"
     javascript = "javascript"
     safety_project = "safety_project"
@@ -34,16 +43,20 @@ class Language(str, Enum):
 
         return PythonFileHandler()
 
+
 class Output(Enum):
     """
     Enum representing output formats.
     """
+
     json = "json"
+
 
 class AuthenticationType(str, Enum):
     """
     Enum representing authentication types.
     """
+
     token = "token"
     api_key = "api_key"
     none = "unauthenticated"
@@ -74,11 +87,17 @@ class GIT:
     """
     Class representing Git operations.
     """
+
     ORIGIN_CMD: Tuple[str, ...] = ("remote", "get-url", "origin")
     BRANCH_CMD: Tuple[str, ...] = ("symbolic-ref", "--short", "-q", "HEAD")
     TAG_CMD: Tuple[str, ...] = ("describe", "--tags", "--exact-match")
-    DESCRIBE_CMD: Tuple[str, ...] = ("describe", '--match=""', '--always',
-                                   '--abbrev=40', '--dirty')
+    DESCRIBE_CMD: Tuple[str, ...] = (
+        "describe",
+        '--match=""',
+        "--always",
+        "--abbrev=40",
+        "--dirty",
+    )
     GIT_CHECK_CMD: Tuple[str, ...] = ("rev-parse", "--is-inside-work-tree")
 
     def __init__(self, root: Path = Path(".")) -> None:
@@ -90,7 +109,9 @@ class GIT:
         """
         self.git = ("git", "-C", root.resolve())
 
-    def __run__(self, cmd: Tuple[str, ...], env_var: Optional[str] = None) -> Optional[str]:
+    def __run__(
+        self, cmd: Tuple[str, ...], env_var: Optional[str] = None
+    ) -> Optional[str]:
         """
         Run a Git command.
 
@@ -105,8 +126,13 @@ class GIT:
             return os.environ.get(env_var)
 
         try:
-            return subprocess.run(self.git + cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.DEVNULL).stdout.decode('utf-8').strip()
+            return (
+                subprocess.run(
+                    self.git + cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+                )
+                .stdout.decode("utf-8")
+                .strip()
+            )
         except Exception as e:
             LOG.exception(e)
 
@@ -158,10 +184,10 @@ class GIT:
         Returns:
             bool: True if the working directory is dirty, otherwise False.
         """
-        if os.environ.get("SAFETY_GIT_DIRTY") in ["0", "1"]:
-            return bool(int(os.environ.get("SAFETY_GIT_DIRTY")))
+        if (is_dirty := os.environ.get("SAFETY_GIT_DIRTY")) and is_dirty in ["0", "1"]:
+            return bool(int(is_dirty))
 
-        return raw_describe.endswith('-dirty')
+        return raw_describe.endswith("-dirty")
 
     def commit(self, raw_describe: str) -> Optional[str]:
         """
@@ -195,7 +221,7 @@ class GIT:
 
         return False
 
-    def build_git_data(self):
+    def build_git_data(self) -> Optional["GITModel"]:
         """
         Build a GITModel object with Git data.
 
@@ -207,12 +233,19 @@ class GIT:
         if self.is_git():
             raw_describe = self.describe()
             commit = None
-            dirty = None
+            dirty = False
+
+            # TODO: describe fails when there are not commits,
+            # GitModel needs to support this case too
             if raw_describe:
                 commit = self.commit(raw_describe)
                 dirty = self.dirty(raw_describe)
-            return GITModel(branch=self.branch(),
-                            tag=self.tag(), commit=commit, dirty=dirty,
-                            origin=self.origin())
+            return GITModel(
+                branch=self.branch(),
+                tag=self.tag(),
+                commit=commit,
+                dirty=dirty,
+                origin=self.origin(),
+            )
 
         return None

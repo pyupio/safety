@@ -52,7 +52,8 @@ dependencies = [
   "typer>=0.12.1",
   "typing-extensions>=4.7.1",
   "nltk>=3.9",
-  "tomli; python_version < '3.11'"
+  "tomli; python_version < '3.11'",
+  "tomlkit"
 ]
 license = "MIT"
 license-files = ["LICENSES/*"]

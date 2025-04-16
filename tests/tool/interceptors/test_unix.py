@@ -62,6 +62,7 @@ class TestUnixAliasInterceptor(unittest.TestCase):
                 'alias pip="safety pip"\n'
                 'alias pip3="safety pip"\n'
                 'alias poetry="safety poetry"\n'
+                'alias uv="safety uv"\n'
                 "# <<< Safety <<<\n"
             )
 

@@ -103,6 +103,7 @@ class CompleteScanResult(BaseScanResult):
     """Final scan result with complete vulnerability counts"""
 
     type: Literal[ScanResultType.COMPLETE]
+    scan_id: Optional[str] = None
     percent: int = 100
     dependencies: int
     critical: int
@@ -251,6 +252,7 @@ def init_scan(
     total_resolved_vulns = 0
     file_count = 0
     venv_count = 0
+    scan_id = None
     # Count the total number of files across all types
 
     # Initial yield with dependency info
@@ -447,6 +449,8 @@ def init_scan(
             percent=100,
         )
 
+        scan_id = result.get("uuid")
+
         codebase_url = f"{SAFETY_PLATFORM_URL}{result['url']}"
         if project.git and (branch := project.git.branch):
             codebase_url += f"?branch={branch}"
@@ -471,6 +475,7 @@ def init_scan(
         fixes=fixes_count,
         fixed_vulns=total_resolved_vulns,
         codebase_url=codebase_url,
+        scan_id=scan_id,
     )
 
     # Return the complete report and files

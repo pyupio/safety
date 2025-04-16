@@ -418,7 +418,7 @@ def prompt_project_id(console: Console, default_id: str) -> str:
 
         return default_prj_id
 
-    prompt_text = f"\nEnter a name for this codebase (or press [bold]Enter[/bold] to use '\[{default_prj_id}]')"
+    prompt_text = f"\nEnter a name for this codebase (or press [bold]Enter[/bold] to use '\\[{default_prj_id}]')"
 
     while True:
         result = Prompt.ask(

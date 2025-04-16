@@ -41,6 +41,8 @@ def start_event_bus(obj: "SafetyCLI", session: "SafetyAuthSession"):
     )
 
     events = [
+        EventType.AUTH_STARTED,
+        EventType.AUTH_COMPLETED,
         EventType.COMMAND_EXECUTED,
         EventType.COMMAND_ERROR,
         InternalEventType.CLOSE_RESOURCES,

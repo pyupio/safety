@@ -29,6 +29,7 @@ from safety.auth.main import (
     get_token,
 )
 from safety.auth.server import process_browser_callback
+from safety.events.utils import emit_auth_started, emit_auth_completed
 from safety.util import initialize_event_bus
 from safety.scan.constants import (
     CLI_AUTH_COMMAND_HELP,
@@ -156,7 +157,6 @@ def login(
         ),
     ] = None,
 ) -> None:
-    headless = headless is True
     """
     Authenticate Safety CLI with your safetycli.com account using your default browser.
 
@@ -165,6 +165,7 @@ def login(
         headless (bool): Whether to run in headless mode.
     """
     LOG.info("login started")
+    headless = headless is True
 
     # Check if the user is already authenticated
     fail_if_authenticated(ctx, with_msg=MSG_FAIL_LOGIN_AUTHED)
@@ -196,10 +197,14 @@ def login(
     click.secho(brief_msg)
     click.echo()
 
+    emit_auth_started(ctx.obj.event_bus, ctx)
     # Process the browser callback to complete the authentication
     info = process_browser_callback(
         uri, initial_state=initial_state, ctx=ctx, headless=headless
     )
+
+    is_success = False
+    error_msg = None
 
     if info:
         if info.get("email", None):
@@ -213,6 +218,7 @@ def login(
             initialize(ctx, refresh=True)
             initialize_event_bus(ctx=ctx)
             render_successful_login(ctx.obj.auth, organization=organization)
+            is_success = True
 
             console.print()
             if ctx.obj.auth.org or ctx.obj.auth.email_verified:
@@ -230,21 +236,25 @@ def login(
         else:
             click.secho("Safety is now authenticated but your email is missing.")
     else:
-        msg = ":stop_sign: [red]"
+        error_msg = ":stop_sign: [red]"
         if ctx.obj.auth.org:
-            msg += (
+            error_msg += (
                 f"Error logging into {ctx.obj.auth.org.name} organization "
                 f"with auth ID: {ctx.obj.auth.org.id}."
             )
         else:
-            msg += "Error logging into Safety."
+            error_msg += "Error logging into Safety."
 
-        msg += (
+        error_msg += (
             " Please try again, or use [bold]`safety auth -–help`[/bold] "
             "for more information[/red]"
         )
 
-        console.print(msg, emoji=True)
+        console.print(error_msg, emoji=True)
+
+    emit_auth_completed(
+        ctx.obj.event_bus, ctx, success=is_success, error_message=error_msg
+    )
 
 
 @auth_app.command(name=CMD_LOGOUT_NAME, help=CLI_AUTH_LOGOUT_HELP)

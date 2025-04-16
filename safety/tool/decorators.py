@@ -5,7 +5,6 @@ from safety_schemas.models import ProjectModel
 
 from safety.console import main_console
 
-from ..init.main import load_unverified_project_from_config, verify_project
 from ..scan.util import GIT
 
 
@@ -23,6 +22,7 @@ def optional_project_command(func):
             )
 
         upload_request_id = kwargs.pop("upload_request_id", None)
+        from safety.init.main import load_unverified_project_from_config
 
         # Load .safety-project.ini
         unverified_project = load_unverified_project_from_config(project_root=target)
@@ -30,6 +30,8 @@ def optional_project_command(func):
         # We need to always verify the project
         #  and not unverified_project.created
         if ctx.obj.platform_enabled:
+            from safety.init.main import verify_project
+
             stage = ctx.obj.auth.stage
             session = ctx.obj.auth.client
             git_data = GIT(root=target).build_git_data()

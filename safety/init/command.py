@@ -17,10 +17,24 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
+from safety.events.utils.emission import (
+    emit_codebase_detection_status,
+    emit_codebase_setup_completed,
+    emit_init_exited,
+    emit_init_scan_completed,
+)
+from safety.init.models import StepTracker
 from safety.tool.utils import ToolType
 
 
-from .render import load_emoji, progressive_print, render_header, typed_print
+from .render import (
+    ask_codebase_setup,
+    ask_firewall_setup,
+    load_emoji,
+    progressive_print,
+    render_header,
+    typed_print,
+)
 from safety.scan.init_scan import start_scan
 from ..cli_util import (
     CommandType,
@@ -34,7 +48,6 @@ import typer
 
 from safety.init.constants import (
     MSG_ANALYZE_CODEBASE_TITLE,
-    MSG_AUTH_PROMPT,
     MSG_CODEBASE_NOT_CONFIGURED,
     MSG_CODEBASE_URL_DESCRIPTION,
     MSG_COMPLETE_SECURED,
@@ -52,12 +65,8 @@ from safety.init.constants import (
     MSG_SETUP_NEXT_STEPS_NO_VULNS,
     MSG_SETUP_NEXT_STEPS_SUBTITLE,
     MSG_SETUP_PACKAGE_FIREWALL_DESCRIPTION,
-    MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS,
-    MSG_SETUP_PACKAGE_FIREWALL_PROMPT,
-    MSG_SETUP_PACKAGE_FIREWALL_RESULT,
     MSG_SETUP_PACKAGE_FIREWALL_TITLE,
     MSG_SETUP_CODEBASE_DESCRIPTION,
-    MSG_SETUP_CODEBASE_PROMPT,
     MSG_SETUP_CODEBASE_TITLE,
     CODEBASE_INIT_CMD_NAME,
     CODEBASE_INIT_HELP,
@@ -65,26 +74,22 @@ from safety.init.constants import (
     MSG_TOOLS_NOT_CONFIGURED,
     MSG_WELCOME_TITLE,
     MSG_WELCOME_DESCRIPTION,
-    MSG_NEED_AUTHENTICATION,
 )
-from safety.init.main import create_project
+from safety.init.main import create_project, launch_auth_if_needed, setup_firewall
 from safety.console import main_console as console
 from ..tool.main import (
-    configure_system,
     configure_local_directory,
     find_local_tool_files,
-    configure_alias,
 )
 
 from ..constants import CONTEXT_COMMAND_TYPE, CONTEXT_FEATURE_TYPE
 
 from safety.decorators import notify
-from safety.events.utils import emit_firewall_configured
-from safety_schemas.models.events.payloads import AliasConfig, IndexConfig
+from safety.events.utils import emit_firewall_configured, emit_init_started
+from safety_schemas.models.events.payloads import AliasConfig, IndexConfig, InitExitStep
 
 
 if TYPE_CHECKING:
-    from safety.models import SafetyCLI
     import typer
     from safety.scan.init_scan import ScanResult
 
@@ -103,6 +108,7 @@ class InitScanState:
     Class to track scan state for vulnerability scans
 
     Attributes:
+        scan_id: ID of the scan
         dependencies: Number of dependencies found
         critical: Count of critical vulnerabilities
         high: Count of high severity vulnerabilities
@@ -119,6 +125,7 @@ class InitScanState:
     """
 
     def __init__(self):
+        self.scan_id: Optional[str] = None
         self.dependencies: int = 0
         self.critical: int = 0
         self.high: int = 0
@@ -371,6 +378,9 @@ def process_scan_results(
                 if result.codebase_url:
                     state.codebase_url = result.codebase_url
 
+                if result.scan_id:
+                    state.scan_id = result.scan_id
+
                 # We're done processing
                 state.completed = True
 
@@ -528,11 +538,19 @@ def init(
         ),
     ] = Path("."),
 ):
+    emit_init_started(ctx.obj.event_bus, ctx)
     # TODO: check if tty is available
-    do_init(ctx, directory, prompt_user=console.is_interactive)
+    tracker = StepTracker()
+    try:
+        do_init(ctx, directory, tracker, prompt_user=console.is_interactive)
+    except KeyboardInterrupt as e:
+        emit_init_exited(ctx.obj.event_bus, ctx, exit_step=tracker.current_step)
+        raise e
 
 
-def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
+def do_init(
+    ctx: typer.Context, directory: Path, tracker: StepTracker, prompt_user: bool = True
+):
     """
     Initialize Safety CLI with the new onboarding flow.
 
@@ -542,6 +560,26 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
         prompt_user: Whether to prompt the user for input or use defaults
     """
     project_dir = directory.resolve()
+
+    typed_print(MSG_WELCOME_TITLE)
+    progressive_print(MSG_WELCOME_DESCRIPTION)
+
+    tracker.current_step = InitExitStep.PRE_AUTH
+    org_slug = launch_auth_if_needed(ctx, console)
+    tracker.current_step = InitExitStep.POST_AUTH
+
+    render_header(MSG_SETUP_PACKAGE_FIREWALL_TITLE, margin_right=1)
+    console.print(MSG_SETUP_PACKAGE_FIREWALL_DESCRIPTION)
+
+    console.print(
+        Syntax(
+            MSG_FIREWALL_UNINSTALL, "bash", theme="monokai", background_color="default"
+        )
+    )
+
+    completed_tools = ""
+    all_completed = False
+    all_missing = True
 
     status = {
         ToolType.PIP: {
@@ -553,177 +591,30 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
             "index": IndexConfig(is_configured=False),
         },
     }
-    all_completed = False
 
-    typed_print(MSG_WELCOME_TITLE)
-
-    progressive_print(MSG_WELCOME_DESCRIPTION)
-
-    obj: "SafetyCLI" = ctx.obj
-    org_slug = None
-
-    if (
-        not obj.auth
-        or not obj.auth.client
-        or not obj.auth.client.is_using_auth_credentials()
-    ):
-        console.print(MSG_NEED_AUTHENTICATION)
-        auth_choice = Prompt.ask(
-            MSG_AUTH_PROMPT,
-            choices=["r", "l", "R", "L"],
-            default="L",
-            show_choices=False,
-            show_default=True,
-            console=console,
-        ).lower()
-
-        from safety.auth.cli import auth_app
-        from safety.cli_util import get_command_for
-
-        login_command = get_command_for(name="login", typer_instance=auth_app)
-        register_command = get_command_for(name="register", typer_instance=auth_app)
-
-        ctx.obj.only_auth_msg = True
-
-        if auth_choice == "r":
-            ctx.invoke(register_command)
-        else:
-            ctx.invoke(login_command)
-    else:
-        data = None
-        try:
-            data = ctx.obj.auth.client.initialize()
-        except Exception:
-            logger.exception("Unable to load data on the init command")
-
-        if data:
-            org_slug = data.get("organization-data", {}).get("slug")
-
-    render_header(MSG_SETUP_PACKAGE_FIREWALL_TITLE, margin_right=1)
-    emoji_check = f"[green]{load_emoji('✓')}[/green]"
-    console.print(MSG_SETUP_PACKAGE_FIREWALL_DESCRIPTION)
-
-    console.print(
-        Syntax(
-            MSG_FIREWALL_UNINSTALL, "bash", theme="monokai", background_color="default"
+    tracker.current_step = InitExitStep.PRE_FIREWALL_SETUP
+    if ask_firewall_setup(ctx, prompt_user):
+        completed_tools, all_completed, all_missing, status = setup_firewall(
+            ctx, status, org_slug, console
         )
-    )
-
-    firewall_choice = "y"
-
-    if prompt_user:
-        firewall_choice = Prompt.ask(
-            MSG_SETUP_PACKAGE_FIREWALL_PROMPT,
-            choices=["y", "n", "Y", "N"],
-            default="y",
-            show_default=False,
-            show_choices=False,
-            console=console,
-        ).lower()
-
-    completed_tools = ""
-
-    if firewall_choice == "y":
-        configured_index = configure_system(org_slug)
-        configured_alias = configure_alias()
-        if configured_alias is None:
-            configured_alias = []
-
-        console.print()
-
-        # Aliased pip to safety
-        configured = {}
-        if configured_index:
-            configured["index"] = configured_index
-
-        if configured_alias:
-            configured["alias"] = configured_alias
-
-        if any([item[1] for item in configured_index]) or any(
-            [item[1] for item in configured_alias]
-        ):
-            for key, results in configured.items():
-                for tool_type, path in results:
-                    tool_name = tool_type.value
-                    index_type = "project" if tool_type is ToolType.POETRY else "global"
-                    if path:
-                        if key == "index":
-                            msg = f"Configured {tool_name}’s {index_type} index"
-                        else:
-                            msg = f"Aliased {tool_name} to safety"
-
-                        status[tool_type][key].is_configured = True
-                        configured_msg = f"{emoji_check} {msg}"
-
-                        path = path.resolve()
-
-                        if len(path.parts) > 1:
-                            progressive_print([f"{configured_msg} (`{path}`)"])
-                        else:
-                            progressive_print([configured_msg])
-                    else:
-                        if key == "index":
-                            msg = f"{tool_name}’s {index_type} index"
-                        else:
-                            msg = f"{tool_name} alias"
-
-                        prefix_msg = "Failed to configure"
-                        emoji = {"text": "x ", "style": "red bold"}
-
-                        # If there is a non-compatible pyproject file
-                        if tool_type is ToolType.POETRY:
-                            prefix_msg = "Skipped"
-                            emoji = {"text": "- ", "style": "gray bold"}
-                            # TODO: Set None for now, to avoid mixing
-                            # no configured with skipped because no current
-                            # Poetry use in the pyproject file
-                            status[tool_type][key] = None
-                        else:
-                            status[tool_type][key].is_configured = False
-
-                        error = Text()
-                        error.append(**emoji)
-                        error.append(f"{prefix_msg} {msg}")
-                        progressive_print([error])
-
-            console.line()
-        else:
-            error = Text()
-            error.append("x ", style="red bold")
-            error.append("Failed to configure system")
-            progressive_print([error])
-
-        all_completed = all(
-            [
-                status[tool_type][key].is_configured
-                for tool_type in status
-                for key in status[tool_type]
-                if status[tool_type][key]
-            ]
-        )
-        tools = [key.value.title() for key in status]
-        completed_tools = (
-            ", ".join(tools[:-1]) + " and " + tools[-1] if len(tools) > 1 else tools[0]
-        )
-
-        if all_completed:
-            console.print(
-                f"{emoji_check} {completed_tools} {MSG_SETUP_PACKAGE_FIREWALL_RESULT}"
-            )
-            console.print(MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS)
-        else:
-            error = Text()
-            error.append(Text.from_markup(MSG_SETUP_INCOMPLETE))
-            progressive_print([error])
-
-        console.line()
+    tracker.current_step = InitExitStep.POST_FIREWALL_SETUP
 
     render_header(MSG_SETUP_CODEBASE_TITLE, emoji="🔒")
     console.print(MSG_SETUP_CODEBASE_DESCRIPTION)
 
     project_scan_state = None
 
-    if local_files := find_local_tool_files(project_dir):
+    tracker.current_step = InitExitStep.PRE_CODEBASE_SETUP
+    local_files = find_local_tool_files(project_dir)
+
+    emit_codebase_detection_status(
+        event_bus=ctx.obj.event_bus,
+        ctx=ctx,
+        detected=any(local_files),
+        detected_files=local_files if local_files else None,
+    )
+
+    if local_files:
         progressive_print(
             [
                 f"{load_emoji('📌')} We found a `{file.name}` file in this directory."
@@ -731,26 +622,22 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
             ]
         )
 
-        console.print()
-        project_choice = "y"
+        console.line()
 
-        if prompt_user:
-            project_choice = Prompt.ask(
-                MSG_SETUP_CODEBASE_PROMPT,
-                choices=["y", "n", "Y", "N"],
-                default="y",
-                show_default=False,
-                show_choices=False,
-                console=console,
-            ).lower()
-
-        if project_choice == "y":
+        if ask_codebase_setup(ctx, prompt_user):
             configure_local_directory(
                 project_dir,
                 org_slug,
             )
 
             project_created, project_status = create_project(ctx, console, project_dir)
+
+            emit_codebase_setup_completed(
+                event_bus=ctx.obj.event_bus,
+                ctx=ctx,
+                is_created=project_created,
+                codebase_id=ctx.obj.project.id if project_created else None,
+            )
 
             if project_created:
                 console.print(
@@ -761,9 +648,18 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
 
             console.line()
 
+            tracker.current_step = InitExitStep.PRE_SCAN
             project_scan_state = init_scan_ui(ctx, prompt_user)
+            tracker.current_step = InitExitStep.POST_SCAN
+            emit_init_scan_completed(
+                event_bus=ctx.obj.event_bus,
+                ctx=ctx,
+                scan_id=project_scan_state.scan_id,
+            )
     else:
         console.print(MSG_SETUP_CODEBASE_NO_PROJECT)
+
+    tracker.current_step = InitExitStep.POST_CODEBASE_SETUP
 
     console.line()
     render_header(MSG_SETUP_COMPLETE_TITLE, emoji="🏆")
@@ -772,20 +668,9 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
 
     if is_setup_complete:
         typed_print(MSG_SETUP_COMPLETE_SUBTITLE)
-        console.print()
+        console.line()
 
     wrap_up_msg = []
-
-    all_missing = False
-
-    if not all_completed:
-        all_missing = all(
-            [
-                not status[tool_type][key].is_configured
-                for tool_type in status
-                for key in status[tool_type]
-            ]
-        )
 
     if all_completed:
         wrap_up_msg.append(
@@ -810,7 +695,7 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
 
     if wrap_up_msg:
         progressive_print(wrap_up_msg)
-        console.print()
+        console.line()
 
     render_header(title=MSG_SETUP_NEXT_STEPS_SUBTITLE, emoji="🚀")
     console.line()
@@ -831,3 +716,4 @@ def do_init(ctx: typer.Context, directory: Path, prompt_user: bool = True):
         event_bus=ctx.obj.event_bus,
         status=status,
     )
+    tracker.current_step = InitExitStep.COMPLETED

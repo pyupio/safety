@@ -37,7 +37,11 @@ MSG_SETUP_PACKAGE_FIREWALL_PROMPT = (
     f"[bold]Do you want to continue with Firewall installation? {ASK_HINT}[/bold]"
 )
 
-MSG_SETUP_INCOMPLETE = "[red bold]x[/red bold] The setup was not completed successfully, reach out to [link]support@safetycli.com[/link] (we normally respond within 4 hours)"
+SUPPORT_DETAILS = (
+    "[link]support@safetycli.com[/link] (we normally respond within 4 hours)"
+)
+
+MSG_SETUP_INCOMPLETE = f"[red bold]x[/red bold] The setup was not completed successfully, reach out to {SUPPORT_DETAILS}"
 
 MSG_SETUP_PACKAGE_FIREWALL_RESULT = "configured and secured. Safety will analyze package installations for security risks before installation, and warn you if you install vulnerable packages.\n"
 MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS = "To see your firewall status, usage and to configure your firewall security settings visit [link]https://platform.safetycli.com/firewall/[/link]"
@@ -68,12 +72,16 @@ MSG_SETUP_COMPLETE_SUBTITLE = "Setup complete!"
 
 MSG_TOOLS_NOT_CONFIGURED = "[bold red]x[/bold red] No package managers configured"
 MSG_CODEBASE_NOT_CONFIGURED = "[bold red]x[/bold red] No codebase configured"
-MSG_COMPLETE_TOOL_SECURED = "✅ {tools} secured - Safety is automatically analyzing all package installations for risk. To configure or audit you installations visit [link]{firewall_url}[/link]"
+MSG_CODEBASE_FAILED_TO_SCAN = (
+    "[bold red]x[/bold red] Failed to complete the codebase scan, reason: {reason}. Reach out to "
+    + SUPPORT_DETAILS
+)
+MSG_COMPLETE_TOOL_SECURED = "✅ {tools} secured - Safety is automatically analyzing all package installations for risk. To configure or audit your installations visit [link]{firewall_url}[/link]"
 MSG_COMPLETE_SECURED = "✅ Codebase secured - to see your vulnerable packages, visit [link]{codebase_url}[/link]"
 
 MSG_SETUP_NEXT_STEPS_SUBTITLE = " Next steps:"
 
-MSG_HELP = "💬 Need help or want to give feedback? [link]support@safetycli.com[/link] (we normally respond within 4 hours)"
+MSG_HELP = f"💬 Need help or want to give feedback? {SUPPORT_DETAILS}"
 MSG_DOCS = "📚 Read the docs: [link]https://docs.safetycli.com[/link]"
 MSG_TEAM = (
     "👥 Invite your team: [link]https://platform.safetycli.com/organization/team[/link]"

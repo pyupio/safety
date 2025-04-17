@@ -8,9 +8,11 @@ from safety.tool.utils import (
     PipConfigurator,
     PipRequirementsConfigurator,
     PoetryPyprojectConfigurator,
-    ToolType,
+    UvPyprojectConfigurator,
     is_os_supported,
 )
+
+from safety_schemas.models.events.types import ToolType
 
 from .interceptors import create_interceptor
 
@@ -45,6 +47,11 @@ def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[P
             PoetryPyprojectConfigurator(),
             {"file": Path("pyproject.toml").resolve(), "org_slug": org_slug},
         ),
+        (
+            ToolType.UV,
+            UvPyprojectConfigurator(),
+            {"file": Path("pyproject.toml").resolve(), "org_slug": org_slug},
+        ),
     ]
 
     results = []
@@ -74,6 +81,7 @@ def configure_alias() -> Optional[List[Tuple[ToolType, Optional[Path]]]]:
         return [
             (ToolType.PIP, config),
             (ToolType.POETRY, config),
+            (ToolType.UV, config),
         ]
 
     return [(ToolType.PIP, None), (ToolType.POETRY, None)]

@@ -24,7 +24,7 @@ from safety.events.utils.emission import (
     emit_init_scan_completed,
 )
 from safety.init.models import StepTracker
-from safety.tool.utils import ToolType
+from safety_schemas.models.events.types import ToolType
 
 
 from .render import (
@@ -587,6 +587,10 @@ def do_init(
             "index": IndexConfig(is_configured=False),
         },
         ToolType.POETRY: {
+            "alias": AliasConfig(is_configured=False),
+            "index": IndexConfig(is_configured=False),
+        },
+        ToolType.UV: {
             "alias": AliasConfig(is_configured=False),
             "index": IndexConfig(is_configured=False),
         },

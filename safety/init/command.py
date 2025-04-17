@@ -48,6 +48,7 @@ import typer
 
 from safety.init.constants import (
     MSG_ANALYZE_CODEBASE_TITLE,
+    MSG_CODEBASE_FAILED_TO_SCAN,
     MSG_CODEBASE_NOT_CONFIGURED,
     MSG_CODEBASE_URL_DESCRIPTION,
     MSG_COMPLETE_SECURED,
@@ -691,9 +692,21 @@ def do_init(
     wrap_up_msg.append("")
 
     if project_scan_state:
-        wrap_up_msg.append(
-            MSG_COMPLETE_SECURED.format(codebase_url=project_scan_state.codebase_url)
-        )
+        if project_scan_state.scan_id:
+            wrap_up_msg.append(
+                MSG_COMPLETE_SECURED.format(
+                    codebase_url=project_scan_state.codebase_url
+                )
+            )
+        else:
+            msg = (
+                project_scan_state.status_message
+                if project_scan_state.status_message
+                else "Unknown"
+            )
+            wrap_up_msg.append(
+                Text.from_markup(MSG_CODEBASE_FAILED_TO_SCAN.format(reason=msg))
+            )
     else:
         wrap_up_msg.append(Text.from_markup(MSG_CODEBASE_NOT_CONFIGURED))
 

@@ -1,6 +1,19 @@
-from typing import Optional, List, Any, Dict, Tuple
+from typing import List, Tuple
 
 from marshmallow import Schema, fields as fields_, post_dump
+
+
+from importlib.metadata import version as dep_version
+from packaging import version
+
+marshmallow_version = version.parse(dep_version("marshmallow"))
+
+if marshmallow_version >= version.parse("4.0.0"):
+    POST_DUMP_KWARGS = {"pass_collection": True}
+else:
+    POST_DUMP_KWARGS = {"pass_many": True}
+
+post_dump_with_kwargs = lambda fn: post_dump(fn, **POST_DUMP_KWARGS)  # noqa: E731
 
 
 class CVSSv2(Schema):
@@ -12,11 +25,12 @@ class CVSSv2(Schema):
         impact_score (fields_.Int): Impact score of the CVSSv2.
         vector_string (fields_.Str): Vector string of the CVSSv2.
     """
+
     base_score = fields_.Int()
     impact_score = fields_.Int()
     vector_string = fields_.Str()
 
-    class Meta:
+    class Meta(Schema.Meta):
         ordered = True
 
 
@@ -30,12 +44,13 @@ class CVSSv3(Schema):
         impact_score (fields_.Int): Impact score of the CVSSv3.
         vector_string (fields_.Str): Vector string of the CVSSv3.
     """
+
     base_score = fields_.Int()
     base_severity = fields_.Str()
     impact_score = fields_.Int()
     vector_string = fields_.Str()
 
-    class Meta:
+    class Meta(Schema.Meta):
         ordered = True
 
 
@@ -55,17 +70,17 @@ class VulnerabilitySchemaV05(Schema):
 
     package_name = fields_.Str()
     vulnerable_spec = fields_.Str()
-    version = fields_.Str(attribute='pkg.version')
+    version = fields_.Str(attribute="pkg.version")
     advisory = fields_.Str()
     vulnerability_id = fields_.Str()
-    cvssv2: Optional[CVSSv2] = fields_.Nested(CVSSv2, attribute='severity.cvssv2')
-    cvssv3: Optional[CVSSv3] = fields_.Nested(CVSSv3, attribute='severity.cvssv3')
+    cvssv2 = fields_.Nested(CVSSv2, attribute="severity.cvssv2")
+    cvssv3 = fields_.Nested(CVSSv3, attribute="severity.cvssv3")
 
-    class Meta:
+    class Meta(Schema.Meta):
         ordered = True
 
-    @post_dump(pass_many=True)
-    def wrap_with_envelope(self, data: List[Dict[str, Any]], many: bool, **kwargs: Any) -> List[Tuple]:
+    @post_dump_with_kwargs
+    def wrap_with_envelope(self, data, many, **kwargs) -> List[Tuple]:
         """
         Wraps the dumped data with an envelope.
 
@@ -78,4 +93,3 @@ class VulnerabilitySchemaV05(Schema):
             List[Tuple]: The wrapped data.
         """
         return [tuple(d.values()) for d in data]
-

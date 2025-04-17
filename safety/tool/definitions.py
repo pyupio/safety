@@ -78,4 +78,14 @@ TOOLS = [
         display_name="poetry",
         help="[BETA] Commands for managing Safety project.\nExample: safety poetry add httpx",
     ),
+    ToolCommandModel(
+        name="pip",
+        display_name="pip",
+        help="[BETA] Commands for managing Safety project.\nExample: safety pip list",
+    ),
+    ToolCommandModel(
+        name="uv",
+        display_name="uv",
+        help="[BETA] Commands for managing Safety project.\nExample: safety uv pip list",
+    ),
 ]

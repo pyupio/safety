@@ -11,6 +11,7 @@ class ToolIntentionType(Enum):
     ADD_PACKAGE = auto()
     REMOVE_PACKAGE = auto()
     UPDATE_PACKAGE = auto()
+    SYNC_PACKAGES = auto()
     LIST_PACKAGES = auto()
     INIT_PROJECT = auto()
     BUILD_PROJECT = auto()

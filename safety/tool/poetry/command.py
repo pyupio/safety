@@ -7,10 +7,9 @@ import typer
 from safety.tool.poetry.parser import PoetryParser
 
 from ..base import BaseCommand, ToolIntentionType
-from ..utils import (
-    PipEnvironmentDiffTracker,
-    ToolType,
-)
+
+from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
+from safety_schemas.models.events.types import ToolType
 
 from safety.console import main_console as console
 

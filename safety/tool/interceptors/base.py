@@ -36,6 +36,7 @@ class CommandInterceptor(ABC):
         self.tools: Dict[str, Tool] = {
             "pip": Tool("pip", ["pip", "pip3"]),
             "poetry": Tool("poetry", ["poetry"]),
+            "uv": Tool("uv", ["uv"]),
         }
 
     @abstractmethod

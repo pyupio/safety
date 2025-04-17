@@ -440,7 +440,7 @@ def setup_firewall(
                     emoji = {"text": "x ", "style": "red bold"}
 
                     # If there is a non-compatible pyproject file
-                    if tool_type is ToolType.POETRY:
+                    if tool_type in [ToolType.POETRY, ToolType.UV]:
                         prefix_msg = "Skipped"
                         emoji = {"text": "- ", "style": "gray bold"}
                         # TODO: Set None for now, to avoid mixing

@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import json
 import os
+import threading
+from pathlib import Path
 import shutil
 import subprocess
 import time
@@ -10,15 +12,23 @@ import typer
 from safety.events.utils import emit_tool_command_executed
 from safety.init.command import init_scan_ui
 from safety.models import ToolResult
+from safety.scan.init_scan import start_scan
+from safety.tool.constants import (
+    PROJECT_CONFIG,
+    MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES,
+)
 from safety.tool.typosquatting import TyposquattingProtection
 
 from .environment_diff import EnvironmentDiffTracker
 from .intents import CommandToolIntention, ToolIntentionType
 from .resolver import get_unwrapped_command
+
+from safety_schemas.models.events.types import ToolType
+
+from safety.events.utils import emit_diff_operations
+
 from .utils import (
-    MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES,
-    ToolType,
-    emit_diff_operations,
+    is_os_supported,
 )
 
 import logging
@@ -49,7 +59,6 @@ class BaseCommand(ABC):
         self._intention = intention
         self._capture_output = capture_output
 
-        self._name = self.get_command_name()
         self._tool_type = self.get_tool_type()
         self._lock_path = self.get_lock_path()
         self._filelock = FileLock(self._lock_path, 10)
@@ -128,7 +137,7 @@ class BaseCommand(ABC):
             List[str]: Command to list packages in JSON format
         """
         # Default implementation, should be overridden by subclasses
-        return [*self._name, "list", "--format=json"]
+        return [*self.get_command_name(), "list", "--format=json"]
 
     def parse_package_list_output(self, output: str) -> List[Dict[str, Any]]:
         """
@@ -157,8 +166,44 @@ class BaseCommand(ABC):
         current_packages = self._get_installed_packages(ctx)
         self._diff_tracker.set_before_state(current_packages)
 
-    def __run_scan(self, ctx: typer.Context):
-        init_scan_ui(ctx, prompt_user=True)
+    def __run_scan_if_needed(self, ctx: typer.Context, silent: bool = True):
+        if not is_os_supported():
+            return
+
+        target = Path.cwd()
+        if (target / PROJECT_CONFIG).is_file():
+            if silent:
+                self.__run_silent_scan(ctx, target)
+            else:
+                init_scan_ui(ctx, prompt_user=True)
+
+    def __run_silent_scan(self, ctx: typer.Context, target: Path):
+        """
+        Run a scan silently without displaying progress.
+        """
+        scan_iterator = start_scan(
+            ctx=ctx,
+            target=target,
+            use_server_matching=False,
+            auth_type=ctx.obj.auth.client.get_authentication_type(),
+            is_authenticated=ctx.obj.auth.client.is_using_auth_credentials(),
+            client=ctx.obj.auth.client,
+            project=ctx.obj.project,
+            platform_enabled=ctx.obj.platform_enabled,
+        )
+
+        # Run the scan in a separate thread and consume the iterator
+        def consume_scan_results():
+            try:
+                # Consume the iterator silently - we just need to exhaust it
+                # Iterate through all results but don't display them
+                for _ in scan_iterator:
+                    pass
+            except Exception as e:
+                logger.exception(f"Error in silent scan: {str(e)}")
+
+        scan_thread = threading.Thread(target=consume_scan_results)
+        scan_thread.start()
 
     def _handle_command_result(self, ctx: typer.Context, result: ToolResult):
         """
@@ -169,7 +214,7 @@ class BaseCommand(ABC):
         if process:
             if process.returncode == 0 and self._should_track_state:
                 self._perform_diff(ctx)
-                self.__run_scan(ctx)
+                self.__run_scan_if_needed(ctx, silent=True)
 
             emit_tool_command_executed(
                 ctx.obj.event_bus,
@@ -185,7 +230,8 @@ class BaseCommand(ABC):
         Returns:
             True if the tool is reachable on system, or false otherwise
         """
-        return shutil.which(self._name[0]) is not None
+        cmd_name = self.get_command_name()[0]
+        return shutil.which(cmd_name) is not None
 
     def before(self, ctx: typer.Context):
         if self._should_track_state:
@@ -197,6 +243,7 @@ class BaseCommand(ABC):
                     dep.corrected_text = dep.original_text.replace(
                         dep.name, reviewed_name
                     )
+                    dep.name = reviewed_name
                     self._args[dep.arg_index] = dep.corrected_text
 
     def after(self, ctx: typer.Context, result: ToolResult):
@@ -209,7 +256,9 @@ class BaseCommand(ABC):
             # using pip3, it should be redirected to pip3, not pip to avoid any
             # issues.
 
-            pre_args = [get_unwrapped_command(name=self._name[0])]
+            cmd = self.get_command_name()
+            cmd_name = cmd[0]
+            pre_args = [get_unwrapped_command(name=cmd_name)] + cmd[1:]
             args = pre_args + self.__remove_safety_args(self._args)
 
             started_at = time.monotonic()

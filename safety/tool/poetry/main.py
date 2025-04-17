@@ -60,7 +60,8 @@ class Poetry:
             console (Console): Console instance.
         """
         if not cls.is_installed():
-            console.log("Poetry is not installed.")
+            logger.error("Poetry is not installed.")
+            return None
 
         repository_url = (
             ORGANIZATION_REPOSITORY_URL.format(org_slug)

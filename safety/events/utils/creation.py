@@ -3,6 +3,8 @@ from typing import Optional, TypeVar
 
 from safety_schemas.models.events import Event, EventTypeBase, PayloadBase, SourceType
 
+from safety.meta import get_identifier
+
 from ..types import InternalEventType, InternalPayload
 
 PayloadBaseT = TypeVar("PayloadBaseT", bound=PayloadBase)
@@ -12,7 +14,7 @@ EventTypeBaseT = TypeVar("EventTypeBaseT", bound=EventTypeBase)
 def create_event(
     payload: PayloadBaseT,
     event_type: EventTypeBaseT,
-    source: SourceType = SourceType.SAFETY_CLI_PYPI,
+    source: SourceType = SourceType(get_identifier()),
     timestamp: int = int(time.time()),
     correlation_id: Optional[str] = None,
     **kwargs,
@@ -41,6 +43,6 @@ def create_internal_event(
     return Event(
         type=event_type,
         timestamp=int(time.time()),
-        source=SourceType.SAFETY_CLI_PYPI,
+        source=SourceType(get_identifier()),
         payload=payload,
     )

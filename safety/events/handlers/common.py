@@ -15,6 +15,8 @@ from tenacity import (
 )
 import tenacity
 
+from safety.meta import get_identifier, get_meta_http_headers, get_version
+
 from ..types import (
     CommandErrorEvent,
     CommandExecutedEvent,
@@ -125,7 +127,6 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
         """
         from safety_schemas.models.events.types import SourceType
         from safety.events.utils.context import create_event_context
-        from safety.meta import get_version
 
         project = getattr(obj, "project", None)
         tags = None
@@ -147,7 +148,7 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
             None,
             functools.partial(
                 create_event_context,
-                SourceType.SAFETY_CLI_PYPI,
+                SourceType(get_identifier()),
                 version,
                 path,
                 project,
@@ -165,7 +166,9 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
         ),
         before_sleep=before_sleep_log(logging.getLogger("api_client"), logging.WARNING),
     )
-    async def _send_events(self, payload: dict, headers: dict) -> httpx.Response:
+    async def _send_events(
+        self, payload: dict, headers: dict
+    ) -> Optional[httpx.Response]:
         """
         Send events to the API with retry logic.
 
@@ -174,11 +177,15 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
             headers: The HTTP headers to include
 
         Returns:
-            Response from the API
+            Response from the API or None if http_client is not initialized
 
         Raises:
             Exception if all retries fail
         """
+        if self.http_client is None:
+            self.logger.warning("Cannot send events: HTTP client not initialized")
+            return None
+
         response = await self.http_client.post(
             self.api_endpoint, json=payload, headers=headers, timeout=0.75
         )
@@ -225,6 +232,7 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
             "Content-Type": "application/json",
             "X-Idempotency-Key": IDEMPOTENCY_KEY,
         }
+        headers.update(get_meta_http_headers())
 
         # Add authentication
         if self.api_key:
@@ -235,6 +243,18 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
         try:
             # Send the request with retries
             response = await self._send_events(payload, headers)
+
+            # Handle case where http_client was None and _send_events returned None
+            if response is None:
+                self.logger.warning("Events not sent: HTTP client not initialized")
+                # Put events back in collection
+                self.collected_events = events_to_send + self.collected_events
+                return {
+                    "status": "error",
+                    "count": event_count,
+                    "error": "HTTP client not initialized",
+                }
+
             self.logger.info(
                 f"Successfully sent {event_count} events, status: {response.status_code}"
             )

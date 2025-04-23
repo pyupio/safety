@@ -36,6 +36,7 @@ from safety.errors import (
     ServerError,
     TooManyRequestsError,
 )
+from safety.meta import get_meta_http_headers
 from safety.models import SafetyCLI
 from safety.scan.util import AuthenticationType
 from safety.util import SafetyContext
@@ -254,12 +255,13 @@ class SafetyAuthSession(OAuth2Session):
             kwargs[TIMEOUT_KEYWARD] if TIMEOUT_KEYWARD in kwargs else REQUEST_TIMEOUT
         )
 
+        if "headers" not in kwargs:
+            kwargs["headers"] = {}
+
+        kwargs["headers"].update(get_meta_http_headers())
+
         if self.api_key:
-            key_header = {"X-Api-Key": self.api_key}
-            if "headers" not in kwargs:
-                kwargs["headers"] = key_header
-            else:
-                kwargs["headers"]["X-Api-Key"] = self.api_key
+            kwargs["headers"]["X-Api-Key"] = self.api_key
 
         if not self.token or not bearer:
             # Fallback to no token auth

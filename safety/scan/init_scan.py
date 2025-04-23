@@ -318,7 +318,7 @@ def init_scan(
                 vulns_count += 1
 
                 # Determine vulnerability severity
-                severity = None
+                severity = severity = VulnerabilitySeverityLabels.UNKNOWN
                 if (
                     hasattr(vuln, "CVE")
                     and vuln.CVE
@@ -327,8 +327,6 @@ def init_scan(
                 ):
                     severity_str = vuln.CVE.cvssv3.get("base_severity", "none").lower()
                     severity = VulnerabilitySeverityLabels(severity_str)
-                elif hasattr(vuln, "severity") and vuln.severity:
-                    severity = vuln.severity.label
 
                 # Count based on severity
                 if severity is VulnerabilitySeverityLabels.CRITICAL:

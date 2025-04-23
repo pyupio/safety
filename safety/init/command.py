@@ -190,6 +190,14 @@ def generate_summary(state: InitScanState, spinner_phase=0):
             "count_attr": "low",
             "spinner_offset": 6,
         },
+        {
+            "name": "OTHER",
+            "icon": "**",
+            "style": "blue",
+            "dim_style": "dim blue",
+            "count_attr": "others",
+            "spinner_offset": 8,
+        },
     ]
 
     # No vulnerabilities case

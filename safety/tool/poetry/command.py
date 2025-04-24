@@ -13,7 +13,7 @@ from safety_schemas.models.events.types import ToolType
 
 from safety.console import main_console as console
 
-PO_LOCK = "po_lock"
+PO_LOCK = "safety-po.lock"
 
 if TYPE_CHECKING:
     from ..environment_diff import EnvironmentDiffTracker

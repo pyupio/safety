@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import json
 import os
-import threading
+import sys
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,10 +9,10 @@ import time
 from typing import Any, Dict, List, Optional
 from filelock import FileLock
 import typer
+from safety.constants import USER_CONFIG_DIR
 from safety.events.utils import emit_tool_command_executed
 from safety.init.command import init_scan_ui
 from safety.models import ToolResult
-from safety.scan.init_scan import start_scan
 from safety.tool.constants import (
     PROJECT_CONFIG,
     MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES,
@@ -60,7 +60,7 @@ class BaseCommand(ABC):
         self._capture_output = capture_output
 
         self._tool_type = self.get_tool_type()
-        self._lock_path = self.get_lock_path()
+        self._lock_path = USER_CONFIG_DIR / self.get_lock_path()
         self._filelock = FileLock(self._lock_path, 10)
         self.__typosquatting_protection = TyposquattingProtection(
             MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES
@@ -181,29 +181,27 @@ class BaseCommand(ABC):
         """
         Run a scan silently without displaying progress.
         """
-        scan_iterator = start_scan(
-            ctx=ctx,
-            target=target,
-            use_server_matching=False,
-            auth_type=ctx.obj.auth.client.get_authentication_type(),
-            is_authenticated=ctx.obj.auth.client.is_using_auth_credentials(),
-            client=ctx.obj.auth.client,
-            project=ctx.obj.project,
-            platform_enabled=ctx.obj.platform_enabled,
-        )
+        target_arg = str(target.resolve())
+        CMD = ("safety", "scan", "--target", target_arg)
 
-        # Run the scan in a separate thread and consume the iterator
-        def consume_scan_results():
-            try:
-                # Consume the iterator silently - we just need to exhaust it
-                # Iterate through all results but don't display them
-                for _ in scan_iterator:
-                    pass
-            except Exception as e:
-                logger.exception(f"Error in silent scan: {str(e)}")
+        logger.info(f"Launching silent scan: {CMD}")
 
-        scan_thread = threading.Thread(target=consume_scan_results)
-        scan_thread.start()
+        try:
+            kwargs = {
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "stdin": subprocess.DEVNULL,
+                "shell": False,
+            }
+
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                kwargs["start_new_session"] = True
+
+            subprocess.Popen(CMD, **kwargs)
+        except Exception as e:
+            logger.error(f"Failed to start independent scan: {e}")
 
     def _handle_command_result(self, ctx: typer.Context, result: ToolResult):
         """

@@ -18,7 +18,7 @@ from ..utils import Pip
 
 from safety.console import main_console as console
 
-PIP_LOCK = "pip_lock"
+PIP_LOCK = "safety-pip.lock"
 
 if TYPE_CHECKING:
     from ..environment_diff import EnvironmentDiffTracker

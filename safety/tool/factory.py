@@ -12,7 +12,7 @@ import typer
 
 from safety.decorators import notify
 from safety.error_handlers import handle_cmd_exception
-from .decorators import optional_project_command
+from safety.tool.decorators import prepare_tool_execution
 
 from .definitions import TOOLS, ToolCommandModel
 
@@ -77,7 +77,7 @@ class ToolCommandFactory:
             context_settings=cmd_settings.context_settings.as_dict(),
         )
         @handle_cmd_exception
-        @optional_project_command
+        @prepare_tool_execution
         @notify
         def tool_main_command(
             ctx: typer.Context,

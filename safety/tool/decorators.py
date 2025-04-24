@@ -1,58 +1,57 @@
 from functools import wraps
 from pathlib import Path
 
+from rich.console import Console
 from safety_schemas.models import ProjectModel
 
 from safety.console import main_console
+from safety.tool.constants import (
+    MSG_NOT_AUTHENTICATED_TOOL,
+    MSG_NOT_AUTHENTICATED_TOOL_NO_TTY,
+)
 
 from ..scan.util import GIT
 
 
-def optional_project_command(func):
+def prepare_tool_execution(func):
     @wraps(func)
     def inner(ctx, target: Path, *args, **kwargs):
         ctx.obj.console = main_console
         ctx.params.pop("console", None)
 
         if not ctx.obj.auth.is_valid():
-            from safety.cli_util import process_auth_status_not_ready
+            tool_name = ctx.command.name.title()
+            if ctx.obj.console.is_interactive:
+                ctx.obj.console.line()
+                ctx.obj.console.print(
+                    MSG_NOT_AUTHENTICATED_TOOL.format(tool_name=tool_name)
+                )
+                ctx.obj.console.line()
 
-            process_auth_status_not_ready(
-                console=main_console, auth=ctx.obj.auth, ctx=ctx
-            )
+                from safety.cli_util import process_auth_status_not_ready
 
-        upload_request_id = kwargs.pop("upload_request_id", None)
+                process_auth_status_not_ready(
+                    console=main_console, auth=ctx.obj.auth, ctx=ctx
+                )
+            else:
+                stderr_console = Console(stderr=True)
+                stderr_console.print(
+                    MSG_NOT_AUTHENTICATED_TOOL_NO_TTY.format(tool_name=tool_name)
+                )
+
         from safety.init.main import load_unverified_project_from_config
 
-        # Load .safety-project.ini
         unverified_project = load_unverified_project_from_config(project_root=target)
 
-        # We need to always verify the project
-        #  and not unverified_project.created
-        if ctx.obj.platform_enabled:
-            from safety.init.main import verify_project
-
-            stage = ctx.obj.auth.stage
-            session = ctx.obj.auth.client
-            git_data = GIT(root=target).build_git_data()
-            origin = None
-
-            if git_data:
-                origin = git_data.origin
-
-            verify_project(
-                main_console, ctx, session, unverified_project, stage, origin
-            )
-
-            ctx.obj.project.git = git_data
-        else:
+        if prj_id := unverified_project.id:
             ctx.obj.project = ProjectModel(
-                id="",
-                name="Undefined project",
+                id=prj_id,
+                name=unverified_project.name,
                 project_path=unverified_project.project_path,
             )
 
-        ctx.obj.project.upload_request_id = upload_request_id
+            git_data = GIT(root=target).build_git_data()
+            ctx.obj.project.git = git_data
 
         return func(ctx, target=target, *args, **kwargs)
 

@@ -4,6 +4,8 @@ from safety.tool.pip.parser import PipParser
 from ..pip.command import PipCommand, PipInstallCommand, PipGenericCommand
 from safety_schemas.models.events.types import ToolType
 
+UV_LOCK = "safety-uv.lock"
+
 
 class UvCommand(PipCommand):
     def __init__(self, *args, **kwargs) -> None:
@@ -12,6 +14,9 @@ class UvCommand(PipCommand):
 
     def get_tool_type(self) -> ToolType:
         return ToolType.UV
+
+    def get_lock_path(self) -> str:
+        return UV_LOCK
 
     def get_package_list_command(self) -> List[str]:
         return [*self._name, "pip", "list", "--format=json"]
@@ -49,4 +54,5 @@ class UvInstallCommand(PipInstallCommand, UvCommand):
 
 
 class UvGenericCommand(PipGenericCommand, UvCommand):
-    pass
+    def get_command_name(self) -> List[str]:
+        return ["uv"]

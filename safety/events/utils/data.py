@@ -30,6 +30,9 @@ def scrub_sensitive_value(value: str) -> str:
 
     result = value
 
+    if re.match(r"^-{1,2}[\w-]+$", value) and "=" not in value:
+        return value
+
     # Patterns to detect and replace
     patterns = [
         # This will replace ports too, but that's fine
@@ -38,8 +41,8 @@ def scrub_sensitive_value(value: str) -> str:
         (r"Bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer -"),
         (r"\b[A-Za-z0-9_-]{20,}\b", "-"),
         (
-            r"([?&])((?:token|api|apikey|key|auth|secret|password|access|jwt|bearer|credential|pwd)=)([^&\s]+)",
-            r"\1\2-",
+            r"((?:token|api|apikey|key|auth|secret|password|access|jwt|bearer|credential|pwd)=)([^&\s]+)",
+            r"\1-",
         ),
     ]
 

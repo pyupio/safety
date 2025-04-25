@@ -54,6 +54,7 @@ from safety.init.constants import (
     MSG_COMPLETE_SECURED,
     MSG_COMPLETE_TOOL_SECURED,
     MSG_FIREWALL_UNINSTALL,
+    MSG_LAST_MANUAL_STEP,
     MSG_NO_VULNERABILITIES_FOUND,
     MSG_NO_VULNS_CODEBASE_URL_DESCRIPTION,
     MSG_OPEN_DASHBOARD_PROMPT,
@@ -62,6 +63,7 @@ from safety.init.constants import (
     MSG_SETUP_COMPLETE_TITLE,
     MSG_SETUP_INCOMPLETE,
     MSG_SETUP_NEXT_STEPS,
+    MSG_SETUP_NEXT_STEPS_MANUAL_STEP,
     MSG_SETUP_NEXT_STEPS_NO_PROJECT,
     MSG_SETUP_NEXT_STEPS_NO_VULNS,
     MSG_SETUP_NEXT_STEPS_SUBTITLE,
@@ -679,10 +681,6 @@ def do_init(
 
     is_setup_complete = all_completed and project_scan_state
 
-    if is_setup_complete:
-        typed_print(MSG_SETUP_COMPLETE_SUBTITLE)
-        console.line()
-
     wrap_up_msg = []
 
     if all_completed:
@@ -722,6 +720,12 @@ def do_init(
         progressive_print(wrap_up_msg)
         console.line()
 
+        if is_setup_complete:
+            typed_print(MSG_SETUP_COMPLETE_SUBTITLE)
+            console.line()
+            typed_print(MSG_LAST_MANUAL_STEP)
+            console.line()
+
     render_header(title=MSG_SETUP_NEXT_STEPS_SUBTITLE, emoji="🚀")
     console.line()
 
@@ -735,6 +739,10 @@ def do_init(
     progressive_print(
         [Padding(Text.from_markup(line), (0, 0, 1, 0)) for line in next_steps_msg]
     )
+
+    console.line()
+    typed_print(MSG_SETUP_NEXT_STEPS_MANUAL_STEP, delay=0.04)
+    console.line()
 
     # Emit event for firewall configuration
     emit_firewall_configured(

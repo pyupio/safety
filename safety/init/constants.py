@@ -1,4 +1,7 @@
 # Codebase options
+import sys
+
+
 CODEBASE_INIT_CMD_NAME = "init"
 CODEBASE_INIT_HELP = (
     "[BETA] Used to install Safety Firewall globally, or to initialize a codebase in the current directory."
@@ -66,9 +69,16 @@ MSG_NO_VULNS_CODEBASE_URL_DESCRIPTION = (
 
 MSG_OPEN_DASHBOARD_PROMPT = f"💡 Open this in a new browser window now? {ASK_HINT}"
 
+MSG_COMMAND_TO_RUN = "`source ~/.profile`"
+MSG_LAST_MANUAL_STEP = (
+    "🟡 IMPORTANT: At the end, restart the terminal to activate your Safety configuration."
+    if sys.platform == "win32"
+    else f"🟡 IMPORTANT: Run {MSG_COMMAND_TO_RUN} to activate your Safety configuration."
+)
+
 MSG_SETUP_COMPLETE_TITLE = " Wrap Up"
 
-MSG_SETUP_COMPLETE_SUBTITLE = "Setup complete!"
+MSG_SETUP_COMPLETE_SUBTITLE = "Almost done! Final step:"
 
 MSG_TOOLS_NOT_CONFIGURED = "[bold red]x[/bold red] No package managers configured"
 MSG_CODEBASE_NOT_CONFIGURED = "[bold red]x[/bold red] No codebase configured"
@@ -106,3 +116,9 @@ MSG_SETUP_NEXT_STEPS_NO_PROJECT = (
 )
 
 MSG_SETUP_NEXT_STEPS_NO_VULNS = (MSG_TEAM, MSG_DOCS, MSG_HELP)
+
+MSG_SETUP_NEXT_STEPS_MANUAL_STEP = (
+    "(Don't forget to restart the terminal now!)"
+    if sys.platform == "win32"
+    else f"(Don't forget to run {MSG_COMMAND_TO_RUN} now!)"
+)

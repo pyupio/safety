@@ -10,6 +10,7 @@ from safety.events.utils.emission import (
 )
 from safety.init.constants import (
     MSG_SETUP_CODEBASE_PROMPT,
+    MSG_SETUP_CONTINUE_PROMPT,
     MSG_SETUP_PACKAGE_FIREWALL_PROMPT,
 )
 
@@ -146,3 +147,30 @@ def ask_codebase_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
     )
 
     return should_setup_codebase
+
+
+def ask_continue(ctx: typer.Context, prompt_user: bool = True) -> bool:
+    """
+    Ask the user if they want to continue by typing enter
+
+    Args:
+        ctx: The CLI context
+        prompt_user: Whether to prompt the user for input
+
+    Returns:
+        bool: True if the user wants to continue, False otherwise
+    """
+    if prompt_user:
+        return (
+            Prompt.ask(
+                MSG_SETUP_CONTINUE_PROMPT,
+                choices=["y", "Y"],
+                default="y",
+                show_default=False,
+                show_choices=False,
+                console=console,
+            ).lower()
+            == "y"
+        )
+
+    return True

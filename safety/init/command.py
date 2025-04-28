@@ -29,6 +29,7 @@ from safety_schemas.models.events.types import ToolType
 
 from .render import (
     ask_codebase_setup,
+    ask_continue,
     ask_firewall_setup,
     load_emoji,
     progressive_print,
@@ -610,6 +611,10 @@ def do_init(
         completed_tools, all_completed, all_missing, status = setup_firewall(
             ctx, status, org_slug, console
         )
+        console.line()
+        ask_continue(ctx, prompt_user)
+        console.line()
+
     tracker.current_step = InitExitStep.POST_FIREWALL_SETUP
 
     render_header(MSG_SETUP_CODEBASE_TITLE, emoji="🔒")

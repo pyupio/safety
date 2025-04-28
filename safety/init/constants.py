@@ -46,6 +46,8 @@ MSG_SETUP_INCOMPLETE = f"[red bold]x[/red bold] The setup was not completed succ
 MSG_SETUP_PACKAGE_FIREWALL_RESULT = "configured and secured. Safety will analyze package installations for security risks before installation, and warn you if you install vulnerable packages.\n"
 MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS = "To see your firewall status, usage and to configure your firewall security settings visit [link]https://platform.safetycli.com/firewall/[/link]"
 
+MSG_SETUP_CONTINUE_PROMPT = "[bold][Press Enter to continue][/bold]"
+
 MSG_SETUP_CODEBASE_TITLE = " Secure Your First Codebase"
 
 MSG_SETUP_CODEBASE_DESCRIPTION = "Safety monitors your codebase for open source dependency vulnerabilities and risk, surfacing reachable vulnerabilities that pose actual risk, and gives you advice on what to fix and how.\n"

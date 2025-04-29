@@ -410,7 +410,7 @@ def setup_firewall(
         for config_type, results in configured.items():
             for tool_type, path in results:
                 tool_name = tool_type.value
-                index_type = "project" if tool_type is ToolType.POETRY else "global"
+                index_type = "global"
 
                 tool_config = status[tool_type]
                 is_configured = False
@@ -439,13 +439,13 @@ def setup_firewall(
                     prefix_msg = "Failed to configure"
                     emoji = {"text": "x ", "style": "red bold"}
 
-                    # If there is a non-compatible pyproject file
-                    if tool_type in [ToolType.POETRY, ToolType.UV]:
+                    # If there is a non-compatible global index
+                    if tool_type in [ToolType.POETRY]:
                         prefix_msg = "Skipped"
+                        msg += " - not supported by poetry"
                         emoji = {"text": "- ", "style": "gray bold"}
                         # TODO: Set None for now, to avoid mixing
-                        # no configured with skipped because no current
-                        # Poetry use in the pyproject file
+                        # no configured error with skipped.
                         tool_config[config_type] = None
                     else:
                         is_configured = False

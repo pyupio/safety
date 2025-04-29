@@ -60,7 +60,14 @@ class TestUnixAliasInterceptor(unittest.TestCase):
                 f"# Last updated at: {mock_now.isoformat()}\n"
                 "# Updated by: safety v1.0.0\n"
                 'alias pip="safety pip"\n'
-                'alias pip3="safety pip"\n'
+                'alias pip3="safety pip3"\n'
+                'alias pip3.8="safety pip3.8"\n'
+                'alias pip3.9="safety pip3.9"\n'
+                'alias pip3.10="safety pip3.10"\n'
+                'alias pip3.11="safety pip3.11"\n'
+                'alias pip3.12="safety pip3.12"\n'
+                'alias pip3.13="safety pip3.13"\n'
+                'alias pip3.14="safety pip3.14"\n'
                 'alias poetry="safety poetry"\n'
                 'alias uv="safety uv"\n'
                 "# <<< Safety <<<\n"

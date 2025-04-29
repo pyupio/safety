@@ -34,7 +34,9 @@ class CommandInterceptor(ABC):
     def __init__(self, interceptor_type: InterceptorType):
         self.interceptor_type = interceptor_type
         self.tools: Dict[str, Tool] = {
-            "pip": Tool("pip", ["pip", "pip3"]),
+            "pip": Tool(
+                "pip", ["pip", "pip3"] + [f"pip3.{ver}" for ver in range(8, 15)]
+            ),
             "poetry": Tool("poetry", ["poetry"]),
             "uv": Tool("uv", ["uv"]),
         }

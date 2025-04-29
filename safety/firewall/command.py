@@ -30,8 +30,8 @@ from .constants import (
     MSG_FEEDBACK,
     MSG_REQ_FILE_LINE,
     MSG_UNINSTALL_EXPLANATION,
-    MSG_UNINSTALL_PIP_ALIAS,
-    MSG_UNINSTALL_PIP_CONFIG,
+    MSG_UNINSTALL_WRAPPERS,
+    MSG_UNINSTALL_CONFIG,
     MSG_UNINSTALL_SUCCESS,
     UNINSTALL_CMD_NAME,
     UNINSTALL_HELP,
@@ -106,14 +106,15 @@ def uninstall(ctx: typer.Context):
         sys.exit(EXIT_CODE_OK)
 
     console.print()
-    console.print(MSG_UNINSTALL_PIP_CONFIG)
+    for msg in MSG_UNINSTALL_CONFIG:
+        console.print(msg)
     # TODO: Make it robust. The reset per tool should be included in remove
     # interceptors
     reset_system()
 
     # TODO: support reset project files
 
-    console.print(MSG_UNINSTALL_PIP_ALIAS)
+    console.print(MSG_UNINSTALL_WRAPPERS)
     interceptor = create_interceptor()
     interceptor.remove_interceptors()
 

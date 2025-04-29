@@ -70,7 +70,7 @@ MSG_NO_VULNS_CODEBASE_URL_DESCRIPTION = (
 
 MSG_OPEN_DASHBOARD_PROMPT = f"💡 Open this in a new browser window now? {ASK_HINT}"
 
-MSG_COMMAND_TO_RUN = "`source ~/.profile`"
+MSG_COMMAND_TO_RUN = "`source ~/.safety/.safety_profile`"
 MSG_LAST_MANUAL_STEP = (
     "🟡 IMPORTANT: At the end, restart the terminal to activate your Safety configuration."
     if sys.platform == "win32"

@@ -147,6 +147,9 @@ class Uv:
 
     @classmethod
     def filter_out_safety_index(cls, index_container: Any):
+        if "index" not in index_container:
+            return
+
         indexes = list(index_container["index"])
         index_container["index"] = tomlkit.aot()
 
@@ -232,4 +235,3 @@ class Uv:
         except Exception as e:
             msg = "Failed to reset UV global settings"
             logger.error(f"{msg}: {e}")
-            console.print(f"{msg}.")

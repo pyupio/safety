@@ -6,7 +6,7 @@ import importlib
 import logging
 from pathlib import Path
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import typer
 
@@ -24,6 +24,8 @@ except ImportError:
 
 if TYPE_CHECKING:
     from safety.cli_util import SafetyCLILegacyGroup
+    from safety.tool import ToolResult
+    from safety.cli_util import CustomContext
 
 logger = logging.getLogger(__name__)
 
@@ -113,12 +115,19 @@ class ToolCommandFactory:
                 typer.echo(f"Command class {command_class_name} not found")
                 return
 
-            command = command_class.from_args(ctx.args)
+            parent_ctx = cast("CustomContext", ctx.parent)
+            command = command_class.from_args(
+                ctx.args,
+                command_alias_used=parent_ctx.command_alias_used,
+            )
             if not command.is_installed():
                 typer.echo(f"Tool {tool_command.name} is not installed.")
                 sys.exit(1)
 
-            command.execute(ctx)
+            result: "ToolResult" = command.execute(ctx)
+
+            if result.process.returncode != 0:
+                sys.exit(result.process.returncode)
 
         # We can support subcommands in the future
         return app

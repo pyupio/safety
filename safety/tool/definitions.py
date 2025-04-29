@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 
 from safety.cli_util import CommandType, FeatureType
@@ -14,6 +14,7 @@ class ContextSettingsModel(BaseModel):
     ignore_unknown_options: bool = Field(default=True)
     command_type: CommandType = Field(default=CommandType.BETA)
     feature_type: FeatureType = Field(default=FeatureType.FIREWALL)
+    help_option_names: List[str] = Field(default=["--safety-help"])
 
     def as_dict(self) -> Dict[str, Any]:
         """
@@ -27,6 +28,7 @@ class ContextSettingsModel(BaseModel):
             "ignore_unknown_options": self.ignore_unknown_options,
             CONTEXT_COMMAND_TYPE: self.command_type,
             CONTEXT_FEATURE_TYPE: self.feature_type,
+            "help_option_names": self.help_option_names,
         }
         return result
 

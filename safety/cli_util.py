@@ -6,7 +6,17 @@ from enum import Enum
 from functools import wraps
 
 import time
-from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 import click
 import typer
@@ -670,6 +680,7 @@ class CustomContext(click.Context):
         self.command_type = command_type
         self.feature_type = feature_type
         self.started_at = time.monotonic()
+        self.command_alias_used: Optional[str] = None
         super().__init__(command, parent=parent, **kwargs)
 
 
@@ -783,6 +794,13 @@ class SafetyCLILegacyGroup(click.Group):
         self.all_commands[name] = cmd
 
     def parse_args(self, ctx: click.Context, args: List[str]) -> List[str]:
+        ctx = cast(CustomContext, ctx)
+
+        if len(args) >= 1:
+            if "pip" in args[0] and ctx:
+                ctx.command_alias_used = args[0]
+                args[0] = "pip"
+
         parsed_args = super().parse_args(ctx, args)
 
         args = ctx.args

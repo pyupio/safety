@@ -95,6 +95,26 @@ class PipConfigurator(ToolConfigurator):
         Pip.reset_system()
 
 
+class PoetryConfigurator(ToolConfigurator):
+    """
+    Configures poetry system is not supported.
+    """
+
+    def configure(self, org_slug: Optional[str]) -> Optional[Path]:
+        return None
+
+    def reset(self) -> None:
+        return None
+
+
+class UvConfigurator(ToolConfigurator):
+    def configure(self, org_slug: Optional[str]) -> Optional[Path]:
+        return Uv.configure_system(org_slug)
+
+    def reset(self) -> None:
+        Uv.reset_system()
+
+
 class UvPyprojectConfigurator(BuildFileConfigurator):
     __file_name_pattern = re.compile("^uv.lock$")
 
@@ -106,5 +126,5 @@ class UvPyprojectConfigurator(BuildFileConfigurator):
 
     def configure(self, file: Path, org_slug: Optional[str]) -> Optional[Path]:
         if self.is_supported(file):
-            return Uv.configure_pyproject(file, org_slug)
+            return Uv.configure_pyproject(Path("pyproject.toml"), org_slug)
         return None

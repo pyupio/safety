@@ -7,7 +7,9 @@ from safety.constants import USER_CONFIG_DIR
 from safety.tool.utils import (
     PipConfigurator,
     PipRequirementsConfigurator,
+    PoetryConfigurator,
     PoetryPyprojectConfigurator,
+    UvConfigurator,
     UvPyprojectConfigurator,
     is_os_supported,
 )
@@ -22,7 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 def find_local_tool_files(directory: Path) -> List[Path]:
-    configurators = [PipRequirementsConfigurator(), PoetryPyprojectConfigurator()]
+    configurators = [
+        PipRequirementsConfigurator(),
+        PoetryPyprojectConfigurator(),
+        UvPyprojectConfigurator(),
+    ]
 
     results = []
 
@@ -36,22 +42,11 @@ def find_local_tool_files(directory: Path) -> List[Path]:
     return results
 
 
-# TODO: Refactor this function, Poetry is not a system configuration, but
-# now we should be able to run global and project configurations in one step
-# as the UI requires show the index setup status for Poetry
 def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[Path]]]:
     configurators: List[Tuple[ToolType, Any, Dict[str, Any]]] = [
         (ToolType.PIP, PipConfigurator(), {"org_slug": org_slug}),
-        (
-            ToolType.POETRY,
-            PoetryPyprojectConfigurator(),
-            {"file": Path("pyproject.toml").resolve(), "org_slug": org_slug},
-        ),
-        (
-            ToolType.UV,
-            UvPyprojectConfigurator(),
-            {"file": Path("pyproject.toml").resolve(), "org_slug": org_slug},
-        ),
+        (ToolType.POETRY, PoetryConfigurator(), {"org_slug": org_slug}),
+        (ToolType.UV, UvConfigurator(), {"org_slug": org_slug}),
     ]
 
     results = []
@@ -62,7 +57,7 @@ def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[P
 
 
 def reset_system():
-    configurators = [PipConfigurator()]
+    configurators = [PipConfigurator(), PoetryConfigurator(), UvConfigurator()]
 
     for configurator in configurators:
         configurator.reset()
@@ -84,11 +79,15 @@ def configure_alias() -> Optional[List[Tuple[ToolType, Optional[Path]]]]:
             (ToolType.UV, config),
         ]
 
-    return [(ToolType.PIP, None), (ToolType.POETRY, None)]
+    return [(ToolType.PIP, None), (ToolType.POETRY, None), (ToolType.UV, None)]
 
 
 def configure_local_directory(directory: Path, org_slug: Optional[str]):
-    configurators = [PipRequirementsConfigurator(), PoetryPyprojectConfigurator()]
+    configurators = [
+        PipRequirementsConfigurator(),
+        PoetryPyprojectConfigurator(),
+        UvPyprojectConfigurator(),
+    ]
 
     for file_name in os.listdir(directory):
         if os.path.isfile(file_name):

@@ -14,7 +14,8 @@ UNINSTALL_CMD_NAME = "uninstall"
 
 FIREWALL_HELP = "[BETA] Manage Safety Firewall settings."
 
-MSG_UNINSTALL_PIP_CONFIG = (
-    "Removing global configuration for pip from: ~/.config/pip/pip.conf"
+MSG_UNINSTALL_CONFIG = (
+    "Removing global configuration for pip from: ~/.config/pip/pip.conf",
+    "Removing global configuration for uv from: uv.toml",
 )
-MSG_UNINSTALL_PIP_ALIAS = "Removing pip alias to safety from ~/.profile"
+MSG_UNINSTALL_WRAPPERS = "Removing aliases to safety from config files"

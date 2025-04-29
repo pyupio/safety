@@ -115,7 +115,7 @@ class UnixAliasInterceptor(CommandInterceptor):
             aliases = []
             for tool in tools:
                 for binary in tool.binary_names:
-                    alias_def = f'alias {binary}="safety {tool.name}"'
+                    alias_def = f'alias {binary}="safety {binary}"'
                     aliases.append(alias_def)
 
             if not aliases:

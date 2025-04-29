@@ -47,6 +47,7 @@ class BaseCommand(ABC):
         args: List[str],
         capture_output: bool = False,
         intention: Optional[CommandToolIntention] = None,
+        command_alias_used: Optional[str] = None,
     ) -> None:
         """
         Initialize the command.
@@ -58,6 +59,7 @@ class BaseCommand(ABC):
         self._args = args
         self._intention = intention
         self._capture_output = capture_output
+        self._command_alias_used = command_alias_used
 
         self._tool_type = self.get_tool_type()
         self._lock_path = USER_CONFIG_DIR / self.get_lock_path()
@@ -247,7 +249,7 @@ class BaseCommand(ABC):
     def after(self, ctx: typer.Context, result: ToolResult):
         self._handle_command_result(ctx, result)
 
-    def execute(self, ctx: typer.Context):
+    def execute(self, ctx: typer.Context) -> ToolResult:
         with self._filelock:
             self.before(ctx)
             # TODO: Safety should redirect to the proper pip/tool, if the user is
@@ -269,6 +271,8 @@ class BaseCommand(ABC):
             result = ToolResult(process=process, duration_ms=duration_ms)
 
             self.after(ctx, result)
+
+            return result
 
     def env(self, ctx: typer.Context):
         """

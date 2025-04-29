@@ -75,14 +75,14 @@ class PoetryCommand(BaseCommand):
         return ["poetry", "run", "pip", "list", "--format=json"]
 
     @classmethod
-    def from_args(cls, args: List[str]):
+    def from_args(cls, args: List[str], **kwargs):
         parser = PoetryParser()
 
         if intention := parser.parse(args):
             if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return PoetryAddCommand(args, intention=intention)
+                return PoetryAddCommand(args, intention=intention, **kwargs)
 
-        return PoetryGenericCommand(args)
+        return PoetryGenericCommand(args, **kwargs)
 
 
 class PoetryGenericCommand(PoetryCommand):

@@ -36,16 +36,20 @@ class UvCommand(PipCommand):
         return any(cmd in command_str for cmd in package_modifying_commands)
 
     @classmethod
-    def from_args(cls, args: List[str]):
+    def from_args(cls, args: List[str], **kwargs):
         parser = PipParser()
 
         to_parse = args[1:] if args[0] == "pip" else args
 
         if intention := parser.parse(to_parse):
             if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return UvInstallCommand(to_parse, intention=intention)
+                return UvInstallCommand(to_parse, intention=intention, **kwargs)
 
-        return UvGenericCommand(to_parse)
+        # No at install but still a pip interface command
+        if args[0] == "pip":
+            to_parse = args
+
+        return UvGenericCommand(to_parse, **kwargs)
 
 
 class UvInstallCommand(PipInstallCommand, UvCommand):

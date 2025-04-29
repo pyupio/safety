@@ -33,7 +33,17 @@ class PipCommand(BaseCommand):
         return ToolType.PIP
 
     def get_command_name(self) -> List[str]:
-        return ["pip"]
+        """
+        This uses command alias if available, with this we support
+        pip3.13, pip3.12, etc.
+        """
+
+        cmd_name = ["pip"]
+
+        if self._command_alias_used:
+            cmd_name = [self._command_alias_used]
+
+        return cmd_name
 
     def get_lock_path(self) -> str:
         return PIP_LOCK
@@ -52,14 +62,14 @@ class PipCommand(BaseCommand):
         return any(cmd in command_str for cmd in package_modifying_commands)
 
     @classmethod
-    def from_args(cls, args: List[str]):
+    def from_args(cls, args: List[str], **kwargs):
         parser = PipParser()
 
         if intention := parser.parse(args):
             if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return PipInstallCommand(args, intention=intention)
+                return PipInstallCommand(args, intention=intention, **kwargs)
 
-        return PipGenericCommand(args)
+        return PipGenericCommand(args, **kwargs)
 
 
 class PipGenericCommand(PipCommand):

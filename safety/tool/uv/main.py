@@ -1,12 +1,14 @@
 import logging
+import os
 from pathlib import Path
 import shutil
 import sys
-from typing import Optional
+from typing import Any, Dict, Optional
 import urllib.parse
 import tomlkit
 
 from rich.console import Console
+from tomlkit.items import InlineTable
 from safety.console import main_console
 from safety.tool.constants import ORGANIZATION_REPOSITORY_URL, PUBLIC_REPOSITORY_URL
 
@@ -16,6 +18,15 @@ else:
     import tomli as tomllib
 
 logger = logging.getLogger(__name__)
+
+
+def backup_file(path: Path) -> None:
+    """
+    Create backup of file if it exists
+    """
+    if path.exists():
+        backup_path = path.with_name(f"{path.name}.backup")
+        shutil.copy2(path, backup_path)
 
 
 class Uv:
@@ -58,7 +69,8 @@ class Uv:
             console (Console): Console instance.
         """
         if not cls.is_installed():
-            console.log("UV is not installed.")
+            logger.error("UV is not installed.")
+            return None
 
         repository_url = (
             ORGANIZATION_REPOSITORY_URL.format(org_slug)
@@ -70,40 +82,154 @@ class Uv:
                 {"project-id": project_id}
             )
         try:
-            # Read the file
             content = file.read_text()
-            doc = tomlkit.parse(content)
+            doc: Dict[str, Any] = tomlkit.loads(content)
 
-            # Create tool table if it doesn't exist
             if "tool" not in doc:
-                doc.add("tool", tomlkit.table())
+                doc["tool"] = tomlkit.aot()
+            if "uv" not in doc["tool"]:  # type: ignore
+                doc["tool"]["uv"] = tomlkit.aot()  # type: ignore
+            if "index" not in doc["tool"]["uv"]:  # type: ignore
+                doc["tool"]["uv"]["index"] = tomlkit.aot()  # type: ignore
 
-            tool = doc.get("tool")
+            index_container = doc["tool"]["uv"]  # type: ignore
+            cls.filter_out_safety_index(index_container)
 
-            if not tool:
-                tool = tomlkit.table()
-                doc.add("tool", tool)
+            safety_index = {
+                "name": "safety",
+                "url": repository_url,
+                # In UV default:
+                # True = lowest priority
+                # False = highest priority
+                "default": False,
+            }
+            non_safety_indexes = (
+                doc.get("tool", {}).get("uv", {}).get("index", tomlkit.aot())
+            )
 
-            uv = tool.get("uv")
-
-            if not uv:
-                uv = tomlkit.table()
-                tool.add("uv", uv)
-
-            index = uv.get("index")
-
-            if not index:
-                index = tomlkit.table()
-                uv.add("index", index)
-
-            index.add("name", "safety")
-            index.add("url", repository_url)
+            # Add safety index as first priority
+            index_container["index"] = tomlkit.aot()  # type: ignore
+            index_container["index"].append(safety_index)  # type: ignore
+            index_container["index"].extend(non_safety_indexes)  # type: ignore
 
             # Write back to file
             file.write_text(tomlkit.dumps(doc))
             return file
 
-        except (IOError, ValueError) as e:
+        except (IOError, ValueError, Exception) as e:
             logger.error(f"Failed to configure {file} file: {e}")
 
         return None
+
+    @classmethod
+    def get_user_config_path(cls) -> Path:
+        """
+        Returns the path to the user config file for UV.
+
+        This logic is based on the uv documentation:
+        https://docs.astral.sh/uv/configuration/files/
+
+        "uv will also discover user-level configuration at
+        ~/.config/uv/uv.toml (or $XDG_CONFIG_HOME/uv/uv.toml) on macOS and Linux,
+        or %APPDATA%\\uv\\uv.toml on Windows; ..."
+
+        Returns:
+            Path: The path to the user config file.
+        """
+        if sys.platform == "win32":
+            return Path(os.environ.get("APPDATA", ""), "uv", "uv.toml")
+        else:
+            xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
+            if xdg_config_home:
+                return Path(xdg_config_home, "uv", "uv.toml")
+            else:
+                return Path(Path.home(), ".config", "uv", "uv.toml")
+
+    @classmethod
+    def filter_out_safety_index(cls, index_container: Any):
+        indexes = list(index_container["index"])
+        index_container["index"] = tomlkit.aot()
+
+        for index in indexes:
+            index_url = index.get("url", "")
+
+            if ".safetycli.com" in index_url:
+                continue
+
+            # Convert InlineTable to dict if needed before appending
+            if isinstance(index, InlineTable):
+                table = tomlkit.table()
+                for key, value in index.items():
+                    table[key] = value
+                index_container["index"].append(table)
+            else:
+                index_container["index"].append(index)
+
+    @classmethod
+    def configure_system(
+        cls, org_slug: Optional[str], console: Console = main_console
+    ) -> Optional[Path]:
+        """
+        Configures UV system to use to Safety index url.
+        """
+        try:
+            repository_url = (
+                ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                if org_slug
+                else PUBLIC_REPOSITORY_URL
+            )
+
+            user_config_path = cls.get_user_config_path()
+
+            if not user_config_path.exists():
+                user_config_path.parent.mkdir(parents=True, exist_ok=True)
+                content = ""
+            else:
+                backup_file(user_config_path)
+                content = user_config_path.read_text()
+
+            doc = tomlkit.loads(content)
+            if "index" not in doc:
+                doc["index"] = tomlkit.aot()
+            cls.filter_out_safety_index(index_container=doc)
+
+            safety_index = tomlkit.aot()
+            safety_index.append(
+                {
+                    "name": "safety",
+                    "url": repository_url,
+                    # In UV default:
+                    # True = lowest priority
+                    # False = highest priority
+                    "default": False,
+                }
+            )
+
+            non_safety_indexes = doc.get("index", tomlkit.aot())
+
+            # Add safety index as first priority
+            doc["index"] = tomlkit.aot()
+            doc.append("index", safety_index)
+            doc.append("index", non_safety_indexes)
+
+            user_config_path.write_text(tomlkit.dumps(doc))
+            return user_config_path
+
+        except Exception as e:
+            logger.error(f"Failed to configure UV system: {e}")
+            return None
+
+    @classmethod
+    def reset_system(cls, console: Console = main_console):
+        try:
+            user_config_path = cls.get_user_config_path()
+            if user_config_path.exists():
+                backup_file(user_config_path)
+                content = user_config_path.read_text()
+                doc = tomlkit.loads(content)
+                cls.filter_out_safety_index(index_container=doc)
+                user_config_path.write_text(tomlkit.dumps(doc))
+        except Exception as e:
+            msg = "Failed to reset UV global settings"
+            logger.error(f"{msg}: {e}")
+            console.print(f"{msg}.")

@@ -20,8 +20,7 @@ MSG_WELCOME_DESCRIPTION = (
     "[bold]Safety is designed to:[/bold]",
     "1. Work with your existing package manager to block malicious or high-risk packages before they're installed.",
     "2. Keep track of the dependencies in your codebase, and help you to quickly fix any vulnerabilities in them.",
-    "3. Integrate with your AI assistants to ensure they use secure packages (coming soon!)."
-    "\n",
+    "3. Integrate with your AI assistants to ensure they use secure packages.\n",
 )
 
 MSG_NEED_AUTHENTICATION = "To configure firewall and your codebase security settings, you'll need an account.\n"
@@ -31,7 +30,7 @@ MSG_AUTH_PROMPT = (
 
 MSG_SETUP_PACKAGE_FIREWALL_TITLE = "  Set Up Package Firewall"
 
-MSG_SETUP_PACKAGE_FIREWALL_DESCRIPTION = "Let's configure Safety Firewall. This won't change the way you use pip and you'll only notice it when it blocks a malicious or vulnerable package. You can uninstall Firewall at any time with:\n"
+MSG_SETUP_PACKAGE_FIREWALL_DESCRIPTION = "Let's configure Safety Firewall to protect your package installations. This won't change the way you use pip and you'll only notice it when it blocks a malicious or vulnerable package. You can uninstall Firewall at any time with:\n"
 MSG_FIREWALL_UNINSTALL = "`safety firewall uninstall`\n"
 
 ASK_HINT = "[Press Enter to continue, n to cancel]"

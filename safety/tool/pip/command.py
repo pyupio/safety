@@ -4,6 +4,7 @@ import re
 from tempfile import mkstemp
 from typing import TYPE_CHECKING, Any, List, Optional
 
+import logging
 from rich.padding import Padding
 import typer
 
@@ -22,6 +23,8 @@ PIP_LOCK = "safety-pip.lock"
 
 if TYPE_CHECKING:
     from ..environment_diff import EnvironmentDiffTracker
+
+logger = logging.getLogger(__name__)
 
 
 class PipCommand(BaseCommand):
@@ -182,12 +185,16 @@ class PipInstallCommand(PipCommand):
 
     def __audit_packages(self, ctx: typer.Context) -> Any:
         try:
+            added, _, updated = self._diff_tracker.get_diff()
+            packages = {**added, **updated}
+
             return ctx.obj.auth.client.audit_packages(
                 [
-                    f"{package_name}{version if version else ''}"
-                    for (package_name, version) in self.__packages
+                    f"{package_name}=={version[1] if len(version) > 1 else version}"
+                    for (package_name, version) in packages.items()
                 ]
             )
         except Exception:
+            logger.debug("Audit API failed with error", exc_info=True)
             # do not propagate the error in case the audit failed
             return dict()

@@ -10,6 +10,10 @@ from typing import Dict, List, Optional, Set, Union
 from safety_schemas.models.events.payloads import ToolStatus, AliasConfig, IndexConfig
 from safety_schemas.models.events.types import ToolType
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ToolInspector:
     """
@@ -189,7 +193,7 @@ class ToolInspector:
         self._found_paths[tool_type] = paths
         return paths
 
-    def _kill_process(self, proc):
+    async def _kill_process(self, proc):
         """
         Helper method to kill a process safely.
         """
@@ -198,9 +202,9 @@ class ToolInspector:
 
         try:
             proc.kill()
+            await asyncio.wait_for(proc.wait(), timeout=1.0)
         except Exception:
-            # Ignore any errors during kill
-            pass
+            logger.exception("Error killing process")
 
     async def _check_tool(self, tool_type: ToolType, path: str) -> Optional[ToolStatus]:
         """
@@ -209,6 +213,7 @@ class ToolInspector:
         proc = None
         try:
             version_arg = self.VERSION_ARGS[tool_type]
+
             proc = await asyncio.create_subprocess_exec(
                 path,
                 version_arg,
@@ -245,7 +250,7 @@ class ToolInspector:
                 )
             except (asyncio.TimeoutError, TimeoutError):
                 if proc:
-                    self._kill_process(proc)
+                    await self._kill_process(proc)
                     # Clear references to help garbage collection
                     proc = None
 
@@ -257,9 +262,11 @@ class ToolInspector:
                     reachable=False,
                 )
         except Exception:
+            logger.exception("Error checking tool")
+
             # Any other error means the tool is not reachable
             if proc:
-                self._kill_process(proc)
+                await self._kill_process(proc)
                 # Clear reference to help garbage collection
                 proc = None
 

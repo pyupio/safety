@@ -1,39 +1,88 @@
 import sys
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def apply_asyncio_patch():
     """
-    Apply a patch to asyncio's proactor events on Windows when running Python 3.8 or 3.9.
+    Apply a patch to asyncio's exception handling for subprocesses.
 
-    This patch is needed because of a bug in Python 3.8 and 3.9 that causes a
-    RuntimeError to be raised when the event loop is closed while there are still
-    open file descriptors. This bug was fixed in Python 3.10.
-
-    The bug manifests itself when using the proactor event loop on Windows, which
-    is the default event loop on Windows. The bug causes the event loop to be
-    closed while there are still open file descriptors, which causes a RuntimeError
-    to be raised.
+    There are some issues with asyncio's exception handling for subprocesses,
+    which causes a RuntimeError to be raised when the event loop was already closed.
 
     This patch catches the RuntimeError and ignores it, which allows the event loop
     to be closed properly.
 
-    See https://bugs.python.org/issue39232 and https://github.com/python/cpython/issues/92841
-    for more information.
+    Similar issues:
+    - https://bugs.python.org/issue39232
+    - https://github.com/python/cpython/issues/92841
     """
 
-    if sys.platform == "win32" and (3, 8, 0) <= sys.version_info < (3, 11, 0):
+    import asyncio.base_subprocess
+
+    original_subprocess_del = asyncio.base_subprocess.BaseSubprocessTransport.__del__
+
+    def patched_subprocess_del(self):
+        try:
+            original_subprocess_del(self)
+        except (RuntimeError, ValueError, OSError) as e:
+            if isinstance(e, RuntimeError) and str(e) != "Event loop is closed":
+                raise
+            if isinstance(e, ValueError) and str(e) != "I/O operation on closed pipe":
+                raise
+            if isinstance(e, OSError) and "[WinError 6]" not in str(e):
+                raise
+            logger.debug(f"Patched {original_subprocess_del}")
+
+    asyncio.base_subprocess.BaseSubprocessTransport.__del__ = patched_subprocess_del
+
+    if sys.platform == "win32":
         import asyncio.proactor_events as proactor_events
 
-        original_del = proactor_events._ProactorBasePipeTransport.__del__
+        original_pipe_del = proactor_events._ProactorBasePipeTransport.__del__
 
-        def patched_del(self):
+        def patched_pipe_del(self):
             try:
-                original_del(self)
-            except RuntimeError as e:
-                if str(e) != "Event loop is closed":
+                original_pipe_del(self)
+            except (RuntimeError, ValueError) as e:
+                if isinstance(e, RuntimeError) and str(e) != "Event loop is closed":
                     raise
+                if (
+                    isinstance(e, ValueError)
+                    and str(e) != "I/O operation on closed pipe"
+                ):
+                    raise
+                logger.debug(f"Patched {original_pipe_del}")
 
-        proactor_events._ProactorBasePipeTransport.__del__ = patched_del
+        original_repr = proactor_events._ProactorBasePipeTransport.__repr__
+
+        def patched_repr(self):
+            try:
+                return original_repr(self)
+            except ValueError as e:
+                if str(e) != "I/O operation on closed pipe":
+                    raise
+                logger.debug(f"Patched {original_repr}")
+                return f"<{self.__class__} [closed]>"
+
+        proactor_events._ProactorBasePipeTransport.__del__ = patched_pipe_del
+        proactor_events._ProactorBasePipeTransport.__repr__ = patched_repr
+
+        import subprocess
+
+        original_popen_del = subprocess.Popen.__del__
+
+        def patched_popen_del(self):
+            try:
+                original_popen_del(self)
+            except OSError as e:
+                if "[WinError 6]" not in str(e):
+                    raise
+                logger.debug(f"Patched {original_popen_del}")
+
+        subprocess.Popen.__del__ = patched_popen_del
 
 
 apply_asyncio_patch()

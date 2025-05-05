@@ -8,7 +8,6 @@ import urllib.parse
 import tomlkit
 
 from rich.console import Console
-from tomlkit.items import InlineTable
 from safety.console import main_console
 from safety.tool.constants import ORGANIZATION_REPOSITORY_URL, PUBLIC_REPOSITORY_URL
 
@@ -86,9 +85,9 @@ class Uv:
             doc: Dict[str, Any] = tomlkit.loads(content)
 
             if "tool" not in doc:
-                doc["tool"] = tomlkit.aot()
+                doc["tool"] = tomlkit.table()
             if "uv" not in doc["tool"]:  # type: ignore
-                doc["tool"]["uv"] = tomlkit.aot()  # type: ignore
+                doc["tool"]["uv"] = tomlkit.table()  # type: ignore
             if "index" not in doc["tool"]["uv"]:  # type: ignore
                 doc["tool"]["uv"]["index"] = tomlkit.aot()  # type: ignore
 
@@ -159,14 +158,7 @@ class Uv:
             if ".safetycli.com" in index_url:
                 continue
 
-            # Convert InlineTable to dict if needed before appending
-            if isinstance(index, InlineTable):
-                table = tomlkit.table()
-                for key, value in index.items():
-                    table[key] = value
-                index_container["index"].append(table)
-            else:
-                index_container["index"].append(index)
+            index_container["index"].append(index)
 
     @classmethod
     def configure_system(

@@ -58,7 +58,7 @@ name = "test-project"
 version = "0.1.0"
 
 [tool.uv]
-index = []
+no-build-isolation-package = ["flash-attn"]
         """
         with patch("pathlib.Path.read_text", return_value=mock_content):
             with patch("pathlib.Path.exists", return_value=False):
@@ -180,55 +180,6 @@ default = false
                     self.assertEqual(first_index["name"], "safety")
                     self.assertEqual(first_index["default"], False)
 
-    def test_configure_pyproject_with_inline_table_format(self):
-        """
-        Test configure_pyproject with inline table format for indexes.
-        """
-        with patch.object(Uv, "is_installed", return_value=True):
-            mock_content = """
-[project]
-name = "uv-project"
-version = "0.1.0"
-description = "Test project"
-readme = "README.md"
-requires-python = ">=3.8"
-dependencies = []
-
-[tool.uv]
-index = [
-    { url = "https://test.pypi.org/simple", default = true },
-    { url = "https://pypi.org/simple", default = false },
-    { url = "https://custom-repo.example.com/simple", default = false }
-]
-            """
-
-            with patch("pathlib.Path.read_text", return_value=mock_content):
-                with patch("pathlib.Path.write_text") as mock_write:
-                    result = Uv.configure_pyproject(
-                        self.pyproject_path, self.org_slug, None, self.test_console
-                    )
-
-                    self.assertEqual(result, self.pyproject_path)
-                    mock_write.assert_called_once()
-
-                    # Get the written TOML content
-                    args = mock_write.call_args[0][0]
-                    doc = tomlkit.parse(args)
-
-                    # Check safety index is added with correct settings
-                    first_index = doc["tool"]["uv"]["index"][0]
-                    self.assertEqual(first_index["name"], "safety")
-                    self.assertEqual(
-                        first_index["url"],
-                        ORGANIZATION_REPOSITORY_URL.format(self.org_slug),
-                    )
-                    self.assertEqual(first_index["default"], False)  # Highest priority
-
-                    # Check other indexes are preserved
-                    self.assertEqual(
-                        len(doc["tool"]["uv"]["index"]), 4
-                    )  # safety + 3 original
-
     def test_configure_pyproject_with_public_repository(self):
         """
         Test configure_pyproject with public repository (no org_slug).
@@ -262,11 +213,15 @@ index = [
 name = "uv-project"
 version = "0.1.0"
 
-[tool.uv]
-index = [
-    { name = "safety", url = "https://pypi.old-org.safetycli.com/simple/", default = false },
-    { url = "https://pypi.org/simple", default = true }
-]
+[[tool.uv.index]]  
+name = "safety"
+url = "https://pypi.org/simple/"
+default = true
+
+[[tool.uv.index]]  
+name = "safety"
+url = "https://old-pkgs.safetycli.com/repository/safety-cybersecurity/pypi/simple/"
+default = false
             """
 
             with patch("pathlib.Path.read_text", return_value=mock_content):

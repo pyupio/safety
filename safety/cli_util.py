@@ -874,6 +874,7 @@ class SafetyCLILegacyGroup(click.Group):
             for k, v in self.commands.items()
             if v.context_settings.get(CONTEXT_FEATURE_TYPE, None)
             not in disabled_features
+            or k in ["firewall"]
         }
 
     def invoke(self, ctx: click.Context) -> None:

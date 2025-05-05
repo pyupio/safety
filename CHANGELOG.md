@@ -6,6 +6,20 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.5.0b0 (2025-05-05)
+
+### Feat
+
+- improved rendering of the warning messages (#732)
+- added resolution of installed packages (#730)
+
+### Fix
+
+- missing uninstall option when feature flag is disabled (#734)
+- usage of aot instead of tables for uv project (#733)
+- suppress event loop errors during subprocess transport cleanup (#731)
+- uv index out of range issue (#729)
+
 ## 3.4.1b0 (2025-04-29)
 
 ### Fix

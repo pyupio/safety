@@ -18,6 +18,7 @@ from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
 from ..utils import Pip
 
 from safety.console import main_console as console
+from ...init.render import render_header, progressive_print
 
 PIP_LOCK = "safety-pip.lock"
 
@@ -150,7 +151,7 @@ class PipInstallCommand(PipCommand):
     def __render_installation_warnings(self, ctx: typer.Context):
         packages_audit = self.__audit_packages(ctx)
 
-        printed_report_header = False
+        warning_messages = []
         for audited_package in packages_audit.get("audit", {}).get("packages", []):
             vulnerabilities = audited_package.get("vulnerabilities", {})
             critical_vulnerabilities = vulnerabilities.get("critical", 0)
@@ -161,17 +162,17 @@ class PipInstallCommand(PipCommand):
             if total_vulnerabilities == 0:
                 continue
 
-            if not printed_report_header:
-                printed_report_header = True
-                console.print()
-                console.print("=== Safety Report ===")
-
-            warning_message = f"[Warning] {audited_package.get('package_specifier')} contains {total_vulnerabilities} vulnerabilities"
+            warning_message = f"[[yellow]Warning[/yellow]] {audited_package.get('package_specifier')} contains {total_vulnerabilities} vulnerabilities"
             if critical_vulnerabilities > 0:
                 warning_message += f", including {critical_vulnerabilities} critical severity vulnerabilities"
 
             warning_message += "."
-            console.print(Padding(warning_message, (0, 0, 0, 1)))
+            warning_messages.append(warning_message)
+
+        if len(warning_messages) > 0:
+            console.print()
+            render_header(" Safety Report")
+            progressive_print(warning_messages)
 
     def __render_package_details(self):
         for package_name, version_specifier in self.__packages:

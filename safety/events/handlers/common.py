@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import logging
+import os
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import uuid
@@ -186,8 +187,10 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
             self.logger.warning("Cannot send events: HTTP client not initialized")
             return None
 
+        TIMEOUT = int(os.getenv("SAFETY_REQUEST_TIMEOUT_EVENTS", 10))
+
         response = await self.http_client.post(
-            self.api_endpoint, json=payload, headers=headers, timeout=0.75
+            self.api_endpoint, json=payload, headers=headers, timeout=TIMEOUT
         )
         response.raise_for_status()
         return response

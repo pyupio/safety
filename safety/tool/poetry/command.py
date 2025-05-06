@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import typer
 
-from safety.tool.poetry.parser import PoetryParser
+from .constants import MSG_MISSING_SAFETY_SOURCE
+from .parser import PoetryParser
 
 from ..base import BaseCommand, ToolIntentionType
 
@@ -17,7 +18,6 @@ PO_LOCK = "safety-po.lock"
 
 if TYPE_CHECKING:
     from ..environment_diff import EnvironmentDiffTracker
-
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -148,7 +148,7 @@ class PoetryAddCommand(PoetryCommand):
 
         if not self.has_safety_source_in_pyproject():
             console.print(
-                "\nError: 'safety' source is not configured in pyproject.toml, run 'safety init' to fix this.",
+                MSG_MISSING_SAFETY_SOURCE,
             )
             sys.exit(1)
 

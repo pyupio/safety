@@ -82,7 +82,9 @@ def configure_alias() -> Optional[List[Tuple[ToolType, Optional[Path]]]]:
     return [(ToolType.PIP, None), (ToolType.POETRY, None), (ToolType.UV, None)]
 
 
-def configure_local_directory(directory: Path, org_slug: Optional[str]):
+def configure_local_directory(
+    directory: Path, org_slug: Optional[str], project_id: Optional[str]
+):
     configurators = [
         PipRequirementsConfigurator(),
         PoetryPyprojectConfigurator(),
@@ -94,4 +96,4 @@ def configure_local_directory(directory: Path, org_slug: Optional[str]):
             file = Path(file_name)
             for configurator in configurators:
                 if configurator.is_supported(file):
-                    configurator.configure(file, org_slug)
+                    configurator.configure(file, org_slug, project_id)

@@ -645,12 +645,9 @@ def do_init(
         console.line()
 
         if ask_codebase_setup(ctx, prompt_user):
-            configure_local_directory(
-                project_dir,
-                org_slug,
-            )
-
             project_created, project_status = create_project(ctx, console, project_dir)
+
+            configure_local_directory(project_dir, org_slug, ctx.obj.project.id)
 
             emit_codebase_setup_completed(
                 event_bus=ctx.obj.event_bus,

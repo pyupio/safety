@@ -1,0 +1,1 @@
+MSG_MISSING_SAFETY_SOURCE = "\nError: Safety Firewall source is not configured in pyproject.toml. Continuing with installation would result in you not being protected from malicious or insecure packages. Run 'safety init' to fix this."

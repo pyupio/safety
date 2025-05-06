@@ -6,6 +6,12 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.5.0b1 (2025-05-06)
+
+### Fix
+
+- fix the version information passing (#735)
+
 ## 3.5.0b0 (2025-05-05)
 
 ### Feat

@@ -191,7 +191,7 @@ class PipInstallCommand(PipCommand):
 
             return ctx.obj.auth.client.audit_packages(
                 [
-                    f"{package_name}=={version[1] if len(version) > 1 else version}"
+                    f"{package_name}=={version[-1] if isinstance(version, tuple) else version}"
                     for (package_name, version) in packages.items()
                 ]
             )

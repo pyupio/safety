@@ -4,12 +4,15 @@ from pathlib import Path
 import shutil
 import sys
 from typing import Any, Dict, Optional
-import urllib.parse
 import tomlkit
 
 from rich.console import Console
 from safety.console import main_console
-from safety.tool.constants import ORGANIZATION_REPOSITORY_URL, PUBLIC_REPOSITORY_URL
+from safety.tool.constants import (
+    ORGANIZATION_REPOSITORY_URL,
+    PUBLIC_REPOSITORY_URL,
+    PROJECT_REPOSITORY_URL,
+)
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -72,14 +75,14 @@ class Uv:
             return None
 
         repository_url = (
-            ORGANIZATION_REPOSITORY_URL.format(org_slug)
-            if org_slug
-            else PUBLIC_REPOSITORY_URL
-        )
-        if project_id:
-            repository_url = repository_url + urllib.parse.urlencode(
-                {"project-id": project_id}
+            PROJECT_REPOSITORY_URL.format(org_slug, project_id)
+            if project_id and org_slug
+            else (
+                ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                if org_slug
+                else PUBLIC_REPOSITORY_URL
             )
+        )
         try:
             content = file.read_text()
             doc: Dict[str, Any] = tomlkit.loads(content)

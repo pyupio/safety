@@ -154,4 +154,3 @@ class PoetryAddCommand(PoetryCommand):
 
         _, modified_args = self.patch_source_option(self._args)
         self._args = modified_args
-        print(self._args)

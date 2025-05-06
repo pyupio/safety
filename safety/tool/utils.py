@@ -34,12 +34,15 @@ class BuildFileConfigurator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def configure(self, file: Path, org_slug: Optional[str]) -> Optional[Path]:
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> Optional[Path]:
         """
         Configures specific file.
         Args:
             file (str): The file to configure.
             org_slug (str): The organization slug.
+            project_id (str): The project identifier.
         """
         pass
 
@@ -50,8 +53,10 @@ class PipRequirementsConfigurator(BuildFileConfigurator):
     def is_supported(self, file: Path) -> bool:
         return self.__file_name_pattern.match(os.path.basename(file)) is not None
 
-    def configure(self, file: Path, org_slug: Optional[str]) -> None:
-        Pip.configure_requirements(file, org_slug)  # type: ignore
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> None:
+        Pip.configure_requirements(file, org_slug, project_id)
 
 
 class PoetryPyprojectConfigurator(BuildFileConfigurator):
@@ -62,9 +67,11 @@ class PoetryPyprojectConfigurator(BuildFileConfigurator):
             os.path.basename(file)
         ) is not None and Poetry.is_poetry_project_file(file)
 
-    def configure(self, file: Path, org_slug: Optional[str]) -> Optional[Path]:
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> Optional[Path]:
         if self.is_supported(file):
-            return Poetry.configure_pyproject(file, org_slug)  # type: ignore
+            return Poetry.configure_pyproject(file, org_slug, project_id)  # type: ignore
         return None
 
 
@@ -124,7 +131,9 @@ class UvPyprojectConfigurator(BuildFileConfigurator):
             and Path("pyproject.toml").exists()
         )
 
-    def configure(self, file: Path, org_slug: Optional[str]) -> Optional[Path]:
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> Optional[Path]:
         if self.is_supported(file):
-            return Uv.configure_pyproject(Path("pyproject.toml"), org_slug)
+            return Uv.configure_pyproject(Path("pyproject.toml"), org_slug, project_id)
         return None

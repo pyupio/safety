@@ -11,7 +11,11 @@ from urllib.parse import urlsplit, urlunsplit
 import typer
 from rich.console import Console
 
-from safety.tool.constants import PUBLIC_REPOSITORY_URL, ORGANIZATION_REPOSITORY_URL
+from safety.tool.constants import (
+    PUBLIC_REPOSITORY_URL,
+    ORGANIZATION_REPOSITORY_URL,
+    PROJECT_REPOSITORY_URL,
+)
 from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
@@ -36,6 +40,7 @@ class Pip:
         cls,
         file: Path,
         org_slug: Optional[str],
+        project_id: Optional[str],
         console: Console = main_console,
     ) -> Optional[Path]:
         """
@@ -44,6 +49,7 @@ class Pip:
         Args:
             file (Path): Path to requirements.txt file.
             org_slug (str): Organization slug.
+            project_id (str): Project identifier.
             console (Console): Console instance.
         """
 
@@ -51,9 +57,13 @@ class Pip:
             content = f.read()
 
             repository_url = (
-                ORGANIZATION_REPOSITORY_URL.format(org_slug)
-                if org_slug
-                else PUBLIC_REPOSITORY_URL
+                PROJECT_REPOSITORY_URL.format(org_slug, project_id)
+                if project_id and org_slug
+                else (
+                    ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                    if org_slug
+                    else PUBLIC_REPOSITORY_URL
+                )
             )
             index_config = f"-i {repository_url}\n"
             if content.find(index_config) == -1:

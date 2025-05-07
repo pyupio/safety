@@ -1,1 +1,4 @@
-MSG_MISSING_SAFETY_SOURCE = "\nError: Safety Firewall source is not configured in pyproject.toml. Continuing with installation would result in you not being protected from malicious or insecure packages. Run 'safety init' to fix this."
+MSG_SAFETY_SOURCE_NOT_ADDED = "\nError: Safety Firewall could not be added as a source in your pyproject.toml file. You will not be protected from malicious or insecure packages. Please run `safety init` to fix this."
+MSG_SAFETY_SOURCE_ADDED = (
+    "\nSafety Firewall has been added as a source to protect this codebase"
+)

@@ -20,6 +20,7 @@ class PoetryParser(ToolCommandLineParser):
             "show": ToolIntentionType.LIST_PACKAGES,
             "init": ToolIntentionType.INIT_PROJECT,
             "build": ToolIntentionType.BUILD_PROJECT,
+            "install": ToolIntentionType.SYNC_PACKAGES,
         }
 
     def parse(self, args: List[str]) -> Optional[CommandToolIntention]:

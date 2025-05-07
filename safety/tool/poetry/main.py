@@ -38,10 +38,17 @@ class Poetry:
     def is_poetry_project_file(cls, file: Path) -> bool:
         try:
             cfg = tomllib.loads(file.read_text())
-            return cfg.get("build-system", {}).get("requires") in [
-                ["poetry-core"],
-                "poetry-core",
-            ]
+
+            # First check: tool.poetry section (most definitive)
+            if "tool" in cfg and "poetry" in cfg.get("tool", {}):
+                return True
+
+            # Extra check on build-system section
+            build_backend = cfg.get("build-system", {}).get("build-backend", "")
+            if build_backend and "poetry.core" in build_backend:
+                return True
+
+            return False
         except (IOError, ValueError):
             return False
 

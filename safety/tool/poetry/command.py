@@ -1,10 +1,12 @@
 from pathlib import Path
 import sys
 from typing import TYPE_CHECKING, List, Optional, Tuple
-
+import logging
 import typer
 
-from .constants import MSG_MISSING_SAFETY_SOURCE
+from safety.tool.utils import PoetryPyprojectConfigurator
+
+from .constants import MSG_SAFETY_SOURCE_ADDED, MSG_SAFETY_SOURCE_NOT_ADDED
 from .parser import PoetryParser
 
 from ..base import BaseCommand, ToolIntentionType
@@ -23,6 +25,8 @@ if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
+
+logger = logging.getLogger(__name__)
 
 
 class PoetryCommand(BaseCommand):
@@ -74,23 +78,7 @@ class PoetryCommand(BaseCommand):
         """
         return ["poetry", "run", "pip", "list", "--format=json"]
 
-    @classmethod
-    def from_args(cls, args: List[str], **kwargs):
-        parser = PoetryParser()
-
-        if intention := parser.parse(args):
-            if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return PoetryAddCommand(args, intention=intention, **kwargs)
-
-        return PoetryGenericCommand(args, **kwargs)
-
-
-class PoetryGenericCommand(PoetryCommand):
-    pass
-
-
-class PoetryAddCommand(PoetryCommand):
-    def has_safety_source_in_pyproject(self) -> bool:
+    def _has_safety_source_in_pyproject(self) -> bool:
         """
         Check if 'safety' source exists in pyproject.toml
         """
@@ -113,6 +101,55 @@ class PoetryAddCommand(PoetryCommand):
         except (FileNotFoundError, KeyError, tomllib.TOMLDecodeError):
             return False
 
+    def before(self, ctx: typer.Context):
+        super().before(ctx)
+
+        if self._intention and self._intention.intention_type in [
+            ToolIntentionType.SYNC_PACKAGES,
+            ToolIntentionType.ADD_PACKAGE,
+        ]:
+            if not self._has_safety_source_in_pyproject():
+                org_slug = None
+                try:
+                    data = ctx.obj.auth.client.initialize()
+                    org_slug = data.get("organization-data", {}).get("slug")
+                except Exception:
+                    logger.exception(
+                        "Unable to pull the org slug from the initialize endpoint."
+                    )
+
+                try:
+                    configurator = PoetryPyprojectConfigurator()
+                    prj_slug = ctx.obj.project.id if ctx.obj.project else None
+                    if configurator.configure(
+                        Path("pyproject.toml"), org_slug, prj_slug
+                    ):
+                        console.print(
+                            MSG_SAFETY_SOURCE_ADDED,
+                        )
+                except Exception:
+                    logger.exception("Unable to configure the pyproject.toml file.")
+                    console.print(
+                        MSG_SAFETY_SOURCE_NOT_ADDED,
+                    )
+
+    @classmethod
+    def from_args(cls, args: List[str], **kwargs):
+        parser = PoetryParser()
+
+        if intention := parser.parse(args):
+            kwargs["intention"] = intention
+            if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
+                return PoetryAddCommand(args, **kwargs)
+
+        return PoetryGenericCommand(args, **kwargs)
+
+
+class PoetryGenericCommand(PoetryCommand):
+    pass
+
+
+class PoetryAddCommand(PoetryCommand):
     def patch_source_option(
         self, args: List[str], new_source: str = "safety"
     ) -> Tuple[Optional[str], List[str]]:
@@ -145,12 +182,6 @@ class PoetryAddCommand(PoetryCommand):
 
     def before(self, ctx: typer.Context):
         super().before(ctx)
-
-        if not self.has_safety_source_in_pyproject():
-            console.print(
-                MSG_MISSING_SAFETY_SOURCE,
-            )
-            sys.exit(1)
 
         _, modified_args = self.patch_source_option(self._args)
         self._args = modified_args

@@ -344,7 +344,7 @@ class ToolCommandLineParser(ABC):
         """
         Check if this parser can handle the given arguments
         """
-        if not args or len(args) < 2:
+        if not args or len(args) < 1:
             return False
 
         return args[0].lower() in self.intention_mapping

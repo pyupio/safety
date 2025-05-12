@@ -450,8 +450,6 @@ def init_scan(
         scan_id = result.get("uuid")
 
         codebase_url = f"{SAFETY_PLATFORM_URL}{result['url']}"
-        if project.git and (branch := project.git.branch):
-            codebase_url += f"?branch={branch}"
 
     except Exception as e:
         # Emit error status

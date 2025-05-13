@@ -1,14 +1,21 @@
 from unittest.mock import patch, ANY
 from click.testing import CliRunner
 import unittest
+from packaging.version import Version
+
+from importlib.metadata import version
 
 from safety.cli import cli
 
-class TestSafetyAuthCLI(unittest.TestCase):
 
+class TestSafetyAuthCLI(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
-        self.runner = CliRunner(mix_stderr=False)
+        # mix_stderr was removed in Click 8.2.0
+        if Version(version("click")) >= Version("8.2.0"):
+            self.runner = CliRunner()
+        else:
+            self.runner = CliRunner(mix_stderr=False)
 
         cli.commands = cli.all_commands
         self.cli = cli

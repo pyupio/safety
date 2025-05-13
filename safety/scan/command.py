@@ -843,7 +843,7 @@ def scan(
         typer.Option(
             help=SCAN_OUTPUT_HELP, show_default=False, callback=output_callback
         ),
-    ] = ScanOutput.SCREEN,
+    ] = ScanOutput.SCREEN.value,
     detailed_output: Annotated[
         bool,
         typer.Option(

@@ -47,7 +47,6 @@ jobs:
           fi
 
   lint:
-    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
@@ -58,6 +57,12 @@ jobs:
       - name: Check for changed Python files
         id: check-files
         run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "No lint on schedule"
+            echo "should_check=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.py$' || true)
           else
@@ -94,8 +99,7 @@ jobs:
           hatch run lint:all ${FILES}
 
   matrix:
-    if: ${{ always() }}
-    needs: ${{ github.event_name != 'schedule' && 'lint' || '' }}
+    needs: lint
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}

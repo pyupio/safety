@@ -1,5 +1,3 @@
-import base64
-import json
 import logging
 import re
 import shutil
@@ -19,6 +17,7 @@ from safety.tool.constants import (
 from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
+from safety.tool.auth import index_credentials
 
 
 logger = logging.getLogger(__name__)
@@ -138,26 +137,6 @@ class Pip:
             console.print("Failed to reset PIP global settings.")
 
     @classmethod
-    def index_credentials(cls, ctx: typer.Context):
-        api_key = None
-        token = None
-
-        if auth := getattr(ctx.obj, "auth", None):
-            client = auth.client
-            token = client.token.get("access_token") if client.token else None
-            api_key = client.api_key
-
-        auth_envelop = json.dumps(
-            {
-                "version": "1.0",
-                "access_token": token,
-                "api_key": api_key,
-                "project_id": ctx.obj.project.id if ctx.obj.project else None,
-            }
-        )
-        return base64.urlsafe_b64encode(auth_envelop.encode("utf-8")).decode("utf-8")
-
-    @classmethod
     def default_index_url(cls) -> str:
         return "https://pypi.org/simple/"
 
@@ -168,7 +147,7 @@ class Pip:
 
         url = urlsplit(index_url)
 
-        encoded_auth = cls.index_credentials(ctx)
+        encoded_auth = index_credentials(ctx)
         netloc = f"user:{encoded_auth}@{url.netloc}"
 
         if type(url.netloc) is bytes:

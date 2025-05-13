@@ -1,6 +1,9 @@
 from typing import List
+
+import typer
 from safety.tool.intents import ToolIntentionType
 from safety.tool.pip.parser import PipParser
+from safety.tool.auth import index_credentials
 from ..pip.command import PipCommand, PipInstallCommand, PipGenericCommand
 from safety_schemas.models.events.types import ToolType
 
@@ -34,6 +37,18 @@ class UvCommand(PipCommand):
         ]
 
         return any(cmd in command_str for cmd in package_modifying_commands)
+
+    def env(self, ctx: typer.Context) -> dict:
+        env = super().env(ctx)
+
+        env.update(
+            {
+                "UV_INDEX_SAFETY_USERNAME": "user",
+                "UV_INDEX_SAFETY_PASSWORD": index_credentials(ctx),
+            }
+        )
+
+        return env
 
     @classmethod
     def from_args(cls, args: List[str], **kwargs):

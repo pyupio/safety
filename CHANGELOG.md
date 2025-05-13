@@ -6,6 +6,14 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.5.1b0 (2025-05-13)
+
+### Fix
+
+- add missing uv index env var for auth (#751)
+- preventing the branch name to be included in the codebase url (#744)
+- click version constraint (#749)
+
 ## 3.5.0 (2025-05-07)
 
 ### Fix

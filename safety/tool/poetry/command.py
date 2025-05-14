@@ -9,8 +9,8 @@ from safety.tool.utils import PoetryPyprojectConfigurator
 from .constants import MSG_SAFETY_SOURCE_ADDED, MSG_SAFETY_SOURCE_NOT_ADDED
 from .parser import PoetryParser
 
+from ..auth import index_credentials
 from ..base import BaseCommand, ToolIntentionType
-
 from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
 from safety_schemas.models.events.types import ToolType
 
@@ -132,6 +132,18 @@ class PoetryCommand(BaseCommand):
                     console.print(
                         MSG_SAFETY_SOURCE_NOT_ADDED,
                     )
+
+    def env(self, ctx: typer.Context) -> dict:
+        env = super().env(ctx)
+
+        env.update(
+            {
+                "POETRY_HTTP_BASIC_SAFETY_USERNAME": "user",
+                "POETRY_HTTP_BASIC_SAFETY_PASSWORD": index_credentials(ctx),
+            }
+        )
+
+        return env
 
     @classmethod
     def from_args(cls, args: List[str], **kwargs):

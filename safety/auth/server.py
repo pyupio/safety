@@ -247,7 +247,7 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
         headless = kwargs.get("headless", False)
         initial_state = kwargs.get("initial_state", None)
         ctx = kwargs.get("ctx", None)
-        message = "Copy and paste this URL into your browser:\n⚠️ Ensure there are no extra spaces, especially at line breaks, as they may break the link."
+        message = "Copy and paste this URL into your browser:\n:icon_warning: Ensure there are no extra spaces, especially at line breaks, as they may break the link."
 
         if not headless:
             # Start a threaded HTTP server to handle the callback

@@ -445,7 +445,7 @@ def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -
         return True
 
     console.print(
-        "[bold]Safety found an existing codebase with this name in your organization:[/bold]"
+        "\n[bold]Safety found an existing codebase with this name in your organization:[/bold]"
     )
 
     for detail in (

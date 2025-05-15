@@ -1,3 +1,4 @@
+# type: ignore
 import importlib.util
 import json
 import logging
@@ -9,6 +10,13 @@ from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.requests_client import OAuth2Session
 from requests.adapters import HTTPAdapter
 from safety_schemas.models import STAGE_ID_MAPPING, Stage
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from safety.auth.constants import (
     AUTH_SERVER_URL,
@@ -111,6 +119,20 @@ def parse_response(func: Callable) -> Callable:
         Callable: The wrapped function.
     """
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=0.2, max=8.0, exp_base=3, jitter=0.3),
+        reraise=True,
+        retry=retry_if_exception_type(
+            (
+                NetworkConnectionError,
+                RequestTimeoutError,
+                TooManyRequestsError,
+                ServerError,
+            )
+        ),
+        before_sleep=before_sleep_log(logging.getLogger("api_client"), logging.WARNING),
+    )
     def wrapper(*args, **kwargs):
         try:
             r = func(*args, **kwargs)
@@ -149,7 +171,7 @@ def parse_response(func: Callable) -> Callable:
 
             raise SafetyError(message=reason, error_code=error_code)
 
-        if r.status_code >= 500:
+        if r.status_code >= 500 and r.status_code < 600:
             reason = extract_detail(response=r)
             LOG.debug("ServerError %s -> Response returned: %s", r.status_code, r.text)
             raise ServerError(reason=reason)
@@ -159,7 +181,7 @@ def parse_response(func: Callable) -> Callable:
         try:
             data = r.json()
         except json.JSONDecodeError as e:
-            raise SafetyError(message=f"Bad JSON response: {e}")
+            raise ServerError(message=f"Bad JSON response from the server: {e}")
 
         return data
 

@@ -82,6 +82,7 @@ class URLSettings(Enum):
     CLIENT_ID = "AWnwFBMr9DdZbxbDwYxjm4Gb24pFTnMp"
     AUTH_SERVER_URL = f"https://auth.{DEFAULT_DOMAIN}"
     SAFETY_PLATFORM_URL = f"https://platform.{DEFAULT_DOMAIN}"
+    FIREWALL_API_BASE_URL = "https://pkgs.safetycli.com"
 
 
 class FeatureType(Enum):
@@ -153,7 +154,7 @@ PLATFORM_API_CHECK_UPDATES_ENDPOINT = f"{PLATFORM_API_BASE_URL}/versions-and-con
 PLATFORM_API_INITIALIZE_ENDPOINT = f"{PLATFORM_API_BASE_URL}/initialize"
 PLATFORM_API_EVENTS_ENDPOINT = f"{PLATFORM_API_BASE_URL}/events"
 
-FIREWALL_API_BASE_URL = "https://pkgs.safetycli.com"
+FIREWALL_API_BASE_URL = get_config_setting("FIREWALL_API_BASE_URL")
 FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT = f"{FIREWALL_API_BASE_URL}/audit/pypi/packages/"
 
 

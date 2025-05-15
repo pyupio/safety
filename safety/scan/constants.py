@@ -1,20 +1,7 @@
-from safety.meta import get_version
-
 # Console Help Theme
 CONSOLE_HELP_THEME = {
     "nhc": "grey82"
 }
-
-CLI_VERSION = get_version()
-CLI_WEBSITE_URL="https://safetycli.com"
-CLI_DOCUMENTATION_URL="https://docs.safetycli.com"
-CLI_SUPPORT_EMAIL="support@safetycli.com"
-
-# Main Safety --help data:
-CLI_MAIN_INTRODUCTION = f"Safety CLI 3 - Vulnerability Scanning for Secure Python Development\n\n" \
-"Leverage the most comprehensive vulnerability data available to secure your projects against vulnerable and malicious packages. Safety CLI is a Python dependency vulnerability scanner that enhances software supply chain security at every stage of development.\n\n" \
-f"Documentation: {CLI_DOCUMENTATION_URL}\n"\
-f"Contact: {CLI_SUPPORT_EMAIL}\n"
 
 CLI_AUTH_COMMAND_HELP = (
     "Authenticate Safety CLI to perform scans. Your default browser will automatically open to "
@@ -117,12 +104,6 @@ CLI_AUTH_LOGOUT_HELP = "Log out from the current Safety CLI session.\n\n" \
     "[bold]Example: safety auth logout[/bold]"
 CLI_AUTH_STATUS_HELP = "Show the current authentication status.\n\n" \
     "[bold]Example: safety auth status[/bold]"
-
-DEFAULT_EPILOG = f"\nSafety CLI version: {CLI_VERSION}\n" \
-    f"\nDocumentation: {CLI_DOCUMENTATION_URL}\n\n\n\n" \
-    "Made with love by Safety Cybersecurity\n\n" \
-    f"{CLI_WEBSITE_URL}\n\n"\
-    f"{CLI_SUPPORT_EMAIL}\n"
 
 # Configure options
 CLI_CONFIGURE_PROXY_HOST_HELP = "Specify a proxy host for network communications to be saved into Safety's configuration. \n\n"

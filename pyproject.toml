@@ -116,7 +116,7 @@ type = "virtual"
 # hatch env remove
 # hatch env create
 python = "3.8"
-path = ".hatch"
+path = ".venv"
 
 dependencies = [
   "coverage[toml]>=6.0",

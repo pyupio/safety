@@ -5,6 +5,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from safety.meta import get_version
+
 JSON_SCHEMA_VERSION = "2.0.0"
 
 # TODO fix this
@@ -232,3 +234,24 @@ BETA_PANEL_DESCRIPTION_HELP = "These commands are experimental and part of our c
 
 CONTEXT_COMMAND_TYPE = "command_type"
 CONTEXT_FEATURE_TYPE = "feature_type"
+
+CLI_VERSION = get_version()
+CLI_WEBSITE_URL = "https://safetycli.com"
+CLI_DOCUMENTATION_URL = "https://docs.safetycli.com"
+CLI_SUPPORT_EMAIL = "support@safetycli.com"
+
+# Main Safety --help data:
+CLI_MAIN_INTRODUCTION = (
+    f"Safety CLI 3 - Vulnerability Scanning for Secure Python Development\n\n"
+    "Leverage the most comprehensive vulnerability data available to secure your projects against vulnerable and malicious packages. Safety CLI is a Python dependency vulnerability scanner that enhances software supply chain security at every stage of development.\n\n"
+    f"Documentation: {CLI_DOCUMENTATION_URL}\n"
+    f"Contact: {CLI_SUPPORT_EMAIL}\n"
+)
+
+DEFAULT_EPILOG = (
+    f"\nSafety CLI version: {CLI_VERSION}\n"
+    f"\nDocumentation: {CLI_DOCUMENTATION_URL}\n\n\n\n"
+    "Made with love by Safety Cybersecurity\n\n"
+    f"{CLI_WEBSITE_URL}\n\n"
+    f"{CLI_SUPPORT_EMAIL}\n"
+)

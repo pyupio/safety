@@ -11,7 +11,6 @@ from filelock import FileLock
 import typer
 from safety.constants import USER_CONFIG_DIR
 from safety.events.utils import emit_tool_command_executed
-from safety.init.command import init_scan_ui
 from safety.models import ToolResult
 from safety.tool.constants import (
     PROJECT_CONFIG,
@@ -177,6 +176,8 @@ class BaseCommand(ABC):
             if silent:
                 self.__run_silent_scan(ctx, target)
             else:
+                from safety.init.command import init_scan_ui
+
                 init_scan_ui(ctx, prompt_user=True)
 
     def __run_silent_scan(self, ctx: typer.Context, target: Path):

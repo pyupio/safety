@@ -1,6 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
-from typing import List, Tuple
+from unittest.mock import patch
 
 from safety.tool.constants import MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES
 from safety.tool.typosquatting import TyposquattingProtection

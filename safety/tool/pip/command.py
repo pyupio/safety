@@ -2,10 +2,9 @@ import os
 from pathlib import Path
 import re
 from tempfile import mkstemp
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import logging
-from rich.padding import Padding
 import typer
 
 from safety.models import ToolResult
@@ -15,10 +14,9 @@ from ..base import BaseCommand
 from ..intents import ToolIntentionType
 from safety_schemas.models.events.types import ToolType
 from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
+from ..mixins import InstallationAuditMixin
 from ..utils import Pip
 
-from safety.console import main_console as console
-from ...init.render import render_header, progressive_print
 
 PIP_LOCK = "safety-pip.lock"
 
@@ -80,10 +78,10 @@ class PipGenericCommand(PipCommand):
     pass
 
 
-class PipInstallCommand(PipCommand):
+class PipInstallCommand(PipCommand, InstallationAuditMixin):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.__packages = []
+        self._packages = []
         self.__index_url = None
 
     def before(self, ctx: typer.Context):
@@ -92,7 +90,7 @@ class PipInstallCommand(PipCommand):
 
         if self._intention:
             for pkg in self._intention.packages:
-                self.__packages.append((pkg.name, pkg.version_constraint))
+                self._packages.append((pkg.name, pkg.version_constraint))
 
             if index_opt := self._intention.options.get(
                 "index-url"
@@ -137,65 +135,9 @@ class PipInstallCommand(PipCommand):
 
     def after(self, ctx: typer.Context, result: ToolResult):
         super().after(ctx, result)
-
-        self.__render_installation_warnings(ctx)
-
-        if not result.process or result.process.returncode != 0:
-            self.__render_package_details()
+        self.handle_installation_audit(ctx, result)
 
     def env(self, ctx: typer.Context) -> dict:
         env = super().env(ctx)
         env["PIP_INDEX_URL"] = Pip.build_index_url(ctx, self.__index_url)
         return env
-
-    def __render_installation_warnings(self, ctx: typer.Context):
-        packages_audit = self.__audit_packages(ctx)
-
-        warning_messages = []
-        for audited_package in packages_audit.get("audit", {}).get("packages", []):
-            vulnerabilities = audited_package.get("vulnerabilities", {})
-            critical_vulnerabilities = vulnerabilities.get("critical", 0)
-            total_vulnerabilities = 0
-            for count in vulnerabilities.values():
-                total_vulnerabilities += count
-
-            if total_vulnerabilities == 0:
-                continue
-
-            warning_message = f"[[yellow]Warning[/yellow]] {audited_package.get('package_specifier')} contains {total_vulnerabilities} vulnerabilities"
-            if critical_vulnerabilities > 0:
-                warning_message += f", including {critical_vulnerabilities} critical severity vulnerabilities"
-
-            warning_message += "."
-            warning_messages.append(warning_message)
-
-        if len(warning_messages) > 0:
-            console.print()
-            render_header(" Safety Report")
-            progressive_print(warning_messages)
-
-    def __render_package_details(self):
-        for package_name, version_specifier in self.__packages:
-            console.print(
-                Padding(
-                    f"Learn more: [link]https://data.safetycli.com/packages/pypi/{package_name}/[/link]",
-                    (0, 0, 0, 1),
-                ),
-                emoji=True,
-            )
-
-    def __audit_packages(self, ctx: typer.Context) -> Any:
-        try:
-            added, _, updated = self._diff_tracker.get_diff()
-            packages = {**added, **updated}
-
-            return ctx.obj.auth.client.audit_packages(
-                [
-                    f"{package_name}=={version[-1] if isinstance(version, tuple) else version}"
-                    for (package_name, version) in packages.items()
-                ]
-            )
-        except Exception:
-            logger.debug("Audit API failed with error", exc_info=True)
-            # do not propagate the error in case the audit failed
-            return dict()

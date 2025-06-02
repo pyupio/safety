@@ -11,10 +11,12 @@ from .parser import PoetryParser
 
 from ..auth import index_credentials
 from ..base import BaseCommand, ToolIntentionType
+from ..mixins import InstallationAuditMixin
 from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
 from safety_schemas.models.events.types import ToolType
 
 from safety.console import main_console as console
+from safety.models import ToolResult
 
 PO_LOCK = "safety-po.lock"
 
@@ -161,7 +163,11 @@ class PoetryGenericCommand(PoetryCommand):
     pass
 
 
-class PoetryAddCommand(PoetryCommand):
+class PoetryAddCommand(PoetryCommand, InstallationAuditMixin):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._packages = []
+
     def patch_source_option(
         self, args: List[str], new_source: str = "safety"
     ) -> Tuple[Optional[str], List[str]]:
@@ -197,3 +203,19 @@ class PoetryAddCommand(PoetryCommand):
 
         _, modified_args = self.patch_source_option(self._args)
         self._args = modified_args
+
+        # Extract packages from intention for rendering later
+        if self._intention and self._intention.packages:
+            for pkg in self._intention.packages:
+                self._packages.append((pkg.name, pkg.version_constraint))
+
+    def after(self, ctx: typer.Context, result: ToolResult):
+        """
+        Run after the command execution. Handle installation audit via mixin.
+
+        Args:
+            ctx: The typer context
+            result: The tool result
+        """
+        super().after(ctx, result)
+        self.handle_installation_audit(ctx, result)

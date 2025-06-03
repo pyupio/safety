@@ -213,7 +213,7 @@ targets = [
 ]
 os_type = [
   "ubuntu-24.04",
-  "windows-2019",
+  "windows-2022",
   "macos-14",
 ]
 
@@ -226,7 +226,7 @@ targets = [
 ]
 os_type = [
   "ubuntu-24.04",
-  "windows-2019",
+  "windows-2022",
   "macos-14"
 ]
 

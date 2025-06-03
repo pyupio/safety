@@ -16,6 +16,7 @@ from safety_schemas.models.events.types import ToolType
 from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
 from ..mixins import InstallationAuditMixin
 from ..utils import Pip
+from ...encoding import detect_encoding
 
 
 PIP_LOCK = "safety-pip.lock"
@@ -116,7 +117,9 @@ class PipInstallCommand(PipCommand, InstallationAuditMixin):
             ) or self._intention.options.get("r"):
                 req_value = req_opt["value"]
                 if req_value and Path(req_value).is_file():
-                    with open(req_value, "r") as f:
+                    with open(
+                        req_value, "r", encoding=detect_encoding(Path(req_value))
+                    ) as f:
                         fd, tmp_requirements_path = mkstemp(
                             suffix="safety-requirements.txt", text=True
                         )

@@ -1,10 +1,12 @@
-
-
 from pathlib import Path
+import logging
 from safety_schemas.models import Ecosystem, FileType
 from typer import FileTextWrite
 
 from .python.main import PythonFile
+from ...encoding import detect_encoding
+
+logger = logging.getLogger(__name__)
 
 
 class InspectableFileContext:
@@ -15,8 +17,7 @@ class InspectableFileContext:
     exceptions that may occur during the process.
     """
 
-    def __init__(self, file_path: Path,
-                 file_type: FileType) -> None:
+    def __init__(self, file_path: Path, file_type: FileType) -> None:
         """
         Initializes the InspectableFileContext.
 
@@ -28,7 +29,7 @@ class InspectableFileContext:
         self.inspectable_file = None
         self.file_type = file_type
 
-    def __enter__(self): # TODO: Handle permission issue /Applications/...
+    def __enter__(self):  # TODO: Handle permission issue /Applications/...
         """
         Enters the runtime context related to this object.
 
@@ -38,11 +39,13 @@ class InspectableFileContext:
             The inspectable file object.
         """
         try:
-            file: FileTextWrite = open(self.file_path, mode='r+') # type: ignore
-            self.inspectable_file = TargetFile.create(file_type=self.file_type, file=file)
-        except Exception as e:
-            # TODO: Report this
-            pass
+            encoding = detect_encoding(self.file_path)
+            file: FileTextWrite = open(self.file_path, mode="r+", encoding=encoding)  # type: ignore
+            self.inspectable_file = TargetFile.create(
+                file_type=self.file_type, file=file
+            )
+        except Exception:
+            logger.exception("Error opening file")
 
         return self.inspectable_file
 
@@ -55,7 +58,8 @@ class InspectableFileContext:
         if self.inspectable_file:
             self.inspectable_file.file.close()
 
-class TargetFile():
+
+class TargetFile:
     """
     Factory class for creating inspectable file objects based on the file type and ecosystem.
     """
@@ -78,5 +82,7 @@ class TargetFile():
         if file_type.ecosystem == Ecosystem.PYTHON:
             return PythonFile(file=file, file_type=file_type)
 
-        raise ValueError("Unsupported ecosystem or file type: " \
-                         f"{file_type.ecosystem}:{file_type.value}")
+        raise ValueError(
+            "Unsupported ecosystem or file type: "
+            f"{file_type.ecosystem}:{file_type.value}"
+        )

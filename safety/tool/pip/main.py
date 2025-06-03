@@ -18,7 +18,7 @@ from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
 from safety.tool.auth import index_credentials
-
+from ...encoding import detect_encoding
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class Pip:
             console (Console): Console instance.
         """
 
-        with open(file, "r+") as f:
+        with open(file, "r+", encoding=detect_encoding(file)) as f:
             content = f.read()
 
             repository_url = (

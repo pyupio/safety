@@ -16,17 +16,20 @@ from safety_schemas.models import (
 )
 
 from safety.scan.util import GIT
-
+from ..encoding import detect_encoding
 from ..auth.utils import SafetyAuthSession
 from ..errors import SafetyError
 from .ecosystems.base import InspectableFile
 from .ecosystems.target import InspectableFileContext
 from .models import ScanExport
+from ..meta import get_version
 
 LOG = logging.getLogger(__name__)
 
 
-def download_policy(session: SafetyAuthSession, project_id: str, stage: Stage, branch: Optional[str]) -> Optional[PolicyFileModel]:
+def download_policy(
+    session: SafetyAuthSession, project_id: str, stage: Stage, branch: Optional[str]
+) -> Optional[PolicyFileModel]:
     """
     Downloads the policy file from the cloud for the given project and stage.
 
@@ -39,8 +42,7 @@ def download_policy(session: SafetyAuthSession, project_id: str, stage: Stage, b
     Returns:
         Optional[PolicyFileModel]: PolicyFileModel object if successful, otherwise None.
     """
-    result = session.download_policy(project_id=project_id, stage=stage,
-                                     branch=branch)
+    result = session.download_policy(project_id=project_id, stage=stage, branch=branch)
 
     if result and "uuid" in result and result["uuid"]:
         LOG.debug(f"Loading CLOUD policy file {result['uuid']} from cloud.")
@@ -54,9 +56,8 @@ def download_policy(session: SafetyAuthSession, project_id: str, stage: Stage, b
             # TODO: Move this to safety_schemas
             parse = "parse_obj"
             import importlib
-            module_name = (
-                "safety_schemas." "config.schemas." f"v3_0.main"
-            )
+
+            module_name = "safety_schemas.config.schemas.v3_0.main"
             module = importlib.import_module(module_name)
             config_model = module.Config
             validated_policy_file = getattr(config_model, parse)(yml_raw)
@@ -68,10 +69,9 @@ def download_policy(session: SafetyAuthSession, project_id: str, stage: Stage, b
             LOG.error(f"Wrong YML file for policy file {uuid}.", exc_info=True)
             raise SafetyError(f"{err}, details: {e}")
 
-        return PolicyFileModel(id=result["uuid"],
-                                source=PolicySource.cloud,
-                                location=None,
-                                config=config)
+        return PolicyFileModel(
+            id=result["uuid"], source=PolicySource.cloud, location=None, config=config
+        )
 
     return None
 
@@ -91,8 +91,10 @@ def load_policy_file(path: Path) -> Optional[PolicyFileModel]:
     if not path or not path.exists():
         return None
 
-    err = f'Unable to load the Safety Policy file ("{path}"), this command ' \
+    err = (
+        f'Unable to load the Safety Policy file ("{path}"), this command '
         "only supports version 3.0"
+    )
 
     try:
         config = ConfigModel.parse_policy_file(raw_report=path)
@@ -103,11 +105,14 @@ def load_policy_file(path: Path) -> Optional[PolicyFileModel]:
         LOG.error(f"Wrong YML file for policy file {path}.", exc_info=True)
         raise SafetyError(f"{err}, details: {e}")
 
-    return PolicyFileModel(id=str(path), source=PolicySource.local,
-                           location=path, config=config)
+    return PolicyFileModel(
+        id=str(path), source=PolicySource.local, location=path, config=config
+    )
 
 
-def resolve_policy(local_policy: Optional[PolicyFileModel], cloud_policy: Optional[PolicyFileModel]) -> Optional[PolicyFileModel]:
+def resolve_policy(
+    local_policy: Optional[PolicyFileModel], cloud_policy: Optional[PolicyFileModel]
+) -> Optional[PolicyFileModel]:
     """
     Resolves the policy to be used, preferring cloud policy over local policy.
 
@@ -128,7 +133,9 @@ def resolve_policy(local_policy: Optional[PolicyFileModel], cloud_policy: Option
     return policy
 
 
-def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, report: Any) -> None:
+def save_report_as(
+    scan_type: ScanType, export_type: ScanExport, at: Path, report: Any
+) -> None:
     """
     Saves the scan report to the specified location.
 
@@ -142,10 +149,12 @@ def save_report_as(scan_type: ScanType, export_type: ScanExport, at: Path, repor
 
     if at.is_dir():
         at = at / Path(
-            f"{scan_type.value}-{export_type.get_default_file_name(tag=tag)}")
+            f"{scan_type.value}-{export_type.get_default_file_name(tag=tag)}"
+        )
 
-    with open(at, 'w+') as report_file:
+    with open(at, "w+") as report_file:
         report_file.write(report)
+
 
 def build_meta(target: Path) -> Dict[str, Any]:
     """
@@ -172,10 +181,11 @@ def build_meta(target: Path) -> Dict[str, Any]:
     os_metadata = {
         "type": os.environ.get("SAFETY_OS_TYPE", None) or platform.system(),
         "release": os.environ.get("SAFETY_OS_RELEASE", None) or platform.release(),
-        "description": os.environ.get("SAFETY_OS_DESCRIPTION", None) or platform.platform(),
+        "description": os.environ.get("SAFETY_OS_DESCRIPTION", None)
+        or platform.platform(),
     }
 
-    python_metadata= {
+    python_metadata = {
         "version": platform.python_version(),
     }
 
@@ -191,7 +201,14 @@ def build_meta(target: Path) -> Dict[str, Any]:
         "client": client_metadata,
     }
 
-def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = None, use_server_matching: bool = False, obj=None, target=Path(".")) -> Generator[Tuple[Path, InspectableFile], None, None]:
+
+def process_files(
+    paths: Dict[str, Set[Path]],
+    config: Optional[ConfigModel] = None,
+    use_server_matching: bool = False,
+    obj=None,
+    target=Path("."),
+) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
     Processes the files and yields each file path along with its inspectable file.
 
@@ -212,7 +229,9 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
             if not file_type or not file_type.ecosystem:
                 continue
             for f_path in f_paths:
-                with InspectableFileContext(f_path, file_type=file_type) as inspectable_file:
+                with InspectableFileContext(
+                    f_path, file_type=file_type
+                ) as inspectable_file:
                     if inspectable_file and inspectable_file.file_type:
                         inspectable_file.inspect(config=config)
                         inspectable_file.remediate()
@@ -230,16 +249,18 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
                 relative_path = os.path.relpath(f_path, start=os.getcwd())
                 # Read the file content
                 try:
-                    with open(f_path, "r") as file:
+                    with open(f_path, "r", encoding=detect_encoding(f_path)) as file:
                         content = file.read()
                 except Exception as e:
                     LOG.error(f"Error reading file {f_path}: {e}")
                     continue
                 # Append metadata to the payload
-                files.append({
-                    "name": relative_path,
-                    "content": content,
-                })
+                files.append(
+                    {
+                        "name": relative_path,
+                        "content": content,
+                    }
+                )
 
         # Prepare the payload with metadata at the top level
         payload = {
@@ -247,10 +268,12 @@ def process_files(paths: Dict[str, Set[Path]], config: Optional[ConfigModel] = N
             "files": files,
         }
 
-        response = obj.auth.client.upload_requirements(payload)
+        response = obj.auth.client.upload_requirements(payload)  # type: ignore
 
         if response.status_code == 200:
             LOG.info("Scan Payload successfully sent to the API.")
         else:
-            LOG.error(f"Failed to send scan payload to the API. Status code: {response.status_code}")
+            LOG.error(
+                f"Failed to send scan payload to the API. Status code: {response.status_code}"
+            )
             LOG.error(f"Response: {response.text}")

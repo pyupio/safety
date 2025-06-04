@@ -1294,7 +1294,7 @@ def system_scan(
                     continue
 
                 if not project or not project.id:
-                    LOG.warn(
+                    LOG.warning(
                         f"{project_path} parsed but project id is not defined or valid."
                     )
                     continue

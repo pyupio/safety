@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safety"
-version = "3.5.2b1"
+version = "3.5.2"
 description = "Scan dependencies for known vulnerabilities and licenses."
 keywords = ["safety", "vulnerabilities", "dependencies", "licenses", "scan"]
 readme = "README.md"

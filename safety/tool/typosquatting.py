@@ -3,8 +3,8 @@ Typosquatting detection for various tools.
 """
 
 import logging
-import nltk
 from typing import Tuple, List
+from spellchecker import SpellChecker
 
 from safety.console import main_console as console
 from rich.prompt import Prompt
@@ -35,12 +35,14 @@ class TyposquattingProtection:
         if package_name in self.popular_packages:
             return (True, package_name)
 
-        for pkg in self.popular_packages:
-            if (
-                abs(len(pkg) - len(package_name)) <= max_edit_distance
-                and nltk.edit_distance(pkg, package_name) <= max_edit_distance
-            ):
-                return (False, pkg)
+        spell = SpellChecker(language=None, distance=max_edit_distance)
+
+        spell.word_frequency.load_words(self.popular_packages)
+
+        correction = spell.correction(package_name)
+
+        if correction and correction != package_name:
+            return (False, correction)
 
         return (True, package_name)
 

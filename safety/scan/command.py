@@ -2,6 +2,7 @@
 from enum import Enum
 import logging
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import json
 import sys
@@ -282,7 +283,14 @@ def process_report(
 
                     # Append the branch name if available
                     if branch_name:
-                        project_url_with_branch = f"{project_url}?branch={branch_name}"
+                        # Parse the URL to handle existing query parameters properly
+                        parsed_url = urlparse(project_url)
+                        query_params = parse_qs(parsed_url.query)
+                        query_params["branch"] = [branch_name]
+                        new_query = urlencode(query_params, doseq=True)
+                        project_url_with_branch = urlunparse(
+                            parsed_url._replace(query=new_query)
+                        )
                     else:
                         project_url_with_branch = project_url
 

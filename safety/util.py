@@ -18,6 +18,7 @@ from packaging.version import parse as parse_version
 from requests import PreparedRequest
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
+from safety.meta import get_version
 from safety_schemas.models import TelemetryModel
 
 from safety.constants import (
@@ -269,18 +270,6 @@ def get_used_options() -> Dict[str, Dict[str, int]]:
     return used_options
 
 
-def get_version() -> str:
-    """
-    Get the version of Safety.
-
-    Returns:
-        str: The Safety version.
-    """
-    from importlib.metadata import version
-
-    return version("safety")
-
-
 def get_primary_announcement(
     announcements: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
@@ -381,7 +370,6 @@ def build_telemetry_data(
         if telemetry
         else {}
     )
-
     body["safety_version"] = get_version()
     body["safety_source"] = (
         os.environ.get("SAFETY_SOURCE", None) or context.safety_source

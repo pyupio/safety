@@ -33,6 +33,7 @@ from safety.auth import auth_options, proxy_options
 from safety.auth.cli import auth_app
 from safety.auth.models import Organization
 from safety.decorators import notify
+from safety.codebase.command import codebase_app
 from safety.console import main_console as console
 from safety.constants import (
     BAR_LINE,
@@ -42,6 +43,8 @@ from safety.constants import (
     EXIT_CODE_FAILURE,
     EXIT_CODE_OK,
     EXIT_CODE_VULNERABILITIES_FOUND,
+    CLI_MAIN_INTRODUCTION,
+    DEFAULT_EPILOG,
 )
 from safety.error_handlers import handle_cmd_exception, output_exception
 from safety.errors import InvalidCredentialError, SafetyError, SafetyException
@@ -70,8 +73,6 @@ from safety.scan.constants import (
     CLI_GENERATE_MINIMUM_CVSS_SEVERITY,
     CLI_GENERATE_PATH,
     CLI_LICENSES_COMMAND_HELP,
-    CLI_MAIN_INTRODUCTION,
-    DEFAULT_EPILOG,
     DEFAULT_SPINNER,
 )
 from safety.scan.finder import FileFinder
@@ -1410,6 +1411,7 @@ cli.add_command(typer.main.get_command(cli_app), name="check-updates")
 cli.add_command(typer.main.get_command(init_app), name="init")
 cli.add_command(typer.main.get_command(scan_project_app), name="scan")
 cli.add_command(typer.main.get_command(scan_system_app), name="system-scan")
+cli.add_command(typer.main.get_command(codebase_app), name="codebase")
 
 tool_commands.auto_register_tools(group=cli)
 

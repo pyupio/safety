@@ -11,7 +11,6 @@ from safety.events.utils import emit_firewall_disabled
 
 # TODO: refactor this import and the related code
 # For now, let's keep it as is
-from safety.scan.constants import DEFAULT_EPILOG
 from safety.error_handlers import handle_cmd_exception
 
 from ..cli_util import (
@@ -21,7 +20,12 @@ from ..cli_util import (
     SafetyCLISubGroup,
     pass_safety_cli_obj,
 )
-from ..constants import CONTEXT_COMMAND_TYPE, CONTEXT_FEATURE_TYPE, EXIT_CODE_OK
+from ..constants import (
+    CONTEXT_COMMAND_TYPE,
+    CONTEXT_FEATURE_TYPE,
+    EXIT_CODE_OK,
+    DEFAULT_EPILOG,
+)
 from ..tool.interceptors import create_interceptor
 from ..tool.main import reset_system
 from .constants import (

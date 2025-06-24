@@ -1,16 +1,20 @@
+# type: ignore
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, call, patch
 
 from safety.init.main import (
-    PROJECT_CONFIG_ID,
-    PROJECT_CONFIG_NAME,
-    PROJECT_CONFIG_URL,
-    PROJECT_CONFIG_SECTION,
     check_project,
     create_project,
     save_project_info,
     save_verified_project,
+)
+
+from safety.codebase_utils import (
+    PROJECT_CONFIG_ID,
+    PROJECT_CONFIG_NAME,
+    PROJECT_CONFIG_URL,
+    PROJECT_CONFIG_SECTION,
 )
 
 from safety_schemas.models import ProjectModel, Stage
@@ -44,7 +48,14 @@ class TestInitMain(unittest.TestCase):
         mock_prompt_id.return_value = "prompted-id"
         mock_wait_verification.return_value = {"status": "success"}
 
-        _ = check_project(ctx, session, console, unverified_project, git_origin=None)
+        _ = check_project(
+            ctx,
+            session,
+            console,
+            unverified_project,
+            git_origin=None,
+            ask_project_id=True,
+        )
 
         # Assert prompt was called with parent dir name
         mock_prompt_id.assert_called_once_with(console, "project")
@@ -185,8 +196,9 @@ class TestInitMain(unittest.TestCase):
             ctx,
             ctx.obj.auth.client,
             mock_project,
-            ctx.obj.auth.stage,
             "test-origin",
+            True,
+            "prompt",
         )
 
     @patch("safety.init.main.load_unverified_project_from_config")

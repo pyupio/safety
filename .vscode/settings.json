@@ -3,7 +3,7 @@
   "python.testing.unittestEnabled": false,
   // This uses the default environment which is a virtual environment
   // created by Hatch
-  "python.testing.pytestPath": "${workspaceFolder}/.hatch/bin/pytest",
+  "python.testing.pytestPath": "${workspaceFolder}/.venv/bin/pytest",
   "python.testing.autoTestDiscoverOnSaveEnabled": true,
   "python.testing.pytestArgs": [
     "-v",
@@ -22,5 +22,6 @@
     "ruamel",
     "setuptools",
     "typer"
-  ]
+  ],
+  "python.defaultInterpreterPath": ".venv/bin/python"
 }

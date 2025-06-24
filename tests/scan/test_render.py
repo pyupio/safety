@@ -167,45 +167,50 @@ class TestRender(unittest.TestCase):
         )
 
     @patch("safety.scan.render.clean_project_id")
-    def test_prompt_project_id_non_interactive(self, clean_project_id):
+    @patch("sys.stdin.isatty", return_value=True)
+    @patch("safety.scan.render.Prompt.ask")
+    def test_prompt_project_id_non_interactive(
+        self, mock_ask, mock_isatty, clean_project_id
+    ):
         """
         Under these cases, the default project ID should be cleaned and
         returned. The prompt should not be shown.
         """
 
+        ASK_RETURN = "user_provided_id"
+
         test_cases = [
             # Non-interactive mode
-            (True, False, "default_a", "default_a_cleaned"),
-            # Quiet mode like JSON output under interactive mode
-            (True, True, "default_b", "default_b_cleaned"),
-            # No Quiet and Not interactive mode
-            (False, False, "default_c", "default_c_cleaned"),
+            (False, "default_a", None, "default_a_cleaned"),
+            # Interactive mode
+            (True, "default_b", ASK_RETURN, f"{ASK_RETURN}_cleaned"),
         ]
 
-        for quiet, is_interactive, default_id, expected_result in test_cases:
-            with self.subTest(quiet=quiet, is_interactive=is_interactive):
-                clean_project_id.return_value = f"{default_id}_cleaned"
-                console = MagicMock(quiet=quiet, is_interactive=is_interactive)
+        mock_ask.return_value = ASK_RETURN
+
+        for isatty_return, default_id, ask_return, expected_result in test_cases:
+            with self.subTest(isatty_return=isatty_return):
+                called_with = ask_return or default_id
+                clean_project_id.return_value = f"{called_with}_cleaned"
+                console = MagicMock()
+                mock_isatty.return_value = isatty_return
 
                 result = prompt_project_id(console, default_id)
 
-                assert result == expected_result
-
                 assert result == expected_result, (
-                    f"Failed for quiet={quiet}, "
-                    f"is_interactive={is_interactive}\n"
+                    f"Failed for isatty_return={isatty_return}\n"
                     f"Expected: {expected_result}\n"
                     f"Got: {result}\n"
                     f"Default ID was: {default_id}"
                 )
 
                 try:
-                    clean_project_id.assert_called_once_with(default_id)
+                    clean_project_id.assert_called_with(called_with)
                 except AssertionError:
                     raise AssertionError(
                         f"Mock wasn't called correctly for "
-                        f"quiet={quiet}, is_interactive={is_interactive}\n"
-                        f"Expected (1) call with: {default_id}\n"
+                        f"isatty_return={isatty_return}\n"
+                        f"Expected (1) call with: {called_with}\n"
                         f"Actual calls were "
                         f"({len(clean_project_id.call_args_list)}): "
                         f"{clean_project_id.call_args_list}"
@@ -214,7 +219,8 @@ class TestRender(unittest.TestCase):
                 clean_project_id.reset_mock()
 
     @patch("safety.scan.render.clean_project_id")
-    def test_prompt_project_id_interactive(self, clean_project_id):
+    @patch("sys.stdin.isatty", return_value=True)
+    def test_prompt_project_id_interactive(self, mock_isatty, clean_project_id):
         default_id = "default-project"
         default_id_cleaned = f"{default_id}_cleaned"
 

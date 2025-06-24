@@ -6,7 +6,11 @@ from datetime import datetime
 from safety.auth.models import Auth
 from safety.auth.utils import initialize, is_email_verified
 from safety.console import main_console as console
-from safety.constants import MSG_FINISH_REGISTRATION_TPL, MSG_VERIFICATION_HINT
+from safety.constants import (
+    MSG_FINISH_REGISTRATION_TPL,
+    MSG_VERIFICATION_HINT,
+    DEFAULT_EPILOG,
+)
 from safety.meta import get_version
 from safety.decorators import notify
 
@@ -37,7 +41,6 @@ from safety.scan.constants import (
     CLI_AUTH_LOGIN_HELP,
     CLI_AUTH_LOGOUT_HELP,
     CLI_AUTH_STATUS_HELP,
-    DEFAULT_EPILOG,
 )
 
 from ..cli_util import SafetyCLISubGroup, get_command_for, pass_safety_cli_obj

@@ -23,6 +23,7 @@ from safety.console import main_console as console
 from safety.meta import get_version
 from safety.models import CVE, SafetyCLI, SafetyRequirement, Severity, Vulnerability
 from safety.util import Package, SafetyContext
+from safety_schemas.models.events.types import ToolType
 
 
 def get_vulnerability(vuln_kwargs=None, cve_kwargs=None, pkg_kwargs=None):
@@ -773,7 +774,21 @@ class TestSafetyCLI(unittest.TestCase):
         "safety.auth.cli_utils.SafetyCLI",
         return_value=SafetyCLI(platform_enabled=True, firewall_enabled=True),
     )
-    def test_init_project(self, *args):
+    @patch("safety.init.main.configure_system")
+    @patch("safety.init.main.configure_alias")
+    def test_init_project(self, configure_alias_mock, configure_system_mock, *args):
+        configure_alias_mock.return_value = [
+            (ToolType.PIP, Path("~/.safety_profile")),
+            (ToolType.POETRY, Path("~/.safety_profile")),
+            (ToolType.UV, Path("~/.safety_profile")),
+        ]
+
+        configure_system_mock.return_value = [
+            (ToolType.PIP, Path("~/.pip.conf")),
+            (ToolType.POETRY, None),
+            (ToolType.UV, Path("~/.uv/config.toml")),
+        ]
+
         # Workarounds
         from safety.console import main_console as test_console
 
@@ -806,7 +821,8 @@ class TestSafetyCLI(unittest.TestCase):
                     )
                     for section in outputs:
                         assert section in cleaned_stdout, (
-                            f"Required section '{section}' not found in output"
+                            f"Required section '{section}' not found in output\n"
+                            f"Output: {cleaned_stdout}\n"
                         )
 
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})

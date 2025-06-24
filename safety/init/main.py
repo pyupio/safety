@@ -1,4 +1,5 @@
 import logging
+import sys
 import uuid
 from rich.prompt import Prompt
 from rich.text import Text
@@ -7,8 +8,10 @@ from rich.console import Console
 
 from safety.events.utils.emission import emit_firewall_setup_completed
 from safety.init.render import load_emoji, progressive_print
+from safety.util import clean_project_id
 
 from ..tool import configure_system, configure_alias
+from ..codebase_utils import load_unverified_project_from_config, save_project_info
 
 from .constants import (
     MSG_AUTH_PROMPT,
@@ -18,30 +21,23 @@ from .constants import (
     MSG_SETUP_PACKAGE_FIREWALL_RESULT,
 )
 
-from .models import UnverifiedProjectModel
-
-import configparser
 from pathlib import Path
-from safety_schemas.models import ProjectModel, Stage
+from safety_schemas.models import ProjectModel
 from safety_schemas.models.events.types import ToolType
 from safety.scan.util import GIT
 from ..auth.utils import SafetyAuthSession
 
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Literal, Optional, Tuple
 from safety.scan.render import (
     print_wait_project_verification,
     prompt_project_id,
     prompt_link_project,
 )
 
-PROJECT_CONFIG = ".safety-project.ini"
-PROJECT_CONFIG_SECTION = "project"
-PROJECT_CONFIG_ID = "id"
-PROJECT_CONFIG_URL = "url"
-PROJECT_CONFIG_NAME = "name"
 
 if TYPE_CHECKING:
-    from safety.models import SafetyCLI
+    from ..codebase_utils import UnverifiedProjectModel
+    from ..models import SafetyCLI
     from .types import FirewallConfigStatus
 
 logger = logging.getLogger(__name__)
@@ -51,7 +47,7 @@ def check_project(
     ctx: typer.Context,
     session: SafetyAuthSession,
     console: Console,
-    unverified_project: UnverifiedProjectModel,
+    unverified_project: "UnverifiedProjectModel",
     git_origin: Optional[str],
     ask_project_id: bool = False,
 ) -> dict:
@@ -83,16 +79,28 @@ def check_project(
 
     if unverified_project.id:
         data[PRJ_SLUG_KEY] = unverified_project.id
-        data[PRJ_SLUG_SOURCE_KEY] = ".safety-project.ini"
-    elif not git_origin or ask_project_id:
-        default_id = unverified_project.project_path.parent.name
 
-        if not default_id:
+        if unverified_project.created:
+            data[PRJ_SLUG_SOURCE_KEY] = ".safety-project.ini"
+        else:
+            data[PRJ_SLUG_SOURCE_KEY] = "user"
+    elif not git_origin or ask_project_id:
+        fallback_id = unverified_project.project_path.parent.name
+
+        if not fallback_id:
             # Sometimes the parent directory is empty, so we generate
             # a random ID
-            default_id = str(uuid.uuid4())[:10]
+            fallback_id = str(uuid.uuid4())[:10]
 
-        unverified_project.id = prompt_project_id(console, default_id)
+        fallback_id = clean_project_id(fallback_id)
+
+        if ask_project_id:
+            id = prompt_project_id(console, fallback_id)
+        else:
+            id = fallback_id
+
+        unverified_project.id = id
+
         data[PRJ_SLUG_KEY] = unverified_project.id
         data[PRJ_SLUG_SOURCE_KEY] = "user"
 
@@ -110,9 +118,10 @@ def verify_project(
     console: Console,
     ctx: typer.Context,
     session: SafetyAuthSession,
-    unverified_project: UnverifiedProjectModel,
-    stage: Stage,
+    unverified_project: "UnverifiedProjectModel",
     git_origin: Optional[str],
+    create_if_missing: bool = True,
+    link_behavior: Literal["always", "prompt", "never"] = "prompt",
 ) -> Tuple[bool, Optional[str]]:
     """
     Verify the project, linking it if necessary and saving the verified project information.
@@ -122,47 +131,71 @@ def verify_project(
         ctx (typer.Context): The context of the Typer command.
         session (SafetyAuthSession): The authentication session.
         unverified_project (UnverifiedProjectModel): The unverified project model.
-        stage (Stage): The current stage.
         git_origin (Optional[str]): The Git origin URL.
+        create_if_missing (bool): Whether to create codebase if it doesn't exist. Defaults to True.
+        link_behavior (Literal["always", "prompt", "never"]): How to handle codebase linking.
+            - "always": Link without prompting
+            - "prompt": Ask user before linking (default)
+            - "never": Don't link, return early if codebase exists
+
+    Returns:
+        Tuple[bool, Optional[str]]: (success, status_message)
+            - (True, "created"): New codebase was created and verified
+            - (True, "linked"): Existing codebase was linked
+            - (True, "found"): Codebase found but not linked (link_behavior="never")
+            - (False, "not_found"): Codebase not found and create_if_missing=False
+            - (False, None): Verification failed
     """
 
-    verified_prj = False
+    # Track if we need to ask for project ID (when user declines linking)
+    ask_for_project_id = False
 
-    link_prj = True
-    project_status = (True, "created")
-
-    while not verified_prj:
+    while True:
         result = check_project(
             ctx,
             session,
             console,
             unverified_project,
             git_origin,
-            ask_project_id=not link_prj,
+            # Ask for project ID when:
+            # 1. User previously declined linking and we need a new ID
+            # 2. We're in prompt mode and don't have a project ID yet
+            ask_project_id=ask_for_project_id,
         )
 
         unverified_slug = result.get("slug")
-
         project = result.get("project", None)
-        user_confirm = result.get("user_confirm", False)
 
-        if user_confirm:
-            if project and link_prj:
+        # Handle case where project doesn't exist
+        if not project:
+            if not create_if_missing:
+                return (False, "not_found")
+            # Project will be created - continue to verification
+            project_status = (True, "created")
+        else:
+            # Project exists - handle based on link_behavior
+            if link_behavior == "never":
+                return (True, "found")
+            elif link_behavior == "always":
+                project_status = (True, "linked")
+            elif link_behavior == "prompt":
+                # Prompt user for confirmation
                 prj_name = project.get("name", None)
                 prj_admin_email = project.get("admin", None)
 
-                link_prj = prompt_link_project(
+                should_link = prompt_link_project(
                     prj_name=prj_name, prj_admin_email=prj_admin_email, console=console
                 )
 
-                if link_prj:
+                if should_link:
                     project_status = (True, "linked")
-
-                if not link_prj:
+                else:
+                    # User declined linking, ask for new project ID and retry
+                    unverified_project.id = None
+                    ask_for_project_id = True
                     continue
-        else:
-            project_status = (True, "linked")
 
+        # Proceed with project verification
         verified_prj = print_wait_project_verification(
             console,
             unverified_slug,  # type: ignore
@@ -183,36 +216,10 @@ def verify_project(
                 verified_prj.get("url", None),
                 verified_prj.get("organization", None),
             )
+            return project_status
         else:
-            verified_prj = False
-            project_status = (False, None)
-
-    return project_status
-
-
-def load_unverified_project_from_config(project_root: Path) -> UnverifiedProjectModel:
-    """
-    Loads an unverified project from the configuration file located at the project root.
-
-    Args:
-        project_root (Path): The root directory of the project.
-
-    Returns:
-        UnverifiedProjectModel: An instance of UnverifiedProjectModel.
-    """
-    config = configparser.ConfigParser()
-    project_path = project_root / PROJECT_CONFIG
-    config.read(project_path)
-    id = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_ID, fallback=None)
-    url = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_URL, fallback=None)
-    name = config.get(PROJECT_CONFIG_SECTION, PROJECT_CONFIG_NAME, fallback=None)
-    created = True
-    if not id:
-        created = False
-
-    return UnverifiedProjectModel(
-        id=id, url_path=url, name=name, project_path=project_path, created=created
-    )
+            # Verification failed
+            return (False, None)
 
 
 def save_verified_project(
@@ -248,57 +255,29 @@ def save_verified_project(
         }
 
 
-def save_project_info(project: ProjectModel, project_path: Path) -> bool:
-    """
-    Saves the project information to the configuration file.
-
-    Args:
-        project (ProjectModel): The ProjectModel object containing project
-                                information.
-        project_path (Path): The path to the configuration file.
-
-    Returns:
-        bool: True if the project information was saved successfully, False
-              otherwise.
-    """
-    config = configparser.ConfigParser()
-    config.read(project_path)
-
-    if PROJECT_CONFIG_SECTION not in config.sections():
-        config[PROJECT_CONFIG_SECTION] = {}
-
-    config[PROJECT_CONFIG_SECTION][PROJECT_CONFIG_ID] = project.id
-    if project.url_path:
-        config[PROJECT_CONFIG_SECTION][PROJECT_CONFIG_URL] = project.url_path
-    if project.name:
-        config[PROJECT_CONFIG_SECTION][PROJECT_CONFIG_NAME] = project.name
-
-    try:
-        with open(project_path, "w") as configfile:
-            config.write(configfile)
-    except Exception:
-        logger.exception("Error saving project info")
-        return False
-
-    return True
-
-
 def create_project(
-    ctx: typer.Context, console: Console, target: Path
+    ctx: typer.Context,
+    console: Console,
+    target: Path,
+    unverified_project: Optional["UnverifiedProjectModel"] = None,
+    create_if_missing: bool = True,
+    link_behavior: Literal["always", "prompt", "never"] = "prompt",
 ) -> Tuple[bool, Optional[str]]:
     """
     Loads existing project from the specified target locations or creates a new project.
 
     Args:
         ctx: The CLI context
-        session: The authentication session
         console: The console object
         target (Path): The target location
+        unverified_project (UnverifiedProjectModel): The unverified project model
+        create_if_missing (bool): Whether to create codebase if it doesn't exist
+        link_behavior (Literal["always", "prompt", "never"]): How to handle codebase linking
     """
     # Load .safety-project.ini
-    unverified_project = load_unverified_project_from_config(project_root=target)
+    if not unverified_project:
+        unverified_project = load_unverified_project_from_config(project_root=target)
 
-    stage = ctx.obj.auth.stage
     session = ctx.obj.auth.client
     git_data = GIT(root=target).build_git_data()
     origin = None
@@ -308,9 +287,16 @@ def create_project(
 
     if ctx.obj.platform_enabled:
         result = verify_project(
-            console, ctx, session, unverified_project, stage, origin
+            console,
+            ctx,
+            session,
+            unverified_project,
+            origin,
+            create_if_missing,
+            link_behavior,
         )
-        ctx.obj.project.git = git_data
+        if ctx.obj.project:
+            ctx.obj.project.git = git_data
         return result
     else:
         console.print("Project creation is not supported for your account.")
@@ -336,6 +322,10 @@ def launch_auth_if_needed(ctx: typer.Context, console: Console) -> Optional[str]
         or not obj.auth.client.is_using_auth_credentials()
     ):
         console.print(MSG_NEED_AUTHENTICATION)
+
+        if not console.is_interactive:
+            sys.exit(0)
+
         auth_choice = Prompt.ask(
             MSG_AUTH_PROMPT,
             choices=["r", "l", "R", "L"],
@@ -357,15 +347,12 @@ def launch_auth_if_needed(ctx: typer.Context, console: Console) -> Optional[str]
             ctx.invoke(register_command)
         else:
             ctx.invoke(login_command)
-    else:
-        data = None
-        try:
-            data = ctx.obj.auth.client.initialize()
-        except Exception:
-            logger.exception("Unable to load data on the init command")
 
-        if data:
-            org_slug = data.get("organization-data", {}).get("slug")
+    try:
+        data = ctx.obj.auth.client.initialize()
+        org_slug = data.get("organization-data", {}).get("slug")
+    except Exception:
+        logger.exception("Unable to load data on the init command")
 
     return org_slug
 

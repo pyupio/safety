@@ -7,7 +7,7 @@ import json
 import sys
 from typing import Any, Dict, List, Optional, Set, Tuple, Callable
 
-from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND
+from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, DEFAULT_EPILOG
 from safety.safety import process_fixes_scan
 from safety.scan.finder.handlers import ECOSYSTEM_HANDLER_MAPPING, FileHandler
 from safety.scan.validators import output_callback, save_as_callback
@@ -29,7 +29,6 @@ from safety.scan.constants import (
     CMD_SYSTEM_NAME,
     DEFAULT_SPINNER,
     SCAN_OUTPUT_HELP,
-    DEFAULT_EPILOG,
     SCAN_POLICY_FILE_HELP,
     SCAN_SAVE_AS_HELP,
     SCAN_TARGET_HELP,
@@ -48,7 +47,7 @@ from safety.scan.decorators import (
     scan_system_command_init,
 )
 from safety.scan.finder.file_finder import should_exclude
-from safety.init.main import load_unverified_project_from_config
+from ..codebase_utils import load_unverified_project_from_config
 from safety.scan.main import load_policy_file, process_files, save_report_as
 from safety.scan.models import (
     ScanExport,

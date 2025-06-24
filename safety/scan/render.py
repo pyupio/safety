@@ -7,6 +7,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+import sys
 
 import typer
 from rich.console import Console
@@ -411,9 +412,7 @@ def prompt_project_id(console: Console, default_id: str) -> str:
     """
     default_prj_id = clean_project_id(default_id)
 
-    interactive_mode = console.is_interactive and not console.quiet
-
-    if not interactive_mode:
+    if not sys.stdin.isatty():
         LOG.info("Fallback to default project id, because of non-interactive mode.")
 
         return default_prj_id
@@ -430,7 +429,8 @@ def prompt_project_id(console: Console, default_id: str) -> str:
 
 def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -> bool:
     """
-    Prompt the user to link the scan with an existing project.
+    Prompt the user to link the scan with an existing project. If the console is not interactive
+    it will fallback to True.
 
     Args:
         console (Console): The console for output.
@@ -440,6 +440,10 @@ def prompt_link_project(console: Console, prj_name: str, prj_admin_email: str) -
     Returns:
         bool: True if the user wants to link the scan, False otherwise.
     """
+    if not sys.stdin.isatty():
+        LOG.info("Linking to existing project because of non-interactive mode.")
+        return True
+
     console.print(
         "[bold]Safety found an existing codebase with this name in your organization:[/bold]"
     )

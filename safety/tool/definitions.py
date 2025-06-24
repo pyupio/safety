@@ -78,16 +78,16 @@ TOOLS = [
     ToolCommandModel(
         name="poetry",
         display_name="poetry",
-        help="[BETA] Commands for managing Safety project.\nExample: safety poetry add httpx",
+        help="[BETA] Run poetry commands protected by Safety firewall.\nExample: safety poetry add httpx",
     ),
     ToolCommandModel(
         name="pip",
         display_name="pip",
-        help="[BETA] Commands for managing Safety project.\nExample: safety pip list",
+        help="[BETA] Run pip commands protected by Safety firewall.\nExample: safety pip list",
     ),
     ToolCommandModel(
         name="uv",
         display_name="uv",
-        help="[BETA] Commands for managing Safety project.\nExample: safety uv pip list",
+        help="[BETA] Run uv commands protected by Safety firewall.\nExample: safety uv pip list",
     ),
 ]

@@ -10,6 +10,7 @@ from safety.tool.constants import (
     MSG_NOT_AUTHENTICATED_TOOL_NO_TTY,
 )
 
+from ..codebase_utils import load_unverified_project_from_config
 from ..scan.util import GIT
 
 
@@ -38,8 +39,6 @@ def prepare_tool_execution(func):
                 stderr_console.print(
                     MSG_NOT_AUTHENTICATED_TOOL_NO_TTY.format(tool_name=tool_name)
                 )
-
-        from safety.init.main import load_unverified_project_from_config
 
         unverified_project = load_unverified_project_from_config(project_root=target)
 

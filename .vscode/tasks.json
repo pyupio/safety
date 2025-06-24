@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Setup Safety Development Environment",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "mkdir -p ~/.safety && [ -f ~/.safety/config.ini ] && cp ~/.safety/config.ini ~/.safety/config.ini.backup 2>/dev/null || true; cp ${workspaceFolder}/local_config.ini ~/.safety/config.ini 2>/dev/null && echo 'Development config installed successfully!' || echo 'Failed to install development config'"
+      ],
+      "presentation": {
+        "reveal": "silent",
+        "close": true,
+        "revealProblems": "onProblem",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

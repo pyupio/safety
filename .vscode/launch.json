@@ -7,11 +7,13 @@
             "request": "launch",
             "module": "safety",
             "args": "${input:mainCommand}",
-            // This uses the default environment which is a virtual environment
-            // created by Hatch
-            "python": "${workspaceFolder}/.hatch/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "console": "integratedTerminal",
             "justMyCode": false,
+            // "cwd": "${workspaceFolder}/poetry-test-1/my-project-v4"
+            "env": {
+                "SAFETY_REQUEST_TIMEOUT": "5"
+            }
         }
     ],
     "inputs": [
@@ -84,7 +86,45 @@
                 "init",
                 "pip list",
                 "pip install insecure-package",
+                "pip install --index-url https://pkgs.safetycli.com insecure-package",
+                "pip install --index-url https://pkgs.safetycli.com --requirement requirements.txt",
+                "pip install 'pyyaml>=5.0.0'",
+                "pip install -r requirements.txt",
+                "pip install djanga fest-api==2.2.2",
                 "pip install fastapi",
+                "pip install lodestone",
+                "pip3 install asdadsadsadasdasdasd",
+                "pip3.13 install asdadsadsadasdasdasd",
+                "pip list",
+                "uv sync",
+                "uv sync --frozen --no-install-project --no-group dev --no-group test",
+                "uv pip list",
+                "uv pip install asdadsadsadasdasdasd",
+                "uv pip install insecure-package",
+                "uv pip install --index-url https://pkgs.safetycli.com insecure-package",
+                "uv pip install --index-url https://pkgs.safetycli.com --requirement requirements.txt",
+                "uv pip install 'pyyaml>=5.0.0'",
+                "uv pip install -r requirements.txt",
+                "uv pip install djanga fest-api==0.115.12",
+                "uv pip install fastapi",
+                "uv pip install lodestone",
+                "uv pip uninstall fastapi",
+                "uv tool install ruff",
+                "uv tool list --show-paths --show-version-specifiers",
+                "poetry about",
+                "poetry init",
+                "poetry install",
+                "poetry add pytest requests --dev --optional --group test --extras 'security,http2' --python '>=3.8,<3.11' --dry-run --no-interaction",
+                "poetry add request@2.32.3",
+                "poetry add --source other request@2.32.3",
+                "poetry add 'request@^2.25.0'",
+                "poetry add 'request[extra]@^1.0.0'",
+                "poetry add 'request~1.0.0'",
+                "poetry add 'request^3.2.3'",
+                "poetry add 'request[security]>=2.25.0' numpi 'panda>=1.3.0,!=1.4.1'",
+                "poetry add requests",
+                "poetry add request==3.2.3",
+                "poetry add lodestone",
                 
                 // Check commands
                 "check",

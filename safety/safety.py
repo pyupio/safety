@@ -51,6 +51,7 @@ from .errors import (
     ServerError,
     MalformedDatabase,
 )
+from .meta import get_meta_http_headers
 from .models import (
     Vulnerability,
     CVE,
@@ -241,6 +242,7 @@ def fetch_database_url(
         Dict[str, Any]: The fetched database.
     """
     headers = {"schema-version": JSON_SCHEMA_VERSION, "ecosystem": ecosystem.value}
+    headers.update(get_meta_http_headers())
 
     if cached and from_cache:
         cached_data = get_from_cache(db_name=db_name, cache_valid_seconds=cached)
@@ -301,7 +303,8 @@ def fetch_policy(session: requests.Session) -> Dict[str, Any]:
 
     try:
         LOG.debug("Getting policy")
-        r = session.get(url=url, timeout=REQUEST_TIMEOUT)
+        headers = get_meta_http_headers()
+        r = session.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers)
         LOG.debug(r.text)
         return r.json()
     except Exception:
@@ -1791,6 +1794,7 @@ def get_announcements(
 
     request_kwargs[data_keyword] = data
     request_kwargs["url"] = url
+    request_kwargs["headers"] = get_meta_http_headers()
 
     LOG.debug(f"Telemetry data sent: {data}")
 

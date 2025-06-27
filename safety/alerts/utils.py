@@ -22,6 +22,7 @@ except ImportError:
     jinja2 = None
 
 import requests
+from safety.meta import get_meta_http_headers
 
 
 def highest_base_score(vulns: List[Dict[str, Any]]) -> float:
@@ -232,9 +233,12 @@ def fetch_changelog(package: str, from_version: Optional[str], to_version: str, 
 
     changelog = {}
 
+    headers = {"X-Api-Key": api_key}
+    headers.update(get_meta_http_headers())
+    
     r = requests.get(
         "https://pyup.io/api/v1/changelogs/{}/".format(package),
-        headers={"X-Api-Key": api_key}
+        headers=headers
     )
 
     if r.status_code == 200:

@@ -60,7 +60,7 @@ def progressive_print(sections, pause_between=0.7):
         time.sleep(pause_between)
 
 
-def render_header(title, emoji="🛡", margin_left=0, margin_right=2):
+def render_header(title, emoji="-", margin_left=0, margin_right=2):
     """
     Create a modern header with emoji that works cross-platform
     """

@@ -93,6 +93,7 @@ class Pip:
                 [
                     get_unwrapped_command(name="pip"),
                     "config",
+                    "--user",
                     "set",
                     "global.index-url",
                     repository_url,
@@ -128,6 +129,7 @@ class Pip:
                 [
                     get_unwrapped_command(name="pip"),
                     "config",
+                    "--user",
                     "unset",
                     "global.index-url",
                 ],

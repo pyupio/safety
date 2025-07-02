@@ -4,6 +4,7 @@ from packaging.version import parse as parse_version
 from packaging.specifiers import SpecifierSet
 import requests
 from typing import Any, Optional, Generator, Tuple, List
+from safety.meta import get_meta_http_headers
 
 from datetime import datetime
 from dparse import parse, parser, updater, filetypes
@@ -434,10 +435,11 @@ class Requirement(object):
         Returns:
             List: A list of hashes for the specified version.
         """
+        headers = get_meta_http_headers()
         r = requests.get('https://pypi.org/pypi/{name}/{version}/json'.format(
             name=self.key,
             version=version
-        ))
+        ), headers=headers)
         hashes = []
         data = r.json()
 

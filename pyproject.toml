@@ -237,6 +237,7 @@ os_type = [
 dependencies = [
   "ruff",
   "pyright",
+  "pytest==8.3.4",
 ]
 [tool.hatch.envs.lint.scripts]
 typing = "pyright {args:.}"
@@ -266,6 +267,7 @@ reportMissingTypeStubs = false
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
+    "unit: mark test to run only on unit tests",
     "basic: requires no extras",
     "windows_only: mark test to run only on Windows platforms",
     "unix_only: mark test to run only on Unix platforms"

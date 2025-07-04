@@ -91,6 +91,7 @@ def scan_project_command_init(func):
                 unverified_project,
                 origin,
                 link_behavior=link_behavior,
+                prompt_for_name=True,
             )
         else:
             ctx.obj.project = ProjectModel(

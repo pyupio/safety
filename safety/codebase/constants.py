@@ -10,7 +10,7 @@ CMD_CODEBASE_INIT_NAME = "init"
 # init options help
 CMD_HELP_CODEBASE_INIT_NAME = "Name of the codebase. Defaults to GIT origin name, parent directory name, or random string if parent directory is unnamed. The value will be normalized for use as an identifier."
 CMD_HELP_CODEBASE_INIT_LINK_TO = (
-    "Link to an existing codebase (project) in Safety Platform."
+    "Link to an existing codebase using its codebase slug (found in Safety Platform)."
 )
 CMD_HELP_CODEBASE_INIT_DISABLE_FIREWALL = "Don't enable Firewall protection for this codebase (enabled by default when available in your organization)"
 CMD_HELP_CODEBASE_INIT_PATH = (

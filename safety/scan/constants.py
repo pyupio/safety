@@ -90,10 +90,8 @@ CLI_DEBUG_HELP = (
     "[bold]Example: safety --debug scan[/bold]"
 )
 
-CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP = (
-    "Opt-out of sending optional telemetry data. Anonymized telemetry data will remain.\n\n"
-    "[bold]Example: safety --disable-optional-telemetry scan[/bold]"
-)
+CLI_ENABLE_OPTIONAL_TELEMETRY_DATA_HELP = "Opt-in to sending optional telemetry data. Anonymized telemetry data will remain.\n\n" \
+"[bold]Example: safety --enable-optional-telemetry scan[/bold]"
 
 # Scan Help options
 SCAN_POLICY_FILE_HELP = (

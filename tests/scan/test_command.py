@@ -1,16 +1,21 @@
 import unittest
 import tempfile
-
+from importlib.metadata import version
 from click.testing import CliRunner
+from packaging.version import Version
 from safety.auth.models import Auth
 from safety.cli import cli
 from safety.console import main_console as console
 from unittest.mock import patch
 
-class TestScanCommand(unittest.TestCase):
 
+class TestScanCommand(unittest.TestCase):
     def setUp(self):
-        self.runner = CliRunner(mix_stderr=False)
+        # mix_stderr was removed in Click 8.2.0
+        if Version(version("click")) >= Version("8.2.0"):
+            self.runner = CliRunner()
+        else:
+            self.runner = CliRunner(mix_stderr=False)
         self.target = tempfile.mkdtemp()
         # Make sure the console is not quiet
         # TODO: This is a workaround, we should improve the way the console
@@ -20,14 +25,33 @@ class TestScanCommand(unittest.TestCase):
         cli.commands = cli.all_commands
         self.cli = cli
 
-    @patch.object(Auth, 'is_valid', return_value=False)
-    @patch('safety.auth.utils.SafetyAuthSession.get_authentication_type', return_value="unauthenticated")
+    @patch.object(Auth, "is_valid", return_value=False)
+    @patch(
+        "safety.auth.utils.SafetyAuthSession.get_authentication_type",
+        return_value="unauthenticated",
+    )
     def test_scan(self, mock_is_valid, mock_get_auth_type):
-        result = self.runner.invoke(self.cli, ["scan", "--target", self.target, "--output", "json"])
+        result = self.runner.invoke(
+            self.cli, ["scan", "--target", self.target, "--output", "json"]
+        )
         self.assertEqual(result.exit_code, 1)
 
-        result = self.runner.invoke(self.cli, ["--stage", "production", "scan", "--target", self.target, "--output", "json"])
+        result = self.runner.invoke(
+            self.cli,
+            [
+                "--stage",
+                "production",
+                "scan",
+                "--target",
+                self.target,
+                "--output",
+                "json",
+            ],
+        )
         self.assertEqual(result.exit_code, 1)
 
-        result = self.runner.invoke(self.cli, ["--stage", "cicd", "scan", "--target", self.target, "--output", "screen"])
+        result = self.runner.invoke(
+            self.cli,
+            ["--stage", "cicd", "scan", "--target", self.target, "--output", "screen"],
+        )
         self.assertEqual(result.exit_code, 1)

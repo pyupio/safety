@@ -34,7 +34,7 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
   "Authlib>=1.2.0",
-  "Click>=8.0.2,<8.2.0", # Typer works with >=8.0.0,<8.2.0
+  "Click>=8.0.2",
   "dparse>=0.6.4",
   "filelock~=3.16.1",
   "jinja2>=3.1.0",
@@ -49,7 +49,7 @@ dependencies = [
   "safety-schemas==0.0.14",
   # TODO: To be removed after migrate away from pkg_resources
   "setuptools>=65.5.1",
-  "typer>=0.12.1",
+  "typer>=0.16.0",
   "typing-extensions>=4.7.1",
   "nltk>=3.9",
   "tomli; python_version < '3.11'",
@@ -158,10 +158,10 @@ matrix.targets.dependencies = [
     { value = "pydantic~=2.10", if = ["pydantic-2_10"] },
     { value = "pydantic~=2.11", if = ["pydantic-latest"] },
     
-    { value = "typer==0.12.1", if = ["typer-minimal"] },
+    { value = "typer==0.16.0", if = ["typer-minimal"] },
     { value = "Click==8.0.2", if = ["typer-minimal"] },
 
-    { value = "typer~=0.13", if = ["typer-latest"] },
+    { value = "typer~=0.16", if = ["typer-latest"] },
     { value = "Click~=8.1.0", if = ["typer-latest"] }
 ]
 

@@ -122,6 +122,7 @@ def verify_project(
     git_origin: Optional[str],
     create_if_missing: bool = True,
     link_behavior: Literal["always", "prompt", "never"] = "prompt",
+    prompt_for_name: bool = False,
 ) -> Tuple[bool, Optional[str]]:
     """
     Verify the project, linking it if necessary and saving the verified project information.
@@ -149,6 +150,7 @@ def verify_project(
 
     # Track if we need to ask for project ID (when user declines linking)
     ask_for_project_id = False
+    asked_codebase_asked_before = False
 
     while True:
         result = check_project(
@@ -172,9 +174,15 @@ def verify_project(
                 return (False, "not_found")
             # Project will be created - continue to verification
             project_status = (True, "created")
+
+            if prompt_for_name and not asked_codebase_asked_before:
+                asked_codebase_asked_before = True
+                ask_for_project_id = True
+                continue
         else:
             # Project exists - handle based on link_behavior
             if link_behavior == "never":
+                unverified_project.id = project.get("slug")
                 return (True, "found")
             elif link_behavior == "always":
                 project_status = (True, "linked")

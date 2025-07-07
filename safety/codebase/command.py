@@ -127,7 +127,9 @@ def init(
     org_slug = launch_auth_if_needed(ctx, console)
 
     if not org_slug:
-        raise SafetyError("Organization not found")
+        raise SafetyError(
+            "Organization not found, please run 'safety auth status' or 'safety auth login'"
+        )
 
     should_enable_firewall = not skip_firewall_setup and ctx.obj.firewall_enabled
 

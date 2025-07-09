@@ -1,6 +1,7 @@
-import platform
 import time
+from typing import List, Union
 
+from rich.console import RenderableType
 from rich.prompt import Prompt
 import typer
 from safety.console import main_console as console
@@ -15,37 +16,12 @@ from safety.init.constants import (
 )
 
 
-def load_emoji(emoji):
-    """
-    Return the most appropriate emoji symbol based on terminal environment.
+def typed_print(
+    text: str, delay: float = 0.02, console=console, style="bold", end_line=True
+):
+    rich_text = console.render_str(text)
+    text = rich_text.plain
 
-    Args:
-        emoji (str): The emoji character to display, if supported
-
-    Returns:
-        str: The emoji if supported, or an appropriate alternative
-    """
-    # On non-Windows platforms, return the original emoji
-    if platform.system() != "Windows":
-        return emoji
-
-    # Windows emoji mapping - add supported emojis or provide alternatives
-    emoji_map = {
-        "✓": "+",
-        "🛡": "SHIELD",
-        "⚠️": "!",
-        "❌": "X",
-        "ℹ️": "i",
-        "🔒": "LOCK",
-        "🔑": "KEY",
-    }
-
-    # Return the mapped version if it exists, otherwise return original
-    # This allows Windows to display emojis it actually supports
-    return emoji_map.get(emoji, emoji)
-
-
-def typed_print(text, delay=0.02, console=console, style="bold", end_line=True):
     for char in text:
         console.print(char, end="", style=style)
         if char != "\n":
@@ -54,23 +30,35 @@ def typed_print(text, delay=0.02, console=console, style="bold", end_line=True):
         console.line()
 
 
-def progressive_print(sections, pause_between=0.7):
+def progressive_print(
+    sections: Union[List[str], List[RenderableType]],
+    pause_between: float = 0.7,
+    console=console,
+):
     for section in sections:
-        console.print(section)
+        obj = section
+
+        if isinstance(section, str):
+            obj = console.render_str(section)
+
+        console.print(obj)
         time.sleep(pause_between)
 
 
-def render_header(title, emoji="🛡", margin_left=0, margin_right=2):
+def render_header(
+    title, emoji=":shield:", margin_left=0, margin_right=2, console=console
+):
     """
     Create a modern header with emoji that works cross-platform
     """
-    header_text = f"{' ' * margin_left}{emoji}{title}{' ' * margin_right}"
-    underline = (
-        f"[blue]{'━' * (margin_left + len(emoji) + len(title) + margin_right)}[/blue]"
-    )
+    content = f"{' ' * margin_left}{emoji}{title}{' ' * margin_right}"
+    rendered_content = console.render_str(content)
+    plain_text = rendered_content.plain
+
+    underline = console.render_str(f"[blue]{'━' * len(plain_text)}[/blue]")
 
     console.print()
-    typed_print(header_text, style="bold white", delay=0.01, console=console)
+    typed_print(plain_text, style="bold white", delay=0.01, console=console)
     console.print(underline)
     console.print()
 

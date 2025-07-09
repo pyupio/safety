@@ -16,12 +16,12 @@ CODEBASE_INIT_DIRECTORY_HELP = (
 MSG_WELCOME_TITLE = (
     "\n\nWelcome to Safety, the AI-powered Software Supply Chain Firewall.\n\n"
 )
-MSG_WELCOME_DESCRIPTION = (
+MSG_WELCOME_DESCRIPTION = [
     "[bold]Safety is designed to:[/bold]",
     "1. Work with your existing package manager to block malicious or high-risk packages before they're installed.",
     "2. Keep track of the dependencies in your codebase, and help you to quickly fix any vulnerabilities in them.",
     "3. Integrate with your AI assistants to ensure they use secure packages.\n",
-)
+]
 
 MSG_NEED_AUTHENTICATION = "To configure firewall and your codebase security settings, you'll need an account.\n"
 MSG_AUTH_PROMPT = (
@@ -62,19 +62,23 @@ MSG_SETUP_CODEBASE_NO_PROJECT = "We didn't find any dependency specification fil
 
 MSG_ANALYZE_CODEBASE_TITLE = " Analyze {project_name} for Vulnerabilities"
 
-MSG_NO_VULNERABILITIES_FOUND = "  No vulnerabilities found 🎉\n\n"
-MSG_CODEBASE_URL_DESCRIPTION = "🔎 View detailed results in your Safety dashboard:\n"
+MSG_NO_VULNERABILITIES_FOUND = "  No vulnerabilities found :party_popper:\n\n"
+MSG_CODEBASE_URL_DESCRIPTION = (
+    ":mag_right: View detailed results in your Safety dashboard:\n"
+)
 MSG_NO_VULNS_CODEBASE_URL_DESCRIPTION = (
-    "🔎 Any future vulnerabilities will appear here:\n"
+    ":mag_right: Any future vulnerabilities will appear here:\n"
 )
 
-MSG_OPEN_DASHBOARD_PROMPT = f"💡 Open this in a new browser window now? {ASK_HINT}"
+MSG_OPEN_DASHBOARD_PROMPT = (
+    f":light_bulb: Open this in a new browser window now? {ASK_HINT}"
+)
 
 MSG_COMMAND_TO_RUN = "`source ~/.safety/.safety_profile`"
 MSG_LAST_MANUAL_STEP = (
-    "🟡 IMPORTANT: At the end, restart the terminal to activate your Safety configuration."
+    ":yellow_circle: IMPORTANT: At the end, restart the terminal to activate your Safety configuration."
     if sys.platform == "win32"
-    else f"🟡 IMPORTANT: Run {MSG_COMMAND_TO_RUN} to activate your Safety configuration."
+    else f":yellow_circle: IMPORTANT: Run {MSG_COMMAND_TO_RUN} to activate your Safety configuration."
 )
 
 MSG_SETUP_COMPLETE_TITLE = " Wrap Up"
@@ -87,22 +91,20 @@ MSG_CODEBASE_FAILED_TO_SCAN = (
     "[bold red]x[/bold red] Failed to complete the codebase scan, reason: {reason}. Reach out to "
     + SUPPORT_DETAILS
 )
-MSG_COMPLETE_TOOL_SECURED = "✅ {tools} secured - Safety is automatically analyzing all package installations for risk. To configure or audit your installations visit [link]{firewall_url}[/link]"
-MSG_COMPLETE_SECURED = "✅ Codebase secured - to see your vulnerable packages, visit [link]{codebase_url}[/link]"
+MSG_COMPLETE_TOOL_SECURED = ":white_heavy_check_mark: {tools} secured - Safety is automatically analyzing all package installations for risk. To configure or audit your installations visit [link]{firewall_url}[/link]"
+MSG_COMPLETE_SECURED = ":white_heavy_check_mark: Codebase secured - to see your vulnerable packages, visit [link]{codebase_url}[/link]"
 
 MSG_SETUP_NEXT_STEPS_SUBTITLE = " Next steps:"
 
-MSG_HELP = f"💬 Need help or want to give feedback? {SUPPORT_DETAILS}"
-MSG_DOCS = "📚 Read the docs: [link]https://docs.safetycli.com[/link]"
-MSG_TEAM = (
-    "👥 Invite your team: [link]https://platform.safetycli.com/organization/team[/link]"
-)
+MSG_HELP = f":speech_balloon: Need help or want to give feedback? {SUPPORT_DETAILS}"
+MSG_DOCS = ":books: Read the docs: [link]https://docs.safetycli.com[/link]"
+MSG_TEAM = ":busts_in_silhouette: Invite your team: [link]https://platform.safetycli.com/organization/team[/link]"
 
 
 MSG_SETUP_NEXT_STEPS = (
     MSG_TEAM,
-    "💾 Commit `.safety-project.ini` to your Github repository so that your team-members use the same codebase.",
-    "➕ Add another codebase: `safety init` (run this in the codebase directory)",
+    ":floppy_disk: Commit `.safety-project.ini` to your Github repository so that your team-members use the same codebase.",
+    ":heavy_plus_sign: Add another codebase: `safety init` (run this in the codebase directory)",
     MSG_DOCS,
     MSG_HELP,
 )
@@ -110,7 +112,7 @@ MSG_SETUP_NEXT_STEPS = (
 MSG_SETUP_NEXT_STEPS_ERROR = (MSG_HELP, MSG_DOCS)
 
 MSG_SETUP_NEXT_STEPS_NO_PROJECT = (
-    "➕ Add a codebase with `safety init` (run this in the codebase directory)",
+    ":heavy_plus_sign: Add a codebase with `safety init` (run this in the codebase directory)",
     MSG_TEAM,
     MSG_DOCS,
     MSG_HELP,

@@ -1,8 +1,6 @@
 import random
 import time
 import os
-from rich.text import Text
-from rich.style import Style
 from safety.scan.fun_mode.celebration_effects import CELEBRATION_EFFECTS
 
 # -----------------------------
@@ -26,7 +24,6 @@ ASCII_ARTS = {
            (  /
             MM
         """,
-
         # Cat with a shield
         r"""
        /\_/\
@@ -47,12 +44,11 @@ ASCII_ARTS = {
        |       |
 
         """,
-
         # Bunny with a shield
         r"""
      (\_/)
      ( •_•)  *Hop-hop! SafetyCLI ready, no vulns here!*
-    ( >🥕< )
+    ( >:carrot:< )
      /     \
     / |   | \
    /  |   |  \
@@ -68,7 +64,6 @@ ASCII_ARTS = {
      |______|
 
         """,
-
         # Dog behind a shield
         r"""
          / \__
@@ -78,7 +73,7 @@ ASCII_ARTS = {
       /_____/
 
 
-        """
+        """,
     ]
 }
 
@@ -103,22 +98,109 @@ FORTUNES = [
 
 
 EMOJIS = [
-        "🐶", "🐕", "🦮", "🐕‍🦺", "🐩", "🐺", "🦊",
-        "🐱", "🐈", "🐈‍⬛", "🦁", "🐯", "🐅", "🐆", "🐴", "🫎", "🫏",
-        "🐎", "🦄", "🦓", "🦌", "🦬", "🐮", "🐂", "🐃", "🐄",
-        "🐏", "🐑", "🐐", "🐪", "🐫", "🦙", "🦒",
-        "🐘", "🦣", "🦏", "🦛", "🐭", "🐁", "🐀", "🐹", "🐰", "🐇",
-        "🐿️", "🦫", "🦔", "🦇", "🐻", "🐻‍❄️", "🐨", "🐼", "🦦",
-        "🦘", "🦡", "🦃", "🐔", "🐓", "🐤", "🐥", "🐦", "🐧",
-        "🕊️", "🦅", "🦆", "🦢", "🦉", "🦤", "🦩", "🦚", "🦜", "🐦‍⬛",
-        "🪿", "🐦‍🔥", "🐸", "🐊", "🐢", "🦎", "🐉", "🦕",
-        "🦖", "🐳", "🐋", "🐬", "🦭", "🐟", "🐠", "🐡", "🦈", "🐙",
-        "🪼", "🦀", "🦞", "🦑", "🐌", "🦋", "🐛","🐝"
-    ]
+    ":dog_face:",
+    ":dog2:",
+    ":guide_dog:",
+    ":service_dog:",
+    ":poodle:",
+    ":wolf:",
+    ":fox_face:",
+    ":cat_face:",
+    ":cat2:",
+    ":cat2:",
+    ":lion_face:",
+    ":tiger_face:",
+    ":tiger2:",
+    ":leopard:",
+    ":horse_face:",
+    ":deer:",
+    ":deer:",
+    ":racehorse:",
+    ":unicorn_face:",
+    ":zebra:",
+    ":deer:",
+    ":bison:",
+    ":cow_face:",
+    ":ox:",
+    ":water_buffalo:",
+    ":cow2:",
+    ":ram:",
+    ":sheep:",
+    ":goat:",
+    ":dromedary_camel:",
+    ":two-hump_camel:",
+    ":llama:",
+    ":giraffe:",
+    ":elephant:",
+    ":mammoth:",
+    ":rhinoceros:",
+    ":hippopotamus:",
+    ":mouse_face:",
+    ":mouse2:",
+    ":rat:",
+    ":hamster:",
+    ":rabbit_face:",
+    ":rabbit2:",
+    ":chipmunk:",
+    ":beaver:",
+    ":hedgehog:",
+    ":bat:",
+    ":bear:",
+    ":polar_bear:",
+    ":koala:",
+    ":panda_face:",
+    ":otter:",
+    ":kangaroo:",
+    ":badger:",
+    ":turkey:",
+    ":chicken:",
+    ":rooster:",
+    ":baby_chick:",
+    ":hatched_chick:",
+    ":bird:",
+    ":penguin:",
+    ":dove:",
+    ":eagle:",
+    ":duck:",
+    ":swan:",
+    ":owl:",
+    ":dodo:",
+    ":flamingo:",
+    ":peacock:",
+    ":parrot:",
+    ":bird:",
+    ":goose:",
+    ":phoenix:",
+    ":frog:",
+    ":crocodile:",
+    ":turtle:",
+    ":lizard:",
+    ":dragon:",
+    ":sauropod:",
+    ":t-rex:",
+    ":whale:",
+    ":whale2:",
+    ":flipper:",
+    ":seal:",
+    ":fish:",
+    ":tropical_fish:",
+    ":blowfish:",
+    ":shark:",
+    ":octopus:",
+    ":jellyfish:",
+    ":crab:",
+    ":lobster:",
+    ":squid:",
+    ":snail:",
+    ":butterfly:",
+    ":bug:",
+    ":bee:",
+]
 
 # -----------------------------
 # Helper functions (Effects)
 # -----------------------------
+
 
 def show_race(console):
     # Pick two different EMOJIS at random
@@ -149,23 +231,32 @@ def show_race(console):
         finished2 = pos2 >= finish_line
 
         if finished1 and finished2:
-            console.print("It's a tie! Both reached the finish line at the same time!", style="bold magenta")
+            console.print(
+                "It's a tie! Both reached the finish line at the same time!",
+                style="bold magenta",
+            )
             break
         elif finished1:
-            console.print(f"The {emoji1} wins! Slow and steady (or maybe fast?), it prevailed!", style="bold green")
+            console.print(
+                f"The {emoji1} wins! Slow and steady (or maybe fast?), it prevailed!",
+                style="bold green",
+            )
             break
         elif finished2:
-            console.print(f"The {emoji2} wins! Speed and agility triumphed!", style="bold green")
+            console.print(
+                f"The {emoji2} wins! Speed and agility triumphed!", style="bold green"
+            )
             break
 
     time.sleep(2)
     console.clear()
-    console.print("Hope you enjoyed the race! 🎉", style="bold cyan")
+    console.print("Hope you enjoyed the race! :party_popper:", style="bold cyan")
 
 
 # -----------------------------
 # Main Easter Egg Dispatcher
 # -----------------------------
+
 
 def run_easter_egg(console, exit_code: int) -> None:
     """

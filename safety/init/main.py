@@ -2,12 +2,11 @@ import logging
 import sys
 import uuid
 from rich.prompt import Prompt
-from rich.text import Text
 import typer
 from rich.console import Console
 
 from safety.events.utils.emission import emit_firewall_setup_completed
-from safety.init.render import load_emoji, progressive_print
+from safety.init.render import progressive_print
 from safety.util import clean_project_id
 
 from ..tool import configure_system, configure_alias
@@ -383,7 +382,7 @@ def setup_firewall(
             - bool: True if all tools are missing, False otherwise
             - FirewallConfigStatus: The current status of the firewall
     """
-    emoji_check = f"[green]{load_emoji('✓')}[/green]"
+    emoji_check = "[green]:icon_check:[/green]"
 
     configured_index = configure_system(org_slug)
     configured_alias = configure_alias()
@@ -432,33 +431,27 @@ def setup_firewall(
                         msg = f"{tool_name} alias"
 
                     prefix_msg = "Failed to configure"
-                    emoji = {"text": "x ", "style": "red bold"}
+                    emoji = "[red bold]x[/red bold]"
 
                     # If there is a non-compatible global index
                     if tool_type in [ToolType.POETRY]:
                         prefix_msg = "Skipped"
                         msg += " - not supported by poetry"
-                        emoji = {"text": "- ", "style": "gray bold"}
+                        emoji = "[gray bold]-[/gray bold]"
                         # TODO: Set None for now, to avoid mixing
                         # no configured error with skipped.
                         tool_config[config_type] = None
                     else:
                         is_configured = False
 
-                    error = Text()
-                    error.append(**emoji)
-                    error.append(f"{prefix_msg} {msg}")
-                    progressive_print([error])
+                    progressive_print([f"{emoji} {prefix_msg} {msg}"])
 
                 if config_obj := tool_config[config_type]:
                     config_obj.is_configured = is_configured
 
         console.line()
     else:
-        error = Text()
-        error.append("x ", style="red bold")
-        error.append("Failed to configure system")
-        progressive_print([error])
+        progressive_print(["[red bold]x[/red bold] Failed to configure system"])
 
     completed = []
     missing = []
@@ -484,9 +477,7 @@ def setup_firewall(
         )
         console.print(MSG_SETUP_PACKAGE_FIREWALL_NOTE_STATUS)
     else:
-        error = Text()
-        error.append(Text.from_markup(MSG_SETUP_INCOMPLETE))
-        progressive_print([error])
+        progressive_print([MSG_SETUP_INCOMPLETE])
 
     console.line()
 

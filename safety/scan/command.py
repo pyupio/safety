@@ -260,7 +260,9 @@ def process_report(
 
         if obj.platform_enabled:
             status.update(
-                f"{ICON_UPLOAD} {MSG_UPLOADING_REPORT.format(SAFETY_PLATFORM_URL)}"
+                console.render_str(
+                    f"{ICON_UPLOAD} {MSG_UPLOADING_REPORT.format(SAFETY_PLATFORM_URL)}"
+                )
             )
             try:
                 result = obj.auth.client.upload_report(json_format)
@@ -583,7 +585,7 @@ def print_file_info(console: Console, path: Path, target: Path) -> None:
     """
     console.print()
     msg = f"{ICON_PENCIL} {TAG_FILE_TITLE_START}{path.relative_to(target)}:{TAG_FILE_TITLE_END}"
-    console.print(msg, emoji=True)
+    console.print(msg)
 
 
 def sort_and_filter_vulnerabilities(

@@ -17,6 +17,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
+from safety.codebase_utils import load_unverified_project_from_config
 from safety.events.utils.emission import (
     emit_codebase_detection_status,
     emit_codebase_setup_completed,
@@ -31,7 +32,6 @@ from .render import (
     ask_codebase_setup,
     ask_continue,
     ask_firewall_setup,
-    load_emoji,
     progressive_print,
     render_header,
     typed_print,
@@ -80,7 +80,11 @@ from safety.init.constants import (
     MSG_WELCOME_DESCRIPTION,
 )
 from safety.init.main import create_project, launch_auth_if_needed, setup_firewall
-from safety.console import main_console as console
+from safety.console import (
+    get_spinner_animation,
+    main_console as console,
+    should_use_ascii,
+)
 from ..tool.main import (
     configure_local_directory,
     find_local_tool_files,
@@ -147,23 +151,19 @@ class InitScanState:
         self.current_file: Optional[str] = None
 
 
-def generate_summary(state: InitScanState, spinner_phase=0):
+def generate_summary(state: InitScanState, spinner_phase=0) -> Text:
     """
     Generate the summary text based on current scan state
     """
-    text = Text()
+    spinner = get_spinner_animation()
 
-    spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
-    text.append(
-        f"Tested {state.dependencies} dependenc{'y' if state.dependencies == 1 else 'ies'} for security issues\n"
-    )
-    text.append("\nFound:\n\n")
+    text_markup = f"Tested {state.dependencies} dependenc{'y' if state.dependencies == 1 else 'ies'} for security issues\n"
+    text_markup += "\nFound:\n\n"
 
     categories = [
         {
             "name": "CRITICAL",
-            "icon": "🔥",
+            "icon": ":fire:",
             "style": "bold red",
             "dim_style": "dim red",
             "count_attr": "critical",
@@ -171,7 +171,7 @@ def generate_summary(state: InitScanState, spinner_phase=0):
         },
         {
             "name": "HIGH",
-            "icon": "🟡",
+            "icon": ":yellow_circle:",
             "style": "bold yellow",
             "dim_style": "dim yellow",
             "count_attr": "high",
@@ -187,7 +187,7 @@ def generate_summary(state: InitScanState, spinner_phase=0):
         },
         {
             "name": "LOW",
-            "icon": "ℹ️ ",
+            "icon": ":icon_info: ",
             "style": "bold blue",
             "dim_style": "dim blue",
             "count_attr": "low",
@@ -207,7 +207,7 @@ def generate_summary(state: InitScanState, spinner_phase=0):
     prepend_text_codebase_url = MSG_CODEBASE_URL_DESCRIPTION
 
     if state.completed and state.vulns_count <= 0:
-        text.append(MSG_NO_VULNERABILITIES_FOUND)
+        text_markup += MSG_NO_VULNERABILITIES_FOUND
         prepend_text_codebase_url = MSG_NO_VULNS_CODEBASE_URL_DESCRIPTION
     else:
         for category in categories:
@@ -216,44 +216,43 @@ def generate_summary(state: InitScanState, spinner_phase=0):
             if state.completed and category_count == 0:
                 continue
 
-            text.append(
-                f"{category['icon']} {category['name']}: ", style=category["style"]
-            )
+            style = category["style"]
+            text_markup += f"[{style}]{category['icon']} {category['name']}: [/{style}]"
 
             if category_count > 0:
-                text.append(f"{category_count} ", style=category["style"])
-                text.append(f"vulnerabilit{'y' if category_count == 1 else 'ies'}\n")
+                vulns_word = f"vulnerabilit{'y' if category_count == 1 else 'ies'}"
+                text_markup += f"[{style}]{category_count}[/{style}] {vulns_word}\n"
             else:
-                text.append(
-                    f"{spinner[(spinner_phase + category['spinner_offset']) % len(spinner)]} Scanning",
-                    style=category["dim_style"],
-                )
-                text.append("\n")
+                spinner_status = spinner[
+                    (spinner_phase + category["spinner_offset"]) % len(spinner)
+                ]
+                style = category["dim_style"]
+                text_markup += f"[{style}]{spinner_status}[/{style}] Scanning\n"
 
         # Show fixes info if we have vulnerabilities
         if state.vulns_count > 0 and state.fixes is not None:
-            text.append("\n")
+            text_markup += "\n"
+
             if state.fixes > 0:
-                text.append("✨ ")
-                text.append(f"{state.fixes} ", style="green")
-                text.append(
-                    f"automatic {'fix' if state.fixes == 1 else 'fixes'} available, resolving {state.fixed_vulns} vulnerabilities\n"
-                )
+                fix_word = f"fix{'' if state.fixes == 1 else 'es'}"
+                vulns_word = f"vulnerabilit{'y' if state.fixed_vulns == 1 else 'ies'}"
+                text_markup += f":sparkles: [green]{state.fixes}[/green] automatic {fix_word} available, resolving {state.fixed_vulns} {vulns_word}\n"
             else:
-                text.append(" No automatic fixes available for these vulnerabilities\n")
+                text_markup += (
+                    " No automatic fixes available for these vulnerabilities\n"
+                )
 
     # Dashboard link if URL is available
     if state.codebase_url is not None:
-        text.append("\n")
-        text.append(prepend_text_codebase_url)
-        text.append(f"🔗 {state.codebase_url}\n", style="blue underline")
+        text_markup += f"\n{prepend_text_codebase_url}[blue underline]:link: {state.codebase_url}\n[/blue underline]"
+
     elif state.completed:
-        text.append("\n")
+        text_markup += "\n"
 
-    return text
+    return console.render_str(text_markup)
 
 
-def generate_status_updates(state: InitScanState, spinner_phase=0):
+def generate_status_updates(state: InitScanState, spinner_phase: int = 0) -> Text:
     """
     Generate text displaying current status updates and progress information
 
@@ -264,39 +263,33 @@ def generate_status_updates(state: InitScanState, spinner_phase=0):
     Returns:
         Rich Text object containing formatted status updates
     """
-    text = Text()
-    spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    spinner = get_spinner_animation()
+
+    markup_text = f"[cyan]{spinner[spinner_phase % len(spinner)]} Scanning...[/cyan]"
 
     # Display current status message if available
     if state.status_message:
         action_symbol = {
-            "init": "🔄",
-            "scanning": "🔍",
-            "uploading": "☁️ ",
-            "complete": "✅",
-            "error": "❌",
+            "init": ":arrows_counterclockwise:",
+            "scanning": ":magnifying_glass_tilted_left:",
+            "uploading": ":cloud: ",
+            "complete": ":white_heavy_check_mark:",
+            "error": ":cross_mark:",
         }
         status_key = state.status_action if state.status_action is not None else "init"
-        action_symbol = action_symbol.get(status_key, "ℹ️ ")
+        action_symbol = action_symbol.get(status_key, ":information_source: ")
 
-        text.append("\n")
-        text.append(f"{action_symbol} Status: ", style="bold cyan")
-        text.append(f"{state.status_message}\n", style="cyan")
+        markup_text = f"\n[bold cyan]{action_symbol} Status: [/bold cyan][cyan]{state.status_message}[/cyan]\n"
 
         # If we're processing a file, show that
         if state.current_file and state.status_action == "scanning":
-            text.append("📁 Current file: ", style="bold cyan")
-            text.append(f"{state.current_file}\n", style="dim cyan")
+            markup_text += f"[bold cyan]:file_folder: Current file: [/bold cyan][dim cyan]{state.current_file}[/dim cyan]\n"
+
             # Ensure progress is capped at 100%
             display_progress = min(state.progress, 100)
-            text.append(f"📊 Progress: {display_progress}%\n", style="cyan")
-    else:
-        # If no status message, just show a spinner
-        text.append(
-            f"{spinner[spinner_phase % len(spinner)]} Scanning...", style="cyan"
-        )
+            markup_text += f"[cyan]:bar_chart: Progress: {display_progress}%[/cyan]\n"
 
-    return text
+    return console.render_str(markup_text)
 
 
 def process_scan_results(
@@ -444,12 +437,13 @@ def init_scan_ui(ctx: "typer.Context", prompt_user: bool = False) -> InitScanSta
     # Handle UI updates in the main thread
     spinner_phase = 0
     render_header(
-        MSG_ANALYZE_CODEBASE_TITLE.format(project_name=ctx.obj.project.id), emoji="🔍"
+        MSG_ANALYZE_CODEBASE_TITLE.format(project_name=ctx.obj.project.id),
+        emoji=":magnifying_glass_tilted_left:",
     )
     time.sleep(0.8)
 
     # Detect if running on Windows
-    is_windows = sys.platform == "win32"
+    is_windows = sys.platform == "win32" or should_use_ascii()
 
     # Alternate screen in Windows is buggy, so we disable it
     live_kwargs = {
@@ -619,7 +613,7 @@ def do_init(
 
     tracker.current_step = InitExitStep.POST_FIREWALL_SETUP
 
-    render_header(MSG_SETUP_CODEBASE_TITLE, emoji="🔒")
+    render_header(MSG_SETUP_CODEBASE_TITLE, emoji=":locked:")
     console.print(MSG_SETUP_CODEBASE_DESCRIPTION)
 
     project_scan_state = None
@@ -637,7 +631,7 @@ def do_init(
     if local_files:
         progressive_print(
             [
-                f"{load_emoji('📌')} We found a `{file.name}` file in this directory."
+                f":pushpin: We found a `{file.name}` file in this directory."
                 for file in local_files
             ]
         )
@@ -645,7 +639,21 @@ def do_init(
         console.line()
 
         if ask_codebase_setup(ctx, prompt_user):
-            project_created, project_status = create_project(ctx, console, project_dir)
+            unverified_project = load_unverified_project_from_config(
+                project_root=project_dir
+            )
+            link_behavior = "prompt"
+
+            if unverified_project.created:
+                link_behavior = "always"
+
+            project_created, project_status = create_project(
+                ctx,
+                console,
+                project_dir,
+                unverified_project=unverified_project,
+                link_behavior=link_behavior,
+            )
 
             configure_local_directory(project_dir, org_slug, ctx.obj.project.id)
 
@@ -658,10 +666,11 @@ def do_init(
 
             if project_created:
                 console.print(
-                    "\n" + f"{ctx.obj.project.id} codebase {project_status} ✅"
+                    "\n"
+                    + f"{ctx.obj.project.id} codebase {project_status} :white_heavy_check_mark:"
                 )
             else:
-                progressive_print([f"{load_emoji('x')} Failed to create codebase"])
+                progressive_print([":x: Failed to create codebase"])
 
             console.line()
 
@@ -679,7 +688,7 @@ def do_init(
     tracker.current_step = InitExitStep.POST_CODEBASE_SETUP
 
     console.line()
-    render_header(MSG_SETUP_COMPLETE_TITLE, emoji="🏆")
+    render_header(MSG_SETUP_COMPLETE_TITLE, emoji=":trophy:")
 
     is_setup_complete = all_completed and project_scan_state
 
@@ -693,9 +702,9 @@ def do_init(
             )
         )
     elif all_missing:
-        wrap_up_msg.append(Text.from_markup(MSG_TOOLS_NOT_CONFIGURED))
+        wrap_up_msg.append(MSG_TOOLS_NOT_CONFIGURED)
     else:
-        wrap_up_msg.append(Text.from_markup(MSG_SETUP_INCOMPLETE))
+        wrap_up_msg.append(MSG_SETUP_INCOMPLETE)
 
     wrap_up_msg.append("")
 
@@ -712,11 +721,9 @@ def do_init(
                 if project_scan_state.status_message
                 else "Unknown"
             )
-            wrap_up_msg.append(
-                Text.from_markup(MSG_CODEBASE_FAILED_TO_SCAN.format(reason=msg))
-            )
+            wrap_up_msg.append(MSG_CODEBASE_FAILED_TO_SCAN.format(reason=msg))
     else:
-        wrap_up_msg.append(Text.from_markup(MSG_CODEBASE_NOT_CONFIGURED))
+        wrap_up_msg.append(MSG_CODEBASE_NOT_CONFIGURED)
 
     if wrap_up_msg:
         progressive_print(wrap_up_msg)
@@ -728,7 +735,7 @@ def do_init(
             typed_print(MSG_LAST_MANUAL_STEP)
             console.line()
 
-    render_header(title=MSG_SETUP_NEXT_STEPS_SUBTITLE, emoji="🚀")
+    render_header(title=MSG_SETUP_NEXT_STEPS_SUBTITLE, emoji=":rocket:")
     console.line()
 
     next_steps_msg = MSG_SETUP_NEXT_STEPS
@@ -739,7 +746,7 @@ def do_init(
         next_steps_msg = MSG_SETUP_NEXT_STEPS_NO_VULNS
 
     progressive_print(
-        [Padding(Text.from_markup(line), (0, 0, 1, 0)) for line in next_steps_msg]
+        [Padding(console.render_str(line), (0, 0, 1, 0)) for line in next_steps_msg]
     )
 
     console.line()

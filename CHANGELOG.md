@@ -8,6 +8,21 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.6.0b0 (2025-07-09)
+
+### Feat
+
+- add Windows venv wrappers support (#768)
+- add codebase init command (#756)
+
+### Fix
+
+- issues with encoding in all the outputs (#757)
+- restore missing codebase name prompt in scan command (#771)
+- issues with click 8.2.0 (#748)
+- codebase init --link-to help text (#770)
+- test isolation for firewall tests on unix-like systems (#767)
+
 ## 3.5.2 (2025-06-04)
 
 ### Fix

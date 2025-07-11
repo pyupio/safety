@@ -137,7 +137,42 @@ binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
 [tool.hatch.envs.test]
 installer = "uv"
 type = "container"
+detached = true
 
+# TODO: Ideally, we shouldn't need to set the dependencies here, but
+# as we have already a couple of upper constraints in the project 
+# dependencies, we need to set them here, to be able to run the tests
+# with multiple versions of the dependencies.
+dependencies = [
+  "Authlib>=1.2.0",
+  "Click>=8.0.2", # Typer works with >=8.0.0,<8.2.0
+  "dparse>=0.6.4",
+  "filelock~=3.16.1",
+  "jinja2>=3.1.0",
+  "marshmallow>=3.15.0", # TODO: To be removed
+  "packaging>=21.0",
+  "psutil~=6.1.0",
+  "pydantic>=2.6.0",
+  "requests", # TODO: To be replaced by httpx or aiohttp
+  "httpx",
+  "tenacity",
+  "ruamel.yaml>=0.17.21",
+  "safety-schemas==0.0.14",
+  # TODO: To be removed after migrate away from pkg_resources
+  "setuptools>=65.5.1",
+  "typer>=0.12.1",
+  "typing-extensions>=4.7.1",
+  "nltk>=3.9",
+  "tomli; python_version < '3.11'",
+  "tomlkit",
+
+  # Test dependencies
+  "coverage[toml]>=6.0",
+  "pytest==8.3.4",
+  "pyinstaller==6.11.1",
+  "commitizen",
+  "tomli",
+]
 
 [tool.hatch.envs.test.scripts]
 test = 'pytest -m "" {args:tests}'
@@ -150,8 +185,17 @@ cov = [
   "test-cov",
   "cov-report",
 ]
+# TODO: Remove this once we remove the upper constraints and remove the
+# detached=True value
+binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
 
 [tool.hatch.envs.test.overrides]
+# Exclude constraints from experimental versions
+# minimal and stable targets are constrained
+# TODO: Once we don't have upper constraints, we can remove this
+name."^py[0-9.]+$|^py[0-9.]+-(.*-minimal|.*-stable)$".dependencies = [
+  "pydantic>=2.6.0,<2.10.0",
+]
 matrix.targets.dependencies = [
     # { value = "pydantic==2.6.0", if = ["pydantic-minimal"] },
     { value = "pydantic~=2.9.0", if = ["pydantic-stable"] },
@@ -161,8 +205,10 @@ matrix.targets.dependencies = [
     { value = "typer==0.16.0", if = ["typer-minimal"] },
     { value = "Click==8.0.2", if = ["typer-minimal"] },
 
-    { value = "typer~=0.16", if = ["typer-latest"] },
-    { value = "Click~=8.1.0", if = ["typer-latest"] }
+    { value = "typer~=0.16", if = ["typer-stable"] },
+    { value = "Click~=8.2", if = ["typer-stable"] },
+
+    { value = "click @ git+https://github.com/pallets/click.git@main", if = ["click-main-branch"] },
 ]
 
 # Prevent running the OS specific tests locally
@@ -191,25 +237,26 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 # Critical dependency testing only on boundary versions
 [[tool.hatch.envs.test.matrix]]
 python = [
-  "3.8", "3.13"
+  "3.10", "3.13"
 ]
 targets = [
   "typer-minimal",
   # "pydantic-minimal",
   "pydantic-stable",
   "pydantic-2_10",
+  "click-main-branch",
   "pydantic-latest",
-  "typer-latest"
+  "typer-stable"
 ]
 
 # Critical tests for OS compatibility
 # This only runs on GitHub CI
 [[tool.hatch.envs.test.matrix]]
 python = [
-  "3.8", "3.13"
+  "3.10", "3.13"
 ]
 targets = [
-  "typer-latest"
+  "typer-stable"
 ]
 os_type = [
   "ubuntu-24.04",
@@ -218,11 +265,15 @@ os_type = [
 ]
 
 # Choose what config should be used for the artifacts build
+# if python and os_type and target matches in the matrix, then
+# the artifacts will be built in that environment.
+# package_os_type is used to select the os to build the python package
+# and the os_type is used for the binary distributions.
 [tool.project.build.artifacts]
 python = "3.13"
 package_os_type = "ubuntu-24.04"
 targets = [
-  "typer-latest"
+  "typer-stable"
 ]
 os_type = [
   "ubuntu-24.04",

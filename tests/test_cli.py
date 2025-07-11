@@ -22,7 +22,6 @@ from safety_schemas.models.base import AuthenticationType
 from safety.auth.models import Auth
 from safety.cli import cli
 from safety.console import main_console as console
-from safety.meta import get_version
 from safety.models import CVE, SafetyCLI, SafetyRequirement, Severity, Vulnerability
 from safety.util import Package, SafetyContext
 from safety_schemas.models.events.types import ToolType
@@ -718,7 +717,7 @@ class TestSafetyCLI(unittest.TestCase):
         assert result.exit_code == 0, (
             f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
         )
-        expected_output_snippet = f"{get_version()} scanning"
+        expected_output_snippet = "1.2.3 scanning"
         assert expected_output_snippet in result.output, (
             f"Expected output to contain: {expected_output_snippet}, but got: {result.output}"
         )

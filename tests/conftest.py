@@ -1,12 +1,35 @@
 from importlib.metadata import distributions
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
+
 import sys
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
+
+import pytest
+
+import safety.meta
+
+# Store the original version function
+original_version = safety.meta.get_version
+
+
+def mock_version():
+    return "1.2.3"
+
+
+# Apply the patch immediately at import time
+safety.meta.get_version = mock_version
+
+
+# You can still keep the fixture to ensure cleanup
+@pytest.fixture(autouse=True, scope="session")
+def cleanup_importlib_patch():
+    yield
+    safety.meta.get_version = original_version
 
 
 def get_project_dependencies():

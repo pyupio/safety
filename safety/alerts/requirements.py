@@ -1,9 +1,11 @@
+# type: ignore
 from __future__ import unicode_literals
 
 from packaging.version import parse as parse_version
 from packaging.specifiers import SpecifierSet
 import requests
 from typing import Any, Optional, Generator, Tuple, List
+from safety.meta import get_meta_http_headers
 
 from datetime import datetime
 from dparse import parse, parser, updater, filetypes
@@ -20,22 +22,27 @@ class RequirementFile(object):
         content (str): The content of the file.
         sha (Optional[str]): The SHA of the file.
     """
+
     def __init__(self, path: str, content: str, sha: Optional[str] = None):
         self.path = path
         self.content = content
         self.sha = sha
-        self._requirements = None
-        self._other_files = None
+        self._requirements: Optional[List] = None
+        self._other_files: Optional[List] = None
         self._is_valid = None
         self.is_pipfile = False
         self.is_pipfile_lock = False
         self.is_setup_cfg = False
 
     def __str__(self) -> str:
-        return "RequirementFile(path='{path}', sha='{sha}', content='{content}')".format(
-            path=self.path,
-            content=self.content[:30] + "[truncated]" if len(self.content) > 30 else self.content,
-            sha=self.sha
+        return (
+            "RequirementFile(path='{path}', sha='{sha}', content='{content}')".format(
+                path=self.path,
+                content=self.content[:30] + "[truncated]"
+                if len(self.content) > 30
+                else self.content,
+                sha=self.sha,
+            )
         )
 
     @property
@@ -143,15 +150,15 @@ class RequirementFile(object):
         Parses the requirements file to extract dependencies and other files.
         """
         self._requirements, self._other_files = [], []
-        if self.path.endswith('.yml') or self.path.endswith(".yaml"):
+        if self.path.endswith(".yml") or self.path.endswith(".yaml"):
             self._parse_conda_yml()
-        elif self.path.endswith('.ini'):
+        elif self.path.endswith(".ini"):
             self._parse_tox_ini()
         elif self.path.endswith("Pipfile"):
             self._parse_pipfile()
         elif self.path.endswith("Pipfile.lock"):
             self._parse_pipfile_lock()
-        elif self.path.endswith('setup.cfg'):
+        elif self.path.endswith("setup.cfg"):
             self._parse_setup_cfg()
         else:
             self._parse_requirements_txt()
@@ -172,7 +179,7 @@ class RequirementFile(object):
             marker=(
                 ("pyup: ignore file", "pyup:ignore file"),  # file marker
                 ("pyup: ignore", "pyup:ignore"),  # line marker
-            )
+            ),
         )
         for dep in result.dependencies:
             req = Requirement(
@@ -230,7 +237,16 @@ class Requirement(object):
         extras (List): The extras for the requirement.
         file_type (str): The type of the file containing the requirement.
     """
-    def __init__(self, name: str, specs: SpecifierSet, line: str, lineno: int, extras: List, file_type: str):
+
+    def __init__(
+        self,
+        name: str,
+        specs: SpecifierSet,
+        line: str,
+        lineno: int,
+        extras: List,
+        file_type: str,
+    ):
         self.name = name
         self.key = name.lower()
         self.specs = specs
@@ -240,7 +256,7 @@ class Requirement(object):
         self.extras = extras
         self.hashes = []
         self.file_type = file_type
-        self.pipfile = None
+        self.pipfile: Optional[str] = None
 
         self.hashCmp = (
             self.key,
@@ -252,7 +268,10 @@ class Requirement(object):
         self._changelog = None
 
         # Convert compatible releases to a range of versions
-        if len(self.specs._specs) == 1 and next(iter(self.specs._specs))._spec[0] == "~=":
+        if (
+            len(self.specs._specs) == 1
+            and next(iter(self.specs._specs))._spec[0] == "~="
+        ):
             # convert compatible releases to something more easily consumed,
             # e.g. '~=1.2.3' is equivalent to '>=1.2.3,<1.3.0', while '~=1.2'
             # is equivalent to '>=1.2,<2.0'
@@ -260,21 +279,20 @@ class Requirement(object):
             max_version = list(parse_version(min_version).release)
             max_version[-1] = 0
             max_version[-2] = max_version[-2] + 1
-            max_version = '.'.join(str(x) for x in max_version)
+            max_version = ".".join(str(x) for x in max_version)
 
-            self.specs = SpecifierSet('>=%s,<%s' % (min_version, max_version))
+            self.specs = SpecifierSet(">=%s,<%s" % (min_version, max_version))
 
     def __eq__(self, other: Any) -> bool:
-        return (
-            isinstance(other, Requirement) and
-            self.hashCmp == other.hashCmp
-        )
+        return isinstance(other, Requirement) and self.hashCmp == other.hashCmp
 
     def __ne__(self, other: Any) -> bool:
         return not self == other
 
     def __str__(self) -> str:
-        return "Requirement.parse({line}, {lineno})".format(line=self.line, lineno=self.lineno)
+        return "Requirement.parse({line}, {lineno})".format(
+            line=self.line, lineno=self.lineno
+        )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -287,7 +305,10 @@ class Requirement(object):
         Returns:
             bool: True if pinned, False otherwise.
         """
-        if len(self.specs._specs) == 1 and next(iter(self.specs._specs))._spec[0] == "==":
+        if (
+            len(self.specs._specs) == 1
+            and next(iter(self.specs._specs))._spec[0] == "=="
+        ):
             return True
         return False
 
@@ -299,7 +320,10 @@ class Requirement(object):
         Returns:
             bool: True if open ranged, False otherwise.
         """
-        if len(self.specs._specs) == 1 and next(iter(self.specs._specs))._spec[0] == ">=":
+        if (
+            len(self.specs._specs) == 1
+            and next(iter(self.specs._specs))._spec[0] == ">="
+        ):
             return True
         return False
 
@@ -334,14 +358,14 @@ class Requirement(object):
         Returns:
             dict: The semantic version dictionary.
         """
-        semver = {'major': 0, "minor": 0, "patch": 0}
-        version = version.split(".")
+        semver = {"major": 0, "minor": 0, "patch": 0}
+        version_parts = version.split(".")
         # don't be overly clever here. repitition makes it more readable and works exactly how
         # it is supposed to
         try:
-            semver['major'] = int(version[0])
-            semver['minor'] = int(version[1])
-            semver['patch'] = int(version[2])
+            semver["major"] = int(version_parts[0])
+            semver["minor"] = int(version_parts[1])
+            semver["patch"] = int(version_parts[2])
         except (IndexError, ValueError):
             pass
         return semver
@@ -358,14 +382,18 @@ class Requirement(object):
         if "pyup: update" not in self.line:
             return True
         update = self.line.split("pyup: update")[1].strip().split("#")[0]
-        current_version = Requirement.convert_semver(next(iter(self.specs._specs))._spec[1])
-        next_version = Requirement.convert_semver(self.latest_version)
+        current_version = Requirement.convert_semver(
+            next(iter(self.specs._specs))._spec[1]
+        )
+        next_version = Requirement.convert_semver(self.latest_version)  # type: ignore
         if update == "major":
-            if current_version['major'] < next_version['major']:
+            if current_version["major"] < next_version["major"]:
                 return True
-        elif update == 'minor':
-            if current_version['major'] < next_version['major'] \
-                    or current_version['minor'] < next_version['minor']:
+        elif update == "minor":
+            if (
+                current_version["major"] < next_version["major"]
+                or current_version["minor"] < next_version["minor"]
+            ):
                 return True
         return False
 
@@ -385,7 +413,7 @@ class Requirement(object):
                 rqfilter = self.line.split("pyup:")[1].strip().split("#")[0]
                 # unset the filter once the date set in 'until' is reached
                 if "until" in rqfilter:
-                    rqfilter, until = [l.strip() for l in rqfilter.split("until")]
+                    rqfilter, until = [part.strip() for part in rqfilter.split("until")]
                     try:
                         until = datetime.strptime(until, "%Y-%m-%d")
                         if until < datetime.now():
@@ -395,7 +423,7 @@ class Requirement(object):
                         pass
         if rqfilter:
             try:
-                rqfilter, = parse_requirements("filter " + rqfilter)
+                (rqfilter,) = parse_requirements("filter " + rqfilter)
                 if len(rqfilter.specifier._specs) > 0:
                     return rqfilter.specifier
             except ValueError:
@@ -416,12 +444,17 @@ class Requirement(object):
         specs = self.specs
         if self.filter:
             specs = SpecifierSet(
-                ",".join(["".join(s._spec) for s in list(specs._specs) + list(self.filter._specs)])
+                ",".join(
+                    [
+                        "".join(s._spec)
+                        for s in list(specs._specs) + list(self.filter._specs)
+                    ]
+                )
             )
-        return self.get_latest_version_within_specs(
+        return self.get_latest_version_within_specs(  # type: ignore
             specs,
             versions=self.package.versions,
-            prereleases=self.prereleases
+            prereleases=self.prereleases,  # type: ignore
         )
 
     def get_hashes(self, version: str) -> List:
@@ -434,10 +467,13 @@ class Requirement(object):
         Returns:
             List: A list of hashes for the specified version.
         """
-        r = requests.get('https://pypi.org/pypi/{name}/{version}/json'.format(
-            name=self.key,
-            version=version
-        ))
+        headers = get_meta_http_headers()
+        r = requests.get(
+            "https://pypi.org/pypi/{name}/{version}/json".format(
+                name=self.key, version=version
+            ),
+            headers=headers,
+        )
         hashes = []
         data = r.json()
 
@@ -447,7 +483,9 @@ class Requirement(object):
                 hashes.append({"hash": sha256, "method": "sha256"})
         return hashes
 
-    def update_version(self, content: str, version: str, update_hashes: bool = True) -> str:
+    def update_version(
+        self, content: str, version: str, update_hashes: bool = True
+    ) -> str:
         """
         Updates the version of the requirement in the content.
 
@@ -478,25 +516,27 @@ class Requirement(object):
             name=self.name,
             specs=self.specs,
             line=self.line,
-            line_numbers=[self.lineno, ] if self.lineno != 0 else None,
+            line_numbers=[
+                self.lineno,
+            ]
+            if self.lineno != 0
+            else None,
             dependency_type=self.file_type,
             hashes=self.hashes,
-            extras=self.extras
+            extras=self.extras,
         )
         hashes = []
         if self.hashes and update_hashes:
             hashes = self.get_hashes(version)
 
         return updater_class.update(
-            content=content,
-            dependency=dep,
-            version=version,
-            hashes=hashes,
-            spec="=="
+            content=content, dependency=dep, version=version, hashes=hashes, spec="=="
         )
 
     @classmethod
-    def parse(cls, s: str, lineno: int, file_type: str = filetypes.requirements_txt) -> 'Requirement':
+    def parse(
+        cls, s: str, lineno: int, file_type: str = filetypes.requirements_txt
+    ) -> "Requirement":
         """
         Parses a requirement from a line of text.
 
@@ -510,15 +550,15 @@ class Requirement(object):
         """
         # setuptools requires a space before the comment. If this isn't the case, add it.
         if "\t#" in s:
-            parsed, = parse_requirements(s.replace("\t#", "\t #"))
+            (parsed,) = parse_requirements(s.replace("\t#", "\t #"))
         else:
-            parsed, = parse_requirements(s)
+            (parsed,) = parse_requirements(s)
 
         return cls(
             name=parsed.name,
             specs=parsed.specifier,
             line=s,
             lineno=lineno,
-            extras=parsed.extras,
-            file_type=file_type
+            extras=list(parsed.extras),
+            file_type=file_type,
         )

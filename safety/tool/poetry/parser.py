@@ -1,6 +1,6 @@
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Union, Set
 
-from ..base import ToolCommandLineParser, CommandToolIntention
+from ..base import ToolCommandLineParser
 from ..intents import Dependency, ToolIntentionType
 
 
@@ -8,107 +8,77 @@ class PoetryParser(ToolCommandLineParser):
     def get_tool_name(self) -> str:
         return "poetry"
 
-    @property
-    def intention_mapping(self) -> Dict[str, ToolIntentionType]:
+    def get_command_hierarchy(self) -> Dict[str, Union[ToolIntentionType, Dict]]:
         """
-        Maps specific commands to intention types
+        Allow base parser to recognize poetry commands and intentions.
         """
         return {
             "add": ToolIntentionType.ADD_PACKAGE,
             "remove": ToolIntentionType.REMOVE_PACKAGE,
             "update": ToolIntentionType.UPDATE_PACKAGE,
+            "install": ToolIntentionType.SYNC_PACKAGES,
+            "build": ToolIntentionType.BUILD_PROJECT,
             "show": ToolIntentionType.LIST_PACKAGES,
             "init": ToolIntentionType.INIT_PROJECT,
-            "build": ToolIntentionType.BUILD_PROJECT,
-            "install": ToolIntentionType.SYNC_PACKAGES,
         }
 
-    def parse(self, args: List[str]) -> Optional[CommandToolIntention]:
+    def get_known_flags(self) -> Dict[str, Set[str]]:
         """
-        Parse the command line arguments into a CommandToolIntention object.
-
-        Args:
-            args (List[str]): Command line arguments
-
-        Returns:
-            Optional[CommandToolIntention]: Parsed command tool intention
+        Flags that DO NOT take a value, derived from `poetry --help` and subcommand helps.
         """
-        if not self.can_handle(args):
-            return None
-
-        command = args[0].lower()
-        intention_type = self.map_intention(command)
-        options = {}
-        packages = []
-        raw_args = args.copy()
-
-        # Process command arguments based on intention type
-        i = 1  # Skip command
-        while i < len(args):
-            arg = args[i]
-
-            if arg.startswith("-"):
-                # Handle options
-                option_key = arg.lstrip("-")
-
-                # Handle option with value
-                if i + 1 < len(args) and not args[i + 1].startswith("-"):
-                    option_value = args[i + 1]
-                    options[option_key] = {
-                        "arg_index": i,
-                        "raw_option": arg,
-                        "value": option_value,
-                        "value_index": i + 1,
-                    }
-                    i += 2
-                else:
-                    # Flag option (no value)
-                    options[option_key] = {
-                        "arg_index": i,
-                        "raw_option": arg,
-                        "value": True,
-                    }
-                    i += 1
-            else:
-                # Parse non-option arguments
-                if intention_type == ToolIntentionType.ADD_PACKAGE:
-                    try:
-                        # Parse package specification
-                        dep = self._parse_package_spec(arg, i)
-                        if not dep:
-                            # Let's skip this dependency
-                            i += 1
-                            continue
-
-                        # Check if this is a dev dependency
-                        is_dev = any(opt in ["dev", "D"] for opt in options.keys())
-                        dep.is_dev_dependency = is_dev
-
-                        packages.append(dep)
-                    except ValueError:
-                        # Not a valid package spec, store as unknown option
-                        options[f"unknown_{len(options)}"] = {
-                            "arg_index": i,
-                            "value": arg,
-                        }
-                elif intention_type in [
-                    ToolIntentionType.REMOVE_PACKAGE,
-                    ToolIntentionType.UPDATE_PACKAGE,
-                ]:
-                    # Handle packages for remove/update commands
-                    # These often have simpler formats than add commands
-                    dep = Dependency(name=arg, arg_index=i, original_text=arg)
-                    packages.append(dep)
-                i += 1
-
-        return CommandToolIntention(
-            tool=self._tool_name,
-            command=command,
-            intention_type=intention_type,
-            packages=packages,
-            options=options,
-            raw_args=raw_args,
-        )
+        return {
+            "global": {
+                "help",
+                "h",
+                "quiet",
+                "q",
+                "version",
+                "V",
+                "ansi",
+                "no-ansi",
+                "no-interaction",
+                "n",
+                "no-plugins",
+                "no-cache",
+                "verbose",
+                "v",
+                "vv",
+                "vvv",
+            },
+            "add": {
+                "dev",
+                "D",
+                "editable",
+                "e",
+                "allow-prereleases",
+                "dry-run",
+                "lock",
+            },
+            "remove": {
+                "dev",
+                "D",
+                "dry-run",
+                "lock",
+            },
+            "update": {
+                "sync",
+                "dry-run",
+                "lock",
+            },
+            "install": {
+                "sync",
+                "no-root",
+                "no-directory",
+                "dry-run",
+                "all-extras",
+                "all-groups",
+                "only-root",
+                "compile",
+            },
+            "build": {
+                "clean",
+            },
+        }
 
     def _parse_package_spec(
         self, spec_str: str, arg_index: int

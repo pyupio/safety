@@ -2,6 +2,10 @@ import base64
 import json
 
 import typer
+from urllib.parse import urlsplit, urlunsplit
+
+from safety.tool.constants import PUBLIC_REPOSITORY_URL
+from typing import Optional
 
 
 def index_credentials(ctx: typer.Context) -> str:
@@ -33,3 +37,23 @@ def index_credentials(ctx: typer.Context) -> str:
         }
     )
     return base64.urlsafe_b64encode(auth_envelop.encode("utf-8")).decode("utf-8")
+
+
+def build_pypi_index_url(ctx: typer.Context, index_url: Optional[str]) -> str:
+    """
+    Builds the index URL for the current context.
+    """
+    if index_url is None:
+        index_url = PUBLIC_REPOSITORY_URL
+
+    url = urlsplit(index_url)
+
+    encoded_auth = index_credentials(ctx)
+    netloc = f"user:{encoded_auth}@{url.netloc}"
+
+    if type(url.netloc) is bytes:
+        url = url._replace(netloc=netloc.encode("utf-8"))
+    elif type(url.netloc) is str:
+        url = url._replace(netloc=netloc)
+
+    return urlunsplit(url)

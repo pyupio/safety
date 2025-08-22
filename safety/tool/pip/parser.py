@@ -1,118 +1,66 @@
-from typing import Dict, List, Optional
+from typing import Dict
 
-from ..base import ToolCommandLineParser, CommandToolIntention
-from ..intents import Dependency, ToolIntentionType
+from ..base import ToolCommandLineParser
+from ..intents import ToolIntentionType
+
+from typing import Union, Set
 
 
 class PipParser(ToolCommandLineParser):
     def get_tool_name(self) -> str:
         return "pip"
 
-    @property
-    def intention_mapping(self) -> Dict[str, ToolIntentionType]:
+    def get_command_hierarchy(self) -> Dict[str, Union[ToolIntentionType, Dict]]:
         """
-        Maps specific commands to intention types
+        Context for command hierarchy parsing
         """
         return {
             "install": ToolIntentionType.ADD_PACKAGE,
             "uninstall": ToolIntentionType.REMOVE_PACKAGE,
-            "list": ToolIntentionType.LIST_PACKAGES,
+            "download": ToolIntentionType.DOWNLOAD_PACKAGE,
         }
 
-    def parse(self, args: List[str]) -> Optional[CommandToolIntention]:
+    def get_known_flags(self) -> Dict[str, Set[str]]:
         """
-        Parse the command line arguments into a CommandToolIntention object.
-
-        Args:
-            args (List[str]): Command line arguments
-
-        Returns:
-            Optional[CommandToolIntention]: Parsed command tool intention
+        Define flags that DON'T take values to avoid consuming packages
         """
-        if not self.can_handle(args):
-            return None
-
-        command = args[0].lower()
-        intention_type = self.map_intention(command)
-        options = {}
-        packages = []
-        raw_args = args.copy()
-
-        # Process command arguments based on intention type
-        i = 1  # Skip command
-        while i < len(args):
-            arg = args[i]
-
-            if arg.startswith("-"):
-                # Handle options
-                option_key = arg.lstrip("-")
-
-                # Handle option with value
-                if i + 1 < len(args) and not args[i + 1].startswith("-"):
-                    option_value = args[i + 1]
-                    options[option_key] = {
-                        "arg_index": i,
-                        "raw_option": arg,
-                        "value": option_value,
-                        "value_index": i + 1,
-                    }
-                    i += 2
-                else:
-                    # Flag option (no value)
-                    options[option_key] = {
-                        "arg_index": i,
-                        "raw_option": arg,
-                        "value": True,
-                    }
-                    i += 1
-            else:
-                # Parse non-option arguments
-                if intention_type in [
-                    ToolIntentionType.ADD_PACKAGE,
-                    ToolIntentionType.REMOVE_PACKAGE,
-                ]:
-                    try:
-                        # Parse package specification
-                        dep = self._parse_package_spec(arg, i)
-                        if not dep:
-                            # Let's skip this dependency
-                            i += 1
-                            continue
-
-                        packages.append(dep)
-                    except ValueError:
-                        # Not a valid package spec, store as unknown option
-                        options[f"unknown_{len(options)}"] = {
-                            "arg_index": i,
-                            "value": arg,
-                        }
-                i += 1
-
-        return CommandToolIntention(
-            tool=self._tool_name,
-            command=command,
-            intention_type=intention_type,
-            packages=packages,
-            options=options,
-            raw_args=raw_args,
-        )
-
-    def _parse_package_spec(
-        self, spec_str: str, arg_index: int
-    ) -> Optional[Dependency]:
-        try:
-            from packaging.requirements import Requirement
-
-            # TODO: pip install . should be excluded
-            req = Requirement(spec_str)
-
-            return Dependency(
-                name=req.name,
-                version_constraint=str(req.specifier),
-                extras=req.extras,
-                arg_index=arg_index,
-                original_text=spec_str,
-            )
-        except Exception:
-            # If spec parsing fails, just ignore for now
-            return None
+        return {
+            # Global flags (available for all commands)
+            "global": {
+                "verbose",
+                "v",
+                "quiet",
+                "q",
+                "help",
+                "h",
+                "version",
+                "V",
+                "debug",
+                "isolated",
+            },
+            # install-specific flags
+            "install": {
+                "upgrade",
+                "U",
+                "force-reinstall",
+                "no-deps",
+                "user",
+                "system",
+                "compile",
+                "no-compile",
+                "no-warn-script-location",
+                "no-warn-conflicts",
+                "break-system-packages",
+                "require-hashes",
+                "no-build-isolation",
+                "use-pep517",
+                "no-use-pep517",
+                "check-build-dependencies",
+                "no-clean",
+                "disable-pip-version-check",
+            },
+            # uninstall-specific flags
+            "uninstall": {"yes", "y"},
+            # download-specific flags
+            "download": {"no-deps", "no-binary", "only-binary"},
+        }

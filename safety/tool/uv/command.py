@@ -1,42 +1,30 @@
 from typing import List
 
 import typer
-from safety.tool.intents import ToolIntentionType
-from safety.tool.pip.parser import PipParser
 from safety.tool.auth import index_credentials
-from ..pip.command import PipCommand, PipInstallCommand, PipGenericCommand
+from ..base import BaseCommand
+from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
+from ..mixins import InstallationAuditMixin
 from safety_schemas.models.events.types import ToolType
+from safety.models import ToolResult
+from .parser import UvParser
 
-UV_LOCK = "safety-uv.lock"
 
-
-class UvCommand(PipCommand):
+class UvCommand(BaseCommand):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._name = ["uv"]
+
+    def get_command_name(self) -> List[str]:
+        return ["uv"]
+
+    def get_diff_tracker(self) -> "EnvironmentDiffTracker":
+        return PipEnvironmentDiffTracker()
 
     def get_tool_type(self) -> ToolType:
         return ToolType.UV
 
-    def get_lock_path(self) -> str:
-        return UV_LOCK
-
     def get_package_list_command(self) -> List[str]:
-        return [*self._name, "pip", "list", "--format=json"]
-
-    def should_track_state(self) -> bool:
-        should_track = super().should_track_state()
-
-        if should_track:
-            return True
-
-        command_str = " ".join(self._args).lower()
-
-        package_modifying_commands = [
-            "sync",
-        ]
-
-        return any(cmd in command_str for cmd in package_modifying_commands)
+        return [*self.get_command_name(), "pip", "list", "--format=json"]
 
     def env(self, ctx: typer.Context) -> dict:
         env = super().env(ctx)
@@ -52,27 +40,16 @@ class UvCommand(PipCommand):
 
     @classmethod
     def from_args(cls, args: List[str], **kwargs):
-        pip_parser = PipParser()
-        is_pip_interface = args and args[0] == "pip"
+        if uv_intention := UvParser().parse(args):
+            kwargs["intention"] = uv_intention
 
-        to_parse = args[1:] if is_pip_interface else args
+            if uv_intention.modifies_packages():
+                return AuditableUvCommand(args, **kwargs)
 
-        if intention := pip_parser.parse(to_parse):
-            if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return UvInstallCommand(to_parse, intention=intention, **kwargs)
-
-        # No an install but still a pip interface command
-        if is_pip_interface:
-            to_parse = args
-
-        return UvGenericCommand(to_parse, **kwargs)
+        return UvCommand(args, **kwargs)
 
 
-class UvInstallCommand(PipInstallCommand, UvCommand):
-    def get_command_name(self) -> List[str]:
-        return ["uv", "pip"]
-
-
-class UvGenericCommand(PipGenericCommand, UvCommand):
-    def get_command_name(self) -> List[str]:
-        return ["uv"]
+class AuditableUvCommand(UvCommand, InstallationAuditMixin):
+    def after(self, ctx: typer.Context, result: ToolResult):
+        super().after(ctx, result)
+        self.handle_installation_audit(ctx, result)

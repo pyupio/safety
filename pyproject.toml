@@ -40,7 +40,7 @@ dependencies = [
   "jinja2>=3.1.0",
   "marshmallow>=3.15.0", # TODO: To be removed
   "packaging>=21.0",
-  "psutil~=6.1.0",
+  "psutil>=6.1.0,<8.0",
   "pydantic>=2.6.0,<2.10.0",
   "requests", # TODO: To be replaced by httpx or aiohttp
   "httpx",
@@ -151,7 +151,7 @@ dependencies = [
   "jinja2>=3.1.0",
   "marshmallow>=3.15.0", # TODO: To be removed
   "packaging>=21.0",
-  "psutil~=6.1.0",
+  "psutil",
   "pydantic>=2.6.0",
   "requests", # TODO: To be replaced by httpx or aiohttp
   "httpx",

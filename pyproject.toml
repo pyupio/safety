@@ -36,7 +36,7 @@ dependencies = [
   "Authlib>=1.2.0",
   "Click>=8.0.2",
   "dparse>=0.6.4",
-  "filelock~=3.16.1",
+  "filelock>=3.16.1,<4.0",
   "jinja2>=3.1.0",
   "marshmallow>=3.15.0", # TODO: To be removed
   "packaging>=21.0",
@@ -147,7 +147,7 @@ dependencies = [
   "Authlib>=1.2.0",
   "Click>=8.0.2", # Typer works with >=8.0.0,<8.2.0
   "dparse>=0.6.4",
-  "filelock~=3.16.1",
+  "filelock",
   "jinja2>=3.1.0",
   "marshmallow>=3.15.0", # TODO: To be removed
   "packaging>=21.0",

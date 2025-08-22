@@ -28,7 +28,8 @@ class AuditableCommand(Protocol):
     @property
     def _packages(self) -> List[Tuple[str, Optional[str]]]:
         """
-        Provides the target package list.
+        Provides the target package list. Leave it empty if the command does not
+        specify a single requirement, like `poetry install` or `uv sync`.
         """
         ...
 
@@ -109,6 +110,7 @@ class InstallationAuditMixin:
             if diff_tracker and hasattr(diff_tracker, "get_diff"):
                 added, _, updated = diff_tracker.get_diff()
                 packages = {**added, **updated}
+                self._packages = [(key, None) for key in packages.keys()]
 
                 if hasattr(ctx.obj, "auth") and hasattr(ctx.obj.auth, "client"):
                     return ctx.obj.auth.client.audit_packages(

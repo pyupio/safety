@@ -155,6 +155,12 @@ class PoetryCommand(BaseCommand):
             kwargs["intention"] = intention
             if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
                 return PoetryAddCommand(args, **kwargs)
+            if intention.intention_type in [
+                ToolIntentionType.SYNC_PACKAGES,
+                ToolIntentionType.REMOVE_PACKAGE,
+                ToolIntentionType.UPDATE_PACKAGE,
+            ]:
+                return AuditablePoetryCommand(args, **kwargs)
 
         return PoetryGenericCommand(args, **kwargs)
 
@@ -163,7 +169,18 @@ class PoetryGenericCommand(PoetryCommand):
     pass
 
 
-class PoetryAddCommand(PoetryCommand, InstallationAuditMixin):
+class AuditablePoetryCommand(PoetryCommand, InstallationAuditMixin):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._packages = []
+
+    def after(self, ctx: typer.Context, result: ToolResult):
+        super().after(ctx, result)
+        self.handle_installation_audit(ctx, result)
+
+
+class PoetryAddCommand(AuditablePoetryCommand):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._packages = []
@@ -209,13 +226,3 @@ class PoetryAddCommand(PoetryCommand, InstallationAuditMixin):
             for pkg in self._intention.packages:
                 self._packages.append((pkg.name, pkg.version_constraint))
 
-    def after(self, ctx: typer.Context, result: ToolResult):
-        """
-        Run after the command execution. Handle installation audit via mixin.
-
-        Args:
-            ctx: The typer context
-            result: The tool result
-        """
-        super().after(ctx, result)
-        self.handle_installation_audit(ctx, result)

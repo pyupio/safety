@@ -4,7 +4,6 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlsplit, urlunsplit
 
 import typer
 from rich.console import Console
@@ -17,7 +16,7 @@ from safety.tool.constants import (
 from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
-from safety.tool.auth import index_credentials
+from safety.tool.auth import build_pypi_index_url
 from ...encoding import detect_encoding
 
 logger = logging.getLogger(__name__)
@@ -144,17 +143,4 @@ class Pip:
 
     @classmethod
     def build_index_url(cls, ctx: typer.Context, index_url: Optional[str]) -> str:
-        if index_url is None:
-            index_url = PUBLIC_REPOSITORY_URL
-
-        url = urlsplit(index_url)
-
-        encoded_auth = index_credentials(ctx)
-        netloc = f"user:{encoded_auth}@{url.netloc}"
-
-        if type(url.netloc) is bytes:
-            url = url._replace(netloc=netloc.encode("utf-8"))
-        elif type(url.netloc) is str:
-            url = url._replace(netloc=netloc)
-
-        return urlunsplit(url)
+        return build_pypi_index_url(ctx, index_url)

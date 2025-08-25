@@ -8,6 +8,12 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.6.1b0 (2025-08-25)
+
+### Fix
+
+- set custom user-agent header to all HTTP requests (#769)
+
 ## 3.6.0 (2025-07-09)
 
 ## 3.6.0b0 (2025-07-09)

@@ -138,7 +138,7 @@ Upon creating an account, a 7-day free trial of our Team plan is offered to new 
 Our paid [plans for commercial use](https://safetycli.com/resources/plans) begin at just $25 per seat per month and allow scans to be performed using our full vulnerability database, complete with 3x more tracked vulnerabilities and malicious packages than our free plan and other providers. To learn more about our Team and Enterprise plans, please visit [https://safetycli.com/resources/plans](https://safetycli.com/resources/plans) or email sales@safetycli.com.
 
 # Supported Python Versions
-Safety CLI 3 supports Python versions >=3.7. Further details on supported versions, as well as options to run Safety CLI on versions <3.7 using a Docker image are available in our [Documentation Hub](https://docs.safetycli.com).
+Safety CLI 3 supports Python versions >=3.8. Further details on supported versions, as well as options to run Safety CLI on versions <3.8 using a Docker image are available in our [Documentation Hub](https://docs.safetycli.com).
 
 We maintain a policy of supporting all maintained and secure versions of Python, plus one minor version below the oldest maintained and secure version. Details on Python versions that meet these criteria can be found here: https://endoflife.date/python.
 

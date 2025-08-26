@@ -68,7 +68,7 @@ from safety.scan.constants import (
     CLI_CONFIGURE_PROXY_TIMEOUT,
     CLI_CONFIGURE_SAVE_TO_SYSTEM,
     CLI_DEBUG_HELP,
-    CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP,
+    CLI_ENABLE_OPTIONAL_TELEMETRY_DATA_HELP,
     CLI_GENERATE_HELP,
     CLI_GENERATE_MINIMUM_CVSS_SEVERITY,
     CLI_GENERATE_PATH,
@@ -218,6 +218,7 @@ def configure_logger(ctx, param, debug):
             )
 
         # Collect and log network telemetry data
+        # These metrics are not sent, only logged locally
         network_telemetry = get_network_telemetry()
         LOG.debug("Network telemetry: %s", network_telemetry)
 
@@ -228,22 +229,22 @@ def configure_logger(ctx, param, debug):
 @auth_options()
 @proxy_options
 @click.option(
-    "--disable-optional-telemetry",
+    "--enable-optional-telemetry",
     default=False,
     is_flag=True,
     show_default=True,
-    help=CLI_DISABLE_OPTIONAL_TELEMETRY_DATA_HELP,
+    help=CLI_ENABLE_OPTIONAL_TELEMETRY_DATA_HELP,
 )
 @click.option("--debug", is_flag=True, help=CLI_DEBUG_HELP, callback=configure_logger)
 @click.version_option(version=get_version())
 @click.pass_context
 @preprocess_args
-def cli(ctx, debug, disable_optional_telemetry):
+def cli(ctx, debug, enable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.
     """
     SafetyContext().safety_source = "cli"
-    telemetry = not disable_optional_telemetry
+    telemetry = enable_optional_telemetry
     ctx.obj.config = ConfigModel(telemetry_enabled=telemetry)
     level = logging.CRITICAL
     if debug:

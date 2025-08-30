@@ -27,6 +27,7 @@ from safety_schemas.models import (
     Stage,
     VulnerabilitySeverityLabels,
 )
+from typer import rich_utils
 
 from safety.alerts import alert
 from safety.auth import auth_options, proxy_options
@@ -1247,7 +1248,7 @@ def configure(
 
 
 cli_app = typer.Typer(rich_markup_mode="rich", cls=SafetyCLISubGroup)
-typer.rich_utils.STYLE_HELPTEXT = ""
+rich_utils.STYLE_HELPTEXT = ""
 
 
 def print_check_updates_header(console):

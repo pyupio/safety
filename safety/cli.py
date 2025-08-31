@@ -18,6 +18,7 @@ from pathlib import Path
 import click
 import requests
 import typer
+import typer.rich_utils
 from packaging import version as packaging_version
 from packaging.version import InvalidVersion
 from safety_schemas.config.schemas.v3_0 import main as v3_0

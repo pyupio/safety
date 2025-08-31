@@ -1249,7 +1249,7 @@ def configure(
 
 
 cli_app = typer.Typer(rich_markup_mode="rich", cls=SafetyCLISubGroup)
-typer.rich_utils.STYLE_HELPTEXT = ""
+rich_utils.STYLE_HELPTEXT = ""
 
 
 def print_check_updates_header(console):

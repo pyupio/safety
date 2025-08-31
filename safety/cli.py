@@ -28,7 +28,6 @@ from safety_schemas.models import (
     Stage,
     VulnerabilitySeverityLabels,
 )
-from typer import rich_utils
 
 from safety.alerts import alert
 from safety.auth import auth_options, proxy_options

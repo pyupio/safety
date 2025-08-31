@@ -18,6 +18,7 @@ from pathlib import Path
 import click
 import requests
 import typer
+import typer.rich_utils
 from packaging import version as packaging_version
 from packaging.version import InvalidVersion
 from safety_schemas.config.schemas.v3_0 import main as v3_0
@@ -1248,7 +1249,7 @@ def configure(
 
 
 cli_app = typer.Typer(rich_markup_mode="rich", cls=SafetyCLISubGroup)
-rich_utils.STYLE_HELPTEXT = ""
+typer.rich_utils.STYLE_HELPTEXT = ""
 
 
 def print_check_updates_header(console):

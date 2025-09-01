@@ -8,6 +8,12 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.6.1 (2025-09-01)
+
+### Fix
+
+- Import rich_utils as a module and don't access as an attribute. (#780)
+
 ## 3.6.1b0 (2025-08-25)
 
 ### Fix

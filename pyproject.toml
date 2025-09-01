@@ -49,7 +49,7 @@ dependencies = [
   "safety-schemas==0.0.14",
   # TODO: To be removed after migrate away from pkg_resources
   "setuptools>=65.5.1",
-  "typer>=0.16.0",
+  "typer>=0.16.0,<0.17",
   "typing-extensions>=4.7.1",
   "nltk>=3.9",
   "tomli; python_version < '3.11'",

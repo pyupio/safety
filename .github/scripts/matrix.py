@@ -27,7 +27,12 @@ def generate_github_matrix(
     test_config = config["tool"]["hatch"]["envs"]["test"]
     matrix_configs = test_config["matrix"]
 
-    experimental_targets = ["pydantic-2_10", "pydantic-latest", "click-main-branch"]
+    experimental_targets = [
+        "pydantic-2_10",
+        "pydantic-2_11",
+        "pydantic-latest",
+        "click-main-branch",
+    ]
     experimental_versions = []
 
     def is_experimental(python_version, target) -> bool:

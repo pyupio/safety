@@ -46,7 +46,7 @@ dependencies = [
   "httpx",
   "tenacity",
   "ruamel.yaml>=0.17.21",
-  "safety-schemas==0.0.14",
+  "safety-schemas==0.0.15",
   # TODO: To be removed after migrate away from pkg_resources
   "setuptools>=65.5.1",
   "typer>=0.16.0",
@@ -157,7 +157,7 @@ dependencies = [
   "httpx",
   "tenacity",
   "ruamel.yaml>=0.17.21",
-  "safety-schemas==0.0.14",
+  "safety-schemas==0.0.15",
   # TODO: To be removed after migrate away from pkg_resources
   "setuptools>=65.5.1",
   "typer>=0.12.1",
@@ -190,17 +190,11 @@ cov = [
 binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
 
 [tool.hatch.envs.test.overrides]
-# Exclude constraints from experimental versions
-# minimal and stable targets are constrained
-# TODO: Once we don't have upper constraints, we can remove this
-name."^py[0-9.]+$|^py[0-9.]+-(.*-minimal|.*-stable)$".dependencies = [
-  "pydantic>=2.6.0,<2.10.0",
-]
 matrix.targets.dependencies = [
-    # { value = "pydantic==2.6.0", if = ["pydantic-minimal"] },
     { value = "pydantic~=2.9.0", if = ["pydantic-stable"] },
-    { value = "pydantic~=2.10", if = ["pydantic-2_10"] },
-    { value = "pydantic~=2.11", if = ["pydantic-latest"] },
+    { value = "pydantic~=2.10.0", if = ["pydantic-2_10"] },
+    { value = "pydantic~=2.11.0", if = ["pydantic-2_11"] },
+    { value = "pydantic~=2.0b0", if = ["pydantic-latest"] },
     
     { value = "typer==0.16.0", if = ["typer-minimal"] },
     { value = "Click==8.0.2", if = ["typer-minimal"] },
@@ -241,11 +235,11 @@ python = [
 ]
 targets = [
   "typer-minimal",
-  # "pydantic-minimal",
   "pydantic-stable",
   "pydantic-2_10",
-  "click-main-branch",
+  "pydantic-2_11",
   "pydantic-latest",
+  "click-main-branch",
   "typer-stable"
 ]
 

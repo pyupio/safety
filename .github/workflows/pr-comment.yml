@@ -20,6 +20,7 @@ jobs:
       - name: Comment PR
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
             const run = context.payload.workflow_run
             const owner = context.payload?.repository?.owner?.login || context.repo.owner
@@ -87,14 +88,14 @@ jobs:
 
             #### Quick Test with Python Package
             \`\`\`bash
-            bash -c 'set -euo pipefail; echo; echo "WARNING: You are about to download and execute CI artifacts from ${prContext}. Do NOT proceed unless you have reviewed the PR diff and trust the source."; echo; read -rp "Type I understand to continue: " C; [ "$C" = "I understand" ] || { echo "Aborted."; exit 1; }; gh run download ${runId} -n dist -R ${owner}/${repo}; uvx ./dist/safety-*-py3-none-any.whl --version'
+            bash -c 'set -euo pipefail; echo; echo "WARNING: You are about to download and execute CI artifacts from ${prContext}. Do NOT proceed unless you have reviewed the PR diff and trust the source."; echo; read -rp "Type I understand to continue: " C; [ "$C" = "I understand" ] || { echo "Aborted."; exit 1; }; gh run download ${runId} -n dist -R ${owner}/${repo}; uvx safety-*-py3-none-any.whl --version'
             \`\`\`
 
             #### Run other Safety commands as follows
             \`\`\`bash
-            uvx ./dist/safety-*-py3-none-any.whl auth status
-            uvx ./dist/safety-*-py3-none-any.whl auth login
-            uvx ./dist/safety-*-py3-none-any.whl scan
+            uvx safety-*-py3-none-any.whl auth status
+            uvx safety-*-py3-none-any.whl auth login
+            uvx safety-*-py3-none-any.whl scan
             \`\`\`
 
             > Note: You need to be logged in to GitHub to access the artifacts.

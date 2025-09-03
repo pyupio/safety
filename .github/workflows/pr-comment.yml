@@ -8,13 +8,13 @@ on:
 permissions:
   issues: write
   actions: read
+  pull-requests: read
 
 jobs:
   comment:
     if: >
       ${{ github.event.workflow_run.event == 'pull_request' &&
-          github.event.workflow_run.conclusion == 'success' &&
-          (github.event.workflow_run.pull_requests && github.event.workflow_run.pull_requests[0]) }}
+          github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Comment PR
@@ -22,23 +22,55 @@ jobs:
         with:
           script: |
             const run = context.payload.workflow_run
-            const pr = (run.pull_requests && run.pull_requests[0]) || null
+            const owner = context.payload?.repository?.owner?.login || context.repo.owner
+            const repo = context.payload?.repository?.name || context.repo.repo
+            let pr = (run.pull_requests && run.pull_requests[0]) || null
+
+            // Resolve PR number via GraphQL Search API
+            if (!pr) {
+              try {
+                const q = `repo:${owner}/${repo} is:pr is:open sha:${run.head_sha}`
+                const query = `
+                  query($q: String!) {
+                    search(query: $q, type: ISSUE, first: 1) {
+                      nodes {
+                        ... on PullRequest { number }
+                      }
+                    }
+                  }
+                `
+                const resp = await github.graphql(query, { q })
+                const node = resp?.search?.nodes?.[0]
+                if (node?.number) {
+                  const { data: prData } = await github.rest.pulls.get({ owner, repo, pull_number: node.number })
+                  pr = prData
+                }
+              } catch (e) {
+                core.warning(`Failed to resolve PR by search: ${e.message}`)
+              }
+            }
+
             if (!pr) {
               core.info('No associated PR found; skipping comment.')
               return
             }
 
             const runId = run.id
-            const artifactsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}/`
+            const artifactsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${runId}/`
             const prNumber = pr.number
             const author = pr.user?.login || run.actor?.login || 'unknown'
             const forkRepo = (pr.head && pr.head.repo && pr.head.repo.full_name) ? pr.head.repo.full_name : `${author}:unknown-repo`
-            const diffUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}/files`
+            const diffUrl = `${context.serverUrl}/${owner}/${repo}/pull/${prNumber}/files`
+            const isSameRepo = (pr.head?.repo?.full_name || '').toLowerCase() === `${owner}/${repo}`.toLowerCase()
+            const prContext = isSameRepo
+              ? `PR #${prNumber} by @${author}`
+              : `PR #${prNumber} by @${author} (source: ${forkRepo})`
+            const title = `## 🚀 Artifacts — ${prContext}`
 
             const comment = `
-            ## 🚀 Build artifacts are ready for testing!
+            ${title}
 
-            > Security notice: You are viewing pre-release CI artifacts from PR #${prNumber} by @${author} (source: ${forkRepo}). These commands may execute code on your machine. Do NOT run them unless you have reviewed the [PR diff](${diffUrl}) and trust the source. The snippets include a confirmation prompt.
+            > Security notice: You are viewing pre-release CI artifacts from ${prContext}. These commands may execute code on your machine. Do NOT run them unless you have reviewed the [PR diff](${diffUrl}) and trust the source. The snippets include a confirmation prompt.
 
             Download the wheel file and binaries with gh CLI or from the [workflow artifacts](${artifactsUrl}).
 
@@ -55,7 +87,7 @@ jobs:
 
             #### Quick Test with Python Package
             \`\`\`bash
-            bash -c 'set -euo pipefail; printf "\n%s\n\n" "WARNING: You are about to download and execute CI artifacts from PR #${prNumber} by @${author} (source: ${forkRepo}). Do NOT proceed unless you have reviewed the PR diff and trust the source."; printf "%s" "Type I understand to continue: "; read -r C; [ "$C" = "I understand" ] || { echo Aborted.; exit 1; }; gh run download ${runId} -n dist -R ${context.repo.owner}/${context.repo.repo}; uvx ./dist/safety-*-py3-none-any.whl --version'
+            bash -c 'set -euo pipefail; echo; echo "WARNING: You are about to download and execute CI artifacts from ${prContext}. Do NOT proceed unless you have reviewed the PR diff and trust the source."; echo; read -rp "Type I understand to continue: " C; [ "$C" = "I understand" ] || { echo "Aborted."; exit 1; }; gh run download ${runId} -n dist -R ${owner}/${repo}; uvx ./dist/safety-*-py3-none-any.whl --version'
             \`\`\`
 
             #### Run other Safety commands as follows
@@ -69,27 +101,27 @@ jobs:
             `
 
             const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               issue_number: pr.number,
             })
 
             const botComment = comments.find(c =>
               c.user?.type === 'Bot' &&
-              c.body?.includes('Build artifacts are ready for testing!')
+              c.body?.includes('Artifacts')
             )
 
             if (botComment) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 comment_id: botComment.id,
                 body: comment,
               })
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 issue_number: pr.number,
                 body: comment,
               })

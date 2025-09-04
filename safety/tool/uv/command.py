@@ -5,7 +5,10 @@ from safety.tool.intents import ToolIntentionType
 from safety.tool.pip.parser import PipParser
 from safety.tool.auth import index_credentials
 from ..pip.command import PipCommand, PipInstallCommand, PipGenericCommand
+from ..mixins import InstallationAuditMixin
 from safety_schemas.models.events.types import ToolType
+from safety.models import ToolResult
+from .parser import UvParser
 
 UV_LOCK = "safety-uv.lock"
 
@@ -34,6 +37,8 @@ class UvCommand(PipCommand):
 
         package_modifying_commands = [
             "sync",
+            "add",
+            "remove",
         ]
 
         return any(cmd in command_str for cmd in package_modifying_commands)
@@ -61,6 +66,15 @@ class UvCommand(PipCommand):
             if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
                 return UvInstallCommand(to_parse, intention=intention, **kwargs)
 
+        if uv_intention := UvParser().parse(to_parse):
+            if uv_intention.intention_type in [
+                ToolIntentionType.ADD_PACKAGE,
+                ToolIntentionType.SYNC_PACKAGES,
+                ToolIntentionType.REMOVE_PACKAGE,
+                ToolIntentionType.UPDATE_PACKAGE,
+            ]:
+                return AuditableUvCommand(args, **kwargs)
+
         # No an install but still a pip interface command
         if is_pip_interface:
             to_parse = args
@@ -76,3 +90,14 @@ class UvInstallCommand(PipInstallCommand, UvCommand):
 class UvGenericCommand(PipGenericCommand, UvCommand):
     def get_command_name(self) -> List[str]:
         return ["uv"]
+
+
+class AuditableUvCommand(UvGenericCommand, InstallationAuditMixin):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._packages = []
+
+    def after(self, ctx: typer.Context, result: ToolResult):
+        super().after(ctx, result)
+        self.handle_installation_audit(ctx, result)

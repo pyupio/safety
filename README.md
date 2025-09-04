@@ -31,7 +31,7 @@
 Safety CLI is a Python dependency vulnerability scanner designed to enhance software supply chain security by detecting packages with known vulnerabilities and malicious packages in local development environments, CI/CD, and production systems.
 Safety CLI can be deployed in minutes and provides clear, actionable recommendations for remediation of detected vulnerabilities.
 
-Leveraging the industry's most comprehensive database of vulnerabilities and malicious packages, Safety CLI Scanner allows teams to detect vulnerabilities at every stage of the software development lifecycle.
+Leveraging the industry's most comprehensive database of vulnerabilities and malicious packages, Safety CLI Scanner allows teams to detect vulnerabilities at every stage of the software development lifecycle. :rocket:
 
 # Key Features
 - Versatile, comprehensive dependency security scanning for Python packages.

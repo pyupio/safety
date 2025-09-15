@@ -11,7 +11,7 @@ from typing import (
     Union,
     Literal,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import typer
 
 from safety.auth.constants import SAFETY_PLATFORM_URL
@@ -59,25 +59,32 @@ class ScanResultType(str, Enum):
 
 
 class BaseScanResult(BaseModel):
-    """Base class for all scan results with common attributes"""
+    """
+    Base class for all scan results with common attributes
+    """
 
     # No fields here - each subclass will define its own type
     pass
 
 
 class InitScanResult(BaseScanResult):
-    """Initial scan result with basic dependency info"""
+    """
+    Initial scan result with basic dependency info
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     type: Literal[ScanResultType.INIT]
     dependencies: int
     progress: int = 0
 
-    class Config:
-        frozen = True  # Make immutable
-
 
 class ProgressScanResult(BaseScanResult):
-    """Progress update during scanning with current counts"""
+    """
+    Progress update during scanning with current counts
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     type: Literal[ScanResultType.PROGRESS]
     percent: int
@@ -95,12 +102,13 @@ class ProgressScanResult(BaseScanResult):
     venv_count: int
     vulns_count: int
 
-    class Config:
-        frozen = True  # Make immutable
-
 
 class CompleteScanResult(BaseScanResult):
-    """Final scan result with complete vulnerability counts"""
+    """
+    Final scan result with complete vulnerability counts
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     type: Literal[ScanResultType.COMPLETE]
     scan_id: Optional[str] = None
@@ -116,31 +124,30 @@ class CompleteScanResult(BaseScanResult):
     fixed_vulns: int
     codebase_url: Optional[str] = None
 
-    class Config:
-        frozen = True  # Make immutable
-
 
 class StatusScanResult(BaseScanResult):
-    """Generic status update that can be used for any process"""
+    """
+    Generic status update that can be used for any process
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     type: Literal[ScanResultType.STATUS]
     message: str
     action: str  # The specific action being performed (e.g., "analyzing", "preparing")
     percent: Optional[int] = None
 
-    class Config:
-        frozen = True  # Make immutable
-
 
 class UploadingScanResult(BaseScanResult):
-    """Status update when uploading results to server"""
+    """
+    Status update when uploading results to server
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     type: Literal[ScanResultType.UPLOADING]
     message: str
     percent: Optional[int] = None
-
-    class Config:
-        frozen = True  # Make immutable
 
 
 # Union type for all possible result types

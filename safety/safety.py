@@ -19,7 +19,7 @@ import requests
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
-from pydantic.json import pydantic_encoder
+from pydantic_core import to_jsonable_python
 from filelock import FileLock
 
 from safety_schemas.models import Ecosystem, FileType
@@ -253,7 +253,7 @@ def fetch_database_url(
 
     telemetry_data = {
         "telemetry": json.dumps(
-            build_telemetry_data(telemetry=telemetry), default=pydantic_encoder
+            build_telemetry_data(telemetry=telemetry), default=to_jsonable_python
         )
     }
 

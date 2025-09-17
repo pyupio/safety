@@ -46,14 +46,14 @@ dependencies = [
   "httpx",
   "tenacity",
   "ruamel.yaml>=0.17.21",
-  "safety-schemas==0.0.15",
+  "safety-schemas==0.0.16",
   # TODO: To be removed after migrate away from pkg_resources
   "setuptools>=65.5.1",
   "typer>=0.16.0",
   "typing-extensions>=4.7.1",
   "nltk>=3.9",
   "tomli; python_version < '3.11'",
-  "tomlkit"
+  "tomlkit",
 ]
 license = "MIT"
 license-files = ["LICENSES/*"]

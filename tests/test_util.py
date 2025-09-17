@@ -624,3 +624,116 @@ class TestUtilityFunctions(unittest.TestCase):
         # Should fall back to defaults
         self.assertEqual(result.columns, 80)
         self.assertEqual(result.lines, 24)
+        
+    def test_get_hashes_with_valid_dependency(self):
+        """Test get_hashes function with valid dependency hashes."""
+        from safety.util import get_hashes
+        from unittest.mock import MagicMock
+        
+        # Mock dependency with hash strings
+        mock_dependency = MagicMock()
+        mock_dependency.hashes = [
+            "--hash=sha256:abcd1234",
+            "--hash sha256:efgh5678",
+            "--hash=md5:ijkl9012"
+        ]
+        
+        result = get_hashes(mock_dependency)
+        
+        expected = [
+            {"method": "sha256", "hash": "abcd1234"},
+            {"method": "sha256", "hash": "efgh5678"},
+            {"method": "md5", "hash": "ijkl9012"}
+        ]
+        
+        self.assertEqual(result, expected)
+        
+    def test_get_hashes_with_empty_dependency(self):
+        """Test get_hashes function with dependency that has no hashes."""
+        from safety.util import get_hashes
+        from unittest.mock import MagicMock
+        
+        # Mock dependency with no hashes
+        mock_dependency = MagicMock()
+        mock_dependency.hashes = []
+        
+        result = get_hashes(mock_dependency)
+        self.assertEqual(result, [])
+        
+    def test_is_supported_by_parser_security_file_extensions(self):
+        """Test is_supported_by_parser with security-relevant file extensions."""
+        from safety.util import is_supported_by_parser
+        
+        # Additional security-relevant files that should be supported
+        security_files = [
+            "requirements-dev.txt",
+            "requirements-test.txt", 
+            "dev-requirements.txt",
+            "test-requirements.txt",
+            "constraints.txt",
+            "pip.conf"  # False - not supported but testing edge case
+        ]
+        
+        # These should be supported (have valid extensions)
+        for file_path in security_files[:5]:  # First 5 are .txt/.ini files
+            self.assertTrue(is_supported_by_parser(file_path), f"Should support {file_path}")
+            
+        # This should not be supported (.conf is not in the supported list)
+        self.assertFalse(is_supported_by_parser("pip.conf"))
+        
+    def test_clean_project_id_security_considerations(self):
+        """Test clean_project_id with potential security injection patterns."""
+        from safety.util import clean_project_id
+        
+        # Test potential injection patterns are properly sanitized
+        malicious_inputs = [
+            "../../../etc/passwd",
+            "project<script>alert('xss')</script>", 
+            "project; rm -rf /",
+            "project && echo 'injected'",
+            "project|cat /etc/passwd",
+            "project`whoami`",
+            "project$(id)"
+        ]
+        
+        for malicious_input in malicious_inputs:
+            result = clean_project_id(malicious_input)
+            
+            # Should not contain dangerous characters
+            self.assertNotIn("..", result)
+            self.assertNotIn("/", result) 
+            self.assertNotIn("<", result)
+            self.assertNotIn(">", result)
+            self.assertNotIn(";", result)
+            self.assertNotIn("&", result)
+            self.assertNotIn("|", result)
+            self.assertNotIn("`", result)
+            self.assertNotIn("$", result)
+            self.assertNotIn("(", result)
+            self.assertNotIn(")", result)
+            
+            # Should only contain alphanumeric characters and hyphens
+            self.assertTrue(all(c.isalnum() or c == '-' for c in result if result))
+            
+    def test_validate_expiration_date_security_edge_cases(self):
+        """Test validate_expiration_date with security-relevant edge cases."""
+        from safety.util import validate_expiration_date
+        
+        # Test dates that could cause issues in security contexts
+        edge_case_dates = [
+            "1970-01-01",  # Unix epoch
+            "2038-01-19",  # 32-bit timestamp limit
+            "9999-12-31",  # Far future date
+            "1900-01-01",  # Very old date
+            "2024-02-29",  # Leap year
+            "2023-02-29",  # Invalid leap year
+        ]
+        
+        # First 5 should be valid dates
+        for valid_date in edge_case_dates[:5]:
+            result = validate_expiration_date(valid_date)
+            self.assertIsNotNone(result, f"Should accept valid date {valid_date}")
+            
+        # Last one should be invalid (2023 is not a leap year)
+        invalid_leap = validate_expiration_date("2023-02-29")
+        self.assertIsNone(invalid_leap, "Should reject invalid leap year date")

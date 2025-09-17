@@ -343,3 +343,8 @@ changelog_incremental = false
 
 [tool.flake8]
 exclude = ["docs"]
+
+[[tool.uv.index]]
+name = "safety"
+url = "https://pkgs.safetycli.com/repository/safety-cybersecurity/project/safety/pypi/simple/"
+default = false

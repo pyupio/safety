@@ -338,3 +338,289 @@ class TestInitializeEventBus(unittest.TestCase):
 
         self.assertFalse(result)
         mock_log.exception.assert_called_once()
+
+
+class TestUtilityFunctions(unittest.TestCase):
+    """Test cases for utility functions that were previously untested."""
+
+    def test_is_a_remote_mirror_with_https(self):
+        """Test is_a_remote_mirror with HTTPS URL."""
+        from safety.util import is_a_remote_mirror
+        
+        self.assertTrue(is_a_remote_mirror("https://pypi.org/simple/"))
+        
+    def test_is_a_remote_mirror_with_http(self):
+        """Test is_a_remote_mirror with HTTP URL."""
+        from safety.util import is_a_remote_mirror
+        
+        self.assertTrue(is_a_remote_mirror("http://pypi.org/simple/"))
+        
+    def test_is_a_remote_mirror_with_local_path(self):
+        """Test is_a_remote_mirror with local file path."""
+        from safety.util import is_a_remote_mirror
+        
+        self.assertFalse(is_a_remote_mirror("/local/path/to/mirror"))
+        self.assertFalse(is_a_remote_mirror("file:///local/path"))
+        self.assertFalse(is_a_remote_mirror(""))
+        
+    def test_is_supported_by_parser_with_valid_extensions(self):
+        """Test is_supported_by_parser with valid file extensions."""
+        from safety.util import is_supported_by_parser
+        
+        valid_files = [
+            "requirements.txt",
+            "requirements.in", 
+            "config.yml",
+            "setup.cfg",
+            "Pipfile",
+            "Pipfile.lock",
+            "poetry.lock",
+            ".safety-policy.yml"
+        ]
+        
+        for file_path in valid_files:
+            self.assertTrue(is_supported_by_parser(file_path), f"Failed for {file_path}")
+            
+    def test_is_supported_by_parser_with_invalid_extensions(self):
+        """Test is_supported_by_parser with invalid file extensions."""
+        from safety.util import is_supported_by_parser
+        
+        invalid_files = [
+            "requirements.json",
+            "config.xml",
+            "setup.py",
+            "README.md",
+            "file.unknown",
+            ""
+        ]
+        
+        for file_path in invalid_files:
+            self.assertFalse(is_supported_by_parser(file_path), f"Should fail for {file_path}")
+            
+    def test_get_proxy_dict_with_all_parameters(self):
+        """Test get_proxy_dict with all required parameters."""
+        from safety.util import get_proxy_dict
+        
+        result = get_proxy_dict("http", "proxy.example.com", 8080)
+        expected = {"https": "http://proxy.example.com:8080"}
+        self.assertEqual(result, expected)
+        
+    def test_get_proxy_dict_with_https_protocol(self):
+        """Test get_proxy_dict with HTTPS protocol."""
+        from safety.util import get_proxy_dict
+        
+        result = get_proxy_dict("https", "secure-proxy.example.com", 3128)
+        expected = {"https": "https://secure-proxy.example.com:3128"}
+        self.assertEqual(result, expected)
+        
+    def test_get_proxy_dict_with_missing_parameters(self):
+        """Test get_proxy_dict returns None when parameters are missing."""
+        from safety.util import get_proxy_dict
+        
+        # Test with missing protocol
+        self.assertIsNone(get_proxy_dict("", "proxy.example.com", 8080))
+        self.assertIsNone(get_proxy_dict(None, "proxy.example.com", 8080))
+        
+        # Test with missing host
+        self.assertIsNone(get_proxy_dict("http", "", 8080))
+        self.assertIsNone(get_proxy_dict("http", None, 8080))
+        
+        # Test with missing port
+        self.assertIsNone(get_proxy_dict("http", "proxy.example.com", 0))
+        self.assertIsNone(get_proxy_dict("http", "proxy.example.com", None))
+        
+    def test_get_license_name_by_id_with_valid_id(self):
+        """Test get_license_name_by_id with valid license ID."""
+        from safety.util import get_license_name_by_id
+        
+        db = {
+            "licenses": {
+                "MIT": 1,
+                "Apache-2.0": 2, 
+                "GPL-3.0": 3
+            }
+        }
+        
+        self.assertEqual(get_license_name_by_id(1, db), "MIT")
+        self.assertEqual(get_license_name_by_id(2, db), "Apache-2.0")
+        self.assertEqual(get_license_name_by_id(3, db), "GPL-3.0")
+        
+    def test_get_license_name_by_id_with_invalid_id(self):
+        """Test get_license_name_by_id with invalid license ID."""
+        from safety.util import get_license_name_by_id
+        
+        db = {
+            "licenses": {
+                "MIT": 1,
+                "Apache-2.0": 2
+            }
+        }
+        
+        self.assertIsNone(get_license_name_by_id(99, db))
+        self.assertIsNone(get_license_name_by_id(-1, db))
+        
+    def test_get_license_name_by_id_with_empty_db(self):
+        """Test get_license_name_by_id with empty database."""
+        from safety.util import get_license_name_by_id
+        
+        # Empty database
+        self.assertIsNone(get_license_name_by_id(1, {}))
+        
+        # Database without licenses key
+        db = {"other_data": "value"}
+        self.assertIsNone(get_license_name_by_id(1, db))
+        
+        # Database with empty licenses
+        db = {"licenses": {}}
+        self.assertIsNone(get_license_name_by_id(1, db))
+        
+    def test_pluralize_with_singular_count(self):
+        """Test pluralize function with count of 1."""
+        from safety.util import pluralize
+        
+        self.assertEqual(pluralize("package", 1), "package")
+        self.assertEqual(pluralize("vulnerability", 1), "vulnerability")
+        self.assertEqual(pluralize("was", 1), "was")
+        
+    def test_pluralize_with_plural_count(self):
+        """Test pluralize function with count greater than 1."""
+        from safety.util import pluralize
+        
+        # Regular plurals
+        self.assertEqual(pluralize("package", 2), "packages")
+        self.assertEqual(pluralize("vulnerability", 5), "vulnerabilities")
+        self.assertEqual(pluralize("dependency", 3), "dependencies")
+        
+        # Special cases with 's', 'x', 'ch', 'sh' endings
+        self.assertEqual(pluralize("class", 2), "classes")
+        self.assertEqual(pluralize("box", 2), "boxes")
+        self.assertEqual(pluralize("branch", 2), "branches")
+        self.assertEqual(pluralize("bush", 2), "bushes")
+        
+        # Words ending in 'y'
+        self.assertEqual(pluralize("library", 2), "libraries")
+        self.assertEqual(pluralize("key", 2), "keys")  # vowel before 'y'
+        
+        # Default mappings
+        self.assertEqual(pluralize("was", 2), "were")
+        self.assertEqual(pluralize("this", 2), "these")
+        self.assertEqual(pluralize("has", 2), "have")
+        
+    def test_pluralize_with_zero_count(self):
+        """Test pluralize function with count of 0."""
+        from safety.util import pluralize
+        
+        self.assertEqual(pluralize("package", 0), "packages")
+        self.assertEqual(pluralize("was", 0), "were")
+        
+    def test_clean_project_id_with_valid_input(self):
+        """Test clean_project_id with valid input strings."""
+        from safety.util import clean_project_id
+        
+        self.assertEqual(clean_project_id("MyProject"), "myproject")
+        self.assertEqual(clean_project_id("my-project"), "my-project")
+        self.assertEqual(clean_project_id("my_project"), "my-project")
+        
+    def test_clean_project_id_with_special_characters(self):
+        """Test clean_project_id with special characters."""
+        from safety.util import clean_project_id
+        
+        self.assertEqual(clean_project_id("my@project#123"), "my-project-123")
+        self.assertEqual(clean_project_id("Project Name With Spaces"), "project-name-with-spaces")
+        self.assertEqual(clean_project_id("project!!!"), "project")
+        
+    def test_clean_project_id_with_edge_cases(self):
+        """Test clean_project_id with edge cases."""
+        from safety.util import clean_project_id
+        
+        # Leading/trailing non-alphanumeric characters
+        self.assertEqual(clean_project_id("---project---"), "project")
+        self.assertEqual(clean_project_id("@@@"), "")
+        self.assertEqual(clean_project_id(""), "")
+        
+    def test_validate_expiration_date_with_valid_dates(self):
+        """Test validate_expiration_date with valid date formats."""
+        from safety.util import validate_expiration_date
+        from datetime import datetime
+        
+        # YYYY-MM-DD format
+        result = validate_expiration_date("2024-12-31")
+        self.assertIsInstance(result, datetime)
+        self.assertEqual(result.year, 2024)
+        self.assertEqual(result.month, 12)
+        self.assertEqual(result.day, 31)
+        
+        # YYYY-MM-DD HH:MM:SS format
+        result = validate_expiration_date("2024-12-31 23:59:59")
+        self.assertIsInstance(result, datetime)
+        self.assertEqual(result.hour, 23)
+        self.assertEqual(result.minute, 59)
+        self.assertEqual(result.second, 59)
+        
+    def test_validate_expiration_date_with_invalid_dates(self):
+        """Test validate_expiration_date with invalid date formats."""
+        from safety.util import validate_expiration_date
+        
+        invalid_dates = [
+            "invalid-date",
+            "2024-13-01",  # Invalid month
+            "2024-12-32",  # Invalid day
+            "2024/12/31",  # Wrong format
+            "Dec 31, 2024",  # Wrong format
+            "",
+            None
+        ]
+        
+        for invalid_date in invalid_dates:
+            result = validate_expiration_date(invalid_date)
+            self.assertIsNone(result, f"Should return None for {invalid_date}")
+            
+    def test_build_remediation_info_url_with_version(self):
+        """Test build_remediation_info_url with version parameters."""
+        from safety.util import build_remediation_info_url
+        
+        base_url = "https://example.com/remediation"
+        result = build_remediation_info_url(base_url, "1.0.0", ">=1.0.0", "2.0.0")
+        
+        self.assertIn("from=1.0.0", result)
+        self.assertIn("to=2.0.0", result)
+        self.assertTrue(result.startswith(base_url))
+        
+    def test_build_remediation_info_url_without_version(self):
+        """Test build_remediation_info_url without version (unpinned)."""
+        from safety.util import build_remediation_info_url
+        
+        base_url = "https://example.com/remediation"
+        spec = ">=1.0.0"
+        result = build_remediation_info_url(base_url, None, spec, "2.0.0")
+        
+        self.assertIn(f"spec={spec.replace('>=', '%3E%3D')}", result)
+        self.assertTrue(result.startswith(base_url))
+        
+    def test_get_terminal_size(self):
+        """Test get_terminal_size function."""
+        from safety.util import get_terminal_size
+        import os
+        
+        result = get_terminal_size()
+        self.assertIsInstance(result, os.terminal_size)
+        
+        # Terminal size should have reasonable defaults
+        self.assertGreaterEqual(result.columns, 80)
+        self.assertGreaterEqual(result.lines, 24)
+        
+    @patch("shutil.get_terminal_size")
+    def test_get_terminal_size_with_zero_values(self, mock_get_terminal_size):
+        """Test get_terminal_size when system returns 0 values."""
+        from safety.util import get_terminal_size
+        import os
+        
+        # Mock system returning 0 values (common in some environments)
+        mock_terminal_size = os.terminal_size((0, 0))
+        mock_get_terminal_size.return_value = mock_terminal_size
+        
+        result = get_terminal_size()
+        
+        # Should fall back to defaults
+        self.assertEqual(result.columns, 80)
+        self.assertEqual(result.lines, 24)

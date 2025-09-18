@@ -138,7 +138,7 @@ class BaseCommand(ABC):
             List[str]: Command to list packages in JSON format
         """
         # Default implementation, should be overridden by subclasses
-        return [*self.get_command_name(), "list", "--format=json"]
+        return [*self.get_command_name(), "list", "-v", "--format=json"]
 
     def parse_package_list_output(self, output: str) -> List[Dict[str, Any]]:
         """
@@ -214,7 +214,7 @@ class BaseCommand(ABC):
         process = result.process
         if process:
             if process.returncode == 0 and self._should_track_state:
-                self._perform_diff(ctx)
+                self._perform_diff(ctx, result.tool_path)
                 self.__run_scan_if_needed(ctx, silent=True)
 
             emit_tool_command_executed(
@@ -259,7 +259,8 @@ class BaseCommand(ABC):
 
             cmd = self.get_command_name()
             cmd_name = cmd[0]
-            pre_args = [get_unwrapped_command(name=cmd_name)] + cmd[1:]
+            tool_path = get_unwrapped_command(name=cmd_name)
+            pre_args = [tool_path] + cmd[1:]
             args = pre_args + self.__remove_safety_args(self._args)
 
             started_at = time.monotonic()
@@ -269,7 +270,9 @@ class BaseCommand(ABC):
 
             duration_ms = int((time.monotonic() - started_at) * 1000)
 
-            result = ToolResult(process=process, duration_ms=duration_ms)
+            result = ToolResult(
+                process=process, duration_ms=duration_ms, tool_path=tool_path
+            )
 
             self.after(ctx, result)
 
@@ -299,7 +302,7 @@ class BaseCommand(ABC):
         result = subprocess.run(args, capture_output=True, env=self.env(ctx), text=True)
         return self.parse_package_list_output(result.stdout)
 
-    def _perform_diff(self, ctx: typer.Context):
+    def _perform_diff(self, ctx: typer.Context, tool_path: Optional[str] = None):
         """
         Perform the diff operation.
         Can be called by child classes when appropriate.
@@ -314,6 +317,7 @@ class BaseCommand(ABC):
             added=added,
             removed=removed,
             updated=updated,
+            tool_path=tool_path,
             by_tool=self._tool_type,
         )
 

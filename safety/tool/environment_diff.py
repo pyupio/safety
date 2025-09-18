@@ -1,9 +1,18 @@
-from typing import Dict, List, Tuple, Any, Callable, TypeVar, Generic
+from typing import Dict, List, Tuple, Any, Callable, TypeVar, Generic, NamedTuple
 from packaging.utils import canonicalize_name, canonicalize_version
 
 T = TypeVar("T")  # For the package data type
 K = TypeVar("K")  # For the key type
 V = TypeVar("V")  # For the value type
+
+
+class PackageLocation(NamedTuple):
+    """
+    Composite key representing package name and location.
+    """
+
+    name: str
+    location: str
 
 
 class EnvironmentDiffTracker(Generic[T, K, V]):
@@ -61,9 +70,6 @@ class EnvironmentDiffTracker(Generic[T, K, V]):
             - Dictionary of removed items {key: value}
             - Dictionary of updated items {key: (old_value, new_value)}
         """
-        if not self._before_items or not self._after_items:
-            return {}, {}, {}
-
         before_keys = set(self._before_items.keys())
         after_keys = set(self._after_items.keys())
 
@@ -109,7 +115,9 @@ class EnvironmentDiffTracker(Generic[T, K, V]):
         return result
 
 
-class PipEnvironmentDiffTracker(EnvironmentDiffTracker[Dict[str, Any], str, str]):
+class PipEnvironmentDiffTracker(
+    EnvironmentDiffTracker[Dict[str, Any], PackageLocation, str]
+):
     """
     Specialized diff tracker for pip package environments.
     """
@@ -122,8 +130,11 @@ class PipEnvironmentDiffTracker(EnvironmentDiffTracker[Dict[str, Any], str, str]
 
     # TODO: handle errors in value extraction
 
-    def _pip_key_extractor(self, pkg: Dict[str, Any]) -> str:
-        return canonicalize_name(pkg.get("name", ""))
+    def _pip_key_extractor(self, pkg: Dict[str, Any]) -> PackageLocation:
+        return PackageLocation(
+            name=canonicalize_name(pkg.get("name", "")),
+            location=pkg.get("location", ""),
+        )
 
     def _pip_value_extractor(self, pkg: Dict[str, Any]) -> str:
-        return canonicalize_version(pkg.get("version", ""))
+        return canonicalize_version(pkg.get("version", ""), strip_trailing_zero=False)

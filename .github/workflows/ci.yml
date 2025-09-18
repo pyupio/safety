@@ -32,7 +32,7 @@ jobs:
       - name: Install Hatch
         run: |
           python -m pip install --upgrade pip
-          pip install hatch
+          pip install hatch "click<8.3.0"
           
       - name: Validate commit messages
         run: |
@@ -89,7 +89,7 @@ jobs:
         if: steps.check-files.outputs.should_check == 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install hatch
+          pip install hatch "click<8.3.0"
   
       - name: Run style and typing checks
         if: steps.check-files.outputs.should_check == 'true'
@@ -147,7 +147,7 @@ jobs:
     - name: Install Hatch
       run: |
         python -m pip install --upgrade pip
-        pip install hatch
+        pip install hatch "click<8.3.0"
 
     - name: Create temporary CI config
       run: |

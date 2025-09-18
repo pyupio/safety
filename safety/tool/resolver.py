@@ -1,5 +1,6 @@
-from sys import platform
+import sys
 import subprocess
+import shutil
 
 
 def get_unwrapped_command(name: str) -> str:
@@ -12,7 +13,7 @@ def get_unwrapped_command(name: str) -> str:
     Returns:
         Path to the actual executable
     """
-    if platform in ["win32"]:
+    if sys.platform in ["win32"]:
         lookup_term = f"{name}.exe"
         where_result = subprocess.run(
             ["where.exe", lookup_term], capture_output=True, text=True
@@ -22,4 +23,4 @@ def get_unwrapped_command(name: str) -> str:
                 if not path.lower().endswith(f"{name}.bat"):
                     return path
 
-    return name
+    return shutil.which(name) or name

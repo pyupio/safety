@@ -6,3 +6,4 @@ from subprocess import CompletedProcess
 class ToolResult:
     process: CompletedProcess
     duration_ms: int
+    tool_path: str

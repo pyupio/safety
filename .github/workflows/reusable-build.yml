@@ -39,7 +39,7 @@ jobs:
     - name: Install Hatch
       run: |
         python -m pip install --upgrade pip
-        pip install hatch
+        pip install hatch "click<8.3.0"
 
     - name: Generate SLUG
       if: inputs.bump-command == 'local-bump'
@@ -87,7 +87,7 @@ jobs:
       - name: Install Hatch
         run: |
           python -m pip install --upgrade pip
-          pip install hatch
+          pip install hatch "click<8.3.0"
 
       - name: Create temporary CI config
         run: |

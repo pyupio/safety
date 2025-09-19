@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import typer
 
-from safety.tool.pip.command import PipInstallCommand
-from safety.tool.uv.command import UvInstallCommand
-from safety.tool.poetry.command import PoetryAddCommand
+from safety.tool.pip.command import AuditablePipCommand
+from safety.tool.uv.command import AuditableUvCommand
+from safety.tool.poetry.command import AuditablePoetryCommand
 
 
 class TestInstallationCommandsAudit:
@@ -26,9 +26,9 @@ class TestInstallationCommandsAudit:
     @pytest.mark.parametrize(
         "command_class,command_args",
         [
-            (PipInstallCommand, ["install", "requests"]),
-            (UvInstallCommand, ["pip", "install", "requests"]),
-            (PoetryAddCommand, ["add", "requests"]),
+            (AuditablePipCommand, ["install", "requests"]),
+            (AuditableUvCommand, ["pip", "install", "requests"]),
+            (AuditablePoetryCommand, ["add", "requests"]),
         ],
     )
     @patch("safety.tool.base.BaseCommand._handle_command_result")

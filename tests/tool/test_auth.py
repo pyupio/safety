@@ -1,13 +1,15 @@
-# type: ignore
 import unittest
+import pytest
 import json
 import base64
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import typer
-from safety.tool.auth import index_credentials
+from safety.tool.auth import index_credentials, build_pypi_index_url
+from safety.tool.constants import PUBLIC_REPOSITORY_URL
 
 
+@pytest.mark.unit
 class TestIndexCredentials(unittest.TestCase):
     """
     Test cases for index_credentials function.
@@ -145,3 +147,83 @@ class TestIndexCredentials(unittest.TestCase):
         ).decode("utf-8")
 
         self.assertEqual(result, expected_encoded)
+
+
+@pytest.mark.unit
+class TestBuildPypiIndexUrl:
+    """
+    Test suite for build_pypi_index_url
+    """
+
+    def setup_method(self):
+        self.ctx = MagicMock(spec=typer.Context)
+        self.ctx.obj = MagicMock()
+
+    def test_build_pypi_index_url_injects_and_defaults(self):
+        """
+        It injects user:<b64>@ into netloc and defaults to PUBLIC_REPOSITORY_URL when index_url is None.
+        """
+        with patch(
+            "safety.tool.auth.index_credentials", return_value="mock_creds"
+        ) as mock_ic:
+            # explicit custom URL
+            custom_url = "https://pkgs.safetycli.com/repository/safety-cybersecurity/project/safety/pypi/simple/"
+            result_custom = build_pypi_index_url(self.ctx, custom_url)
+            assert (
+                result_custom
+                == "https://user:mock_creds@pkgs.safetycli.com/repository/safety-cybersecurity/project/safety/pypi/simple/"
+            )
+
+            # default to PUBLIC_REPOSITORY_URL
+            result_default = build_pypi_index_url(self.ctx, None)
+            expected_host = PUBLIC_REPOSITORY_URL.replace("https://", "")
+            assert result_default == f"https://user:mock_creds@{expected_host}"
+
+            # Called for both invocations
+            assert mock_ic.call_count == 2
+
+    @pytest.mark.parametrize(
+        "input_url,expected",
+        [
+            ("https://simple.example.com/", "https://user:X@simple.example.com/"),
+            (
+                "http://pypi.example.com/simple/",
+                "http://user:X@pypi.example.com/simple/",
+            ),
+            (
+                "https://pypi.example.com:8080/simple/",
+                "https://user:X@pypi.example.com:8080/simple/",
+            ),
+            (
+                "https://pypi.example.com/custom/path/?param=value",
+                "https://user:X@pypi.example.com/custom/path/?param=value",
+            ),
+            (
+                "https://registry.example.com:443/v1/repositories/simple/?format=json&auth=basic",
+                "https://user:X@registry.example.com:443/v1/repositories/simple/?format=json&auth=basic",
+            ),
+        ],
+    )
+    def test_build_pypi_index_url_preserves_components(self, input_url, expected):
+        """
+        It preserves scheme, host, port, path, and query while injecting credentials.
+        """
+        with patch("safety.tool.auth.index_credentials", return_value="X") as mock_ic:
+            result = build_pypi_index_url(self.ctx, input_url)
+            assert result == expected
+            mock_ic.assert_called_once_with(self.ctx)
+
+    def test_build_pypi_index_url_with_existing_auth_is_prepended(self):
+        """
+        Current implementation prepends user:<b64>@ before existing auth if present in netloc.
+        """
+        with patch(
+            "safety.tool.auth.index_credentials", return_value="safety_creds"
+        ) as mock_ic:
+            url_with_auth = "https://old_user:old_pass@pypi.example.com/simple/"
+            result = build_pypi_index_url(self.ctx, url_with_auth)
+            assert (
+                result
+                == "https://user:safety_creds@old_user:old_pass@pypi.example.com/simple/"
+            )
+            mock_ic.assert_called_once_with(self.ctx)

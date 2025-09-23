@@ -11,6 +11,8 @@ class ToolIntentionType(Enum):
     ADD_PACKAGE = auto()
     REMOVE_PACKAGE = auto()
     UPDATE_PACKAGE = auto()
+    DOWNLOAD_PACKAGE = auto()
+    SEARCH_PACKAGES = auto()
     SYNC_PACKAGES = auto()
     LIST_PACKAGES = auto()
     INIT_PROJECT = auto()
@@ -43,6 +45,27 @@ class CommandToolIntention:
     tool: str
     command: str
     intention_type: ToolIntentionType
+    command_chain: List[str] = field(default_factory=list)
     packages: List[Dependency] = field(default_factory=list)
     options: Dict[str, Any] = field(default_factory=dict)
     raw_args: List[str] = field(default_factory=list)
+
+    def modifies_packages(self) -> bool:
+        """
+        Check if this intention type modifies installed packages.
+        """
+        return self.intention_type in {
+            ToolIntentionType.ADD_PACKAGE,
+            ToolIntentionType.REMOVE_PACKAGE,
+            ToolIntentionType.UPDATE_PACKAGE,
+            ToolIntentionType.SYNC_PACKAGES,
+        }
+
+    def queries_packages(self) -> bool:
+        """
+        Check if this intention type queries for packages.
+        """
+        return self.intention_type in {
+            ToolIntentionType.SEARCH_PACKAGES,
+            ToolIntentionType.LIST_PACKAGES,
+        }

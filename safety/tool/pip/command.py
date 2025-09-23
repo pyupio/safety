@@ -1,7 +1,3 @@
-import os
-from pathlib import Path
-import re
-from tempfile import mkstemp
 from typing import TYPE_CHECKING, List, Optional
 
 import logging
@@ -11,15 +7,11 @@ from safety.models import ToolResult
 from .parser import PipParser
 
 from ..base import BaseCommand
-from ..intents import ToolIntentionType
 from safety_schemas.models.events.types import ToolType
 from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
 from ..mixins import InstallationAuditMixin
-from ..utils import Pip
-from ...encoding import detect_encoding
+from .main import Pip
 
-
-PIP_LOCK = "safety-pip.lock"
 
 if TYPE_CHECKING:
     from ..environment_diff import EnvironmentDiffTracker
@@ -48,57 +40,62 @@ class PipCommand(BaseCommand):
 
         return cmd_name
 
-    def get_lock_path(self) -> str:
-        return PIP_LOCK
-
     def get_diff_tracker(self) -> "EnvironmentDiffTracker":
         return PipEnvironmentDiffTracker()
-
-    def should_track_state(self) -> bool:
-        command_str = " ".join(self._args).lower()
-
-        package_modifying_commands = [
-            "install",
-            "uninstall",
-        ]
-
-        return any(cmd in command_str for cmd in package_modifying_commands)
 
     @classmethod
     def from_args(cls, args: List[str], **kwargs):
         parser = PipParser()
 
         if intention := parser.parse(args):
-            if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return PipInstallCommand(args, intention=intention, **kwargs)
+            kwargs["intention"] = intention
 
-        return PipGenericCommand(args, **kwargs)
+            if intention.modifies_packages():
+                return AuditablePipCommand(args, **kwargs)
+
+            if intention.queries_packages():
+                return SearchCommand(args, **kwargs)
+
+        return PipCommand(args, **kwargs)
 
 
-class PipGenericCommand(PipCommand):
-    pass
+class PipIndexEnvMixin:
+    """
+    Mixin to inject Safety's default index URL into pip's environment.
+    Expects implementers to define `self._index_url` (Optional[str]).
+    """
+
+    def env(self, ctx: typer.Context) -> dict:
+        env = super().env(ctx)  # pyright: ignore[reportAttributeAccessIssue]
+        default_index_url = Pip.build_index_url(ctx, getattr(self, "_index_url", None))
+        env["PIP_INDEX_URL"] = default_index_url
+        env["PIP_PYPI_URL"] = default_index_url
+        return env
 
 
-class PipInstallCommand(PipCommand, InstallationAuditMixin):
+class SearchCommand(PipIndexEnvMixin, PipCommand):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._packages = []
-        self.__index_url = None
+        self._index_url = None
+
+
+class AuditablePipCommand(PipIndexEnvMixin, PipCommand, InstallationAuditMixin):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._index_url = None
 
     def before(self, ctx: typer.Context):
         super().before(ctx)
         args: List[Optional[str]] = self._args.copy()  # type: ignore
 
         if self._intention:
-            for pkg in self._intention.packages:
-                self._packages.append((pkg.name, pkg.version_constraint))
-
             if index_opt := self._intention.options.get(
                 "index-url"
             ) or self._intention.options.get("i"):
                 index_value = index_opt["value"]
+
                 if index_value and index_value.startswith("https://pkgs.safetycli.com"):
-                    self.__index_url = index_value
+                    self._index_url = index_value
 
                 arg_index = index_opt["arg_index"]
                 value_index = index_opt["value_index"]
@@ -112,35 +109,8 @@ class PipInstallCommand(PipCommand, InstallationAuditMixin):
                     args[arg_index] = None
                     args[value_index] = None
 
-            if req_opt := self._intention.options.get(
-                "requirement"
-            ) or self._intention.options.get("r"):
-                req_value = req_opt["value"]
-                if req_value and Path(req_value).is_file():
-                    with open(
-                        req_value, "r", encoding=detect_encoding(Path(req_value))
-                    ) as f:
-                        fd, tmp_requirements_path = mkstemp(
-                            suffix="safety-requirements.txt", text=True
-                        )
-                        with os.fdopen(fd, "w") as tf:
-                            requirements = re.sub(
-                                r"^(-i|--index-url).*$",
-                                "",
-                                f.read(),
-                                flags=re.MULTILINE,
-                            )
-                            tf.write(requirements)
-
-                        args[req_opt["value_index"]] = tmp_requirements_path
-
         self._args = [arg for arg in args if arg is not None]
 
     def after(self, ctx: typer.Context, result: ToolResult):
         super().after(ctx, result)
         self.handle_installation_audit(ctx, result)
-
-    def env(self, ctx: typer.Context) -> dict:
-        env = super().env(ctx)
-        env["PIP_INDEX_URL"] = Pip.build_index_url(ctx, self.__index_url)
-        return env

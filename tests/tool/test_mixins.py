@@ -2,13 +2,12 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
-from typing import List, Tuple, Optional
 
 import typer
 
 from safety.models import ToolResult
 from safety.tool.mixins import InstallationAuditMixin
-from safety.tool.environment_diff import EnvironmentDiffTracker
+from safety.tool.environment_diff import EnvironmentDiffTracker, PackageLocation
 
 
 class MockAuditableCommand(InstallationAuditMixin):
@@ -16,8 +15,7 @@ class MockAuditableCommand(InstallationAuditMixin):
     Mock implementation of an auditable command.
     """
 
-    def __init__(self, packages=None, diff_data=None):
-        self._mock_packages = packages or []
+    def __init__(self, diff_data=None):
         self._mock_diff_data = diff_data or ({}, {}, {})
 
     @property
@@ -25,10 +23,6 @@ class MockAuditableCommand(InstallationAuditMixin):
         mock_tracker = MagicMock(spec=EnvironmentDiffTracker)
         mock_tracker.get_diff.return_value = self._mock_diff_data
         return mock_tracker
-
-    @property
-    def _packages(self) -> List[Tuple[str, Optional[str]]]:
-        return self._mock_packages
 
 
 class TestInstallationAuditMixin:
@@ -54,8 +48,13 @@ class TestInstallationAuditMixin:
         """
         Test audit_packages method with diff tracker.
         """
-        added_packages = {"package1": "1.0.0", "package2": "2.0.0"}
-        updated_packages = {"package3": "3.0.0"}
+        added_packages = {
+            PackageLocation(name="package1", location="location1"): "1.0.0",
+            PackageLocation(name="package2", location="location2"): "2.0.0",
+        }
+        updated_packages = {
+            PackageLocation(name="package3", location="location3"): "3.0.0"
+        }
         diff_data = (added_packages, {}, updated_packages)  # (added, removed, updated)
 
         command = MockAuditableCommand(diff_data=diff_data)
@@ -76,15 +75,20 @@ class TestInstallationAuditMixin:
         expected_packages = ["package1==1.0.0", "package2==2.0.0", "package3==3.0.0"]
         actual_packages = self.ctx.obj.auth.client.audit_packages.call_args[0][0]
         assert sorted(actual_packages) == sorted(expected_packages)
-        assert result == self.ctx.obj.auth.client.audit_packages.return_value
+        assert result == (
+            self.ctx.obj.auth.client.audit_packages.return_value,
+            {**added_packages, **updated_packages},
+        )
 
     @patch("safety.tool.mixins.console")
     def test_audit_packages_with_tuple_version(self, mock_console):
         """
         Test audit_packages method with tuple version.
         """
-        added_packages = {"package1": ("0.9.0", "1.0.0")}
-        diff_data = (added_packages, {}, {})
+        updated_packages = {
+            PackageLocation(name="package1", location="location1"): ("0.9.0", "1.0.0")
+        }
+        diff_data = ({}, {}, updated_packages)
 
         command = MockAuditableCommand(diff_data=diff_data)
         self.ctx.obj.auth.client.audit_packages.return_value = {
@@ -96,7 +100,10 @@ class TestInstallationAuditMixin:
         self.ctx.obj.auth.client.audit_packages.assert_called_once_with(
             ["package1==1.0.0"]
         )
-        assert result == self.ctx.obj.auth.client.audit_packages.return_value
+        assert result == (
+            self.ctx.obj.auth.client.audit_packages.return_value,
+            updated_packages,
+        )
 
     @patch("safety.tool.mixins.console")
     def test_audit_packages_without_auth(self, mock_console):
@@ -108,7 +115,7 @@ class TestInstallationAuditMixin:
 
         result = command.audit_packages(self.ctx)
 
-        assert result == {}
+        assert result == ({}, {})
 
     @patch("safety.tool.mixins.console")
     def test_audit_packages_with_exception(self, mock_console):
@@ -120,7 +127,7 @@ class TestInstallationAuditMixin:
 
         result = command.audit_packages(self.ctx)
 
-        assert result == {}
+        assert result == ({}, {})
 
     @patch("safety.tool.mixins.console")
     @patch("safety.tool.mixins.render_header")
@@ -173,10 +180,8 @@ class TestInstallationAuditMixin:
         """
         Test render_package_details method.
         """
-        packages = [("package1", "1.0.0"), ("package2", None)]
-        command = MockAuditableCommand(packages=packages)
-
-        command.render_package_details()
+        command = MockAuditableCommand()
+        command.render_package_details(packages=["package1", "package2"])
 
         assert mock_console.print.call_count == 2
         for call_args in mock_console.print.call_args_list:
@@ -201,15 +206,14 @@ class TestInstallationAuditMixin:
         Test handle_installation_audit with successful process.
         """
         command = MockAuditableCommand()
-        mock_audit_packages.return_value = {"audit": {"packages": []}}
+        audit_result = {"audit": {"packages": []}}
+        mock_audit_packages.return_value = (audit_result, {})
         self.result.process.returncode = 0
 
         command.handle_installation_audit(self.ctx, self.result)
 
         mock_audit_packages.assert_called_once_with(self.ctx)
-        mock_render_warnings.assert_called_once_with(
-            self.ctx, mock_audit_packages.return_value
-        )
+        mock_render_warnings.assert_called_once_with(self.ctx, audit_result)
         mock_render_details.assert_not_called()  # Should not be called for successful process
 
     @patch.object(MockAuditableCommand, "audit_packages")
@@ -230,15 +234,17 @@ class TestInstallationAuditMixin:
         """
 
         command = MockAuditableCommand()
-        mock_audit_packages.return_value = {"audit": {"packages": []}}
+        audit_result = {"audit": {"packages": []}}
+        mock_audit_packages.return_value = (
+            audit_result,
+            {PackageLocation(name="package1", location="/path/to/package"): "1.0.0"},
+        )
         self.result.process.returncode = 1  # Non-zero indicates failure
 
         command.handle_installation_audit(self.ctx, self.result)
 
         mock_audit_packages.assert_called_once_with(self.ctx)
-        mock_render_warnings.assert_called_once_with(
-            self.ctx, mock_audit_packages.return_value
-        )
+        mock_render_warnings.assert_called_once_with(self.ctx, audit_result)
         mock_render_details.assert_called_once()  # Should be called for failed process
 
     def test_handle_installation_audit_type_error(self):

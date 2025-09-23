@@ -8,6 +8,16 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.6.2b0 (2025-09-23)
+
+### Fix
+
+- allow passing package and tool location (#797)
+
+### Refactor
+
+- firewall tools and parsers (#798)
+
 ## 3.6.1 (2025-09-01)
 
 ### Fix

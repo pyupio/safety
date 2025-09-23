@@ -8,6 +8,7 @@ from typing import Tuple, List
 
 from safety.console import main_console as console
 from rich.prompt import Prompt
+from .intents import CommandToolIntention, ToolIntentionType
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,12 @@ class TyposquattingProtection:
 
         return (True, package_name)
 
-    def coerce(self, dependency_name: str) -> str:
+    def coerce(self, intention: CommandToolIntention, dependency_name: str) -> str:
         """
         Coerce a package name to its correct name if it is a typosquatting attempt.
 
         Args:
+            intention: CommandToolIntention object
             dependency_name: Name of the package to coerce
 
         Returns:
@@ -57,7 +59,16 @@ class TyposquattingProtection:
         (valid, candidate_package_name) = self.check_package(dependency_name)
 
         if not valid:
-            prompt = f"You are about to install {dependency_name} package. Did you mean to install {candidate_package_name}?"
+            action = "install"
+
+            if intention.intention_type == ToolIntentionType.DOWNLOAD_PACKAGE:
+                action = "download"
+            elif intention.intention_type == ToolIntentionType.BUILD_PROJECT:
+                action = "build"
+            elif intention.intention_type == ToolIntentionType.SEARCH_PACKAGES:
+                action = "search"
+
+            prompt = f"You are about to {action} {dependency_name} package. Did you mean to {action} {candidate_package_name}?"
             answer = Prompt.ask(
                 prompt=prompt,
                 choices=["y", "n"],

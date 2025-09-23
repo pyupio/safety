@@ -1,78 +1,121 @@
-from typing import List
+from typing import List, Optional
+from pathlib import Path
 
+from .main import Uv
 import typer
-from safety.tool.intents import ToolIntentionType
-from safety.tool.pip.parser import PipParser
 from safety.tool.auth import index_credentials
-from ..pip.command import PipCommand, PipInstallCommand, PipGenericCommand
+from ..base import BaseCommand
+from ..environment_diff import EnvironmentDiffTracker, PipEnvironmentDiffTracker
+from ..mixins import InstallationAuditMixin
 from safety_schemas.models.events.types import ToolType
+from safety.models import ToolResult
+from .parser import UvParser
 
-UV_LOCK = "safety-uv.lock"
 
-
-class UvCommand(PipCommand):
+class UvCommand(BaseCommand):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._name = ["uv"]
+
+    def get_command_name(self) -> List[str]:
+        return ["uv"]
+
+    def get_diff_tracker(self) -> "EnvironmentDiffTracker":
+        return PipEnvironmentDiffTracker()
 
     def get_tool_type(self) -> ToolType:
         return ToolType.UV
 
-    def get_lock_path(self) -> str:
-        return UV_LOCK
-
     def get_package_list_command(self) -> List[str]:
-        return [*self._name, "pip", "list", "--format=json"]
+        # uv --active flag would ignore the uv project virtual environment,
+        # by passing the --active flag then we can list the packages for the
+        # correct environment.
+        active = (
+            ["--active"]
+            if self._intention and self._intention.options.get("active")
+            else []
+        )
+        list_pkgs = Path(__file__).parent / "list_pkgs.py"
 
-    def should_track_state(self) -> bool:
-        should_track = super().should_track_state()
-
-        if should_track:
-            return True
-
-        command_str = " ".join(self._args).lower()
-
-        package_modifying_commands = [
-            "sync",
+        # --no-project flag is used to avoid uv to create the venv or lock file if it doesn't exist
+        return [
+            *self.get_command_name(),
+            "run",
+            *active,
+            "--no-sync",
+            "python",
+            str(list_pkgs),
         ]
 
-        return any(cmd in command_str for cmd in package_modifying_commands)
+    @classmethod
+    def from_args(cls, args: List[str], **kwargs):
+        if uv_intention := UvParser().parse(args):
+            kwargs["intention"] = uv_intention
+
+            if uv_intention.modifies_packages():
+                return AuditableUvCommand(args, **kwargs)
+
+        return UvCommand(args, **kwargs)
+
+
+class AuditableUvCommand(UvCommand, InstallationAuditMixin):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.__index_url = None
+
+    def before(self, ctx: typer.Context):
+        super().before(ctx)
+        args: List[Optional[str]] = self._args.copy()  # type: ignore
+
+        if self._intention:
+            if index_opt := self._intention.options.get(
+                "index-url"
+            ) or self._intention.options.get("i"):
+                index_value = index_opt["value"]
+
+                if index_value and index_value.startswith("https://pkgs.safetycli.com"):
+                    self.__index_url = index_value
+
+                arg_index = index_opt["arg_index"]
+                value_index = index_opt["value_index"]
+
+                if (
+                    arg_index
+                    and value_index
+                    and arg_index < len(args)
+                    and value_index < len(args)
+                ):
+                    args[arg_index] = None
+                    args[value_index] = None
+
+        self._args = [arg for arg in args if arg is not None]
+
+    def after(self, ctx: typer.Context, result: ToolResult):
+        super().after(ctx, result)
+        self.handle_installation_audit(ctx, result)
 
     def env(self, ctx: typer.Context) -> dict:
         env = super().env(ctx)
 
+        default_index_url = Uv.build_index_url(ctx, self.__index_url)
+        # uv config precedence:
+        # 1. Command line args -> We rewrite the args if the a default index is provided via command line args.
+        # 2. Environment variables -> We set the default index to the Safety index
+        # 3. Config files
+
         env.update(
             {
+                # Default index URL
+                # When the package manager is wrapped, we provide a default index so the search always falls back to the Safety index
+                # UV_INDEX_URL is deprecated by UV, we comment it out to avoid a anoying warning, UV_DEFAULT_INDEX is available since uv 0.4.23
+                # So we decided to support only UV_DEFAULT_INDEX, as we don't inject the uv version in the command pipeline yet.
+                #
+                # "UV_INDEX_URL": default_index_url,
+                #
+                "UV_DEFAULT_INDEX": default_index_url,
+                # Credentials for the named index in case of being set in the pyproject.toml
                 "UV_INDEX_SAFETY_USERNAME": "user",
                 "UV_INDEX_SAFETY_PASSWORD": index_credentials(ctx),
             }
         )
 
         return env
-
-    @classmethod
-    def from_args(cls, args: List[str], **kwargs):
-        pip_parser = PipParser()
-        is_pip_interface = args and args[0] == "pip"
-
-        to_parse = args[1:] if is_pip_interface else args
-
-        if intention := pip_parser.parse(to_parse):
-            if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return UvInstallCommand(to_parse, intention=intention, **kwargs)
-
-        # No an install but still a pip interface command
-        if is_pip_interface:
-            to_parse = args
-
-        return UvGenericCommand(to_parse, **kwargs)
-
-
-class UvInstallCommand(PipInstallCommand, UvCommand):
-    def get_command_name(self) -> List[str]:
-        return ["uv", "pip"]
-
-
-class UvGenericCommand(PipGenericCommand, UvCommand):
-    def get_command_name(self) -> List[str]:
-        return ["uv"]

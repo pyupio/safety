@@ -5,9 +5,11 @@ import shutil
 import sys
 from typing import Any, Dict, Optional
 import tomlkit
+import typer
 
 from rich.console import Console
 from safety.console import main_console
+from safety.tool.auth import build_pypi_index_url
 from safety.tool.constants import (
     ORGANIZATION_REPOSITORY_URL,
     PUBLIC_REPOSITORY_URL,
@@ -230,3 +232,7 @@ class Uv:
         except Exception as e:
             msg = "Failed to reset UV global settings"
             logger.error(f"{msg}: {e}")
+
+    @classmethod
+    def build_index_url(cls, ctx: typer.Context, index_url: Optional[str]) -> str:
+        return build_pypi_index_url(ctx, index_url)

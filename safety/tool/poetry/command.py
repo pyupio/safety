@@ -18,7 +18,6 @@ from safety_schemas.models.events.types import ToolType
 from safety.console import main_console as console
 from safety.models import ToolResult
 
-PO_LOCK = "safety-po.lock"
 
 if TYPE_CHECKING:
     from ..environment_diff import EnvironmentDiffTracker
@@ -42,32 +41,9 @@ class PoetryCommand(BaseCommand):
     def get_command_name(self) -> List[str]:
         return ["poetry"]
 
-    def get_lock_path(self) -> str:
-        return PO_LOCK
-
     def get_diff_tracker(self) -> "EnvironmentDiffTracker":
         # pip diff tracker will be enough for poetry
         return PipEnvironmentDiffTracker()
-
-    def should_track_state(self) -> bool:
-        """
-        Determine if the Poetry command will change package dependencies in the virtual environment.
-
-        Returns:
-            bool: True if command will modify installed packages, False otherwise
-        """
-        command_str = " ".join(self._args).lower()
-
-        package_modifying_commands = [
-            "add",
-            "remove",
-            "install",
-            "uninstall",
-            "update",
-            "sync",
-        ]
-
-        return any(cmd in command_str for cmd in package_modifying_commands)
 
     def get_package_list_command(self) -> List[str]:
         """
@@ -78,7 +54,7 @@ class PoetryCommand(BaseCommand):
         Returns:
             List[str]: Command to list packages in JSON format
         """
-        return ["poetry", "run", "pip", "list", "--format=json"]
+        return ["poetry", "run", "pip", "list", "-v", "--format=json"]
 
     def _has_safety_source_in_pyproject(self) -> bool:
         """
@@ -153,21 +129,14 @@ class PoetryCommand(BaseCommand):
 
         if intention := parser.parse(args):
             kwargs["intention"] = intention
-            if intention.intention_type is ToolIntentionType.ADD_PACKAGE:
-                return PoetryAddCommand(args, **kwargs)
 
-        return PoetryGenericCommand(args, **kwargs)
+            if intention.modifies_packages():
+                return AuditablePoetryCommand(args, **kwargs)
 
-
-class PoetryGenericCommand(PoetryCommand):
-    pass
+        return PoetryCommand(args, **kwargs)
 
 
-class PoetryAddCommand(PoetryCommand, InstallationAuditMixin):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._packages = []
-
+class AuditablePoetryCommand(PoetryCommand, InstallationAuditMixin):
     def patch_source_option(
         self, args: List[str], new_source: str = "safety"
     ) -> Tuple[Optional[str], List[str]]:
@@ -204,18 +173,6 @@ class PoetryAddCommand(PoetryCommand, InstallationAuditMixin):
         _, modified_args = self.patch_source_option(self._args)
         self._args = modified_args
 
-        # Extract packages from intention for rendering later
-        if self._intention and self._intention.packages:
-            for pkg in self._intention.packages:
-                self._packages.append((pkg.name, pkg.version_constraint))
-
     def after(self, ctx: typer.Context, result: ToolResult):
-        """
-        Run after the command execution. Handle installation audit via mixin.
-
-        Args:
-            ctx: The typer context
-            result: The tool result
-        """
         super().after(ctx, result)
         self.handle_installation_audit(ctx, result)

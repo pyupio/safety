@@ -7,7 +7,7 @@ from sys import platform
 
 from safety.tool.pip import Pip
 from safety.tool.poetry import Poetry
-
+from safety.tool.npm import Npm
 
 from typing import Any, TYPE_CHECKING, Optional
 
@@ -136,4 +136,26 @@ class UvPyprojectConfigurator(BuildFileConfigurator):
     ) -> Optional[Path]:
         if self.is_supported(file):
             return Uv.configure_pyproject(Path("pyproject.toml"), org_slug, project_id)
+        return None
+
+
+class NpmConfigurator(ToolConfigurator):
+    def configure(self, org_slug: Optional[str]) -> Optional[Path]:
+        return Npm.configure_system(org_slug)
+
+    def reset(self) -> None:
+        Npm.reset_system()
+
+
+class NpmProjectConfigurator(BuildFileConfigurator):
+    __file_name_pattern = re.compile("^package.json$")
+
+    def is_supported(self, file: Path) -> bool:
+        return self.__file_name_pattern.match(os.path.basename(file)) is not None
+
+    def configure(
+        self, file: Path, org_slug: Optional[str], project_id: Optional[str]
+    ) -> Optional[Path]:
+        if self.is_supported(file):
+            return Npm.configure_project(file, org_slug, project_id)
         return None

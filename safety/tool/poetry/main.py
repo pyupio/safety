@@ -9,9 +9,9 @@ from rich.console import Console
 
 from safety.console import main_console
 from safety.tool.constants import (
-    PUBLIC_REPOSITORY_URL,
-    ORGANIZATION_REPOSITORY_URL,
-    PROJECT_REPOSITORY_URL,
+    PYPI_PUBLIC_REPOSITORY_URL,
+    PYPI_ORGANIZATION_REPOSITORY_URL,
+    PYPI_PROJECT_REPOSITORY_URL,
 )
 from safety.tool.resolver import get_unwrapped_command
 
@@ -74,12 +74,12 @@ class Poetry:
             return None
 
         repository_url = (
-            PROJECT_REPOSITORY_URL.format(org_slug, project_id)
+            PYPI_PROJECT_REPOSITORY_URL.format(org_slug, project_id)
             if project_id and org_slug
             else (
-                ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                PYPI_ORGANIZATION_REPOSITORY_URL.format(org_slug)
                 if org_slug
-                else PUBLIC_REPOSITORY_URL
+                else PYPI_PUBLIC_REPOSITORY_URL
             )
         )
         result = subprocess.run(

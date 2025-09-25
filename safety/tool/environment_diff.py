@@ -138,3 +138,28 @@ class PipEnvironmentDiffTracker(
 
     def _pip_value_extractor(self, pkg: Dict[str, Any]) -> str:
         return canonicalize_version(pkg.get("version", ""), strip_trailing_zero=False)
+
+
+class NpmEnvironmentDiffTracker(
+    EnvironmentDiffTracker[Dict[str, Any], PackageLocation, str]
+):
+    """
+    Specialized diff tracker for npm package environments.
+    """
+
+    def __init__(self):
+        super().__init__(
+            key_extractor=self._npm_key_extractor,
+            value_extractor=self._npm_value_extractor,
+        )
+
+    # TODO: handle errors in value extraction
+
+    def _npm_key_extractor(self, pkg: Dict[str, Any]) -> PackageLocation:
+        return PackageLocation(
+            name=pkg.get("name", ""),
+            location=pkg.get("location", ""),
+        )
+
+    def _npm_value_extractor(self, pkg: Dict[str, Any]) -> str:
+        return pkg.get("version", "")

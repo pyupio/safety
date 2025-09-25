@@ -3,7 +3,7 @@ import importlib.util
 import json
 import logging
 from functools import lru_cache
-from typing import Any, Callable, Dict, Optional, Tuple, List
+from typing import Any, Callable, Dict, Optional, Tuple, List, Literal
 
 import requests
 from authlib.integrations.base_client.errors import OAuthError
@@ -34,6 +34,7 @@ from safety.constants import (
     FeatureType,
     get_config_setting,
     FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT,
+    FIREWALL_AUDIT_NPM_PACKAGES_ENDPOINT,
 )
 from safety.error_handlers import output_exception
 from safety.errors import (
@@ -511,18 +512,27 @@ class SafetyAuthSession(OAuth2Session):
         return self.get(url=PLATFORM_API_CHECK_UPDATES_ENDPOINT, params=data)
 
     @parse_response
-    def audit_packages(self, packages: List[str]) -> Any:
+    def audit_packages(
+        self, packages: List[str], ecosystem: Literal["pypi", "npm"]
+    ) -> Any:
         """
         Audits packages for vulnerabilities
         Args:
             packages: list of package specifiers
+            ecosystem: the ecosystem to audit
 
         Returns:
             Any: The packages audit result.
         """
+        url = (
+            FIREWALL_AUDIT_NPM_PACKAGES_ENDPOINT
+            if ecosystem == "npm"
+            else FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT
+        )
+
         data = {"packages": [{"package_specifier": package} for package in packages]}
 
-        return self.post(url=FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT, json=data)
+        return self.post(url=url, json=data)
 
     @parse_response
     def initialize(self) -> Any:

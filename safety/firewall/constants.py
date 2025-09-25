@@ -19,3 +19,7 @@ MSG_UNINSTALL_CONFIG = (
     "Removing global configuration for uv from: uv.toml",
 )
 MSG_UNINSTALL_WRAPPERS = "Removing aliases to safety from config files"
+
+INIT_CMD_NAME = "init"
+INIT_HELP = "Initialize Safety Firewall on this machine."
+MSG_INIT_SUCCESS = "Safety Firewall has been initialized on your machine. The following tools are now protected: {}"

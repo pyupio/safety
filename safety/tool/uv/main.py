@@ -9,11 +9,11 @@ import typer
 
 from rich.console import Console
 from safety.console import main_console
-from safety.tool.auth import build_pypi_index_url
+from safety.tool.auth import build_index_url
 from safety.tool.constants import (
-    ORGANIZATION_REPOSITORY_URL,
-    PUBLIC_REPOSITORY_URL,
-    PROJECT_REPOSITORY_URL,
+    PYPI_ORGANIZATION_REPOSITORY_URL,
+    PYPI_PUBLIC_REPOSITORY_URL,
+    PYPI_PROJECT_REPOSITORY_URL,
 )
 
 if sys.version_info >= (3, 11):
@@ -77,12 +77,12 @@ class Uv:
             return None
 
         repository_url = (
-            PROJECT_REPOSITORY_URL.format(org_slug, project_id)
+            PYPI_PROJECT_REPOSITORY_URL.format(org_slug, project_id)
             if project_id and org_slug
             else (
-                ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                PYPI_ORGANIZATION_REPOSITORY_URL.format(org_slug)
                 if org_slug
-                else PUBLIC_REPOSITORY_URL
+                else PYPI_PUBLIC_REPOSITORY_URL
             )
         )
         try:
@@ -174,9 +174,9 @@ class Uv:
         """
         try:
             repository_url = (
-                ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                PYPI_ORGANIZATION_REPOSITORY_URL.format(org_slug)
                 if org_slug
-                else PUBLIC_REPOSITORY_URL
+                else PYPI_PUBLIC_REPOSITORY_URL
             )
 
             user_config_path = cls.get_user_config_path()
@@ -235,4 +235,4 @@ class Uv:
 
     @classmethod
     def build_index_url(cls, ctx: typer.Context, index_url: Optional[str]) -> str:
-        return build_pypi_index_url(ctx, index_url)
+        return build_index_url(ctx, index_url, "pypi")

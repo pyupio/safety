@@ -1,4 +1,4 @@
-from typing import Any, List, Protocol, Tuple, Dict, runtime_checkable
+from typing import Any, List, Protocol, Tuple, Dict, Literal, runtime_checkable
 import typer
 from rich.padding import Padding
 
@@ -24,6 +24,12 @@ class AuditableCommand(Protocol):
     def _diff_tracker(self) -> "EnvironmentDiffTracker":
         """
         Provides package tracking functionality.
+        """
+        ...
+
+    def get_ecosystem(self) -> Literal["pypi", "npm"]:
+        """
+        Return the ecosystem used by the command implementation.
         """
         ...
 
@@ -77,17 +83,29 @@ class InstallationAuditMixin:
         """
         Render details for installed packages.
         """
-        for package_name in packages:
+        if "npm" == self.get_ecosystem():
+            url = "https://getsafety.com/"
+            failed = ", ".join(packages)
+            console.line()
             console.print(
                 Padding(
-                    f"Learn more: [link]https://data.safetycli.com/packages/pypi/{package_name}/[/link]",
+                    f"Learn more about {failed} in [link]{url}[/link]",
                     (0, 0, 0, 1),
                 ),
                 emoji=True,
             )
+        else:
+            for package_name in packages:
+                console.print(
+                    Padding(
+                        f"Learn more: [link]https://data.safetycli.com/packages/pypi/{package_name}/[/link]",
+                        (0, 0, 0, 1),
+                    ),
+                    emoji=True,
+                )
 
     def audit_packages(
-        self, ctx: typer.Context
+        self: "AuditableCommand", ctx: typer.Context
     ) -> Tuple[Dict[str, Any], Dict[PackageLocation, str]]:
         """
         Audit packages based on environment diff tracking.
@@ -105,13 +123,18 @@ class InstallationAuditMixin:
                 added, _, updated = diff_tracker.get_diff()
                 packages: Dict[PackageLocation, str] = {**added, **updated}
 
-                if hasattr(ctx.obj, "auth") and hasattr(ctx.obj.auth, "client"):
+                if (
+                    hasattr(ctx.obj, "auth")
+                    and hasattr(ctx.obj.auth, "client")
+                    and packages
+                ):
                     return (
                         ctx.obj.auth.client.audit_packages(
                             [
                                 f"{package.name}=={version[-1] if isinstance(version, tuple) else version}"
                                 for (package, version) in packages.items()
-                            ]
+                            ],
+                            self.get_ecosystem(),
                         ),
                         packages,
                     )

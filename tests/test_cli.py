@@ -793,12 +793,14 @@ class TestSafetyCLI(unittest.TestCase):
             (ToolType.PIP, Path("~/.safety_profile")),
             (ToolType.POETRY, Path("~/.safety_profile")),
             (ToolType.UV, Path("~/.safety_profile")),
+            (ToolType.NPM, Path("~/.safety_profile")),
         ]
 
         configure_system_mock.return_value = [
             (ToolType.PIP, Path("~/.pip.conf")),
             (ToolType.POETRY, None),
             (ToolType.UV, Path("~/.uv/config.toml")),
+            (ToolType.NPM, Path("~/.npmrc")),
         ]
 
         # Workarounds
@@ -812,7 +814,7 @@ class TestSafetyCLI(unittest.TestCase):
             "Next steps:",
             "Configured pip’s global index",
             "Aliased pip to safety",
-            "Pip, Poetry and Uv configured and secured",
+            "Pip, Poetry, Uv and Npm configured and secured",
         ]
 
         test_cases = [

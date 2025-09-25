@@ -4,7 +4,7 @@ Typosquatting detection for various tools.
 
 import logging
 import nltk
-from typing import Tuple, List
+from typing import Tuple
 
 from safety.console import main_console as console
 from rich.prompt import Prompt
@@ -18,7 +18,7 @@ class TyposquattingProtection:
     Base class for typosquatting detection.
     """
 
-    def __init__(self, popular_packages: List[str]):
+    def __init__(self, popular_packages: Tuple[str]):
         self.popular_packages = popular_packages
 
     def check_package(self, package_name: str) -> Tuple[bool, str]:

@@ -109,6 +109,64 @@ class TestSafetyCLI(unittest.TestCase):
         cli.commands = cli.all_commands
         self.cli = cli
 
+        self.get_keys_patcher = patch("safety.auth.cli_utils.get_keys")
+        self.mock_get_keys = self.get_keys_patcher.start()
+        self.mock_get_keys.return_value = {
+            "keys": [
+                {
+                    "kty": "RSA",
+                    "use": "sig",
+                    "n": "_DsW691xjv0VVGV",
+                    "e": "AQAB",
+                    "kid": "uOwPXj-RXVknrMVYGSLYT",
+                    "x5t": "aJd2WhczM5axP9RqaEgv9NGbFrY",
+                    "x5c": ["MIIDBzCCAe+gAwIBAgIJakWt="],
+                    "alg": "RS256",
+                },
+                {
+                    "kty": "RSA",
+                    "use": "sig",
+                    "n": "-8QD5guU-DG5McZQ",
+                    "e": "AQAB",
+                    "kid": "YAOW9ojPUiH78EyxhWit4",
+                    "x5t": "COG9DO5olEWUGCuIyvPvnr26xoQ",
+                    "x5c": ["MIIDBzCCAe+gAwIBAgIJa55+="],
+                    "alg": "RS256",
+                },
+            ]
+        }
+
+        # Set up common fetch_openid_config patch
+        self.fetch_openid_config_patcher = patch(
+            "safety.auth.cli_utils.SafetyAuthSession.fetch_openid_config"
+        )
+        self.mock_fetch_openid_config = self.fetch_openid_config_patcher.start()
+        self.mock_fetch_openid_config.return_value = {
+            "token_endpoint": "https://safetycli.us.auth0.com/oauth/token",
+            "authorization_endpoint": "https://safetycli.us.auth0.com/authorize",
+            "issuer": "https://safetycli.us.auth0.com/",
+            "userinfo_endpoint": "https://safetycli.us.auth0.com/userinfo",
+            "jwks_uri": "https://safetycli.us.auth0.com/.well-known/jwks.json",
+        }
+
+        # Set up common fetch_database_url patch
+        self.fetch_database_url_patcher = patch("safety.safety.fetch_database_url")
+        self.mock_fetch_database_url = self.fetch_database_url_patcher.start()
+        self.mock_fetch_database_url.return_value = {
+            "meta": {"schema_version": "2.0.0"}
+        }
+
+        # Set up common get_server_policies patch
+        self.get_server_policies_patcher = patch("safety.safety.get_server_policies")
+        self.mock_get_server_policies = self.get_server_policies_patcher.start()
+        self.mock_get_server_policies.return_value = (None, None)
+
+    def tearDown(self):
+        # self.inject_session_patcher.stop()
+        self.fetch_openid_config_patcher.stop()
+        self.fetch_database_url_patcher.stop()
+        self.get_server_policies_patcher.stop()
+
     def test_command_line_interface(self):
         runner = CliRunner()
         result = runner.invoke(self.cli)
@@ -713,7 +771,12 @@ class TestSafetyCLI(unittest.TestCase):
             mock_get_auth_type: Mock for retrieving the authentication type.
             mock_fetch_database: Mock for database fetching operations.
         """
-        result = self.runner.invoke(self.cli, ["--debug", "scan"])
+
+        test_dir = Path(__file__).parent / "reqs"
+
+        result = self.runner.invoke(
+            self.cli, ["--debug", "scan", "--target", str(test_dir)]
+        )
         assert result.exit_code == 0, (
             f"CLI exited with code {result.exit_code} and output: {result.output} and error: {result.stderr}"
         )
@@ -793,12 +856,14 @@ class TestSafetyCLI(unittest.TestCase):
             (ToolType.PIP, Path("~/.safety_profile")),
             (ToolType.POETRY, Path("~/.safety_profile")),
             (ToolType.UV, Path("~/.safety_profile")),
+            (ToolType.NPM, Path("~/.safety_profile")),
         ]
 
         configure_system_mock.return_value = [
             (ToolType.PIP, Path("~/.pip.conf")),
             (ToolType.POETRY, None),
             (ToolType.UV, Path("~/.uv/config.toml")),
+            (ToolType.NPM, Path("~/.npmrc")),
         ]
 
         # Workarounds
@@ -812,7 +877,7 @@ class TestSafetyCLI(unittest.TestCase):
             "Next steps:",
             "Configured pip’s global index",
             "Aliased pip to safety",
-            "Pip, Poetry and Uv configured and secured",
+            "Pip, Poetry, Uv and Npm configured and secured",
         ]
 
         test_cases = [

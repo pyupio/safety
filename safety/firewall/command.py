@@ -1,5 +1,6 @@
 import logging
 import sys
+from enum import Enum
 
 import typer
 from rich.prompt import Prompt
@@ -7,7 +8,7 @@ from rich.prompt import Prompt
 from safety.console import main_console as console
 from safety.decorators import notify
 from safety.events.utils import emit_firewall_disabled
-
+from typing import List, Optional
 
 # TODO: refactor this import and the related code
 # For now, let's keep it as is
@@ -39,6 +40,9 @@ from .constants import (
     MSG_UNINSTALL_SUCCESS,
     UNINSTALL_CMD_NAME,
     UNINSTALL_HELP,
+    INIT_CMD_NAME,
+    INIT_HELP,
+    MSG_INIT_SUCCESS,
 )
 
 
@@ -142,3 +146,65 @@ def uninstall(ctx: typer.Context):
     if feedback:
         console.print()
         console.print("Thank you for your feedback!")
+
+
+class ToolChoice(str, Enum):
+    pip = "pip"
+    poetry = "poetry"
+    uv = "uv"
+    npm = "npm"
+
+
+@firewall_app.command(
+    cls=SafetyCLICommand,
+    name=INIT_CMD_NAME,
+    help=INIT_HELP,
+    options_metavar="[OPTIONS]",
+    context_settings={
+        "allow_extra_args": True,
+        "ignore_unknown_options": True,
+        CONTEXT_COMMAND_TYPE: CommandType.BETA,
+        CONTEXT_FEATURE_TYPE: FeatureType.FIREWALL,
+    },
+)
+@handle_cmd_exception
+@notify
+def init(
+    ctx: typer.Context,
+    tool: Optional[List[ToolChoice]] = typer.Option(
+        None,
+        "--tool",
+        help="Specify one or more tools to initialize. If not specified, all tools will be used.",
+    ),
+):
+    console.print()
+
+    interceptor = create_interceptor()
+
+    # If no tools specified, use all tools
+    if not tool:
+        selected_tools = list(interceptor.tools.keys())
+        console.print("No tools specified. Using all available tools.")
+        console.line()
+    else:
+        selected_tools = [t.value for t in tool]
+
+    console.print(
+        f"Initializing safety firewall for tools: {', '.join(selected_tools)}"
+    )
+
+    interceptor.install_interceptors(tools=selected_tools)
+    console.print()
+
+    console.print(MSG_INIT_SUCCESS.format(", ".join(selected_tools)))
+
+    MSG_COMMAND_TO_RUN = "`source ~/.safety/.safety_profile`"
+
+    MSG_SETUP_NEXT_STEPS_MANUAL_STEP = (
+        "(Don't forget to restart the terminal now!)"
+        if sys.platform == "win32"
+        else f"(Don't forget to run {MSG_COMMAND_TO_RUN} now!)"
+    )
+
+    console.print()
+    console.print(MSG_SETUP_NEXT_STEPS_MANUAL_STEP)

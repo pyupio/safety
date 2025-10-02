@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import json
+import os
 import sys
 from typing import Any, Dict, List, Optional, Set, Tuple, Callable
 
@@ -886,10 +887,22 @@ def scan(
         Optional[List[str]],
         typer.Option("--filter", help="Filter output by specific top-level JSON keys."),
     ] = None,
+    non_interactive: Annotated[
+        bool,
+        typer.Option(
+            "--non-interactive",
+            help="Disable interactive prompts for CI/CD environments. Can also be set via SAFETY_NONINTERACTIVE environment variable.",
+            show_default=False,
+            envvar="SAFETY_NONINTERACTIVE",
+        ),
+    ] = False,
 ):
     """
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
     """
+
+    # Store non-interactive flag in context for use by decorators
+    ctx.obj.non_interactive = non_interactive
 
     # Step 1: Validate inputs and initialize settings
     validate_authentication(ctx)

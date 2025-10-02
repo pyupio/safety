@@ -886,6 +886,14 @@ def scan(
         Optional[List[str]],
         typer.Option("--filter", help="Filter output by specific top-level JSON keys."),
     ] = None,
+    ignore_errors: Annotated[
+        bool,
+        typer.Option(
+            "--ignore-errors",
+            help="Continue scanning even when encountering files that cannot be read due to encoding or permission errors.",
+            show_default=False,
+        ),
+    ] = False,
 ):
     """
     Scans a project (defaulted to the current directory) for supply-chain security and configuration issues
@@ -939,6 +947,7 @@ def scan(
             use_server_matching=use_server_matching,
             obj=ctx.obj,
             target=target,
+            ignore_errors=ignore_errors,
         ):
             # Update counts and track vulnerabilities
             count += len(analyzed_file.dependency_results.dependencies)
@@ -1398,7 +1407,7 @@ def system_scan(
         file_count = 0
         venv_count = 0
 
-        for path, analyzed_file in process_files(paths=file_paths, config=config):
+        for path, analyzed_file in process_files(paths=file_paths, config=config, ignore_errors=False):
             status.update(f":mag: {path}")
             files.append(
                 FileModel(

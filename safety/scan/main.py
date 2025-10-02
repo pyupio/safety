@@ -208,6 +208,7 @@ def process_files(
     use_server_matching: bool = False,
     obj=None,
     target=Path("."),
+    ignore_errors: bool = False,
 ) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
     Processes the files and yields each file path along with its inspectable file.
@@ -215,6 +216,10 @@ def process_files(
     Args:
         paths (Dict[str, Set[Path]]): A dictionary of file paths by file type.
         config (Optional[ConfigModel]): The configuration model (optional).
+        use_server_matching (bool): Whether to use server-side matching.
+        obj: Context object for authentication.
+        target (Path): Target directory being scanned.
+        ignore_errors (bool): If True, skip files that cannot be read instead of raising.
 
     Yields:
         Tuple[Path, InspectableFile]: A tuple of file path and inspectable file.
@@ -230,7 +235,7 @@ def process_files(
                 continue
             for f_path in f_paths:
                 with InspectableFileContext(
-                    f_path, file_type=file_type
+                    f_path, file_type=file_type, ignore_errors=ignore_errors
                 ) as inspectable_file:
                     if inspectable_file and inspectable_file.file_type:
                         inspectable_file.inspect(config=config)
@@ -250,15 +255,20 @@ def process_files(
                 # Read the file content
                 try:
                     with open(f_path, "r", encoding=detect_encoding(f_path)) as file:
-                        content = file.read()
+                        file_file_content = file.read()
                 except Exception as e:
-                    LOG.error(f"Error reading file {f_path}: {e}")
-                    continue
+                    error_msg = f"Error reading file {f_path}: {e}"
+                    if ignore_errors:
+                        LOG.warning(error_msg)
+                        continue
+                    else:
+                        LOG.error(error_msg)
+                        raise
                 # Append metadata to the payload
                 files.append(
                     {
                         "name": relative_path,
-                        "content": content,
+                        "content": file_content,
                     }
                 )
 

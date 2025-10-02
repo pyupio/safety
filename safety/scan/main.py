@@ -63,10 +63,10 @@ def download_policy(
             validated_policy_file = getattr(config_model, parse)(yml_raw)
             config = ConfigModel.from_v30(obj=validated_policy_file)
         except ValidationError as e:
-            LOG.error(f"Failed to parse policy file {uuid}.", exc_info=True)
+            LOG.error("Failed to parse policy file with UUID: %s. The file may be corrupted or in an invalid format.", uuid, exc_info=True)
             raise SafetyError(f"{err}, details: {e}")
         except ValueError as e:
-            LOG.error(f"Wrong YML file for policy file {uuid}.", exc_info=True)
+            LOG.error("Policy file %s is not a valid YAML file. Please verify the file format and syntax.", uuid, exc_info=True)
             raise SafetyError(f"{err}, details: {e}")
 
         return PolicyFileModel(
@@ -99,10 +99,10 @@ def load_policy_file(path: Path) -> Optional[PolicyFileModel]:
     try:
         config = ConfigModel.parse_policy_file(raw_report=path)
     except ValidationError as e:
-        LOG.error(f"Failed to parse policy file {path}.", exc_info=True)
+        LOG.error("Failed to parse policy file at path: %s. The file may be corrupted or in an invalid format.", path, exc_info=True)
         raise SafetyError(f"{err}, details: {e}")
     except ValueError as e:
-        LOG.error(f"Wrong YML file for policy file {path}.", exc_info=True)
+        LOG.error("Policy file at %s is not a valid YAML file. Please verify the file format and syntax.", path, exc_info=True)
         raise SafetyError(f"{err}, details: {e}")
 
     return PolicyFileModel(

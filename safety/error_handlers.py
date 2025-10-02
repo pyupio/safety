@@ -73,7 +73,7 @@ def handle_cmd_exception(func):
             )
             raise e
         except SafetyError as e:
-            LOG.exception("Expected SafetyError happened: %s", e)
+            LOG.exception("SafetyError occurred in command '%s': %s", ctx.command.name if hasattr(ctx, 'command') else 'unknown', e)
             emit_command_error(
                 ctx.obj.event_bus, ctx, message=str(e), traceback=traceback.format_exc()
             )
@@ -82,7 +82,10 @@ def handle_cmd_exception(func):
             emit_command_error(
                 ctx.obj.event_bus, ctx, message=str(e), traceback=traceback.format_exc()
             )
-            LOG.exception("Unexpected Exception happened: %s", e)
+            LOG.exception("Unexpected exception in command '%s': %s (type: %s)", 
+                         ctx.command.name if hasattr(ctx, 'command') else 'unknown', 
+                         e, 
+                         type(e).__name__)
             exception = e if isinstance(e, SafetyException) else SafetyException(info=e)
             output_exception(exception, exit_code_output=True)
 

@@ -1318,7 +1318,7 @@ def check_updates(
         except InvalidCredentialError:
             authenticated = False
         except Exception as e:
-            LOG.exception(f"Failed to check updates, reason: {e}")
+            LOG.exception("Failed to check for Safety CLI updates. This may be due to network issues or server unavailability. Error: %s (type: %s)", e, type(e).__name__)
             raise e
 
     if not authenticated:
@@ -1396,7 +1396,7 @@ def check_updates(
                     "You are already using the latest stable version of Safety."
                 )
         except InvalidVersion as invalid_version:
-            LOG.exception(f"Invalid version format encountered: {invalid_version}")
+            LOG.exception("Invalid version format encountered while checking for updates. Latest version string: %s. This is likely a data issue from the update server.", latest_available_version)
             console.print(
                 f"Error: Invalid version format encountered for the latest available version: {latest_available_version}"
             )

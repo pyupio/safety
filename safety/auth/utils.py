@@ -137,7 +137,7 @@ def parse_response(func: Callable) -> Callable:
         try:
             r = func(*args, **kwargs)
         except OAuthError as e:
-            LOG.exception("OAuth failed: %s", e)
+            LOG.exception("OAuth authentication failed. The token may be expired or invalid. Error: %s (type: %s)", e, type(e).__name__)
             raise InvalidCredentialError(
                 message="Your token authentication expired, try login again."
             )
@@ -540,9 +540,9 @@ class SafetyAuthSession(OAuth2Session):
             )
             return response
         except requests.exceptions.Timeout:
-            LOG.error("Auth request to initialize timed out after 5 seconds.")
+            LOG.error("Authentication initialization timed out after 5 seconds. This may indicate network connectivity issues or server unavailability.")
         except Exception:
-            LOG.exception("Exception trying to auth initialize", exc_info=True)
+            LOG.exception("Unexpected exception occurred during authentication initialization. Please check your network connection and credentials.", exc_info=True)
         return None
 
 
@@ -651,7 +651,7 @@ def save_flags_config(flags: Dict[FeatureType, bool]) -> None:
         with open(CONFIG_FILE_USER, "w") as config_file:
             config.write(config_file)
     except Exception:
-        LOG.exception("Unable to save flags configuration.")
+        LOG.exception("Failed to save configuration flags to %s. Please check file permissions and disk space.", CONFIG_FILE_USER)
 
 
 def get_feature_name(feature: FeatureType, as_attr: bool = False) -> str:

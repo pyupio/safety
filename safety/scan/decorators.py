@@ -79,9 +79,15 @@ def scan_project_command_init(func):
             # TODO: Move this to be injected by a codebase service
             from safety.init.main import verify_project
 
+            # Determine link behavior based on non-interactive flag
             link_behavior = "prompt"
-
-            if unverified_project.created:
+            
+            # Check for non-interactive mode from CLI flag or environment variable
+            non_interactive = getattr(ctx.obj, 'non_interactive', False) or os.getenv('SAFETY_NONINTERACTIVE', '').lower() in ('1', 'true', 'yes')
+            
+            if non_interactive:
+                link_behavior = "never"
+            elif unverified_project.created:
                 link_behavior = "always"
 
             verify_project(

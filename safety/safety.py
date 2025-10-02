@@ -2,6 +2,7 @@
 # type: ignore
 from dataclasses import asdict
 import errno
+import importlib.metadata
 import itertools
 import json
 import logging
@@ -1853,9 +1854,7 @@ def get_packages(
     if stdin:
         return list(read_requirements(sys.stdin))
 
-    # TODO: Migrate away from pkg_resources and use importlib
-    import pkg_resources
-
+    # Use importlib.metadata instead of deprecated pkg_resources
     def allowed_version(pkg: str, version: str) -> bool:
         try:
             parse_version(version)
@@ -1871,25 +1870,31 @@ def get_packages(
 
         return True
 
-    w_set = pkg_resources.working_set
-
-    SafetyContext().scanned_full_path.extend(w_set.entry_keys.keys())
+    # Get all installed distributions
+    distributions = list(importlib.metadata.distributions())
+    
+    # Extract unique locations for scanned_full_path
+    unique_locations = {str(d.locate_file('').parent) for d in distributions if hasattr(d, 'locate_file')}
+    SafetyContext().scanned_full_path.extend(unique_locations)
 
     return [
         Package(
-            name=d.key,
+            name=d.name.lower().replace('-', '_'),
             version=d.version,
-            requirements=[SafetyRequirement(f"{d.key}=={d.version}", found=d.location)],
-            found=d.location,
+            requirements=[SafetyRequirement(
+                f"{d.name.lower().replace('-', '_')}=={d.version}", 
+                found=str(d.locate_file('').parent) if hasattr(d, 'locate_file') else ''
+            )],
+            found=str(d.locate_file('').parent) if hasattr(d, 'locate_file') else '',
             insecure_versions=[],
             secure_versions=[],
             latest_version=None,
             latest_version_without_known_vulnerabilities=None,
             more_info_url=None,
         )
-        for d in w_set
-        if d.key not in {"python", "wsgiref", "argparse"}
-        and allowed_version(d.key, d.version)
+        for d in distributions
+        if d.name and d.name.lower().replace('-', '_') not in {"python", "wsgiref", "argparse"}
+        and allowed_version(d.name.lower().replace('-', '_'), d.version)
     ]
 
 

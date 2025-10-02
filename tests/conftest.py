@@ -52,6 +52,7 @@ def pytest_configure(config):
     all_dists = {
         canonicalize_name(dist.metadata["Name"]): (dist.metadata["Name"], dist.version)
         for dist in distributions()
+        if dist.metadata.get("Name")
     }
 
     # Main dependencies table

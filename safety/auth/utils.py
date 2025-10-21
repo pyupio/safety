@@ -3,7 +3,7 @@ import importlib.util
 import json
 import logging
 from functools import lru_cache
-from typing import Any, Callable, Dict, Optional, Tuple, List
+from typing import Any, Callable, Dict, Optional, Tuple, List, Literal
 
 import requests
 from authlib.integrations.base_client.errors import OAuthError
@@ -20,6 +20,7 @@ from tenacity import (
 
 from safety.auth.constants import (
     AUTH_SERVER_URL,
+    OPENID_CONFIG_URL,
 )
 from safety.constants import (
     PLATFORM_API_CHECK_UPDATES_ENDPOINT,
@@ -34,6 +35,7 @@ from safety.constants import (
     FeatureType,
     get_config_setting,
     FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT,
+    FIREWALL_AUDIT_NPMJS_PACKAGES_ENDPOINT,
 )
 from safety.error_handlers import output_exception
 from safety.errors import (
@@ -341,6 +343,24 @@ class SafetyAuthSession(OAuth2Session):
 
             raise e
 
+    def fetch_openid_config(self) -> Any:
+        """
+        Fetch the OpenID configuration from the authorization server.
+
+        Returns:
+            Any: The OpenID configuration.
+        """
+
+        try:
+            openid_config = self.get(
+                url=OPENID_CONFIG_URL, timeout=REQUEST_TIMEOUT
+            ).json()
+        except Exception as e:
+            LOG.debug("Unable to load the openID config: %s", e)
+            openid_config = {}
+
+        return openid_config
+
     @parse_response
     def fetch_user_info(self) -> Any:
         """
@@ -511,18 +531,27 @@ class SafetyAuthSession(OAuth2Session):
         return self.get(url=PLATFORM_API_CHECK_UPDATES_ENDPOINT, params=data)
 
     @parse_response
-    def audit_packages(self, packages: List[str]) -> Any:
+    def audit_packages(
+        self, packages: List[str], ecosystem: Literal["pypi", "npmjs"]
+    ) -> Any:
         """
         Audits packages for vulnerabilities
         Args:
             packages: list of package specifiers
+            ecosystem: the ecosystem to audit
 
         Returns:
             Any: The packages audit result.
         """
+        url = (
+            FIREWALL_AUDIT_NPMJS_PACKAGES_ENDPOINT
+            if ecosystem == "npmjs"
+            else FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT
+        )
+
         data = {"packages": [{"package_specifier": package} for package in packages]}
 
-        return self.post(url=FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT, json=data)
+        return self.post(url=url, json=data)
 
     @parse_response
     def initialize(self) -> Any:

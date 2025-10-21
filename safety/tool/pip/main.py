@@ -9,14 +9,14 @@ import typer
 from rich.console import Console
 
 from safety.tool.constants import (
-    PUBLIC_REPOSITORY_URL,
-    ORGANIZATION_REPOSITORY_URL,
-    PROJECT_REPOSITORY_URL,
+    PYPI_PUBLIC_REPOSITORY_URL,
+    PYPI_ORGANIZATION_REPOSITORY_URL,
+    PYPI_PROJECT_REPOSITORY_URL,
 )
 from safety.tool.resolver import get_unwrapped_command
 
 from safety.console import main_console
-from safety.tool.auth import build_pypi_index_url
+from safety.tool.auth import build_index_url
 from ...encoding import detect_encoding
 
 logger = logging.getLogger(__name__)
@@ -55,12 +55,12 @@ class Pip:
             content = f.read()
 
             repository_url = (
-                PROJECT_REPOSITORY_URL.format(org_slug, project_id)
+                PYPI_PROJECT_REPOSITORY_URL.format(org_slug, project_id)
                 if project_id and org_slug
                 else (
-                    ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                    PYPI_ORGANIZATION_REPOSITORY_URL.format(org_slug)
                     if org_slug
-                    else PUBLIC_REPOSITORY_URL
+                    else PYPI_PUBLIC_REPOSITORY_URL
                 )
             )
             index_config = f"-i {repository_url}\n"
@@ -84,9 +84,9 @@ class Pip:
         """
         try:
             repository_url = (
-                ORGANIZATION_REPOSITORY_URL.format(org_slug)
+                PYPI_ORGANIZATION_REPOSITORY_URL.format(org_slug)
                 if org_slug
-                else PUBLIC_REPOSITORY_URL
+                else PYPI_PUBLIC_REPOSITORY_URL
             )
             result = subprocess.run(
                 [
@@ -143,4 +143,4 @@ class Pip:
 
     @classmethod
     def build_index_url(cls, ctx: typer.Context, index_url: Optional[str]) -> str:
-        return build_pypi_index_url(ctx, index_url)
+        return build_index_url(ctx, index_url, "pypi")

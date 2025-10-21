@@ -39,6 +39,7 @@ class CommandInterceptor(ABC):
             ),
             "poetry": Tool("poetry", ["poetry"]),
             "uv": Tool("uv", ["uv"]),
+            "npm": Tool("npm", ["npm"]),
         }
 
     @abstractmethod

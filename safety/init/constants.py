@@ -60,7 +60,7 @@ MSG_SETUP_CODEBASE_PROMPT = (
 
 MSG_SETUP_CODEBASE_NO_PROJECT = "We didn't find any dependency specification files in the current directory. Please navigate to a Python codebase directory and run:\n\n`safety init`"
 
-MSG_ANALYZE_CODEBASE_TITLE = " Analyze {project_name} for Vulnerabilities"
+MSG_ANALYZE_CODEBASE_TITLE = " Analyze {project_name} for Python Vulnerabilities"
 
 MSG_NO_VULNERABILITIES_FOUND = "  No vulnerabilities found :party_popper:\n\n"
 MSG_CODEBASE_URL_DESCRIPTION = (

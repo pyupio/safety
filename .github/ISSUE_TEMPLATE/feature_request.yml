@@ -20,43 +20,39 @@ body:
     id: safety-version
     attributes:
       label: Safety version
-      description: Specify the version of Safety you're using.
+      description: Specify the version of Safety you're using (if relevant to the feature request).
       placeholder: e.g., 3.2.5
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: python-version
     attributes:
       label: Python version
-      description: Specify the version of Python you're using.
+      description: Specify the version of Python you're using (if relevant to the feature request).
       placeholder: e.g., 3.11.2
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: os
     attributes:
       label: Operating System
-      description: Specify the operating system you're using.
+      description: Specify the operating system you're using (if relevant to the feature request).
       placeholder: e.g., macOS 13, Windows 10
     validations:
-      required: true
+      required: false
 
   - type: textarea
-    id: description
+    id: feature-description
     attributes:
-      label: Describe the problem you'd like to have solved
-      description: A clear and concise description of what the problem is.
-      placeholder: My life would be a lot simpler if...
-    validations:
-      required: true
-
-  - type: textarea
-    id: ideal-solution
-    attributes:
-      label: Describe the ideal solution
-      description: A clear and concise description of what you want to happen.
+      label: Feature description
+      description: |
+        Describe the feature you'd like to see including:
+        - What problem it would solve or use case it addresses
+        - How you envision it working
+      placeholder: |
+        I'd like Safety to support scanning container images directly. This would help with CI/CD pipelines where we build Docker images and want to scan them for vulnerabilities before deployment...
     validations:
       required: true
 
@@ -76,11 +72,3 @@ body:
     validations:
       required: false
 
-  - type: textarea
-    id: what-i-did
-    attributes:
-      label: What I Did
-      description: Describe what you were trying to get done. Tell us what happened, what went wrong, and what you expected to happen.
-      placeholder: Paste the command(s) you ran and the output. If there was a crash, please include the traceback here.
-    validations:
-      required: true

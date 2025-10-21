@@ -15,7 +15,7 @@ from .main import (
     clean_session,
 )
 from authlib.common.security import generate_token
-from safety.auth.constants import CLIENT_ID, OPENID_CONFIG_URL
+from safety.auth.constants import CLIENT_ID
 
 from safety.auth.models import Organization, Auth
 from safety.auth.utils import (
@@ -24,7 +24,6 @@ from safety.auth.utils import (
     get_keys,
     is_email_verified,
 )
-from safety.constants import REQUEST_TIMEOUT
 from safety.scan.constants import (
     CLI_KEY_HELP,
     CLI_PROXY_HOST_HELP,
@@ -92,13 +91,7 @@ def build_client_session(
         "Content-Type": "application/json",
     }
 
-    try:
-        openid_config = client_session.get(
-            url=OPENID_CONFIG_URL, timeout=REQUEST_TIMEOUT
-        ).json()
-    except Exception as e:
-        LOG.debug("Unable to load the openID config: %s", e)
-        openid_config = {}
+    openid_config = client_session.fetch_openid_config()
 
     client_session.metadata["token_endpoint"] = openid_config.get(
         "token_endpoint", None

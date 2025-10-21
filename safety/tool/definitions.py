@@ -90,4 +90,9 @@ TOOLS = [
         display_name="uv",
         help="[BETA] Run uv commands protected by Safety firewall.\nExample: safety uv pip list",
     ),
+    ToolCommandModel(
+        name="npm",
+        display_name="npm",
+        help="[BETA] Run npm commands protected by Safety firewall.\nExample: safety npm list",
+    ),
 ]

@@ -600,6 +600,10 @@ def do_init(
             "alias": AliasConfig(is_configured=False),
             "index": IndexConfig(is_configured=False),
         },
+        ToolType.NPM: {
+            "alias": AliasConfig(is_configured=False),
+            "index": IndexConfig(is_configured=False),
+        },
     }
 
     tracker.current_step = InitExitStep.PRE_FIREWALL_SETUP

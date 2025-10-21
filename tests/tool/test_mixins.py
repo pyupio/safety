@@ -1,5 +1,6 @@
 # type: ignore
 
+from typing import Literal
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -23,6 +24,9 @@ class MockAuditableCommand(InstallationAuditMixin):
         mock_tracker = MagicMock(spec=EnvironmentDiffTracker)
         mock_tracker.get_diff.return_value = self._mock_diff_data
         return mock_tracker
+
+    def get_ecosystem(self) -> Literal["pypi", "npmjs"]:
+        return "pypi"
 
 
 class TestInstallationAuditMixin:
@@ -98,7 +102,7 @@ class TestInstallationAuditMixin:
         result = command.audit_packages(self.ctx)
 
         self.ctx.obj.auth.client.audit_packages.assert_called_once_with(
-            ["package1==1.0.0"]
+            ["package1==1.0.0"], "pypi"
         )
         assert result == (
             self.ctx.obj.auth.client.audit_packages.return_value,

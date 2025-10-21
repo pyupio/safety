@@ -9,7 +9,7 @@ import tomlkit
 from rich.console import Console
 
 from safety.tool.uv.main import Uv, backup_file
-from safety.tool.constants import ORGANIZATION_REPOSITORY_URL
+from safety.tool.constants import PYPI_ORGANIZATION_REPOSITORY_URL
 
 
 class TestUv(unittest.TestCase):
@@ -239,7 +239,7 @@ default = false
                     self.assertEqual(first_index["name"], "safety")
                     self.assertEqual(
                         first_index["url"],
-                        ORGANIZATION_REPOSITORY_URL.format(self.org_slug),
+                        PYPI_ORGANIZATION_REPOSITORY_URL.format(self.org_slug),
                     )
                     self.assertEqual(
                         len(doc["tool"]["uv"]["index"]), 2
@@ -338,7 +338,7 @@ default = false
                         self.assertEqual(first_index["name"], "safety")
                         self.assertEqual(
                             first_index["url"],
-                            ORGANIZATION_REPOSITORY_URL.format(self.org_slug),
+                            PYPI_ORGANIZATION_REPOSITORY_URL.format(self.org_slug),
                         )
 
     def test_configure_system_existing_config(self):

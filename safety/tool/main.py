@@ -5,6 +5,8 @@ from typing import Optional
 
 from safety.constants import USER_CONFIG_DIR
 from safety.tool.utils import (
+    NpmConfigurator,
+    NpmProjectConfigurator,
     PipConfigurator,
     PipRequirementsConfigurator,
     PoetryConfigurator,
@@ -28,6 +30,7 @@ def find_local_tool_files(directory: Path) -> List[Path]:
         PipRequirementsConfigurator(),
         PoetryPyprojectConfigurator(),
         UvPyprojectConfigurator(),
+        NpmProjectConfigurator(),
     ]
 
     results = []
@@ -47,6 +50,7 @@ def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[P
         (ToolType.PIP, PipConfigurator(), {"org_slug": org_slug}),
         (ToolType.POETRY, PoetryConfigurator(), {"org_slug": org_slug}),
         (ToolType.UV, UvConfigurator(), {"org_slug": org_slug}),
+        (ToolType.NPM, NpmConfigurator(), {"org_slug": org_slug}),
     ]
 
     results = []
@@ -57,7 +61,12 @@ def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[P
 
 
 def reset_system():
-    configurators = [PipConfigurator(), PoetryConfigurator(), UvConfigurator()]
+    configurators = [
+        PipConfigurator(),
+        PoetryConfigurator(),
+        UvConfigurator(),
+        NpmConfigurator(),
+    ]
 
     for configurator in configurators:
         configurator.reset()
@@ -77,9 +86,15 @@ def configure_alias() -> Optional[List[Tuple[ToolType, Optional[Path]]]]:
             (ToolType.PIP, config),
             (ToolType.POETRY, config),
             (ToolType.UV, config),
+            (ToolType.NPM, config),
         ]
 
-    return [(ToolType.PIP, None), (ToolType.POETRY, None), (ToolType.UV, None)]
+    return [
+        (ToolType.PIP, None),
+        (ToolType.POETRY, None),
+        (ToolType.UV, None),
+        (ToolType.NPM, None),
+    ]
 
 
 def configure_local_directory(
@@ -89,6 +104,7 @@ def configure_local_directory(
         PipRequirementsConfigurator(),
         PoetryPyprojectConfigurator(),
         UvPyprojectConfigurator(),
+        NpmProjectConfigurator(),
     ]
 
     for file_name in os.listdir(directory):

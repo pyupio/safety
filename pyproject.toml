@@ -44,7 +44,7 @@ dependencies = [
   "pydantic>=2.6.0",
   "requests", # TODO: To be replaced by httpx or aiohttp
   "httpx",
-  "tenacity",
+  "tenacity>=8.1.0",
   "ruamel.yaml>=0.17.21",
   "safety-schemas==0.0.16",
   # TODO: To be removed after migrate away from pkg_resources

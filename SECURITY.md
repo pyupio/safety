@@ -17,8 +17,6 @@ To report a vulnerability:
 
 1. **Email**: Please send the details to [engineers@safetycli.com](mailto:engineers@safetycli.com). Include as much information as possible to help us understand the nature of the vulnerability and how it can be reproduced.
 
-2. **Bug Bounty Program**: We offer a bug bounty program for qualifying vulnerabilities. Detailed information about the program, including eligibility and rewards, can be found on our [Bug Bounty Program page](https://safetycli.com/resources/bug-bounty).
-
 ## Security Best Practices
 
 We encourage our users to follow these best practices to ensure the security of their deployments:

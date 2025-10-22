@@ -24,14 +24,14 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
   "Authlib>=1.2.0",
   "Click>=8.0.2",
@@ -115,7 +115,7 @@ type = "virtual"
 # To reset the default environment, run:
 # hatch env remove
 # hatch env create
-python = "3.8"
+python = "3.9"
 path = ".venv"
 
 dependencies = [
@@ -191,7 +191,7 @@ binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
 
 [tool.hatch.envs.test.overrides]
 matrix.targets.dependencies = [
-    { value = "pydantic~=2.9.0", if = ["pydantic-stable"] },
+    { value = "pydantic~=2.12.0", if = ["pydantic-stable"] },
     { value = "pydantic~=2.10.0", if = ["pydantic-2_10"] },
     { value = "pydantic~=2.11.0", if = ["pydantic-2_11"] },
     { value = "pydantic~=2.0b0", if = ["pydantic-latest"] },
@@ -226,12 +226,12 @@ matrix.os_type.scripts = [
 #
 [[tool.hatch.envs.test.matrix]]
 # Full Python version testing
-python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 # Critical dependency testing only on boundary versions
 [[tool.hatch.envs.test.matrix]]
 python = [
-  "3.10", "3.13"
+  "3.10", "3.13", "3.14"
 ]
 targets = [
   "typer-minimal",
@@ -247,7 +247,7 @@ targets = [
 # This only runs on GitHub CI
 [[tool.hatch.envs.test.matrix]]
 python = [
-  "3.10", "3.13"
+  "3.10", "3.13", "3.14"
 ]
 targets = [
   "typer-stable"
@@ -264,7 +264,7 @@ os_type = [
 # package_os_type is used to select the os to build the python package
 # and the os_type is used for the binary distributions.
 [tool.project.build.artifacts]
-python = "3.13"
+python = "3.14"
 package_os_type = "ubuntu-24.04"
 targets = [
   "typer-stable"
@@ -304,7 +304,7 @@ all = [
 include = [
   "safety/scan/"
 ]
-pythonVersion = "3.8"
+pythonVersion = "3.9"
 pythonPlatform = "All"
 reportMissingImports = "error"
 reportMissingTypeStubs = false

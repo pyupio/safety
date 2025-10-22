@@ -14,6 +14,7 @@ from safety.tool.constants import (
     PYPI_PROJECT_REPOSITORY_URL,
 )
 from safety.tool.resolver import get_unwrapped_command
+from safety.utils.pyapp_utils import get_path, get_env
 
 from safety.console import main_console
 from safety.tool.auth import build_index_url
@@ -31,7 +32,7 @@ class Pip:
         Returns:
             True if PIP is installed on system, or false otherwise
         """
-        return shutil.which("pip") is not None
+        return shutil.which("pip", path=get_path()) is not None
 
     @classmethod
     def configure_requirements(
@@ -88,6 +89,7 @@ class Pip:
                 if org_slug
                 else PYPI_PUBLIC_REPOSITORY_URL
             )
+
             result = subprocess.run(
                 [
                     get_unwrapped_command(name="pip"),
@@ -98,6 +100,7 @@ class Pip:
                     repository_url,
                 ],
                 capture_output=True,
+                env=get_env(),
             )
 
             if result.returncode != 0:
@@ -133,6 +136,7 @@ class Pip:
                     "global.index-url",
                 ],
                 capture_output=True,
+                env=get_env(),
             )
         except Exception:
             console.print("Failed to reset PIP global settings.")

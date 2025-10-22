@@ -489,7 +489,7 @@ def format_main_help(
 
         if isinstance(obj, click.MultiCommand):
             UTILITY_COMMANDS_PANEL_TITLE = "Utility commands"
-            BETA_COMMANDS_PANEL_TITLE = "Beta Commands :rocket:"
+            BETA_COMMANDS_PANEL_TITLE = "Beta Commands"
 
             COMMANDS_PANEL_TITLE_CONSTANTS = {
                 CommandType.MAIN: COMMANDS_PANEL_TITLE,

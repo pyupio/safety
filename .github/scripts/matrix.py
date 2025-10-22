@@ -66,15 +66,47 @@ def generate_github_matrix(
 
     # Third matrix: specific Python versions with os versions
     if only_os_matrix or include_os_matrix:
+        # Get build variants configuration if it exists
+        build_variants = (
+            config.get("tool", {})
+            .get("project", {})
+            .get("build", {})
+            .get("variants", {})
+        )
+
         for python_version in matrix_configs[2]["python"]:
             for target in matrix_configs[2]["targets"]:
                 for os_type in matrix_configs[2]["os_type"]:
+                    variants = (
+                        build_variants.get(python_version, {})
+                        .get(target, {})
+                        .get(os_type, {})
+                        .get("variants", [])
+                    )
+
+                    for variant_config in variants:
+                        rust_target = variant_config.get("rust_target")
+                        needs_cross = variant_config.get("cross", False)
+
+                        combinations.append(
+                            {
+                                "python-version": python_version,
+                                "target": target,
+                                "os_type": os_type,
+                                "experimental": is_experimental(python_version, target),
+                                "rust_target": rust_target,
+                                "needs_cross": needs_cross,
+                            }
+                        )
+
                     combinations.append(
                         {
                             "python-version": python_version,
                             "target": target,
                             "os_type": os_type,
                             "experimental": is_experimental(python_version, target),
+                            "rust_target": None,
+                            "needs_cross": False,
                         }
                     )
 

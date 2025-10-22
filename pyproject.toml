@@ -40,15 +40,12 @@ dependencies = [
   "jinja2>=3.1.0",
   "marshmallow>=3.15.0", # TODO: To be removed
   "packaging>=21.0",
-  "psutil>=6.1.0,<8.0",
   "pydantic>=2.6.0",
   "requests", # TODO: To be replaced by httpx or aiohttp
   "httpx",
   "tenacity>=8.1.0",
   "ruamel.yaml>=0.17.21",
   "safety-schemas==0.0.16",
-  # TODO: To be removed after migrate away from pkg_resources
-  "setuptools>=65.5.1",
   "typer>=0.16.0",
   "typing-extensions>=4.7.1",
   "nltk>=3.9",
@@ -101,6 +98,7 @@ packages = [
 include-package-data = true
 zip-safe = false
 
+
 # Tool specific configurations
 
 ## Hatch environments
@@ -121,7 +119,6 @@ path = ".venv"
 dependencies = [
   "coverage[toml]>=6.0",
   "pytest==8.3.4",
-  "pyinstaller==6.11.1",
   "commitizen",
   "tomli"
 ]
@@ -132,45 +129,10 @@ dependencies = [
 bump = "cz bump --check-consistency --yes --changelog --gpg-sign --annotated-tag --annotated-tag-message 'Version $(hatch version)'"
 beta-bump = "cz bump -pr beta --check-consistency --yes --changelog --gpg-sign --annotated-tag --annotated-tag-message 'Version $(hatch version)'"
 local-bump = "cz bump {args} --files-only --yes"
-binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
 
 [tool.hatch.envs.test]
 installer = "uv"
 type = "container"
-detached = true
-
-# TODO: Ideally, we shouldn't need to set the dependencies here, but
-# as we have already a couple of upper constraints in the project 
-# dependencies, we need to set them here, to be able to run the tests
-# with multiple versions of the dependencies.
-dependencies = [
-  "Authlib>=1.2.0",
-  "Click>=8.0.2", # Typer works with >=8.0.0,<8.2.0
-  "dparse>=0.6.4",
-  "filelock",
-  "jinja2>=3.1.0",
-  "marshmallow>=3.15.0", # TODO: To be removed
-  "packaging>=21.0",
-  "psutil",
-  "pydantic>=2.6.0",
-  "requests", # TODO: To be replaced by httpx or aiohttp
-  "httpx",
-  "tenacity",
-  "ruamel.yaml>=0.17.21",
-  "safety-schemas==0.0.16",
-  "typer>=0.12.1",
-  "typing-extensions>=4.7.1",
-  "nltk>=3.9",
-  "tomli; python_version < '3.11'",
-  "tomlkit",
-
-  # Test dependencies
-  "coverage[toml]>=6.0",
-  "pytest==8.3.4",
-  "pyinstaller==6.11.1",
-  "commitizen",
-  "tomli",
-]
 
 [tool.hatch.envs.test.scripts]
 test = 'pytest -m "" {args:tests}'
@@ -183,9 +145,6 @@ cov = [
   "test-cov",
   "cov-report",
 ]
-# TODO: Remove this once we remove the upper constraints and remove the
-# detached=True value
-binary-dist = "python --version && python -m PyInstaller safety.spec {args}"
 
 [tool.hatch.envs.test.overrides]
 matrix.targets.dependencies = [
@@ -242,19 +201,29 @@ targets = [
 ]
 
 # Critical tests for OS compatibility
-# This only runs on GitHub CI
+# This only runs on GitHub CD
 [[tool.hatch.envs.test.matrix]]
 python = [
-  "3.10", "3.13", "3.14"
+  "3.14"
 ]
 targets = [
-  "typer-stable"
+  "typer-stable",
 ]
 os_type = [
   "ubuntu-24.04",
+  "ubuntu-24.04-arm", 
   "windows-2022",
   "macos-14",
+  "macos-15-intel",
 ]
+
+# Optional: specify build variants for OS types
+# If not specified, defaults to native build only
+[tool.project.build.variants."3.14"."typer-stable"."ubuntu-24.04"]
+variants = [
+  { rust_target = "x86_64-unknown-linux-musl", cross = true },
+]
+
 
 # Choose what config should be used for the artifacts build
 # if python and os_type and target matches in the matrix, then
@@ -269,9 +238,13 @@ targets = [
 ]
 os_type = [
   "ubuntu-24.04",
+  "ubuntu-24.04-arm",
   "windows-2022",
-  "macos-14"
+  "macos-14",
+  "macos-15-intel",
 ]
+
+# MUSL target is built automatically in ubuntu-24.04 jobs via Docker
 
 [tool.hatch.envs.lint]
 # We decided don't detach so the type checker can find the dependencies

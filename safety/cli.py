@@ -8,7 +8,6 @@ import logging
 import os
 import platform
 import sys
-import time
 from dataclasses import asdict
 from datetime import date, datetime, timedelta
 from enum import Enum
@@ -16,7 +15,6 @@ from functools import wraps
 from pathlib import Path
 
 import click
-import requests
 import typer
 import typer.rich_utils
 from packaging import version as packaging_version
@@ -118,72 +116,6 @@ import safety.asyncio_patch  # noqa: F401
 LOG = logging.getLogger(__name__)
 
 
-def get_network_telemetry():
-    import psutil
-    import socket
-
-    network_info = {}
-    try:
-        # Get network IO statistics
-        net_io = psutil.net_io_counters()
-        network_info["bytes_sent"] = net_io.bytes_sent
-        network_info["bytes_recv"] = net_io.bytes_recv
-        network_info["packets_sent"] = net_io.packets_sent
-        network_info["packets_recv"] = net_io.packets_recv
-
-        # Test network speed (download speed)
-        test_url = "https://data.safetycli.com/api/v1/safety/announcements/"  # Test the download speed
-        start_time = time.perf_counter()
-        try:
-            response = requests.get(test_url, timeout=10)
-            end_time = time.perf_counter()
-            download_time = end_time - start_time
-            download_speed = len(response.content) / download_time
-            network_info["download_speed"] = download_speed
-        except requests.RequestException as e:
-            network_info["download_speed"] = None
-            network_info["error"] = str(e)
-
-        # Get network addresses
-        net_if_addrs = psutil.net_if_addrs()
-        network_info["interfaces"] = {
-            iface: [addr.address for addr in addrs if addr.family == socket.AF_INET]
-            for iface, addrs in net_if_addrs.items()
-        }
-
-        # Get network connections
-        net_connections = psutil.net_connections(kind="inet")
-        network_info["connections"] = [
-            {
-                "fd": conn.fd,
-                "family": conn.family,
-                "type": conn.type,
-                "laddr": f"{conn.laddr.ip}:{conn.laddr.port}",
-                "raddr": f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None,
-                "status": conn.status,
-            }
-            for conn in net_connections
-        ]
-
-        # Get network interface stats
-        net_if_stats = psutil.net_if_stats()
-        network_info["interface_stats"] = {
-            iface: {
-                "isup": stats.isup,
-                "duplex": stats.duplex,
-                "speed": stats.speed,
-                "mtu": stats.mtu,
-            }
-            for iface, stats in net_if_stats.items()
-        }
-    except psutil.AccessDenied as e:
-        network_info["error"] = (
-            f"Access denied when trying to gather network telemetry: {e}"
-        )
-
-    return network_info
-
-
 def preprocess_args(f):
     if "--debug" in sys.argv:
         index = sys.argv.index("--debug")
@@ -217,10 +149,6 @@ def configure_logger(ctx, param, debug):
             LOG.debug(
                 "Proxy configuration attempted with settings: %s", dict(config["proxy"])
             )
-
-        # Collect and log network telemetry data
-        network_telemetry = get_network_telemetry()
-        LOG.debug("Network telemetry: %s", network_telemetry)
 
 
 @click.group(

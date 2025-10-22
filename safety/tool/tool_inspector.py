@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Set, Union
 
 from safety_schemas.models.events.payloads import ToolStatus, AliasConfig, IndexConfig
 from safety_schemas.models.events.types import ToolType
+from safety.utils.pyapp_utils import get_path
 
 import logging
 
@@ -149,7 +150,7 @@ class ToolInspector:
 
         paths = set()
 
-        path_result = shutil.which(exe_name)
+        path_result = shutil.which(exe_name, path=get_path())
         if path_result:
             paths.add(os.path.abspath(path_result))
 

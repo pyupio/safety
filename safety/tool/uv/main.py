@@ -15,6 +15,7 @@ from safety.tool.constants import (
     PYPI_PUBLIC_REPOSITORY_URL,
     PYPI_PROJECT_REPOSITORY_URL,
 )
+from safety.utils.pyapp_utils import get_path
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -42,7 +43,7 @@ class Uv:
         Returns:
             True if UV is installed on system, or false otherwise
         """
-        return shutil.which("uv") is not None
+        return shutil.which("uv", path=get_path()) is not None
 
     @classmethod
     def is_uv_project_file(cls, file: Path) -> bool:

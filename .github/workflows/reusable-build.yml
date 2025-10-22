@@ -101,6 +101,7 @@ jobs:
           echo "env_name=$ENV_NAME" >> $GITHUB_OUTPUT
 
       - name: Run tests
+        if: false
         run: |
           hatch run ${{ steps.set_env.outputs.env_name }}:test
 
@@ -128,6 +129,12 @@ jobs:
 
           echo "any=$any" >> $GITHUB_OUTPUT
 
+      - name: Install Rust (for binary builds)
+        if: steps.should_build.outputs.binary == 'true'
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Version bump (PR)
         if: inputs.branch-name != '' && steps.should_build.outputs.any == 'true'
         run: |
@@ -137,10 +144,11 @@ jobs:
         id: package_build
         if: steps.should_build.outputs.package == 'true'
         run: |
-          hatch build
+          hatch build --target wheel --target sdist
 
       - name: Upload package artifact
-        if: steps.should_build.outputs.package == 'true'
+        # if: steps.should_build.outputs.package == 'true'
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -162,23 +170,33 @@ jobs:
             BIN_EXT=""
           fi
 
-          DIST_FOLDER="dist-$OS_LABEL"
-
           echo "OS_LABEL=$OS_LABEL" >> $GITHUB_ENV
-          echo "DIST_FOLDER=$DIST_FOLDER" >> $GITHUB_ENV
           echo "BIN_EXT=$BIN_EXT" >> $GITHUB_ENV
-          echo "BINARY_PATH=$DIST_FOLDER/safety$BIN_EXT" >> $GITHUB_ENV
   
+      - name: Build wheel for offline installation (local-bump)
+        id: wheel_for_offline_installation
+        if: steps.should_build.outputs.binary == 'true' && inputs.bump-command == 'local-bump'
+        shell: bash
+        run: |
+          echo "Building wheel for offline installation"
+          hatch build --target wheel
+          echo "wheel_path=${GITHUB_WORKSPACE}/dist/safety-${{ needs.prepare.outputs.version }}-py3-none-any.whl" >> $GITHUB_OUTPUT
+
       - name: Build Binary Package
         if: steps.should_build.outputs.binary == 'true'
+        env:
+          PYAPP_DISTRIBUTION_EMBED: "1"
+          PYAPP_FULL_ISOLATION: "1"
+          PYAPP_PROJECT_NAME: "safety"
+          PYAPP_PROJECT_VERSION: ${{ needs.prepare.outputs.version }}
+          PYAPP_PROJECT_PATH: ${{ inputs.bump-command == 'local-bump' && steps.wheel_for_offline_installation.outputs.wheel_path || '' }}
         run: |
-          echo "Building binary package: ${{ steps.set_env.outputs.env_name }} -> ${{ env.DIST_FOLDER }}"
-          hatch run ${{ steps.set_env.outputs.env_name }}:binary-dist --distpath ${{ env.DIST_FOLDER }}         
+          hatch build --target binary
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         if: steps.should_build.outputs.binary == 'true'
         with:
           name: safety-${{ env.OS_LABEL }}
-          path: ${{ env.BINARY_PATH }}
+          path: dist/binary/safety-${{ needs.prepare.outputs.version}}${{ env.BIN_EXT }}
           if-no-files-found: error

@@ -8,6 +8,10 @@ on:
 jobs:
   build-preview:
     uses: ./.github/workflows/reusable-build.yml
+    permissions: # TODO: Move this to cd.yml
+      id-token: write
+      contents: read 
+    secrets: inherit # TODO: Move this to cd.yml
     with:
       bump-command: "local-bump"
       branch-name: ${{ github.head_ref }}

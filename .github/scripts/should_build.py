@@ -5,8 +5,6 @@
 import sys
 import argparse
 from pathlib import Path
-from tracemalloc import start
-from typing import Union
 import tomllib
 
 def read_toml_config(file_path: str) -> dict:
@@ -26,13 +24,14 @@ def should_build_binary(os_type: str | None, python_version: str | None, target:
   except KeyError:
     return False
 
-def should_build_package(os_type: str | None, python_version: str, config: dict) -> bool:
+def should_build_package(os_type: str | None, python_version: str, rust_target: str | None, config: dict) -> bool:
   """Determine if this combination should trigger a package build."""
   try:
     artifacts_config = config['tool']['project']['build']['artifacts']
     return (
       os_type == artifacts_config.get('package_os_type') and
-      python_version == artifacts_config.get('python')
+      python_version == artifacts_config.get('python') and
+      not rust_target
     )
   except KeyError:
     return False
@@ -50,6 +49,7 @@ def main():
     parser.add_argument('--os-type', help='OS type to check')
     parser.add_argument('--python-version', help='Python version to check')
     parser.add_argument('--target', help='Target to check')
+    parser.add_argument('--rust-target', help='Rust target to check')
     
     args = parser.parse_args()
     
@@ -73,6 +73,7 @@ def main():
             should_build = should_build_package(
                 args.os_type,
                 args.python_version,
+                args.rust_target,
                 config
             )            
         # Print true/false for direct use in GitHub Actions

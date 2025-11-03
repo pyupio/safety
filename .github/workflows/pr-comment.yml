@@ -60,12 +60,11 @@ jobs:
             const artifactsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${runId}/`
             const prNumber = pr.number
             const author = pr.user?.login || run.actor?.login || 'unknown'
-            const forkRepo = (pr.head && pr.head.repo && pr.head.repo.full_name) ? pr.head.repo.full_name : `${author}:unknown-repo`
+            const forkRepo = (pr.head && pr.head.repo && pr.head.repo.full_name) ? pr.head.repo.full_name : null
             const diffUrl = `${context.serverUrl}/${owner}/${repo}/pull/${prNumber}/files`
-            const isSameRepo = (pr.head?.repo?.full_name || '').toLowerCase() === `${owner}/${repo}`.toLowerCase()
-            const prContext = isSameRepo
-              ? `PR #${prNumber} by @${author}`
-              : `PR #${prNumber} by @${author} (source: ${forkRepo})`
+            const prContext = forkRepo
+              ? `PR #${prNumber} by @${author} (source: ${forkRepo})`
+              : `PR #${prNumber} by @${author}`
             const title = `## 🚀 Artifacts — ${prContext}`
 
             const comment = `
@@ -108,7 +107,7 @@ jobs:
             })
 
             const botComment = comments.find(c =>
-              c.user?.type === 'Bot' &&
+              c.user?.login === 'safety-bot' &&
               c.body?.includes('Artifacts')
             )
 

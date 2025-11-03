@@ -14,6 +14,7 @@ from safety.tool.constants import (
     PYPI_PROJECT_REPOSITORY_URL,
 )
 from safety.tool.resolver import get_unwrapped_command
+from safety.utils.pyapp_utils import get_path, get_env
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -32,7 +33,7 @@ class Poetry:
         Returns:
             True if Poetry is installed on system, or false otherwise
         """
-        return shutil.which("poetry") is not None
+        return shutil.which("poetry", path=get_path()) is not None
 
     @classmethod
     def is_poetry_project_file(cls, file: Path) -> bool:
@@ -82,6 +83,7 @@ class Poetry:
                 else PYPI_PUBLIC_REPOSITORY_URL
             )
         )
+
         result = subprocess.run(
             [
                 get_unwrapped_command(name="poetry"),
@@ -91,6 +93,7 @@ class Poetry:
                 repository_url,
             ],
             capture_output=True,
+            env=get_env(),
         )
 
         if result.returncode != 0:

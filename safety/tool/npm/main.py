@@ -13,6 +13,7 @@ from safety.tool.constants import (
     NPMJS_PROJECT_REPOSITORY_URL,
 )
 from safety.tool.resolver import get_unwrapped_command
+from safety.utils.pyapp_utils import get_path, get_env
 
 from safety.console import main_console
 from safety.tool.auth import build_index_url
@@ -29,7 +30,7 @@ class Npm:
         Returns:
             True if NPM is installed on system, or false otherwise
         """
-        return shutil.which("npm") is not None
+        return shutil.which("npm", path=get_path()) is not None
 
     @classmethod
     def configure_project(
@@ -78,6 +79,7 @@ class Npm:
             ],
             capture_output=True,
             cwd=project_root,
+            env=get_env(),
         )
 
         if result.returncode != 0:
@@ -115,6 +117,7 @@ class Npm:
                     repository_url,
                 ],
                 capture_output=True,
+                env=get_env(),
             )
 
             if result.returncode != 0:
@@ -131,6 +134,7 @@ class Npm:
                     "globalconfig",
                 ],
                 capture_output=True,
+                env=get_env(),
             )
             config_file_path = query_config_result.stdout.decode("utf-8").strip()
 
@@ -157,6 +161,7 @@ class Npm:
                     "registry",
                 ],
                 capture_output=True,
+                env=get_env(),
             )
         except Exception:
             console.print("Failed to reset NPM global settings.")

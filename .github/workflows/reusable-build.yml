@@ -453,17 +453,19 @@ jobs:
 
       - name: Upload checksums
         uses: actions/upload-artifact@v4
+        if: inputs.is-release != true
         with:
           name: checksums
           path: |
             artifacts/SHASUMS256.txt
           compression-level: 0
 
-      - name: Upload signed checksums.txt.cosign.bundle
+      - name: Upload checksums with signature
         if: inputs.is-release == true
         uses: actions/upload-artifact@v4
         with:
           name: checksums
           path: |
+            artifacts/SHASUMS256.txt
             artifacts/SHASUMS256.txt.cosign.bundle
           compression-level: 0

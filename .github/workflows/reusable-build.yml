@@ -315,7 +315,7 @@ jobs:
         id: binary_rename
         shell: bash
         run: |
-          BINARY_NAME="safety-${{ env.TARGET_NAME }}-${{ needs.prepare.outputs.version }}${{ env.BIN_EXT }}"
+          BINARY_NAME="safety-${{ env.TARGET_NAME }}${{ env.BIN_EXT }}"
           mv "dist/binary/safety-${{ needs.prepare.outputs.version }}${{ env.BIN_EXT }}" \
             "dist/binary/${BINARY_NAME}"
           echo "binary_name=${BINARY_NAME}" >> $GITHUB_OUTPUT

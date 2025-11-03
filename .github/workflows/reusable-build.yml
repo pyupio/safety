@@ -57,11 +57,15 @@ jobs:
         SLUG=$(echo "$BRANCH_NAME" | iconv -t ascii//TRANSLIT | sed -r 's/[^a-zA-Z0-9]+/./g' | sed -r 's/^.+\|.+$//g' | tr A-Z a-z)
         echo "SLUG=$SLUG" >> $GITHUB_OUTPUT
 
-    - name: Version bump (PR)
+    - name: Get version
       id: get-version
-      if: inputs.branch-name != ''
       run: |
-        VERSION_STRING="$(hatch version)+${{ steps.slug.outputs.SLUG }}"
+        VERSION=$(hatch version)
+        if [[ -n "${{ inputs.branch-name }}" ]]; then
+          VERSION_STRING="${VERSION}+${{ steps.slug.outputs.SLUG }}"
+        else
+          VERSION_STRING="${VERSION}"
+        fi
         echo "version=$VERSION_STRING" >> $GITHUB_OUTPUT
 
     - name: Generate matrix

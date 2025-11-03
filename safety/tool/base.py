@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 import json
-import os
 import sys
 from pathlib import Path
 import shutil
@@ -16,6 +15,7 @@ from safety.tool.constants import (
     MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES,
 )
 from safety.tool.typosquatting import TyposquattingProtection
+from safety.utils.pyapp_utils import get_env
 
 from .environment_diff import EnvironmentDiffTracker
 from .intents import CommandToolIntention, ToolIntentionType, Dependency
@@ -282,14 +282,20 @@ class BaseCommand(ABC):
 
         cmd = self.get_command_name()
         cmd_name = cmd[0]
+        logger.debug(f"Getting unwrapped command for: {cmd_name}")
         tool_path = get_unwrapped_command(name=cmd_name)
+        logger.debug(f"Resolved tool_path: {tool_path}")
+
         pre_args = [tool_path] + cmd[1:]
         args = pre_args + self.__remove_safety_args(self._args)
+        logger.debug(f"Final command args: {args}")
 
         started_at = time.monotonic()
+        logger.debug(f"Running subprocess with capture_output={self._capture_output}")
         process = subprocess.run(
             args, capture_output=self._capture_output, env=self.env(ctx)
         )
+        logger.debug(f"Subprocess completed with returncode: {process.returncode}")
 
         duration_ms = int((time.monotonic() - started_at) * 1000)
 
@@ -309,7 +315,7 @@ class BaseCommand(ABC):
         Returns:
             dict: The environment.
         """
-        return os.environ.copy()
+        return get_env()
 
     def __remove_safety_args(self, args: List[str]):
         return [arg for arg in args if not arg.startswith("--safety")]

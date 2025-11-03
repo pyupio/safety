@@ -16,6 +16,8 @@ from typing import (
 )
 import uuid
 
+from safety.utils.pyapp_utils import get_path, get_env
+
 from safety_schemas.models.events import Event, EventType
 from safety_schemas.models.events.types import ToolType
 from safety_schemas.models.events.payloads import (
@@ -133,6 +135,7 @@ def emit_firewall_disabled(
 
 
 def status_to_tool_status(status: "FirewallConfigStatus") -> List[ToolStatus]:
+    filtered_path = get_path()
     tools = []
     for tool_type, configs in status.items():
         alias_config = (
@@ -143,13 +146,13 @@ def status_to_tool_status(status: "FirewallConfigStatus") -> List[ToolStatus]:
         )
 
         tool = tool_type.value
-        command_path = shutil.which(tool)
+        command_path = shutil.which(tool, path=filtered_path)
         reachable = False
         version = "unknown"
 
         if command_path:
             args = [command_path, "--version"]
-            result = subprocess.run(args, capture_output=True, text=True)
+            result = subprocess.run(args, capture_output=True, text=True, env=get_env())
 
             if result.returncode == 0:
                 output = result.stdout

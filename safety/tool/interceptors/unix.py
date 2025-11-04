@@ -33,7 +33,18 @@ class UnixAliasInterceptor(CommandInterceptor):
         """
         zsh_paths = [Path.home() / ".zshrc"]
         # .bash_profile is added for max compatibility on macOS
-        bash_paths = [Path.home() / ".bashrc", Path.home() / ".bash_profile"]
+        bash_profile = Path.home() / ".bash_profile"
+        bashrc = Path.home() / ".bashrc"
+        profile = Path.home() / ".profile"
+
+        bash_paths = [bash_profile]
+
+        if bash_profile.exists():
+            bash_paths = [bash_profile]
+        elif bashrc.exists():
+            bash_paths = [bashrc]
+        elif profile.exists():
+            bash_paths = [profile]
 
         return zsh_paths + bash_paths
 

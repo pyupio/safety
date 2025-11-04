@@ -47,14 +47,16 @@ class TestUnixAliasInterceptor(unittest.TestCase):
         self.addCleanup(self.mock_config_patcher.stop)
 
     def test_interceptors_all_tools(self):
+        # Test when no bash files exist (should default to .bash_profile)
         interceptor = UnixAliasInterceptor()
         result = interceptor.install_interceptors()
 
         self.assertTrue(result)
 
-        rc_files = (".zshrc", ".bashrc", ".bash_profile")
-
-        rc_paths = [Path(self.temp_dir) / rc for rc in rc_files]
+        # Based on _get_user_rc_paths logic: .zshrc is always included,
+        # and when no bash files exist, .bash_profile is the default
+        expected_rc_files = [".zshrc", ".bash_profile"]
+        rc_paths = [Path(self.temp_dir) / rc for rc in expected_rc_files]
         safety_profile_path = Path(self.temp_dir) / ".safety" / ".safety_profile"
 
         self.assertTrue(
@@ -111,6 +113,76 @@ class TestUnixAliasInterceptor(unittest.TestCase):
         interceptor = UnixAliasInterceptor()
         result = interceptor.install_interceptors(["nonexistent"])
         self.assertFalse(result)
+
+    def test_bash_file_priority_bash_profile_exists(self):
+        # Test when .bash_profile exists - should only use .bash_profile
+        bash_profile = Path(self.temp_dir) / ".bash_profile"
+        bashrc = Path(self.temp_dir) / ".bashrc"
+        profile = Path(self.temp_dir) / ".profile"
+
+        # Create all three files
+        bash_profile.touch()
+        bashrc.touch()
+        profile.touch()
+
+        interceptor = UnixAliasInterceptor()
+        result = interceptor.install_interceptors()
+
+        self.assertTrue(result)
+
+        # Should only modify .zshrc and .bash_profile (not .bashrc or .profile)
+        zshrc = Path(self.temp_dir) / ".zshrc"
+        safety_profile_path = Path(self.temp_dir) / ".safety" / ".safety_profile"
+
+        self.assertTrue(zshrc.exists())
+        self.assertTrue(bash_profile.exists())
+        self.assertTrue(safety_profile_path.exists())
+
+        # Check that .bash_profile has content
+        self.assertIn("Safety", bash_profile.read_text())
+        # Check that .bashrc and .profile remain empty
+        self.assertEqual(bashrc.read_text(), "")
+        self.assertEqual(profile.read_text(), "")
+
+    def test_bash_file_priority_only_bashrc_exists(self):
+        # Test when only .bashrc exists - should use .bashrc
+        bashrc = Path(self.temp_dir) / ".bashrc"
+        bashrc.touch()
+
+        interceptor = UnixAliasInterceptor()
+        result = interceptor.install_interceptors()
+
+        self.assertTrue(result)
+
+        zshrc = Path(self.temp_dir) / ".zshrc"
+        safety_profile_path = Path(self.temp_dir) / ".safety" / ".safety_profile"
+
+        self.assertTrue(zshrc.exists())
+        self.assertTrue(bashrc.exists())
+        self.assertTrue(safety_profile_path.exists())
+
+        # Check that .bashrc has content
+        self.assertIn("Safety", bashrc.read_text())
+
+    def test_bash_file_priority_only_profile_exists(self):
+        # Test when only .profile exists - should use .profile
+        profile = Path(self.temp_dir) / ".profile"
+        profile.touch()
+
+        interceptor = UnixAliasInterceptor()
+        result = interceptor.install_interceptors()
+
+        self.assertTrue(result)
+
+        zshrc = Path(self.temp_dir) / ".zshrc"
+        safety_profile_path = Path(self.temp_dir) / ".safety" / ".safety_profile"
+
+        self.assertTrue(zshrc.exists())
+        self.assertTrue(profile.exists())
+        self.assertTrue(safety_profile_path.exists())
+
+        # Check that .profile has content
+        self.assertIn("Safety", profile.read_text())
 
     def test_uninstall_interceptors_all_tools(self):
         interceptor = UnixAliasInterceptor()

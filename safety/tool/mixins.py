@@ -83,7 +83,7 @@ class InstallationAuditMixin:
         """
         Render details for installed packages.
         """
-        if "npm" == self.get_ecosystem():
+        if "npmjs" == self.get_ecosystem():
             url = "https://getsafety.com/"
             failed = ", ".join(packages)
             console.line()

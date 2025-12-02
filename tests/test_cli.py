@@ -106,7 +106,28 @@ class TestSafetyCLI(unittest.TestCase):
         cli.commands = cli.all_commands
         self.cli = cli
 
-        self.get_keys_patcher = patch("safety.auth.cli_utils.get_keys")
+        # Mock config directory functions
+        self.mock_user_dir_patcher = patch("safety.constants.get_user_dir")
+        self.mock_system_dir_patcher = patch("safety.constants.get_system_dir")
+        self.mock_user_config_dir_patcher = patch("safety.constants.USER_CONFIG_DIR")
+
+        self.mock_get_user_dir = self.mock_user_dir_patcher.start()
+        self.mock_get_system_dir = self.mock_system_dir_patcher.start()
+        self.mock_user_config_dir = self.mock_user_config_dir_patcher.start()
+
+        # Set up temporary directories for testing
+        self.temp_user_dir = Path(tempfile.mkdtemp()) / ".safety"
+        self.temp_system_dir = Path(tempfile.mkdtemp()) / ".safety"
+        self.temp_user_dir.mkdir(exist_ok=True)
+        self.temp_system_dir.mkdir(exist_ok=True)
+
+        self.mock_get_user_dir.return_value = self.temp_user_dir
+        self.mock_get_system_dir.return_value = self.temp_system_dir
+        self.mock_user_config_dir = self.temp_user_dir
+
+        self.get_keys_patcher = patch(
+            "safety.auth.cli_utils.SafetyPlatformClient.get_jwks"
+        )
         self.mock_get_keys = self.get_keys_patcher.start()
         self.mock_get_keys.return_value = {
             "keys": [
@@ -133,12 +154,12 @@ class TestSafetyCLI(unittest.TestCase):
             ]
         }
 
-        # Set up common fetch_openid_config patch
-        self.fetch_openid_config_patcher = patch(
-            "safety.auth.cli_utils.SafetyAuthSession.fetch_openid_config"
+        # Set up common get_openid_config patch
+        self.get_openid_config = patch(
+            "safety.auth.cli_utils.SafetyPlatformClient.get_openid_config"
         )
-        self.mock_fetch_openid_config = self.fetch_openid_config_patcher.start()
-        self.mock_fetch_openid_config.return_value = {
+        self.mock_get_openid_config = self.get_openid_config.start()
+        self.mock_get_openid_config.return_value = {
             "token_endpoint": "https://safetycli.us.auth0.com/oauth/token",
             "authorization_endpoint": "https://safetycli.us.auth0.com/authorize",
             "issuer": "https://safetycli.us.auth0.com/",
@@ -153,16 +174,24 @@ class TestSafetyCLI(unittest.TestCase):
             "meta": {"schema_version": "2.0.0"}
         }
 
-        # Set up common get_server_policies patch
-        self.get_server_policies_patcher = patch("safety.safety.get_server_policies")
-        self.mock_get_server_policies = self.get_server_policies_patcher.start()
-        self.mock_get_server_policies.return_value = (None, None)
-
     def tearDown(self):
-        # self.inject_session_patcher.stop()
-        self.fetch_openid_config_patcher.stop()
+        self.get_openid_config.stop()
+        self.get_keys_patcher.stop()
         self.fetch_database_url_patcher.stop()
-        self.get_server_policies_patcher.stop()
+
+        # Stop config directory mocks
+        self.mock_user_dir_patcher.stop()
+        self.mock_system_dir_patcher.stop()
+        self.mock_user_config_dir_patcher.stop()
+
+        # Clean up temporary directories
+        import shutil
+
+        try:
+            shutil.rmtree(self.temp_user_dir.parent)
+            shutil.rmtree(self.temp_system_dir.parent)
+        except (FileNotFoundError, OSError):
+            pass
 
     def test_command_line_interface(self):
         runner = CliRunner()
@@ -745,7 +774,7 @@ class TestSafetyCLI(unittest.TestCase):
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
     @patch(
-        "safety.auth.utils.SafetyAuthSession.get_authentication_type",
+        "safety.platform.SafetyPlatformClient.get_authentication_type",
         return_value=AuthenticationType.TOKEN,
     )
     @patch("safety.safety.fetch_database", return_value={"vulnerable_packages": []})
@@ -785,7 +814,7 @@ class TestSafetyCLI(unittest.TestCase):
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
     @patch(
-        "safety.auth.utils.SafetyAuthSession.get_authentication_type",
+        "safety.platform.SafetyPlatformClient.get_authentication_type",
         return_value=AuthenticationType.TOKEN,
     )
     @patch("safety.safety.fetch_database", return_value={"vulnerable_packages": []})
@@ -809,7 +838,7 @@ class TestSafetyCLI(unittest.TestCase):
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
     @patch(
-        "safety.auth.utils.SafetyAuthSession.get_authentication_type",
+        "safety.platform.SafetyPlatformClient.get_authentication_type",
         return_value=AuthenticationType.TOKEN,
     )
     @patch("safety.safety.fetch_database", return_value={"vulnerable_packages": []})
@@ -834,14 +863,16 @@ class TestSafetyCLI(unittest.TestCase):
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
     @patch(
-        "safety.auth.utils.SafetyAuthSession.get_authentication_type",
+        "safety.platform.SafetyPlatformClient.get_authentication_type",
         return_value=AuthenticationType.TOKEN,
     )
     @patch(
-        "safety.auth.utils.SafetyAuthSession.check_project",
+        "safety.platform.SafetyPlatformClient.check_project",
         return_value={"user_confirm": True},
     )
-    @patch("safety.auth.utils.SafetyAuthSession.project", return_value={"slug": "slug"})
+    @patch(
+        "safety.platform.SafetyPlatformClient.project", return_value={"slug": "slug"}
+    )
     @patch(
         "safety.auth.cli_utils.SafetyCLI",
         return_value=SafetyCLI(platform_enabled=True, firewall_enabled=True),
@@ -903,14 +934,16 @@ class TestSafetyCLI(unittest.TestCase):
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
     @patch(
-        "safety.auth.utils.SafetyAuthSession.get_authentication_type",
+        "safety.platform.SafetyPlatformClient.get_authentication_type",
         return_value=AuthenticationType.TOKEN,
     )
     @patch(
-        "safety.auth.utils.SafetyAuthSession.check_project",
+        "safety.platform.SafetyPlatformClient.check_project",
         return_value={"user_confirm": True},
     )
-    @patch("safety.auth.utils.SafetyAuthSession.project", return_value={"slug": "slug"})
+    @patch(
+        "safety.platform.SafetyPlatformClient.project", return_value={"slug": "slug"}
+    )
     @patch(
         "safety.auth.cli_utils.SafetyCLI",
         return_value=SafetyCLI(platform_enabled=True, firewall_enabled=True),

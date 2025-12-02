@@ -21,8 +21,8 @@ class TestIndexCredentials(unittest.TestCase):
         """
         ctx = MagicMock(spec=typer.Context)
         ctx.obj = MagicMock()
-        ctx.obj.auth.client.token = {"access_token": "test_token"}
-        ctx.obj.auth.client.api_key = "test_api_key"
+        ctx.obj.auth.platform.token = {"access_token": "test_token"}
+        ctx.obj.auth.platform.api_key = "test_api_key"
         ctx.obj.project.id = "test_project_id"
 
         result = index_credentials(ctx)
@@ -42,8 +42,8 @@ class TestIndexCredentials(unittest.TestCase):
         """
         ctx = MagicMock(spec=typer.Context)
         ctx.obj = MagicMock()
-        ctx.obj.auth.client.token = None
-        ctx.obj.auth.client.api_key = "test_api_key"
+        ctx.obj.auth.platform.token = None
+        ctx.obj.auth.platform.api_key = "test_api_key"
         ctx.obj.project.id = "test_project_id"
 
         result = index_credentials(ctx)
@@ -62,8 +62,8 @@ class TestIndexCredentials(unittest.TestCase):
         """
         ctx = MagicMock(spec=typer.Context)
         ctx.obj = MagicMock()
-        ctx.obj.auth.client.token = {"access_token": "test_token"}
-        ctx.obj.auth.client.api_key = None
+        ctx.obj.auth.platform.token = {"access_token": "test_token"}
+        ctx.obj.auth.platform.api_key = None
         ctx.obj.project.id = "test_project_id"
 
         result = index_credentials(ctx)
@@ -105,8 +105,8 @@ class TestIndexCredentials(unittest.TestCase):
 
         ctx = MagicMock(spec=typer.Context)
         ctx.obj = MagicMock()
-        ctx.obj.auth.client.token = {"access_token": "test_token"}
-        ctx.obj.auth.client.api_key = "test_api_key"
+        ctx.obj.auth.platform.token = {"access_token": "test_token"}
+        ctx.obj.auth.platform.api_key = "test_api_key"
         ctx.obj.project = None
 
         result = index_credentials(ctx)
@@ -127,8 +127,8 @@ class TestIndexCredentials(unittest.TestCase):
 
         ctx = MagicMock(spec=typer.Context)
         ctx.obj = MagicMock()
-        ctx.obj.auth.client.token = {"access_token": "test_token"}
-        ctx.obj.auth.client.api_key = "test_api_key"
+        ctx.obj.auth.platform.token = {"access_token": "test_token"}
+        ctx.obj.auth.platform.api_key = "test_api_key"
         ctx.obj.project.id = "test_project_id"
 
         result = index_credentials(ctx)

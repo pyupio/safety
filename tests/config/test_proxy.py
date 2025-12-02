@@ -19,8 +19,6 @@ from safety.config.proxy import (
 
 DEFAULT_PROXY_PORT = 80
 DEFAULT_PROXY_SCHEME = "http"
-DEFAULT_PROXY_REQUIRED = True
-DEFAULT_PROXY_TIMEOUT = 2000
 
 
 @pytest.fixture
@@ -38,8 +36,6 @@ def valid_proxy_config(valid_proxy_endpoint: ProxyEndpoint) -> ProxyConfig:
     """
     return ProxyConfig(
         endpoint=valid_proxy_endpoint,
-        timeout_ms=5000,
-        required=True,
     )
 
 
@@ -111,21 +107,17 @@ class TestProxyConfig:
             "protocol": "https",
             "host": "proxy.example.com",
             "port": "8080",
-            "timeout": 5000,
-            "required": True,
         }
 
     def test_as_dict_with_different_values(self) -> None:
         endpoint = ProxyEndpoint(scheme="http", host="test.proxy", port=8888)
-        config = ProxyConfig(endpoint=endpoint, timeout_ms=1000, required=False)
+        config = ProxyConfig(endpoint=endpoint)
 
         result = config.as_dict()
         assert result == {
             "protocol": "http",
             "host": "test.proxy",
             "port": "8888",
-            "timeout": 1000,
-            "required": False,
         }
 
 
@@ -187,37 +179,27 @@ class TestBuildProxyConfig:
             host="proxy.example.com",
             port=8080,
             scheme="https",
-            required=False,
-            timeout_ms=3000,
             source="test",
         )
         assert result.endpoint.host == "proxy.example.com"
         assert result.endpoint.port == 8080
         assert result.endpoint.scheme == "https"
-        assert result.required is False
-        assert result.timeout_ms == 3000
 
     def test_applies_defaults_when_values_missing(self) -> None:
         result = _build_proxy_config(
             host="proxy.example.com",
             port=None,
             scheme=None,
-            required=None,
-            timeout_ms=None,
             source="test",
         )
         assert result.endpoint.port == DEFAULT_PROXY_PORT
         assert result.endpoint.scheme == DEFAULT_PROXY_SCHEME
-        assert result.required == DEFAULT_PROXY_REQUIRED
-        assert result.timeout_ms == DEFAULT_PROXY_TIMEOUT
 
     def test_strips_whitespace_from_host(self) -> None:
         result = _build_proxy_config(
             host="  proxy.example.com  ",
             port=None,
             scheme=None,
-            required=None,
-            timeout_ms=None,
             source="test",
         )
         assert result.endpoint.host == "proxy.example.com"
@@ -229,8 +211,6 @@ class TestBuildProxyConfig:
                 host=empty_host,
                 port=None,
                 scheme=None,
-                required=None,
-                timeout_ms=None,
                 source="test",
             )
 
@@ -240,8 +220,6 @@ class TestBuildProxyConfig:
                 host=None,  # type: ignore
                 port=None,
                 scheme=None,
-                required=None,
-                timeout_ms=None,
                 source="test",
             )
 
@@ -252,42 +230,14 @@ class TestBuildProxyConfig:
                 host="proxy.example.com",
                 port=None,
                 scheme=invalid_scheme,
-                required=None,
-                timeout_ms=None,
                 source="test",
             )
-
-    @pytest.mark.parametrize("invalid_timeout", [-1, -100])
-    def test_raises_on_non_positive_timeout(self, invalid_timeout: int) -> None:
-        with pytest.raises(ValueError, match="must be positive"):
-            _build_proxy_config(
-                host="proxy.example.com",
-                port=None,
-                scheme=None,
-                required=None,
-                timeout_ms=invalid_timeout,
-                source="test",
-            )
-
-    def test_zero_timeout_uses_default(self) -> None:
-        # Zero timeout uses default (timeout_ms or DEFAULT_PROXY_TIMEOUT)
-        result = _build_proxy_config(
-            host="proxy.example.com",
-            port=None,
-            scheme=None,
-            required=None,
-            timeout_ms=0,
-            source="test",
-        )
-        assert result.timeout_ms == DEFAULT_PROXY_TIMEOUT
 
     def test_normalizes_scheme_to_lowercase(self) -> None:
         result = _build_proxy_config(
             host="proxy.example.com",
             port=None,
             scheme="HTTPS",
-            required=None,
-            timeout_ms=None,
             source="test",
         )
         assert result.endpoint.scheme == "https"
@@ -297,33 +247,9 @@ class TestBuildProxyConfig:
             host="proxy.example.com",
             port=None,
             scheme="HTTP",
-            required=None,
-            timeout_ms=None,
             source="test",
         )
         assert result.endpoint.scheme == "http"
-
-    def test_handles_explicit_false_required(self) -> None:
-        result = _build_proxy_config(
-            host="proxy.example.com",
-            port=None,
-            scheme=None,
-            required=False,
-            timeout_ms=None,
-            source="test",
-        )
-        assert result.required is False
-
-    def test_handles_explicit_true_required(self) -> None:
-        result = _build_proxy_config(
-            host="proxy.example.com",
-            port=None,
-            scheme=None,
-            required=True,
-            timeout_ms=None,
-            source="test",
-        )
-        assert result.required is True
 
 
 class TestProxyFromConfigIni:
@@ -352,8 +278,6 @@ class TestProxyFromConfigIni:
                 "host": "proxy.corp.com",
                 "port": "8080",
                 "protocol": "https",
-                "required": "true",
-                "timeout": "5000",
             }
         )
         result = _proxy_from_config_ini(config_path)
@@ -362,8 +286,6 @@ class TestProxyFromConfigIni:
         assert result.endpoint.host == "proxy.corp.com"
         assert result.endpoint.port == 8080
         assert result.endpoint.scheme == "https"
-        assert result.required is True
-        assert result.timeout_ms == 5000
 
     def test_applies_defaults_for_optional_fields(self, config_file_factory) -> None:
         config_path = config_file_factory(
@@ -377,8 +299,6 @@ class TestProxyFromConfigIni:
         assert result.endpoint.host == "proxy.corp.com"
         assert result.endpoint.port == DEFAULT_PROXY_PORT
         assert result.endpoint.scheme == DEFAULT_PROXY_SCHEME
-        assert result.required == DEFAULT_PROXY_REQUIRED
-        assert result.timeout_ms == DEFAULT_PROXY_TIMEOUT
 
     def test_handles_partial_config(self, config_file_factory) -> None:
         config_path = config_file_factory(
@@ -394,34 +314,6 @@ class TestProxyFromConfigIni:
         assert result.endpoint.host == "proxy.corp.com"
         assert result.endpoint.port == 9090
         assert result.endpoint.scheme == "http"
-        assert result.required == DEFAULT_PROXY_REQUIRED  # default
-        assert result.timeout_ms == DEFAULT_PROXY_TIMEOUT  # default
-
-    def test_handles_boolean_required_false(self, config_file_factory) -> None:
-        config_path = config_file_factory(
-            proxy_section={
-                "host": "proxy.corp.com",
-                "required": "false",
-            }
-        )
-        result = _proxy_from_config_ini(config_path)
-
-        assert result is not None
-        assert result.required is False
-
-    def test_handles_boolean_required_variations(self, config_file_factory) -> None:
-        variations = ["True", "yes", "1", "on"]
-        for variation in variations:
-            config_path = config_file_factory(
-                proxy_section={
-                    "host": "proxy.corp.com",
-                    "required": variation,
-                }
-            )
-            result = _proxy_from_config_ini(config_path)
-
-            assert result is not None
-            assert result.required is True
 
     def test_raises_when_host_empty_but_other_values_in_config(
         self, config_file_factory
@@ -476,9 +368,7 @@ class TestProxyFromCliOptions:
         assert result is None
 
     def test_returns_none_when_all_none(self) -> None:
-        result = _proxy_from_cli_options(
-            host=None, port=None, scheme=None, required=None, timeout_ms=None
-        )
+        result = _proxy_from_cli_options(host=None, port=None, scheme=None)
         assert result is None
 
     def test_parses_all_options(self) -> None:
@@ -486,15 +376,11 @@ class TestProxyFromCliOptions:
             host="cli-proxy.com",
             port="9090",
             scheme="https",
-            required=False,
-            timeout_ms="3000",
         )
         assert result is not None
         assert result.endpoint.host == "cli-proxy.com"
         assert result.endpoint.port == 9090
         assert result.endpoint.scheme == "https"
-        assert result.required is False
-        assert result.timeout_ms == 3000
 
     def test_parses_minimal_options_with_defaults(self) -> None:
         result = _proxy_from_cli_options(host="cli-proxy.com")
@@ -502,16 +388,10 @@ class TestProxyFromCliOptions:
         assert result.endpoint.host == "cli-proxy.com"
         assert result.endpoint.port == DEFAULT_PROXY_PORT
         assert result.endpoint.scheme == DEFAULT_PROXY_SCHEME
-        assert result.required == DEFAULT_PROXY_REQUIRED
-        assert result.timeout_ms == DEFAULT_PROXY_TIMEOUT
 
     def test_raises_on_invalid_port_string(self) -> None:
         with pytest.raises(ValueError, match="port must be an integer"):
             _proxy_from_cli_options(host="proxy.com", port="not-a-number")
-
-    def test_raises_on_invalid_timeout_string(self) -> None:
-        with pytest.raises(ValueError, match="timeout must be an integer"):
-            _proxy_from_cli_options(host="proxy.com", timeout_ms="invalid")
 
     def test_handles_zero_port_string(self) -> None:
         with pytest.raises(ValueError, match="port must be an integer"):
@@ -532,12 +412,9 @@ class TestProxyFromCliOptions:
             _proxy_from_cli_options(port="8080")
 
     def test_handles_valid_integer_strings(self) -> None:
-        result = _proxy_from_cli_options(
-            host="proxy.com", port="8080", timeout_ms="5000"
-        )
+        result = _proxy_from_cli_options(host="proxy.com", port="8080")
         assert result is not None
         assert result.endpoint.port == 8080
-        assert result.timeout_ms == 5000
 
 
 class TestGetProxyConfig:

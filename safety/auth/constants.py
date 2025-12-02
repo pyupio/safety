@@ -1,16 +1,12 @@
-from pathlib import Path
-
-from safety.constants import USER_CONFIG_DIR, get_config_setting
-
-AUTH_CONFIG_FILE_NAME = "auth.ini"
-AUTH_CONFIG_USER = USER_CONFIG_DIR / Path(AUTH_CONFIG_FILE_NAME)
-
+from safety.constants import get_required_config_setting
 
 HOST: str = "localhost"
 
-CLIENT_ID = get_config_setting("CLIENT_ID")
-AUTH_SERVER_URL = get_config_setting("AUTH_SERVER_URL")
-SAFETY_PLATFORM_URL = get_config_setting("SAFETY_PLATFORM_URL")
+CLIENT_ID = get_required_config_setting("CLIENT_ID")
+AUTH_SERVER_URL = get_required_config_setting("AUTH_SERVER_URL")
+SAFETY_PLATFORM_URL = get_required_config_setting("SAFETY_PLATFORM_URL")
+OAUTH2_SCOPE = "openid email profile offline_access"
+
 
 OPENID_CONFIG_URL = f"{AUTH_SERVER_URL}/.well-known/openid-configuration"
 

@@ -97,6 +97,7 @@ from safety.util import (
 
 from .cli_util import (
     CommandType,
+    CustomContext,
     SafetyCLICommand,
     SafetyCLILegacyCommand,
     SafetyCLILegacyGroup,
@@ -109,6 +110,17 @@ try:
     from typing import Annotated, Optional
 except ImportError:
     from typing_extensions import Annotated, Optional
+
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from safety.auth.models import Auth
+    from safety.models import SafetyCLI
+
+    SafetyCustomContext = CustomContext[SafetyCLI]
+else:
+    SafetyCustomContext = CustomContext
 
 
 import safety.asyncio_patch  # noqa: F401
@@ -194,10 +206,10 @@ def clean_check_command(f):
     """
 
     @wraps(f)
-    def inner(ctx, *args, **kwargs):
+    def inner(ctx: "SafetyCustomContext", *args, **kwargs):
         save_json = kwargs["save_json"]
         output = kwargs["output"]
-        authenticated: bool = ctx.obj.auth.client.is_using_auth_credentials()
+        authenticated: bool = ctx.obj.auth.platform.is_using_auth_credentials()
         files = kwargs["files"]
         policy_file = kwargs["policy_file"]
         auto_remediation_limit = kwargs["auto_remediation_limit"]
@@ -238,9 +250,11 @@ def clean_check_command(f):
             auto_remediation_limit = get_fix_options(
                 policy_file, auto_remediation_limit
             )
-            policy_file, server_audit_and_monitor = safety_core.get_server_policies(
-                ctx.obj.auth.client, policy_file=policy_file, proxy_dictionary=None
-            )
+
+            # Server policies for check were deprecated in CLI a long time ago,
+            # leaving this to False as reference
+            # Server policies are now part of the scan and firewall features.
+            server_audit_and_monitor = False
             audit_and_monitor = audit_and_monitor and server_audit_and_monitor
 
             kwargs.update(
@@ -577,8 +591,9 @@ def check(
     }
 
     LOG.info("Calling the check function")
+    auth: "Auth" = ctx.obj.auth
     vulns, db_full = safety_core.check(
-        session=ctx.obj.auth.client,
+        auth=auth,
         packages=packages,
         db_mirror=db,
         cached=cache,
@@ -601,7 +616,7 @@ def check(
     if not db or is_a_remote_mirror(db):
         LOG.info("Not local DB used, Getting announcements")
         announcements = safety_core.get_announcements(
-            ctx.obj.auth.client, telemetry=ctx.obj.config.telemetry_enabled
+            auth=auth, telemetry=ctx.obj.config.telemetry_enabled
         )
 
     announcements.extend(
@@ -757,7 +772,7 @@ def license(ctx, db, output, cache, files):
     SafetyContext().params = ctx.params
 
     licenses_db = safety_core.get_licenses(
-        session=ctx.obj.auth.client,
+        auth=ctx.obj.auth,
         db_mirror=db,
         cached=cache,
         telemetry=ctx.obj.config.telemetry_enabled,
@@ -770,7 +785,7 @@ def license(ctx, db, output, cache, files):
     announcements = []
     if not db:
         announcements = safety_core.get_announcements(
-            session=ctx.obj.auth.client, telemetry=ctx.obj.config.telemetry_enabled
+            auth=ctx.obj.auth, telemetry=ctx.obj.config.telemetry_enabled
         )
 
     output_report = SafetyFormatter(output=output).render_licenses(
@@ -817,7 +832,9 @@ def generate(ctx, name, path, minimum_cvss_severity):
         generate_installation_policy(ctx, name, path, minimum_cvss_severity)
 
 
-def generate_installation_policy(ctx, name, path, minimum_cvss_severity):
+def generate_installation_policy(
+    ctx: "SafetyCustomContext", name, path, minimum_cvss_severity
+):
     all_severities = [severity.name.lower() for severity in VulnerabilitySeverityLabels]
     policy_severities = all_severities[
         all_severities.index(minimum_cvss_severity.lower()) :
@@ -846,7 +863,7 @@ def generate_installation_policy(ctx, name, path, minimum_cvss_severity):
         if handler.ecosystem:
             wait_msg = "Fetching Safety's vulnerability database..."
             with console.status(wait_msg, spinner=DEFAULT_SPINNER):
-                handler.download_required_assets(ctx.obj.auth.client)
+                handler.download_required_assets(ctx.obj.auth)
 
     wait_msg = "Scanning project directory"
     with console.status(wait_msg, spinner=DEFAULT_SPINNER):
@@ -1055,8 +1072,11 @@ def validate(ctx, name, version, path):
     type=int,
     default=None,
     help=CLI_CONFIGURE_PROXY_TIMEOUT,
+    hidden=True,
 )
-@click.option("--proxy-required", default=False, help=CLI_CONFIGURE_PROXY_REQUIRED)
+@click.option(
+    "--proxy-required", default=False, help=CLI_CONFIGURE_PROXY_REQUIRED, hidden=True
+)
 @click.option(
     "--organization-id",
     "-org-id",
@@ -1108,6 +1128,25 @@ def configure(
     Configure global settings, like proxy settings and organization details
     """
 
+    # Check for deprecated options and warn the user
+    if ctx.get_parameter_source("proxy_timeout") != click.core.ParameterSource.DEFAULT:
+        click.secho(
+            "Warning: The --proxy-timeout option is deprecated and has no effect. "
+            "Proxy timeout is now controlled by the SAFETY_REQUEST_TIMEOUT environment variable. "
+            "This option will be removed in a future version.",
+            fg="yellow",
+            file=sys.stderr,
+        )
+
+    if ctx.get_parameter_source("proxy_required") != click.core.ParameterSource.DEFAULT:
+        click.secho(
+            "Warning: The --proxy-required option is deprecated and has no effect. "
+            "When proxy options are configured, the proxy is automatically considered required. "
+            "This option will be removed in a future version.",
+            fg="yellow",
+            file=sys.stderr,
+        )
+
     config = configparser.ConfigParser()
     if save_to_system:
         if not CONFIG_FILE_SYSTEM:
@@ -1123,8 +1162,6 @@ def configure(
     config.read(CONFIG_FILE)
 
     PROXY_SECTION_NAME: str = "proxy"
-    PROXY_TIMEOUT_KEY: str = "timeout"
-    PROXY_REQUIRED_KEY: str = "required"
 
     if organization_id:
         config["organization"] = asdict(
@@ -1140,8 +1177,6 @@ def configure(
             proxy_timeout = DEFAULT_PROXY_TIMEOUT
 
     new_proxy_config = {}
-    new_proxy_config.setdefault(PROXY_TIMEOUT_KEY, str(proxy_timeout))
-    new_proxy_config.setdefault(PROXY_REQUIRED_KEY, str(proxy_required))
 
     if proxy_host:
         new_proxy_config.update(
@@ -1205,7 +1240,7 @@ class Output(str, Enum):
 @handle_cmd_exception
 @notify
 def check_updates(
-    ctx: typer.Context,
+    ctx: "SafetyCustomContext",
     version: Annotated[
         int,
         typer.Option(min=1),
@@ -1229,13 +1264,13 @@ def check_updates(
     PYTHON_VERSION = platform.python_version()
     OS_TYPE = platform.system()
 
-    authenticated = ctx.obj.auth.client.is_using_auth_credentials()
+    authenticated = ctx.obj.auth.platform.is_using_auth_credentials()
     data = None
 
     console.print()
     with console.status(wait_msg, spinner=DEFAULT_SPINNER):
         try:
-            data = ctx.obj.auth.client.check_updates(
+            data = ctx.obj.auth.platform.check_updates(
                 version=1,
                 safety_version=VERSION,
                 python_version=PYTHON_VERSION,

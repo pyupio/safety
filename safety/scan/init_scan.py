@@ -3,7 +3,6 @@ from enum import Enum
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
-    Any,
     Generator,
     List,
     Optional,
@@ -12,7 +11,6 @@ from typing import (
     Literal,
 )
 from pydantic import BaseModel, ConfigDict
-import typer
 
 from safety.auth.constants import SAFETY_PLATFORM_URL
 from safety.errors import SafetyException
@@ -45,6 +43,14 @@ from safety_schemas.models import (
 
 from safety.scan.util import GIT
 from safety.util import build_telemetry_data
+
+
+if TYPE_CHECKING:
+    from safety.platform import SafetyPlatformClient
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 
 # Define typed models for scan results
@@ -173,7 +179,7 @@ if TYPE_CHECKING:
 
 
 def init_scan(
-    ctx: Any,
+    ctx: "SafetyContext",
     target: Path,
     config: "ConfigModel",
     metadata: "MetadataModel",
@@ -317,8 +323,7 @@ def init_scan(
 
         # Process each affected specification
         for spec in affected_specifications:
-            # Access vulnerabilities
-            for vuln in spec.vulnerabilities:
+            for vuln in spec.vulnerabilities:  # type: ignore[reportAttributeAccessIssue]
                 if vuln.ignored:
                     continue
 
@@ -347,16 +352,14 @@ def init_scan(
                 else:
                     current_others += 1
 
-            # Check for available fixes - safely access remediation attributes
-            if spec.remediation:
-                # Access remediation properties safely without relying on specific attribute names
-                remediation: RemediationModel = spec.remediation
-                has_recommended_version = True if remediation.recommended else False
+            if spec.remediation:  # type: ignore[reportAttributeAccessIssue]
+                remediation: RemediationModel = spec.remediation  # type: ignore[reportAttributeAccessIssue]
+                has_recommended_version = True if remediation.recommended else False  # type: ignore[reportAttributeAccessIssue]
 
                 if has_recommended_version:
                     current_fixes += 1
                     current_resolved_vulns += len(
-                        [v for v in spec.vulnerabilities if not v.ignored]
+                        [v for v in spec.vulnerabilities if not v.ignored]  # type: ignore[reportAttributeAccessIssue]
                     )
 
         # Update total counts
@@ -445,7 +448,10 @@ def init_scan(
             message="Uploading results to Safety platform",
             percent=50,
         )
-        result = ctx.obj.auth.client.upload_report(json_format)
+        if ctx.obj.auth and hasattr(ctx.obj.auth, "platform"):
+            result = ctx.obj.auth.platform.upload_report(json_format)
+        else:
+            raise ValueError("Authentication platform not available")
 
         # Upload complete
         yield UploadingScanResult(
@@ -486,11 +492,11 @@ def init_scan(
 
 
 def start_scan(
-    ctx: "typer.Context",
+    ctx: "SafetyContext",
     auth_type: AuthenticationType,
     is_authenticated: bool,
     target: Path,
-    client: Any,
+    client: "SafetyPlatformClient",
     project: ProjectModel,
     branch: Optional[str] = None,
     stage: Stage = Stage.development,

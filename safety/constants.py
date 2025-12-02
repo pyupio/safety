@@ -115,6 +115,10 @@ class FeatureType(Enum):
         return f"{self.name.lower()}_enabled"
 
 
+class MissingConfigError(RuntimeError):
+    pass
+
+
 def get_config_setting(name: str, default=None) -> Optional[str]:
     """
     Get the configuration setting from the config file or defaults.
@@ -139,8 +143,15 @@ def get_config_setting(name: str, default=None) -> Optional[str]:
     return default.value if default else default
 
 
-DATA_API_BASE_URL = get_config_setting("DATA_API_BASE_URL")
-PLATFORM_API_BASE_URL = get_config_setting("PLATFORM_API_BASE_URL")
+def get_required_config_setting(name: str) -> str:
+    value = get_config_setting(name)
+    if not value:
+        raise MissingConfigError(f"Missing required config setting: {name}")
+    return value
+
+
+DATA_API_BASE_URL = get_required_config_setting("DATA_API_BASE_URL")
+PLATFORM_API_BASE_URL = get_required_config_setting("PLATFORM_API_BASE_URL")
 
 PLATFORM_API_PROJECT_ENDPOINT = f"{PLATFORM_API_BASE_URL}/project"
 PLATFORM_API_PROJECT_CHECK_ENDPOINT = f"{PLATFORM_API_BASE_URL}/project-check"
@@ -156,7 +167,7 @@ PLATFORM_API_CHECK_UPDATES_ENDPOINT = f"{PLATFORM_API_BASE_URL}/versions-and-con
 PLATFORM_API_INITIALIZE_ENDPOINT = f"{PLATFORM_API_BASE_URL}/initialize"
 PLATFORM_API_EVENTS_ENDPOINT = f"{PLATFORM_API_BASE_URL}/events"
 
-FIREWALL_API_BASE_URL = get_config_setting("FIREWALL_API_BASE_URL")
+FIREWALL_API_BASE_URL = get_required_config_setting("FIREWALL_API_BASE_URL")
 FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT = f"{FIREWALL_API_BASE_URL}/audit/pypi/packages/"
 FIREWALL_AUDIT_NPMJS_PACKAGES_ENDPOINT = (
     f"{FIREWALL_API_BASE_URL}/audit/npmjs/packages/"

@@ -1,5 +1,13 @@
-from typing import Any, List, Protocol, Tuple, Dict, Literal, runtime_checkable
-import typer
+from typing import (
+    Any,
+    List,
+    Protocol,
+    Tuple,
+    Dict,
+    Literal,
+    runtime_checkable,
+    TYPE_CHECKING,
+)
 from rich.padding import Padding
 
 from .base import EnvironmentDiffTracker
@@ -12,6 +20,12 @@ from .intents import ToolIntentionType, CommandToolIntention
 from .environment_diff import PackageLocation
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 
 @runtime_checkable
@@ -45,7 +59,7 @@ class InstallationAuditMixin:
     """
 
     def render_installation_warnings(
-        self, ctx: typer.Context, packages_audit: Dict[str, Any]
+        self, ctx: "SafetyContext", packages_audit: Dict[str, Any]
     ):
         """
         Render installation warnings based on package audit results.
@@ -105,19 +119,22 @@ class InstallationAuditMixin:
                 )
 
     def audit_packages(
-        self: "AuditableCommand", ctx: typer.Context
+        self: "AuditableCommand", ctx: "SafetyContext"
     ) -> Tuple[Dict[str, Any], Dict[PackageLocation, str]]:
         """
         Audit packages based on environment diff tracking.
         Override this method in your command class if needed.
 
         Args:
-            ctx: The typer context
+            ctx: The safety context
 
         Returns:
             Dict containing audit results
         """
         try:
+            if not ctx.obj.auth:
+                raise ValueError("Authentication required for package audit")
+
             diff_tracker = getattr(self, "_diff_tracker", None)
             if diff_tracker and hasattr(diff_tracker, "get_diff"):
                 added, _, updated = diff_tracker.get_diff()
@@ -132,7 +149,7 @@ class InstallationAuditMixin:
                     eq_exp = "@" if ecosystem == "npmjs" else "=="
 
                     return (
-                        ctx.obj.auth.client.audit_packages(
+                        ctx.obj.auth.platform.audit_packages(
                             [
                                 f"{package.name}{eq_exp}{version[-1] if isinstance(version, tuple) else version}"
                                 for (package, version) in packages.items()
@@ -147,7 +164,7 @@ class InstallationAuditMixin:
         # Always return a dict to satisfy the return type
         return dict(), dict()
 
-    def handle_installation_audit(self, ctx: typer.Context, result: ToolResult):
+    def handle_installation_audit(self, ctx: "SafetyContext", result: ToolResult):
         """
         Handle installation audit and rendering warnings/details.
         This is an explicit method that can be called from a command's after method.
@@ -168,7 +185,7 @@ class InstallationAuditMixin:
             )
 
         audit_result, packages = self.audit_packages(ctx)
-        self.render_installation_warnings(ctx, audit_result)
+        self.render_installation_warnings(ctx, audit_result)  # type: ignore
 
         if not result.process or result.process.returncode != 0:
             package_names = {pl.name for pl in packages}

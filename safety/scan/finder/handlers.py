@@ -2,12 +2,16 @@ from abc import ABC, abstractmethod
 import os
 from pathlib import Path
 from types import MappingProxyType
-from typing import Dict, List, Optional, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from safety_schemas.models import Ecosystem, FileType
 
 
 NOT_IMPLEMENTED = "You should implement this."
+
+if TYPE_CHECKING:
+    from safety.auth.models import Auth
+
 
 class FileHandler(ABC):
     """
@@ -18,7 +22,9 @@ class FileHandler(ABC):
     def __init__(self) -> None:
         self.ecosystem: Optional[Ecosystem] = None
 
-    def can_handle(self, root: str, file_name: str, include_files: Dict[FileType, List[Path]]) -> Optional[FileType]:
+    def can_handle(
+        self, root: str, file_name: str, include_files: Dict[FileType, List[Path]]
+    ) -> Optional[FileType]:
         """
         Determines if the handler can handle the given file based on its type and inclusion criteria.
 
@@ -38,7 +44,10 @@ class FileHandler(ABC):
         for f_type in self.ecosystem.file_types:
             if f_type in include_files:
                 current = Path(root, file_name).resolve()
-                paths = [p.resolve() if p.is_absolute() else (root / p).resolve() for p in include_files[f_type]]
+                paths = [
+                    p.resolve() if p.is_absolute() else (root / p).resolve()
+                    for p in include_files[f_type]
+                ]
                 if current in paths:
                     return f_type
 
@@ -52,36 +61,34 @@ class FileHandler(ABC):
         return None
 
     @abstractmethod
-    def download_required_assets(self, session) -> Dict[str, str]:
+    def download_required_assets(self, auth: "Auth") -> None:
         """
         Abstract method to download required assets for handling files. Should be implemented
         by subclasses.
 
         Args:
-            session: The session object for making network requests.
-
-        Returns:
-            Dict[str, str]: A dictionary of downloaded assets.
+            auth: The authentication object for making authenticated requests.
         """
-        return NotImplementedError(NOT_IMPLEMENTED)
+        raise NotImplementedError(NOT_IMPLEMENTED)
 
 
 class PythonFileHandler(FileHandler):
     """
     Handler for Python files within the Python ecosystem.
     """
+
     # Example of a Python File Handler
 
     def __init__(self) -> None:
         super().__init__()
         self.ecosystem = Ecosystem.PYTHON
 
-    def download_required_assets(self, session) -> None:
+    def download_required_assets(self, auth: "Auth") -> None:
         """
         Downloads the required assets for handling Python files, specifically the Safety database.
 
         Args:
-            session: The session object for making network requests.
+            auth: The authentication object
         """
         from safety.safety import fetch_database
 
@@ -90,33 +97,49 @@ class PythonFileHandler(FileHandler):
         db = False if SAFETY_DB_DIR is None else SAFETY_DB_DIR
 
         # Fetch both the full and partial Safety databases
-        fetch_database(session=session, full=False, db=db, cached=True,
-                       telemetry=True, ecosystem=Ecosystem.PYTHON,
-                       from_cache=False)
+        fetch_database(
+            auth=auth,
+            full=False,
+            db=db,
+            cached=True,
+            telemetry=True,
+            ecosystem=Ecosystem.PYTHON,
+            from_cache=False,
+        )
 
-        fetch_database(session=session, full=True, db=db, cached=True,
-                                telemetry=True, ecosystem=Ecosystem.PYTHON,
-                                from_cache=False)
+        fetch_database(
+            auth=auth,
+            full=True,
+            db=db,
+            cached=True,
+            telemetry=True,
+            ecosystem=Ecosystem.PYTHON,
+            from_cache=False,
+        )
 
 
 class SafetyProjectFileHandler(FileHandler):
     """
     Handler for Safety project files within the Safety project ecosystem.
     """
+
     # Example of a Python File Handler
 
     def __init__(self) -> None:
         super().__init__()
         self.ecosystem = Ecosystem.SAFETY_PROJECT
 
-    def download_required_assets(self, session) -> None:
+    def download_required_assets(self, auth: "Auth") -> None:
         """
         No required assets to download for Safety project files.
         """
         pass
 
+
 # Mapping of ecosystems to their corresponding file handlers
-ECOSYSTEM_HANDLER_MAPPING = MappingProxyType({
-    Ecosystem.PYTHON: PythonFileHandler,
-    Ecosystem.SAFETY_PROJECT: SafetyProjectFileHandler,
-})
+ECOSYSTEM_HANDLER_MAPPING = MappingProxyType(
+    {
+        Ecosystem.PYTHON: PythonFileHandler,
+        Ecosystem.SAFETY_PROJECT: SafetyProjectFileHandler,
+    }
+)

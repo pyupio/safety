@@ -2,14 +2,13 @@ from functools import wraps
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from rich.padding import Padding
 from safety_schemas.models import ConfigModel, ProjectModel
-from rich.console import Console
 from safety.auth.cli import render_email_note
 from safety.cli_util import process_auth_status_not_ready
-from safety.console import main_console
+from safety.console import SafeConsole, main_console
 from safety.constants import SYSTEM_POLICY_FILE, USER_POLICY_FILE
 from safety.errors import SafetyException
 from safety.scan.main import download_policy, load_policy_file, resolve_policy
@@ -34,6 +33,13 @@ from safety_schemas.models import (
 LOG = logging.getLogger(__name__)
 
 
+if TYPE_CHECKING:
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
+
+
 def scan_project_command_init(func):
     """
     Decorator to make general verifications before each project scan command.
@@ -41,11 +47,11 @@ def scan_project_command_init(func):
 
     @wraps(func)
     def inner(
-        ctx,
+        ctx: "SafetyContext",
         policy_file_path: Optional[Path],
         target: Path,
         output: ScanOutput,
-        console: Console = main_console,
+        console: "SafeConsole" = main_console,
         *args,
         **kwargs,
     ):
@@ -54,6 +60,9 @@ def scan_project_command_init(func):
 
         if output.is_silent():
             console.quiet = True
+
+        if not ctx.obj.auth:
+            raise SafetyException("Authentication not initialized.")
 
         if not ctx.obj.auth.is_valid():
             process_auth_status_not_ready(console=console, auth=ctx.obj.auth, ctx=ctx)
@@ -66,7 +75,7 @@ def scan_project_command_init(func):
         print_header(console=console, targets=[target])
 
         stage = ctx.obj.auth.stage
-        session = ctx.obj.auth.client
+        platform = ctx.obj.auth.platform
         git_data = GIT(root=target).build_git_data()
         origin = None
         branch = None
@@ -87,7 +96,7 @@ def scan_project_command_init(func):
             verify_project(
                 console,
                 ctx,
-                session,
+                platform,
                 unverified_project,
                 origin,
                 link_behavior=link_behavior,
@@ -99,6 +108,9 @@ def scan_project_command_init(func):
                 name="Undefined project",
                 project_path=unverified_project.project_path,
             )
+
+        if not ctx.obj.project:
+            raise SafetyException("Codebase not loaded.")
 
         ctx.obj.project.git = git_data
         ctx.obj.project.upload_request_id = upload_request_id
@@ -116,7 +128,7 @@ def scan_project_command_init(func):
                 (
                     download_policy,
                     {
-                        "session": session,
+                        "platform": platform,
                         "project_id": ctx.obj.project.id,
                         "stage": stage,
                         "branch": branch,
@@ -144,10 +156,10 @@ def scan_project_command_init(func):
             console.print(f"[bold]Organization[/bold]: {ctx.obj.auth.org.name}")
 
         # Check if an API key is set
-        if ctx.obj.auth.client.get_authentication_type() == "api_key":
+        if ctx.obj.auth.platform.get_authentication_type() == "api_key":
             details = {"Account": "API key used"}
         else:
-            if ctx.obj.auth.client.get_authentication_type() == "token":
+            if ctx.obj.auth.platform.get_authentication_type() == "token":
                 content = ctx.obj.auth.email
                 if ctx.obj.auth.name != ctx.obj.auth.email:
                     content = f"{ctx.obj.auth.name}, {ctx.obj.auth.email}"
@@ -162,7 +174,7 @@ def scan_project_command_init(func):
         if ctx.obj.project.git:
             details[" Git branch"] = ctx.obj.project.git.branch  # type: ignore
 
-        details[" Environment"] = ctx.obj.auth.stage
+        details[" Environment"] = ctx.obj.auth.stage if ctx.obj.auth.stage else "-"
 
         msg = "None, using Safety CLI default policies"
 
@@ -205,7 +217,7 @@ def scan_system_command_init(func):
         policy_file_path: Optional[Path],
         targets: List[Path],
         output: SystemScanOutput,
-        console: Console = main_console,
+        console: "SafeConsole" = main_console,
         *args,
         **kwargs,
     ):
@@ -310,14 +322,20 @@ def inject_metadata(func):
     """
 
     @wraps(func)
-    def inner(ctx, *args, **kwargs):
+    def inner(ctx: "SafetyContext", *args, **kwargs):
+        if not ctx.obj.config:
+            raise SafetyException("Default configuration not found.")
+
+        if not ctx.obj.auth:
+            raise SafetyException("Authentication not initialized.")
+
         telemetry = build_telemetry_data(
             telemetry=ctx.obj.config.telemetry_enabled,
             command=ctx.command.name,
             subcommand=ctx.invoked_subcommand,
         )
 
-        auth_type = ctx.obj.auth.client.get_authentication_type()
+        auth_type = ctx.obj.auth.platform.get_authentication_type()
 
         scan_type = ScanType(ctx.command.name)
         target = kwargs.get("target", None)
@@ -333,10 +351,10 @@ def inject_metadata(func):
 
         metadata = MetadataModel(
             scan_type=scan_type,
-            stage=ctx.obj.auth.stage,
+            stage=ctx.obj.auth.stage,  # type: ignore
             scan_locations=targets,  # type: ignore
-            authenticated=ctx.obj.auth.client.is_using_auth_credentials(),
-            authentication_type=auth_type,
+            authenticated=ctx.obj.auth.platform.is_using_auth_credentials(),
+            authentication_type=auth_type,  # type: ignore
             telemetry=telemetry,
             schema_version=ReportSchemaVersion.v3_0,
         )

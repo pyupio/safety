@@ -12,7 +12,7 @@ from safety.safety import process_fixes_scan
 from safety.scan.finder.handlers import ECOSYSTEM_HANDLER_MAPPING, FileHandler
 from safety.scan.validators import output_callback, save_as_callback
 from safety.util import pluralize
-from ..cli_util import SafetyCLICommand, SafetyCLISubGroup
+from ..cli_util import CustomContext, SafetyCLICommand, SafetyCLISubGroup
 from safety.error_handlers import handle_cmd_exception
 from rich.padding import Padding
 import typer
@@ -76,6 +76,15 @@ from safety_schemas.models import (
     Stage,
 )
 from safety.scan.fun_mode.easter_eggs import run_easter_egg
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
+else:
+    SafetyContext = CustomContext
 
 try:
     from typing import Annotated
@@ -161,7 +170,7 @@ class ScannableEcosystems(Enum):
 
 
 def process_report(
-    obj: Any,
+    obj: "SafetyContext",
     console: Console,
     report: ReportModel,
     output: str,
@@ -174,7 +183,7 @@ def process_report(
     Processes and outputs the report based on the given parameters.
 
     Args:
-        obj (Any): The context object.
+        obj (SafetyContext): The context object.
         console (Console): The console object.
         report (ReportModel): The report model.
         output (str): The output format.
@@ -265,7 +274,7 @@ def process_report(
                 )
             )
             try:
-                result = obj.auth.client.upload_report(json_format)
+                result = obj.auth.platform.upload_report(json_format)
                 status.update(MSG_REPORT_UPLOADED)
                 report_url = f"{SAFETY_PLATFORM_URL}{result['url']}"
             except Exception as e:
@@ -486,7 +495,7 @@ def validate_save_as(
 
 
 def initialize_file_finder(
-    ctx: typer.Context,
+    ctx: "SafetyContext",
     target: Path,
     console: Optional[Console],
     ecosystems: List[Ecosystem],
@@ -522,9 +531,9 @@ def initialize_file_finder(
         if handler.ecosystem:
             if console:
                 with console.status(WAIT_MSG_FETCHING_DB, spinner=DEFAULT_SPINNER):
-                    handler.download_required_assets(ctx.obj.auth.client)
+                    handler.download_required_assets(ctx.obj.auth)
             else:
-                handler.download_required_assets(ctx.obj.auth.client)
+                handler.download_required_assets(ctx.obj.auth)
 
     return file_finder
 
@@ -1160,7 +1169,7 @@ def scan(
 @handle_cmd_exception
 @notify
 def system_scan(
-    ctx: typer.Context,
+    ctx: "SafetyContext",
     policy_file_path: Annotated[
         Optional[Path],
         typer.Option(
@@ -1230,7 +1239,7 @@ def system_scan(
             if handler.ecosystem:
                 wait_msg = "Fetching Safety's proprietary vulnerability database..."
                 status.update(wait_msg)
-                handler.download_required_assets(ctx.obj.auth.client)
+                handler.download_required_assets(ctx.obj.auth)
 
         file_paths = {}
         file_finders = []
@@ -1246,7 +1255,7 @@ def system_scan(
                 ecosystems=ecosystems,
                 max_level=config.scan.max_depth,
                 exclude=config.scan.ignore,
-                console=console,
+                # console=console,
                 include_files=to_include,
                 live_status=status,
                 handlers=handlers,
@@ -1316,7 +1325,7 @@ def system_scan(
 
                 upload_request_id = None
                 try:
-                    result = ctx.obj.auth.client.project_scan_request(
+                    result = ctx.obj.auth.platform.project_scan_request(
                         project_id=project.id
                     )
                     if "scan_upload_request_id" in result:

@@ -11,9 +11,11 @@ from typing import (
     Any,
     DefaultDict,
     Dict,
+    Generic,
     List,
     Optional,
     Tuple,
+    TypeVar,
     Union,
     cast,
 )
@@ -41,10 +43,16 @@ from safety.constants import (
 )
 from safety.scan.constants import CONSOLE_HELP_THEME
 from safety.models import SafetyCLI
+from safety.auth import configure_auth_session
+
 
 if TYPE_CHECKING:
     from click.core import Command, Context
     from safety.auth.models import Auth
+    from safety.console import SafeConsole
+    from safety.cli_util import CustomContext
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 
 LOG = logging.getLogger(__name__)
@@ -580,7 +588,9 @@ def format_main_help(
             console.print(Padding(Align(epilogue_text, pad=False), 1))
 
 
-def process_auth_status_not_ready(console, auth: "Auth", ctx: typer.Context) -> None:
+def process_auth_status_not_ready(
+    console: "SafeConsole", auth: "Auth", ctx: "SafetyContext"
+) -> None:
     """
     Handle the process when the authentication status is not ready.
 
@@ -593,7 +603,7 @@ def process_auth_status_not_ready(console, auth: "Auth", ctx: typer.Context) -> 
     from safety_schemas.models import Stage
     from safety.auth.constants import CLI_AUTH, MSG_NON_AUTHENTICATED
 
-    if not auth.client or not auth.client.is_using_auth_credentials():
+    if not auth.platform or not auth.platform.is_using_auth_credentials():
         if auth.stage is Stage.development:
             console.print()
             if auth.org:
@@ -640,7 +650,7 @@ def process_auth_status_not_ready(console, auth: "Auth", ctx: typer.Context) -> 
                 else:
                     ctx.invoke(login_command)
 
-                if not ctx.obj.auth.email_verified:
+                if not auth.email_verified:
                     sys.exit(1)
         else:
             if not auth.org:
@@ -668,7 +678,12 @@ def process_auth_status_not_ready(console, auth: "Auth", ctx: typer.Context) -> 
         sys.exit(1)
 
 
-class CustomContext(click.Context):
+T = TypeVar("T")
+
+
+class CustomContext(click.Context, Generic[T]):
+    obj: T
+
     def __init__(
         self,
         command: "Command",
@@ -894,9 +909,7 @@ class SafetyCLILegacyGroup(click.Group):
         }
         invoked_command = make_str(next(iter(ctx.protected_args), ""))
 
-        from safety.auth.cli_utils import inject_session
-
-        inject_session(**session_kwargs, invoked_command=invoked_command)
+        configure_auth_session(**session_kwargs, invoked_command=invoked_command)
 
         # call initialize if the --key is used.
         if session_kwargs["key"]:

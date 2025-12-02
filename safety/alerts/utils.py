@@ -26,7 +26,7 @@ try:
 except ImportError:
     jinja2 = None
 
-import requests
+import httpx
 from safety.meta import get_meta_http_headers
 
 
@@ -298,7 +298,7 @@ def fetch_changelog(
     headers = {"X-Api-Key": api_key}
     headers.update(get_meta_http_headers())
 
-    r = requests.get(
+    r = httpx.get(
         "https://pyup.io/api/v1/changelogs/{}/".format(package), headers=headers
     )
 

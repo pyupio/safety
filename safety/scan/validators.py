@@ -1,14 +1,22 @@
-
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 import typer
 from safety.scan.models import ScanExport, ScanOutput
+from safety.errors import SafetyException
 
-from safety_schemas.models import AuthenticationType
+
+if TYPE_CHECKING:
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+    from safety.utils.auth_session import AuthenticationType
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 
-MISSING_SPDX_EXTENSION_MSG = "spdx extra is not installed, please install it with: pip install safety[spdx]"
+MISSING_SPDX_EXTENSION_MSG = (
+    "spdx extra is not installed, please install it with: pip install safety[spdx]"
+)
 
 
 def raise_if_not_spdx_extension_installed() -> None:
@@ -16,12 +24,14 @@ def raise_if_not_spdx_extension_installed() -> None:
     Raises an error if the spdx extension is not installed.
     """
     try:
-        import spdx_tools.spdx
-    except Exception as e:
+        pass
+    except Exception:
         raise typer.BadParameter(MISSING_SPDX_EXTENSION_MSG)
 
 
-def save_as_callback(save_as: Optional[Tuple[ScanExport, Path]]) -> Tuple[Optional[str], Optional[Path]]:
+def save_as_callback(
+    save_as: Optional[Tuple[ScanExport, Path]],
+) -> Tuple[Optional[str], Optional[Path]]:
     """
     Callback function to handle save_as parameter and validate if spdx extension is installed.
 
@@ -36,7 +46,12 @@ def save_as_callback(save_as: Optional[Tuple[ScanExport, Path]]) -> Tuple[Option
     if ScanExport.is_format(export_type, ScanExport.SPDX):
         raise_if_not_spdx_extension_installed()
 
-    return (export_type.value, export_path) if export_type and export_path else (export_type, export_path)
+    return (
+        (export_type.value, export_path)
+        if export_type and export_path
+        else (export_type, export_path)
+    )
+
 
 def output_callback(output: ScanOutput) -> str:
     """
@@ -54,7 +69,7 @@ def output_callback(output: ScanOutput) -> str:
     return output.value
 
 
-def fail_if_not_allowed_stage(ctx: typer.Context):
+def fail_if_not_allowed_stage(ctx: "SafetyContext"):
     """
     Fail the command if the authentication type is not allowed in the current stage.
 
@@ -64,12 +79,16 @@ def fail_if_not_allowed_stage(ctx: typer.Context):
     if ctx.resilient_parsing:
         return
 
+    if not ctx.obj or not ctx.obj.auth:
+        raise SafetyException("Authentication object is not available")
+
     stage = ctx.obj.auth.stage
-    auth_type: AuthenticationType = ctx.obj.auth.client.get_authentication_type()
+    auth_type: AuthenticationType = ctx.obj.auth.platform.get_authentication_type()
 
     if os.getenv("SAFETY_DB_DIR"):
         return
 
-    if not auth_type.is_allowed_in(stage):
-        raise typer.BadParameter(f"'{auth_type.value}' auth type isn't allowed with " \
-                                 f"the '{stage}' stage.")
+    if not stage or not auth_type.is_allowed_in(stage):
+        raise typer.BadParameter(
+            f"'{auth_type.value}' auth type isn't allowed with the '{stage}' stage."
+        )

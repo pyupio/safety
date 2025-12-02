@@ -7,6 +7,7 @@ and test the public API exported by config.
 
 import pytest
 import os
+import ssl
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from typing import Optional
@@ -65,7 +66,12 @@ class TestConfigModulePublicAPI:
         from safety.config import __all__
 
         # This is the contract - update intentionally if API changes
-        assert set(__all__) == {"get_proxy_config", "get_tls_config"}
+        assert set(__all__) == {
+            "get_proxy_config",
+            "get_tls_config",
+            "AuthConfig",
+            "AUTH_CONFIG_USER",
+        }
 
 
 class TestConfigFileIntegration:
@@ -82,8 +88,6 @@ class TestConfigFileIntegration:
                 "host": "proxy.example.com",
                 "port": "8080",
                 "protocol": "https",
-                "required": "true",
-                "timeout": "5000",
             },
             tls_section={
                 "mode": "system",
@@ -97,16 +101,14 @@ class TestConfigFileIntegration:
         assert proxy_result.endpoint.host == "proxy.example.com"
         assert proxy_result.endpoint.port == 8080
         assert proxy_result.endpoint.scheme == "https"
-        assert proxy_result.required is True
-        assert proxy_result.timeout_ms == 5000
 
         # Test TLS config
-        with patch("safety.config.tls._get_system_context") as mock_context:
+        with patch("safety.config.tls.get_system_tls_context") as mock_context:
             mock_ssl_context = MagicMock()
             mock_context.return_value = mock_ssl_context
 
             tls_result = get_tls_config(config_path=config_file)
-            assert tls_result == mock_ssl_context
+            assert tls_result.verify_context == mock_ssl_context
 
     def test_partial_config_sections(self, integrated_config_factory) -> None:
         """
@@ -123,9 +125,12 @@ class TestConfigFileIntegration:
 
         # TLS should fall back to default
         with patch("safety.config.tls.certifi.where") as mock_certifi:
-            mock_certifi.return_value = "/default/certifi.pem"
-            tls_result = get_tls_config(config_path=proxy_only_config)
-            assert tls_result == "/default/certifi.pem"
+            with patch("ssl.create_default_context") as mock_ssl_context:
+                mock_certifi.return_value = "/default/certifi.pem"
+                mock_context = MagicMock(spec=ssl.SSLContext)
+                mock_ssl_context.return_value = mock_context
+                tls_result = get_tls_config(config_path=proxy_only_config)
+                assert tls_result.verify_context == mock_context
 
     def test_empty_config_file(self, tmp_path: Path) -> None:
         """
@@ -139,9 +144,12 @@ class TestConfigFileIntegration:
         assert proxy_result is None
 
         with patch("safety.config.tls.certifi.where") as mock_certifi:
-            mock_certifi.return_value = "/default/certifi.pem"
-            tls_result = get_tls_config(config_path=empty_config)
-            assert tls_result == "/default/certifi.pem"
+            with patch("ssl.create_default_context") as mock_ssl_context:
+                mock_certifi.return_value = "/default/certifi.pem"
+                mock_context = MagicMock(spec=ssl.SSLContext)
+                mock_ssl_context.return_value = mock_context
+                tls_result = get_tls_config(config_path=empty_config)
+                assert tls_result.verify_context == mock_context
 
 
 class TestMixedSourcesIntegration:
@@ -172,7 +180,7 @@ class TestMixedSourcesIntegration:
             mock_build.return_value = mock_config
 
             tls_result = get_tls_config(mode="system", config_path=config_file)
-            assert tls_result == "system_context"
+            assert tls_result.verify_context == "system_context"
 
     def test_independent_source_resolution(self, integrated_config_factory) -> None:
         """
@@ -188,10 +196,13 @@ class TestMixedSourcesIntegration:
         assert proxy_result.endpoint.host == "cli.proxy.com"
 
         with patch("safety.config.tls.certifi.where") as mock_certifi:
-            mock_certifi.return_value = "/config/certifi.pem"
+            with patch("ssl.create_default_context") as mock_ssl_context:
+                mock_certifi.return_value = "/config/certifi.pem"
+                mock_context = MagicMock(spec=ssl.SSLContext)
+                mock_ssl_context.return_value = mock_context
 
-            tls_result = get_tls_config(config_path=config_file)
-            assert tls_result == "/config/certifi.pem"
+                tls_result = get_tls_config(config_path=config_file)
+                assert tls_result.verify_context == mock_context
 
     def test_env_vs_config_precedence(self, integrated_config_factory) -> None:
         """
@@ -205,7 +216,7 @@ class TestMixedSourcesIntegration:
         env_vars = {"SAFETY_TLS_MODE": "system"}
 
         with patch.dict(os.environ, env_vars, clear=False):
-            with patch("safety.config.tls._get_system_context") as mock_context:
+            with patch("safety.config.tls.get_system_tls_context") as mock_context:
                 mock_ssl_context = MagicMock()
                 mock_context.return_value = mock_ssl_context
 
@@ -216,7 +227,7 @@ class TestMixedSourcesIntegration:
 
                 # TLS should come from environment
                 tls_result = get_tls_config(config_path=config_file)
-                assert tls_result == mock_ssl_context
+                assert tls_result.verify_context == mock_ssl_context
 
 
 class TestFullIntegrationScenarios:
@@ -224,8 +235,9 @@ class TestFullIntegrationScenarios:
     Test complete real-world scenarios.
     """
 
+    @patch("ssl.create_default_context")
     def test_corporate_proxy_with_custom_ca(
-        self, integrated_config_factory, tmp_path: Path
+        self, mock_ssl_context, integrated_config_factory, tmp_path: Path
     ) -> None:
         """
         Test a typical corporate setup with proxy and custom CA bundle.
@@ -236,13 +248,15 @@ class TestFullIntegrationScenarios:
             "-----BEGIN CERTIFICATE-----\nCorporateMockCert\n-----END CERTIFICATE-----"
         )
 
+        # Mock the SSL context creation to avoid parsing the fake certificate
+        mock_context = MagicMock(spec=ssl.SSLContext)
+        mock_ssl_context.return_value = mock_context
+
         config_file = integrated_config_factory(
             proxy_section={
                 "host": "corporate.proxy.com",
                 "port": "8080",
                 "protocol": "https",
-                "required": "true",
-                "timeout": "10000",
             },
             tls_section={
                 "mode": "bundle",
@@ -259,11 +273,10 @@ class TestFullIntegrationScenarios:
         assert proxy_result.endpoint.host == "corporate.proxy.com"
         assert proxy_result.endpoint.port == 8080
         assert proxy_result.endpoint.scheme == "https"
-        assert proxy_result.required is True
-        assert proxy_result.timeout_ms == 10000
 
         # Verify TLS config
-        assert tls_result == str(ca_bundle.resolve())
+        assert tls_result.verify_context == mock_context
+        mock_ssl_context.assert_called_once_with(cafile=ca_bundle.resolve())
 
     def test_mixed_environment_and_cli(self, integrated_config_factory) -> None:
         """
@@ -277,7 +290,7 @@ class TestFullIntegrationScenarios:
         env_vars = {"SAFETY_TLS_MODE": "system"}
 
         with patch.dict(os.environ, env_vars, clear=False):
-            with patch("safety.config.tls._get_system_context") as mock_context:
+            with patch("safety.config.tls.get_system_tls_context") as mock_context:
                 mock_ssl_context = MagicMock()
                 mock_context.return_value = mock_ssl_context
 
@@ -291,7 +304,7 @@ class TestFullIntegrationScenarios:
 
                 assert proxy_result is not None
                 assert proxy_result.endpoint.host == "cli.proxy.com"
-                assert tls_result == mock_ssl_context
+                assert tls_result.verify_context == mock_ssl_context
 
     def test_error_handling_integration(
         self, integrated_config_factory, tmp_path: Path
@@ -329,7 +342,7 @@ class TestFullIntegrationScenarios:
             proxy_section={"host": "logged.proxy.com"}, tls_section={"mode": "system"}
         )
 
-        with patch("safety.config.tls._get_system_context") as mock_context:
+        with patch("safety.utils.tls.get_system_tls_context") as mock_context:
             mock_context.return_value = MagicMock()
 
             # Get both configs

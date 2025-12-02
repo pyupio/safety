@@ -27,7 +27,6 @@ from rich.padding import Padding
 from typer import Typer
 
 from safety.auth.main import (
-    clean_session,
     get_auth_info,
     get_authorization_data,
     get_token,
@@ -42,6 +41,7 @@ from safety.scan.constants import (
     CLI_AUTH_LOGOUT_HELP,
     CLI_AUTH_STATUS_HELP,
 )
+from safety.utils.auth_session import discard_token
 
 from ..cli_util import SafetyCLISubGroup, get_command_for, pass_safety_cli_obj
 from safety.error_handlers import handle_cmd_exception
@@ -96,7 +96,7 @@ def fail_if_authenticated(ctx: typer.Context, with_msg: str) -> None:
         ctx (typer.Context): The Typer context object.
         with_msg (str): The message to display if authenticated.
     """
-    info = get_auth_info(ctx)
+    info = get_auth_info(ctx.obj.auth)
 
     if info:
         console.print()
@@ -192,7 +192,7 @@ def login(
 
     # Get authorization data and generate the authorization URL
     uri, initial_state = get_authorization_data(
-        client=ctx.obj.auth.client,
+        http_client=ctx.obj.auth.http_client,
         code_verifier=ctx.obj.auth.code_verifier,
         organization=ctx.obj.auth.org,
         headless=headless,
@@ -278,7 +278,7 @@ def logout(ctx: typer.Context) -> None:
 
     if id_token:
         # Clean the session if an ID token is found
-        if clean_session(ctx.obj.auth.client):
+        if discard_token(ctx.obj.auth.http_client):
             msg = MSG_LOGOUT_DONE
         else:
             msg = MSG_LOGOUT_FAILED
@@ -317,7 +317,7 @@ def status(
     safety_version = get_version()
     console.print(f"[{current_time}]: Safety {safety_version}")
 
-    info = get_auth_info(ctx)
+    info = get_auth_info(ctx.obj.auth)
 
     initialize(ctx, refresh=True)
 
@@ -336,7 +336,7 @@ def status(
         )
         console.print()
         uri, initial_state = get_authorization_data(
-            client=ctx.obj.auth.client,
+            http_client=ctx.obj.auth.http_client,
             code_verifier=ctx.obj.auth.code_verifier,
             organization=ctx.obj.auth.org,
             ensure_auth=ensure_auth,
@@ -381,7 +381,7 @@ def register(ctx: typer.Context) -> None:
 
     # Get authorization data and generate the registration URL
     uri, initial_state = get_authorization_data(
-        client=ctx.obj.auth.client,
+        http_client=ctx.obj.auth.http_client,
         code_verifier=ctx.obj.auth.code_verifier,
         sign_up=True,
     )

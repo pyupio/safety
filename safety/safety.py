@@ -8,14 +8,13 @@ import logging
 import os
 from pathlib import Path
 import sys
-import tempfile
 import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, Optional, List, Any, Union, Iterator
 
-import click
-import requests
+from authlib.integrations.base_client.errors import OAuthError
+import httpx
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
@@ -30,7 +29,6 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential_jitter,
 )
-
 
 from .constants import (
     API_MIRRORS,
@@ -85,6 +83,14 @@ from .util import (
     is_ignore_unpinned_mode,
     get_hashes,
 )
+
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from authlib.integrations.httpx_client import OAuth2Client
+    from safety.auth.models import Auth
+
 
 LOG = logging.getLogger(__name__)
 
@@ -218,25 +224,27 @@ def write_to_cache(db_name: str, data: Dict[str, Any]) -> None:
     before_sleep=before_sleep_log(logging.getLogger("api_client"), logging.WARNING),
 )
 def fetch_database_url(
-    session: requests.Session,
+    http_client: Union["OAuth2Client", httpx.Client],
     mirror: str,
     db_name: str,
     cached: int,
     telemetry: bool = True,
     ecosystem: Ecosystem = Ecosystem.PYTHON,
     from_cache: bool = True,
+    is_open_mirror: bool = False,
 ) -> Dict[str, Any]:
     """
     Fetches the database from a URL.
 
     Args:
-        session (requests.Session): The requests session.
+        http_client (Union[OAuth2Client, httpx.Client]): The HTTP client.
         mirror (str): The URL of the mirror.
         db_name (str): The name of the database.
         cached (int): The cache validity in seconds.
         telemetry (bool): Whether to include telemetry data.
         ecosystem (Ecosystem): The ecosystem.
         from_cache (bool): Whether to fetch from cache.
+        is_open_mirror (bool): Whether the mirror is an open mirror.
 
     Returns:
         Dict[str, Any]: The fetched database.
@@ -258,18 +266,31 @@ def fetch_database_url(
     }
 
     try:
-        r = session.get(
-            url=url, timeout=REQUEST_TIMEOUT, headers=headers, params=telemetry_data
+        extra_kwargs = {}
+
+        if is_open_mirror and not hasattr(http_client.auth, "api_key"):
+            extra_kwargs["auth"] = None
+
+        r = http_client.get(
+            url=url,
+            timeout=REQUEST_TIMEOUT,
+            headers=headers,
+            params=telemetry_data,
+            follow_redirects=True,
+            **extra_kwargs,
         )
-    except requests.exceptions.ConnectionError:
+    except httpx.ConnectError:
         raise NetworkConnectionError()
-    except requests.exceptions.Timeout:
+    except httpx.TimeoutException:
         raise RequestTimeoutError()
-    except requests.exceptions.RequestException:
+    except httpx.RequestError:
         raise DatabaseFetchError()
+    except OAuthError as e:
+        LOG.error("OAuthError: %s", e)
+        raise InvalidCredentialError()
 
     if r.status_code == 403:
-        raise InvalidCredentialError(credential=session.get_credential(), reason=r.text)
+        raise InvalidCredentialError(reason=r.text)
 
     if r.status_code == 429:
         raise TooManyRequestsError(reason=r.text)
@@ -287,30 +308,6 @@ def fetch_database_url(
         write_to_cache(db_name, data)
 
     return data
-
-
-def fetch_policy(session: requests.Session) -> Dict[str, Any]:
-    """
-    Fetches the policy from the server.
-
-    Args:
-        session (requests.Session): The requests session.
-
-    Returns:
-        Dict[str, Any]: The fetched policy.
-    """
-    url = f"{DATA_API_BASE_URL}policy/"
-
-    try:
-        LOG.debug("Getting policy")
-        headers = get_meta_http_headers()
-        r = session.get(url=url, timeout=REQUEST_TIMEOUT, headers=headers)
-        LOG.debug(r.text)
-        return r.json()
-    except Exception:
-        LOG.exception("Error fetching policy")
-
-        return {"safety_policy": "", "audit_and_monitor": False}
 
 
 def fetch_database_file(
@@ -367,7 +364,7 @@ def is_valid_database(db: Dict[str, Any]) -> bool:
 
 
 def fetch_database(
-    session: requests.Session,
+    auth: "Auth",
     full: bool = False,
     db: Union[Optional[str], bool] = False,
     cached: int = 0,
@@ -379,7 +376,8 @@ def fetch_database(
     Fetches the database from a mirror or a local file.
 
     Args:
-        session (requests.Session): The requests session.
+        http_client (OAuth2Client): The OAuth2 client.
+        platform (SafetyPlatformClient): The Safety Platform client.
         full (bool): Whether to fetch the full database.
         db (Optional[str]): The path to the local database file.
         cached (int): The cache validity in seconds.
@@ -390,11 +388,13 @@ def fetch_database(
     Returns:
         Dict[str, Any]: The fetched database.
     """
-    if session.is_using_auth_credentials():
+    is_open_mirror = False
+    if auth.platform.is_using_auth_credentials():
         mirrors = API_MIRRORS
     elif db:
         mirrors = [db]
     else:
+        is_open_mirror = True
         mirrors = OPEN_MIRRORS
 
     db_name = "insecure_full.json" if full else "insecure.json"
@@ -404,13 +404,14 @@ def fetch_database(
             if ecosystem is None:
                 ecosystem = Ecosystem.PYTHON
             data = fetch_database_url(
-                session,
+                auth.http_client,
                 mirror,
                 db_name=db_name,
                 cached=cached,
                 telemetry=telemetry,
                 ecosystem=ecosystem,
                 from_cache=from_cache,
+                is_open_mirror=is_open_mirror,
             )
         else:
             data = fetch_database_file(
@@ -678,7 +679,7 @@ def is_vulnerable(
 @sync_safety_context
 def check(
     *,
-    session: requests.Session,
+    auth: "Auth",
     packages: List[Package] = [],
     db_mirror: Union[Optional[str], bool] = False,
     cached: int = 0,
@@ -695,7 +696,7 @@ def check(
     Performs a vulnerability check on the provided packages.
 
     Args:
-        session (requests.Session): The requests session.
+        auth (Auth): The authentication object.
         packages (List[Package]): The list of packages to check.
         db_mirror (Union[Optional[str], bool]): The database mirror.
         cached (int): The cache validity in seconds.
@@ -712,7 +713,7 @@ def check(
         tuple: A tuple containing the list of vulnerabilities and the full database.
     """
     SafetyContext().command = "check"
-    db = fetch_database(session, db=db_mirror, cached=cached, telemetry=telemetry)
+    db = fetch_database(auth=auth, db=db_mirror, cached=cached, telemetry=telemetry)
     db_full = None
     vulnerable_packages = frozenset(db.get("vulnerable_packages", []))
     vulnerabilities = []
@@ -733,7 +734,11 @@ def check(
         if not pkg.version:
             if not db_full:
                 db_full = fetch_database(
-                    session, full=True, db=db_mirror, cached=cached, telemetry=telemetry
+                    auth=auth,
+                    full=True,
+                    db=db_mirror,
+                    cached=cached,
+                    telemetry=telemetry,
                 )
             pkg.refresh_from(db_full)
 
@@ -745,7 +750,7 @@ def check(
                 if is_vulnerable(spec_set, req, pkg):
                     if not db_full:
                         db_full = fetch_database(
-                            session,
+                            auth=auth,
                             full=True,
                             db=db_mirror,
                             cached=cached,
@@ -1670,7 +1675,7 @@ def review(
 @sync_safety_context
 def get_licenses(
     *,
-    session: requests.Session,
+    auth: "Auth",
     db_mirror: Union[Optional[str], bool] = False,
     cached: int = 0,
     telemetry: bool = True,
@@ -1679,7 +1684,7 @@ def get_licenses(
     Retrieves the licenses from the database.
 
     Args:
-        session (requests.Session): The requests session.
+        auth (Auth): The authentication object.
         db_mirror (Union[Optional[str], bool]): The database mirror.
         cached (int): The cache validity in seconds.
         telemetry (bool): Whether to include telemetry data.
@@ -1698,7 +1703,11 @@ def get_licenses(
         # mirror can either be a local path or a URL
         if is_a_remote_mirror(mirror):
             licenses = fetch_database_url(
-                session, mirror, db_name=db_name, cached=cached, telemetry=telemetry
+                http_client=auth.http_client,
+                mirror=mirror,
+                db_name=db_name,
+                cached=cached,
+                telemetry=telemetry,
             )
         else:
             licenses = fetch_database_file(mirror, db_name=db_name, ecosystem=None)
@@ -1757,13 +1766,13 @@ def add_local_notifications(
 
 
 def get_announcements(
-    session: requests.Session, telemetry: bool = True, with_telemetry: Any = None
+    auth: "Auth", telemetry: bool = True, with_telemetry: Any = None
 ) -> List[Dict[str, str]]:
     """
     Retrieves announcements from the server.
 
     Args:
-        session (requests.Session): The requests session.
+        auth (Auth): The authentication object.
         telemetry (bool): Whether to include telemetry data.
         with_telemetry (Optional[Dict[str, Any]]): The telemetry data.
 
@@ -1798,8 +1807,10 @@ def get_announcements(
 
     LOG.debug(f"Telemetry data sent: {data}")
 
+    http_client = auth.http_client
+
     try:
-        request_func = getattr(session, method)
+        request_func = getattr(http_client, method)
         r = request_func(**request_kwargs)
         LOG.debug(r.text)
     except Exception as e:
@@ -1973,50 +1984,6 @@ def read_vulnerabilities(fh: Any) -> Dict[str, Any]:
         raise MalformedDatabase(reason=e, fetched_from=fh.name)
 
     return data
-
-
-def get_server_policies(
-    session: requests.Session,
-    policy_file: SafetyPolicyFile,
-    proxy_dictionary: Dict[str, str],
-) -> tuple:
-    """
-    Retrieves the server policies.
-
-    Args:
-        session (requests.Session): The requests session.
-        policy_file (SafetyPolicyFile): The policy file.
-        proxy_dictionary (Dict[str, str]): The proxy dictionary.
-
-    Returns:
-        tuple: A tuple containing the policy file and the audit and monitor flag.
-    """
-    if session.api_key:
-        server_policies = fetch_policy(session)
-        server_audit_and_monitor = server_policies["audit_and_monitor"]
-        server_safety_policy = server_policies["safety_policy"]
-    else:
-        server_audit_and_monitor = False
-        server_safety_policy = ""
-
-    if server_safety_policy and policy_file:
-        click.secho(
-            "Warning: both a local policy file '{policy_filename}' and a server sent policy are present. "
-            "Continuing with the local policy file.".format(
-                policy_filename=policy_file["filename"]
-            ),
-            fg="yellow",
-            file=sys.stderr,
-        )
-    elif server_safety_policy:
-        with tempfile.NamedTemporaryFile(prefix="server-safety-policy-") as tmp:
-            tmp.write(server_safety_policy.encode("utf-8"))
-            tmp.seek(0)
-
-            policy_file = SafetyPolicyFile().convert(tmp.name, param=None, ctx=None)
-            LOG.info("Using server side policy file")
-
-    return policy_file, server_audit_and_monitor
 
 
 def save_report(path: str, default_name: str, report: str) -> None:

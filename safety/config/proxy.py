@@ -6,7 +6,6 @@ from .log_codes import (
     PROXY_NOT_DEFINED,
     PROXY_HOST_EMPTY,
     PROXY_PROTOCOL_INVALID,
-    PROXY_TIMEOUT_INVALID,
     PROXY_CONFIG_MISSING_SECTION,
 )
 
@@ -17,17 +16,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_PROXY_TIMEOUT: int = 2000
 DEFAULT_PROXY_PORT: int = 80
 DEFAULT_PROXY_SCHEME: str = "http"
-DEFAULT_PROXY_REQUIRED: bool = True
 PROXY_ALLOWED_PROTOCOLS = ("http", "https")
 
 PROXY_PROTOCOL_KEY = "protocol"
 PROXY_HOST_KEY = "host"
 PROXY_PORT_KEY = "port"
-PROXY_REQUIRED_KEY = "required"
-PROXY_TIMEOUT_KEY = "timeout"
 
 
 class ProxyEndpoint(NamedTuple):
@@ -48,15 +43,9 @@ class ProxyEndpoint(NamedTuple):
 
 class ProxyConfig(NamedTuple):
     endpoint: ProxyEndpoint
-    timeout_ms: int
-    required: bool
 
-    def as_dict(self) -> dict[str, Union[str, int, bool]]:
-        return {
-            **self.endpoint.as_dict(),
-            PROXY_TIMEOUT_KEY: self.timeout_ms,
-            PROXY_REQUIRED_KEY: self.required,
-        }
+    def as_dict(self) -> dict[str, Union[str, int]]:
+        return self.endpoint.as_dict()
 
 
 def _should_build_proxy_config(
@@ -90,8 +79,6 @@ def _build_proxy_config(
     host: str,
     port: Optional[int],
     scheme: Optional[str],
-    required: Optional[bool],
-    timeout_ms: Optional[int],
     source: str = "unknown",
 ) -> ProxyConfig:
     if not host or not host.strip():
@@ -109,26 +96,13 @@ def _build_proxy_config(
 
     port = port or DEFAULT_PROXY_PORT
 
-    required = DEFAULT_PROXY_REQUIRED if required is None else required
-
-    timeout_ms = timeout_ms or DEFAULT_PROXY_TIMEOUT
-    if timeout_ms <= 0:
-        logger.error(
-            PROXY_TIMEOUT_INVALID, extra={"timeout": timeout_ms, "source": source}
-        )
-        raise ValueError(f"Proxy timeout must be positive (got {timeout_ms})")
-
     endpoint = ProxyEndpoint(
         scheme=scheme,
         host=host,
         port=port,
     )
 
-    return ProxyConfig(
-        endpoint=endpoint,
-        timeout_ms=timeout_ms,
-        required=required,
-    )
+    return ProxyConfig(endpoint=endpoint)
 
 
 def _proxy_from_config_ini(config_path: Path) -> Optional[ProxyConfig]:
@@ -160,12 +134,8 @@ def _proxy_from_config_ini(config_path: Path) -> Optional[ProxyConfig]:
     scheme_raw = section.get(PROXY_PROTOCOL_KEY, None)
     host_raw = section.get(PROXY_HOST_KEY, None)
     port_raw = section.getint(PROXY_PORT_KEY, fallback=None)
-    required_raw = section.getboolean(PROXY_REQUIRED_KEY, fallback=None)
-    timeout_ms_raw = section.getint(PROXY_TIMEOUT_KEY, fallback=None)
 
-    if not _should_build_proxy_config(
-        host_raw, port_raw, scheme_raw, required_raw, timeout_ms_raw, source="config"
-    ):
+    if not _should_build_proxy_config(host_raw, port_raw, scheme_raw, source="config"):
         return None
 
     if not host_raw:
@@ -175,8 +145,6 @@ def _proxy_from_config_ini(config_path: Path) -> Optional[ProxyConfig]:
         host=host_raw,
         port=port_raw,
         scheme=scheme_raw,
-        required=required_raw,
-        timeout_ms=timeout_ms_raw,
         source="config",
     )
 
@@ -185,8 +153,6 @@ def _proxy_from_cli_options(
     host: Optional[str] = None,
     port: Optional[str] = None,
     scheme: Optional[str] = None,
-    required: Optional[bool] = None,
-    timeout_ms: Optional[str] = None,
 ) -> Optional[ProxyConfig]:
     """
     Retrieve the proxy configuration from the command-line options.
@@ -195,23 +161,18 @@ def _proxy_from_cli_options(
         host (Optional[str]): The proxy host.
         port (Optional[str]): The proxy port.
         scheme (Optional[str]): The proxy scheme (http or https).
-        required (Optional[bool]): Whether the proxy is required.
-        timeout_ms (Optional[str]): The proxy timeout in milliseconds.
 
     Returns:
         Optional[ProxyConfig]: The proxy configuration, or None if not found.
     """
     # The user touched proxy options but forgot to provide the host
-    if not _should_build_proxy_config(
-        host, port, scheme, required, timeout_ms, source="CLI"
-    ):
+    if not _should_build_proxy_config(host, port, scheme, source="CLI"):
         return None
 
     if not host:
         raise ValueError("Proxy host must not be empty")
 
     port_val = None
-    timeout_ms_val = None
 
     if port:
         try:
@@ -219,18 +180,10 @@ def _proxy_from_cli_options(
         except ValueError:
             raise ValueError("Proxy port must be an integer")
 
-    if timeout_ms:
-        try:
-            timeout_ms_val = int(timeout_ms)
-        except ValueError:
-            raise ValueError("Proxy timeout must be an integer")
-
     return _build_proxy_config(
         host=host,
         port=port_val,
         scheme=scheme,
-        required=required,
-        timeout_ms=timeout_ms_val,
         source="CLI",
     )
 
@@ -239,8 +192,6 @@ def get_proxy_config(
     host: Optional[str] = None,
     port: Optional[str] = None,
     scheme: Optional[str] = None,
-    required: Optional[bool] = None,
-    timeout_ms: Optional[str] = None,
     config_path: Path = CONFIG,
 ) -> Optional[ProxyConfig]:
     """
@@ -255,8 +206,6 @@ def get_proxy_config(
         host (Optional[str]): The proxy host from CLI options.
         port (Optional[str]): The proxy port from CLI options.
         scheme (Optional[str]): The proxy scheme (http or https) from CLI options.
-        required (Optional[bool]): Whether the proxy is required from CLI options.
-        timeout_ms (Optional[str]): The proxy timeout in milliseconds from CLI options.
         config_path (Path): The path to the config.ini file.
 
     Returns:
@@ -272,8 +221,6 @@ def get_proxy_config(
                 host=host,
                 port=port,
                 scheme=scheme,
-                required=required,
-                timeout_ms=timeout_ms,
             ),
         ),
         ("config", lambda: _proxy_from_config_ini(config_path=config_path)),

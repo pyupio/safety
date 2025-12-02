@@ -7,13 +7,11 @@ from configparser import ConfigParser
 
 import certifi
 from safety.constants import CONFIG
+from safety.utils.tls import get_system_tls_context
 from .log_codes import (
     TLS_RESOLVED,
     TLS_RESOLUTION_FALLBACK_DEFAULT,
     TLS_CA_BUNDLE_RESOLVED,
-    TLS_SYSTEM_STORE_ATTEMPT,
-    TLS_SYSTEM_STORE_RESOLVED,
-    TLS_SYSTEM_STORE_UNSUPPORTED,
 )
 
 import logging
@@ -27,7 +25,6 @@ TLS_CA_BUNDLE_KEY = "ca_bundle"
 ENV_TLS_MODE = "SAFETY_TLS_MODE"
 ENV_CA_BUNDLE = "SAFETY_CA_BUNDLE"
 
-VerifyType = Union[str, SSLContext]  # httpx.verify
 
 # Default values
 DEFAULT_TLS_MODE: str = "default"
@@ -41,12 +38,12 @@ class TLSConfig(NamedTuple):
     Args:
         mode (str): The TLS mode ('default', 'system', 'bundle').
         bundle_path (Optional[Path]): Path to custom CA bundle if mode='bundle'.
-        verify_context (VerifyType): The resolved verification context.
+        verify_context (SSLContext): The resolved verification context.
     """
 
     mode: str
     bundle_path: Optional[Path]
-    verify_context: VerifyType
+    verify_context: SSLContext
 
     def as_dict(self) -> dict[str, Union[str, Path, None]]:
         """
@@ -229,13 +226,13 @@ def _build_tls_config(
 
     if normalized_mode == "bundle":
         normalized_bundle_path = _normalize_bundle_path(bundle_path, source)
-        verify_context = str(normalized_bundle_path)
+        verify_context = ssl.create_default_context(cafile=normalized_bundle_path)
     elif normalized_mode == "system":
         normalized_bundle_path = None
-        verify_context = _get_system_context()
+        verify_context = get_system_tls_context()
     else:  # normalized_mode == "default"
         normalized_bundle_path = None
-        verify_context = certifi.where()
+        verify_context = ssl.create_default_context(cafile=certifi.where())
 
     return TLSConfig(
         mode=normalized_mode,
@@ -302,44 +299,16 @@ def _tls_from_config_ini(config_path: Path) -> Optional[TLSConfig]:
     return _build_tls_config_from_source(raw_mode, raw_bundle, "config")
 
 
-def _get_system_context() -> SSLContext:
-    """
-    Get SSL context for system trust store.
-
-    Attempts to use truststore if available, falls back to ssl.create_default_context().
-
-    Returns:
-        SSLContext: The SSL context for system trust store.
-    """
-    logger.debug(TLS_SYSTEM_STORE_ATTEMPT)
-
-    try:
-        import truststore  # type: ignore[import-untyped]
-
-        context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        logger.debug(TLS_SYSTEM_STORE_RESOLVED, extra={"method": "truststore"})
-        return context
-    except ImportError:
-        logger.debug(
-            TLS_SYSTEM_STORE_UNSUPPORTED, extra={"reason": "truststore not available"}
-        )
-        context = ssl.create_default_context()
-        logger.debug(
-            TLS_SYSTEM_STORE_RESOLVED, extra={"method": "ssl.create_default_context"}
-        )
-        return context
-
-
 def get_tls_config(
     mode: Optional[str] = None,
     ca_bundle: Optional[str] = None,
     config_path: Path = CONFIG,
-) -> VerifyType:
+) -> TLSConfig:
     """
     Resolve the effective TLS verification configuration.
 
     Resolution order (first non-None wins):
-      1. Command-line options (mode, ca_bundle)
+      1. Command-line options/manual override (mode, ca_bundle)
       2. Environment variables (SAFETY_TLS_MODE, SAFETY_CA_BUNDLE)
       3. config.ini [tls] section
       4. Default: certifi bundle
@@ -350,7 +319,7 @@ def get_tls_config(
         config_path (Path): The path to the config.ini file.
 
     Returns:
-        VerifyType: The verification context for httpx.Client(verify=...).
+        TLSConfig: The TLS configuration.
 
     Raises:
         ValueError: If the TLS configuration is invalid.
@@ -373,7 +342,7 @@ def get_tls_config(
             if source_name == "config":
                 extra["config_path"] = str(config_path)
             logger.info(TLS_RESOLVED, extra=extra)
-            return result.verify_context
+            return result
 
     # Default fallback
     default_result = _build_tls_config(
@@ -386,4 +355,4 @@ def get_tls_config(
         **default_result.as_dict(),
     }
     logger.info(TLS_RESOLUTION_FALLBACK_DEFAULT, extra=extra)
-    return default_result.verify_context
+    return default_result

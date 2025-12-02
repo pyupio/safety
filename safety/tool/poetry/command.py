@@ -21,6 +21,10 @@ from safety.models import ToolResult
 
 if TYPE_CHECKING:
     from ..environment_diff import EnvironmentDiffTracker
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -89,7 +93,7 @@ class PoetryCommand(BaseCommand):
             if not self._has_safety_source_in_pyproject():
                 org_slug = None
                 try:
-                    data = ctx.obj.auth.client.initialize()
+                    data = ctx.obj.auth.platform.initialize()
                     org_slug = data.get("organization-data", {}).get("slug")
                 except Exception:
                     logger.exception(
@@ -111,8 +115,8 @@ class PoetryCommand(BaseCommand):
                         MSG_SAFETY_SOURCE_NOT_ADDED,
                     )
 
-    def env(self, ctx: typer.Context) -> dict:
-        env = super().env(ctx)
+    def env(self, ctx: "SafetyContext") -> dict:  # type: ignore
+        env = super().env(ctx)  # type: ignore
 
         env.update(
             {
@@ -175,4 +179,4 @@ class AuditablePoetryCommand(PoetryCommand, InstallationAuditMixin):
 
     def after(self, ctx: typer.Context, result: ToolResult):
         super().after(ctx, result)
-        self.handle_installation_audit(ctx, result)
+        self.handle_installation_audit(ctx, result)  # type: ignore

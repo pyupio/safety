@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from safety_schemas.models.events import EventContext
     from safety.events.utils import InternalPayload
     from safety.models import SafetyCLI
+    from safety.config.proxy import ProxyConfig
+    from ssl import SSLContext
 
 SecurityEventTypes = Union[
     CommandExecutedEvent,
@@ -48,7 +50,8 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
     def __init__(
         self,
         api_endpoint: str,
-        proxies: Optional[Dict[str, str]] = None,
+        tls_config: "SSLContext",
+        proxy_config: Optional["ProxyConfig"] = None,
         auth_token: Optional[str] = None,
         api_key: Optional[str] = None,
     ):
@@ -57,12 +60,14 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
 
         Args:
             api_endpoint: URL to send events to
-            proxies: Optional dictionary of proxy settings
-            auth_token: Optional authentication token for the API
-            api_key: Optional API key for authentication
+            proxy_config: Optional["ProxyConfig"] = None,
+            auth_token: Optional[str] = None,
+            api_key: Optional[str] = None,
+        ):
         """
         self.api_endpoint = api_endpoint
-        self.proxies = proxies
+        self.proxy_config = proxy_config
+        self.tls_config = tls_config
         self.auth_token = auth_token
         self.api_key = api_key
 
@@ -187,10 +192,8 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
             self.logger.warning("Cannot send events: HTTP client not initialized")
             return None
 
-        TIMEOUT = int(os.getenv("SAFETY_REQUEST_TIMEOUT_EVENTS", 10))
-
         response = await self.http_client.post(
-            self.api_endpoint, json=payload, headers=headers, timeout=TIMEOUT
+            self.api_endpoint, json=payload, headers=headers
         )
         response.raise_for_status()
         return response
@@ -228,8 +231,20 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
 
         # Create HTTP client if needed
         if self.http_client is None:
-            # TODO: Add proxy support
-            self.http_client = httpx.AsyncClient(proxy=None)
+            # TODO: Improve this on a future refactor
+
+            TIMEOUT = float(os.getenv("SAFETY_REQUEST_TIMEOUT_EVENTS", 10.0))
+
+            client_kwargs = {
+                "verify": self.tls_config or True,
+                "proxy": self.proxy_config.endpoint.as_url()
+                if self.proxy_config
+                else None,
+                "trust_env": False,
+                "timeout": httpx.Timeout(TIMEOUT),
+            }
+
+            self.http_client = httpx.AsyncClient(**client_kwargs)
 
         headers = {
             "Content-Type": "application/json",

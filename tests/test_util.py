@@ -268,11 +268,11 @@ class TestInitializeEventBus(unittest.TestCase):
         self.mock_ctx = MagicMock()
         self.mock_obj = MagicMock()
         self.mock_auth = MagicMock()
-        self.mock_client = MagicMock()
+        self.mock_platform = MagicMock()
 
         self.mock_ctx.obj = self.mock_obj
         self.mock_obj.auth = self.mock_auth
-        self.mock_auth.client = self.mock_client
+        self.mock_auth.platform = self.mock_platform
         self.mock_obj.events_enabled = True
         self.mock_obj.event_bus = MagicMock()
 
@@ -281,8 +281,8 @@ class TestInitializeEventBus(unittest.TestCase):
     def test_successful_initialization_with_token(
         self, mock_create_event, mock_start_event_bus
     ):
-        self.mock_client.token = {"access_token": "test_token"}
-        self.mock_client.api_key = None
+        self.mock_platform.token = {"access_token": "test_token"}
+        self.mock_platform.api_key = None
         mock_event = MagicMock()
         mock_create_event.return_value = mock_event
 
@@ -291,7 +291,7 @@ class TestInitializeEventBus(unittest.TestCase):
         result = initialize_event_bus(self.mock_ctx)
 
         self.assertTrue(result)
-        mock_start_event_bus.assert_called_once_with(self.mock_obj, self.mock_client)
+        mock_start_event_bus.assert_called_once_with(self.mock_obj, self.mock_obj.auth)
         self.mock_obj.event_bus.emit.assert_called_once_with(mock_event)
 
     @patch("safety.util.start_event_bus")
@@ -299,8 +299,8 @@ class TestInitializeEventBus(unittest.TestCase):
     def test_successful_initialization_with_api_key(
         self, mock_create_event, mock_start_event_bus
     ):
-        self.mock_client.token = None
-        self.mock_client.api_key = "test_api_key"
+        self.mock_platform.token = None
+        self.mock_platform.api_key = "test_api_key"
         mock_event = MagicMock()
         mock_create_event.return_value = mock_event
 
@@ -309,13 +309,13 @@ class TestInitializeEventBus(unittest.TestCase):
         result = initialize_event_bus(self.mock_ctx)
 
         self.assertTrue(result)
-        mock_start_event_bus.assert_called_once_with(self.mock_obj, self.mock_client)
+        mock_start_event_bus.assert_called_once_with(self.mock_obj, self.mock_obj.auth)
         self.mock_obj.event_bus.emit.assert_called_once_with(mock_event)
 
     @patch("safety.util.start_event_bus")
     def test_initialization_when_no_authn(self, mock_start_event_bus):
-        self.mock_client.token = None
-        self.mock_client.api_key = None
+        self.mock_platform.token = None
+        self.mock_platform.api_key = None
 
         from safety.util import initialize_event_bus
 
@@ -326,7 +326,7 @@ class TestInitializeEventBus(unittest.TestCase):
 
     @patch("safety.util.LOG")
     def test_initialization_with_exception(self, mock_log):
-        self.mock_client.token = {"access_token": "test_token"}
+        self.mock_platform.token = {"access_token": "test_token"}
         self.mock_obj.event_bus = None
 
         with patch(

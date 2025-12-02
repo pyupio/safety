@@ -21,9 +21,8 @@ from unittest.mock import Mock, patch
 import click as click
 from packaging.specifiers import SpecifierSet
 from packaging.version import parse
-from requests.exceptions import RequestException
+import httpx
 
-from safety.auth import build_client_session
 from safety.constants import DB_CACHE_FILE
 from safety.errors import (
     DatabaseFileNotFoundError,
@@ -53,7 +52,9 @@ from tests.test_cli import get_vulnerability
 
 class TestSafety(unittest.TestCase):
     def setUp(self) -> None:
-        self.session, _ = build_client_session()
+        self.auth = Mock()
+        self.auth.http_client = Mock()
+        self.auth.platform = Mock()
         self.maxDiff = None
         self.dirname = os.path.dirname(__file__)
         self.report = VALID_REPORT
@@ -84,8 +85,10 @@ class TestSafety(unittest.TestCase):
         reqs = StringIO("Django==1.8.1")
         packages = read_requirements(reqs)
 
+        self.auth.platform.is_using_auth_credentials.return_value = False
+
         vulns, _ = check(
-            session=self.session,
+            auth=self.auth,
             packages=packages,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "test_db"
@@ -102,11 +105,13 @@ class TestSafety(unittest.TestCase):
         reqs = StringIO("Django==1.8.1")
         packages = read_requirements(reqs)
 
+        self.auth.platform.is_using_auth_credentials.return_value = False
+
         # Second that ignore works
         ignored_vulns = {"some id": {"expires": None, "reason": ""}}
 
         vulns, _ = check(
-            session=self.session,
+            auth=self.auth,
             packages=packages,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "test_db"
@@ -129,8 +134,10 @@ class TestSafety(unittest.TestCase):
         )
         packages = read_requirements(reqs)
 
+        self.auth.platform.is_using_auth_credentials.return_value = False
+
         vulns, _ = check(
-            session=self.session,
+            auth=self.auth,
             packages=packages,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "test_db"
@@ -148,8 +155,10 @@ class TestSafety(unittest.TestCase):
         reqs = StringIO("Django==1.8.1\n\rDjango==1.7.0")
         packages = read_requirements(reqs)
 
+        self.auth.platform.is_using_auth_credentials.return_value = False
+
         vulns, _ = check(
-            session=self.session,
+            auth=self.auth,
             packages=packages,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "test_db"
@@ -162,12 +171,46 @@ class TestSafety(unittest.TestCase):
         )
         self.assertEqual(len(vulns), 4)
 
-    def test_check_live(self):
+    @patch("safety.safety.fetch_database_url")
+    def test_check(self, mock_fetch_db):
+        # Load test database files
+        insecure_path = os.path.join(self.dirname, "test_db", "insecure.json")
+        insecure_full_path = os.path.join(self.dirname, "test_db", "insecure_full.json")
+
+        with open(insecure_path) as f:
+            insecure_db = json.load(f)
+        with open(insecure_full_path) as f:
+            insecure_full_db = json.load(f)
+
+        # Add insecure-package to the test data
+        insecure_db["vulnerable_packages"]["insecure-package"] = ["<1.0"]
+        insecure_full_db["vulnerable_packages"]["insecure-package"] = [
+            {
+                "specs": ["<1.0"],
+                "advisory": "Test advisory for insecure-package",
+                "transitive": False,
+                "more_info_path": "/v/test/path",
+                "ids": [{"type": "pyup", "id": "test-id"}],
+            }
+        ]
+
+        # Mock fetch_database_url to return different data based on db_name
+        def mock_fetch_side_effect(*args, **kwargs):
+            db_name = kwargs.get(
+                "db_name", args[2] if len(args) > 2 else "insecure.json"
+            )
+            if db_name == "insecure_full.json":
+                return insecure_full_db
+            else:
+                return insecure_db
+
+        mock_fetch_db.side_effect = mock_fetch_side_effect
+
         reqs = StringIO("insecure-package==0.1")
         packages = read_requirements(reqs)
 
         vulns, _ = check(
-            session=self.session,
+            auth=self.auth,
             packages=packages,
             db_mirror=False,
             cached=0,
@@ -179,11 +222,45 @@ class TestSafety(unittest.TestCase):
 
         self.assertEqual(len(vulns), 1)
 
-    def test_check_live_cached(self):
+    @patch("safety.safety.fetch_database_url")
+    def test_check_cached(self, mock_fetch_db):
         from safety.constants import DB_CACHE_FILE
 
         # Ensure the cache directory and file exist
         os.makedirs(os.path.dirname(DB_CACHE_FILE), exist_ok=True)
+
+        # Load test database files
+        insecure_path = os.path.join(self.dirname, "test_db", "insecure.json")
+        insecure_full_path = os.path.join(self.dirname, "test_db", "insecure_full.json")
+
+        with open(insecure_path) as f:
+            insecure_db = json.load(f)
+        with open(insecure_full_path) as f:
+            insecure_full_db = json.load(f)
+
+        # Add insecure-package to the test data
+        insecure_db["vulnerable_packages"]["insecure-package"] = ["<1.0"]
+        insecure_full_db["vulnerable_packages"]["insecure-package"] = [
+            {
+                "specs": ["<1.0"],
+                "advisory": "Test advisory for insecure-package",
+                "transitive": False,
+                "more_info_path": "/v/test/path",
+                "ids": [{"type": "pyup", "id": "test-id"}],
+            }
+        ]
+
+        # Mock fetch_database_url to return different data based on db_name
+        def mock_fetch_side_effect(*args, **kwargs):
+            db_name = kwargs.get(
+                "db_name", args[2] if len(args) > 2 else "insecure.json"
+            )
+            if db_name == "insecure_full.json":
+                return insecure_full_db
+            else:
+                return insecure_db
+
+        mock_fetch_db.side_effect = mock_fetch_side_effect
 
         # lets clear the cache first
         try:
@@ -196,7 +273,7 @@ class TestSafety(unittest.TestCase):
         packages = read_requirements(reqs)
 
         vulns, _ = check(
-            session=self.session,
+            auth=self.auth,
             packages=packages,
             db_mirror=False,
             cached=60 * 60,
@@ -211,7 +288,7 @@ class TestSafety(unittest.TestCase):
         packages = read_requirements(reqs)
         # make a second call to use the cache
         vulns, _ = check(
-            session=self.session,
+            auth=self.auth,
             packages=packages,
             db_mirror=False,
             cached=60 * 60,
@@ -226,8 +303,11 @@ class TestSafety(unittest.TestCase):
         reqs = StringIO("Django==1.8.1\n\rinvalid==1.0.0")
         packages = read_requirements(reqs)
 
+        auth = Mock()
+        auth.platform = Mock()
+
         licenses_db = get_licenses(
-            session=self.session,
+            auth=auth,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "test_db"
             ),
@@ -258,10 +338,12 @@ class TestSafety(unittest.TestCase):
 
     def test_get_packages_licenses_without_api_key(self):
         # without providing an API-KEY
+
+        self.auth.http_client.get.return_value.text = ""
+        self.auth.http_client.get.return_value.status_code = 403
+
         with self.assertRaises(InvalidCredentialError) as error:
-            get_licenses(
-                session=self.session, db_mirror=False, cached=0, telemetry=False
-            )
+            get_licenses(auth=self.auth, db_mirror=False, cached=0, telemetry=False)
         db_generic_exception = error.exception
         self.assertEqual(
             str(db_generic_exception),
@@ -269,34 +351,39 @@ class TestSafety(unittest.TestCase):
         )
 
     def test_get_packages_licenses_with_invalid_api_key(self):
-        session = Mock()
+        auth = Mock()
+        auth.platform = Mock()
         api_key = "INVALID"
-        session.api_key = api_key
-        session.headers = {"X-Api-Key": api_key}
+        auth.platform.api_key = api_key
+        auth.platform.headers = {"X-Api-Key": api_key}
         mock = Mock()
         mock.status_code = 403
-        session.get.return_value = mock
+        auth.http_client.get.return_value = mock
 
         # proving an invalid API-KEY
         with self.assertRaises(InvalidCredentialError):
-            get_licenses(session=session, db_mirror=False, cached=0, telemetry=False)
+            get_licenses(auth=auth, db_mirror=False, cached=0, telemetry=False)
 
     def test_get_packages_licenses_db_fetch_error(self):
-        session = Mock()
+        auth = Mock()
+        auth.platform = Mock()
         api_key = "MY-VALID-KEY"
-        session.api_key = api_key
-        session.headers = {"X-Api-Key": api_key}
+        auth.platform.api_key = api_key
+        auth.platform.headers = {"X-Api-Key": api_key}
         mock = Mock()
         mock.status_code = 500
-        session.get.return_value = mock
+        auth.http_client.get.return_value = mock
 
         with self.assertRaises(ServerError):
-            get_licenses(session=session, db_mirror=False, cached=0, telemetry=False)
+            get_licenses(auth=auth, db_mirror=False, cached=0, telemetry=False)
 
     def test_get_packages_licenses_with_invalid_db_file(self):
+        auth = Mock()
+        auth.platform = Mock()
+
         with self.assertRaises(DatabaseFileNotFoundError):
             get_licenses(
-                session=self.session,
+                auth=auth,
                 db_mirror="/my/invalid/path",
                 cached=0,
                 telemetry=False,
@@ -304,16 +391,18 @@ class TestSafety(unittest.TestCase):
 
     def test_get_packages_licenses_very_often(self):
         # if the request is made too often, an 429 error is raise by PyUp.io
-        session = Mock()
+        auth = Mock()
+        auth.platform = Mock()
         api_key = "MY-VALID-KEY"
-        session.api_key = api_key
-        session.headers = {"X-Api-Key": api_key}
+        auth.platform.api_key = api_key
+        auth.http_client.headers = {"X-Api-Key": api_key}
+
         mock = Mock()
         mock.status_code = 429
-        session.get.return_value = mock
+        auth.http_client.get.return_value = mock
 
         with self.assertRaises(TooManyRequestsError):
-            get_licenses(session=session, db_mirror=False, cached=0, telemetry=False)
+            get_licenses(auth=auth, db_mirror=False, cached=0, telemetry=False)
 
     def test_get_cached_packages_licenses(self):
         import copy
@@ -324,14 +413,16 @@ class TestSafety(unittest.TestCase):
         }
         original_db = copy.deepcopy(licenses_db)
 
-        session = Mock()
+        auth = Mock()
+        auth.platform = Mock()
+        auth.http_client = Mock()
         api_key = "MY-VALID-KEY"
-        session.api_key = api_key
-        session.headers = {"X-Api-Key": api_key}
+        auth.platform.api_key = api_key
+        auth.http_client.headers = {"X-Api-Key": api_key}
         mock = Mock()
         mock.status_code = 200
         mock.json.return_value = licenses_db
-        session.get.return_value = mock
+        auth.http_client.get.return_value = mock
 
         # lets clear the cache first
         try:
@@ -342,7 +433,7 @@ class TestSafety(unittest.TestCase):
 
         # In order to cache the db (and get), we must set cached as True
         response = get_licenses(
-            session=session,
+            auth=auth,
             db_mirror=False,
             cached=60 * 60,  # Cached for one hour
             telemetry=False,
@@ -354,7 +445,7 @@ class TestSafety(unittest.TestCase):
         licenses_db["licenses"]["BSD-3-Clause"] = 123
 
         resp = get_licenses(
-            session=session,
+            auth=auth,
             db_mirror=False,
             cached=60 * 60,  # Cached for one hour
             telemetry=False,
@@ -369,7 +460,7 @@ class TestSafety(unittest.TestCase):
 
         # Using DB: test.test_db.licenses.json
         licenses_db = get_licenses(
-            session=self.session,
+            auth=self.auth,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "test_db"
             ),
@@ -402,7 +493,7 @@ class TestSafety(unittest.TestCase):
 
         # Using DB: test.test_db.licenses.json
         licenses_db = get_licenses(
-            session=self.session,
+            auth=self.auth,
             db_mirror=os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), "test_db"
             ),
@@ -454,12 +545,14 @@ class TestSafety(unittest.TestCase):
     )
     def test_get_announcements_catch_request_exceptions(self, get_used_options):
         get_used_options.return_value = {"key": {"--key": 1}, "output": {"--output": 1}}
-        session = Mock()
-        api_key = "somekey"
-        session.api_key = api_key
-        session.headers = {"X-Api-Key": api_key}
-        session.get.side_effect = RequestException()
-        self.assertEqual(get_announcements(session), [])
+        auth = Mock()
+        auth.http_client = Mock()
+        auth.platform = Mock()
+
+        auth.platform.api_key = "somekey"
+        auth.http_client.headers = {"X-Api-Key": "somekey"}
+        auth.http_client.get.side_effect = httpx.RequestError(message="some error")
+        self.assertEqual(get_announcements(auth), [])
 
     @patch("safety.util.get_used_options")
     @patch.object(
@@ -507,16 +600,19 @@ class TestSafety(unittest.TestCase):
 
         expected = announcements.get("announcements")
 
+        auth = Mock()
+        auth.http_client = Mock()
+        auth.platform = Mock()
+
         mock = Mock()
         mock.status_code = HTTPStatus.OK.value
         mock.json.return_value = announcements
-        session = Mock()
         api_key = "somekey"
-        session.api_key = api_key
-        session.headers = {"X-Api-Key": api_key}
-        session.post.return_value = mock
+        auth.platform.api_key = api_key
+        auth.http_client.headers = {"X-Api-Key": api_key}
+        auth.http_client.post.return_value = mock
 
-        self.assertEqual(get_announcements(session), expected)
+        self.assertEqual(get_announcements(auth), expected)
 
     @patch("safety.util.get_used_options")
     @patch.object(

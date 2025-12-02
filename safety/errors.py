@@ -21,7 +21,10 @@ class SafetyException(Exception):
         message (str): The error message template.
         info (str): Additional information to include in the error message.
     """
-    def __init__(self, message: str = "Unhandled exception happened: {info}", info: str = ""):
+
+    def __init__(
+        self, message: str = "Unhandled exception happened: {info}", info: str = ""
+    ):
         self.message = message.format(info=info)
         super().__init__(self.message)
 
@@ -43,7 +46,12 @@ class SafetyError(Exception):
         message (str): The error message.
         error_code (Optional[int]): The error code.
     """
-    def __init__(self, message: str = "Unhandled Safety generic error", error_code: Optional[int] = None):
+
+    def __init__(
+        self,
+        message: str = "Unhandled Safety generic error",
+        error_code: Optional[int] = None,
+    ):
         self.message = message
         self.error_code = error_code
         super().__init__(self.message)
@@ -67,12 +75,19 @@ class MalformedDatabase(SafetyError):
         fetched_from (str): The source of the fetched data.
         message (str): The error message template.
     """
-    def __init__(self, reason: Optional[str] = None, fetched_from: str = "server",
-                 message: str = "Sorry, something went wrong.\n"
-                                "Safety CLI cannot read the data fetched from {fetched_from} because it is malformed.\n"):
+
+    def __init__(
+        self,
+        reason: Optional[str] = None,
+        fetched_from: str = "server",
+        message: str = "Sorry, something went wrong.\n"
+        "Safety CLI cannot read the data fetched from {fetched_from} because it is malformed.\n",
+    ):
         info = f"Reason, {reason}" if reason else ""
         info = "Reason, {reason}".format(reason=reason)
-        self.message = message.format(fetched_from=fetched_from) + (info if reason else "")
+        self.message = message.format(fetched_from=fetched_from) + (
+            info if reason else ""
+        )
         super().__init__(self.message)
 
     def get_exit_code(self) -> int:
@@ -92,6 +107,7 @@ class DatabaseFetchError(SafetyError):
     Args:
         message (str): The error message.
     """
+
     def __init__(self, message: str = "Unable to load vulnerability database"):
         self.message = message
         super().__init__(self.message)
@@ -113,8 +129,12 @@ class InvalidProvidedReportError(SafetyError):
     Args:
         message (str): The error message.
     """
-    def __init__(self, message: str = "Unable to apply fix: the report needs to be generated from a file. "
-                                      "Environment isn't supported yet."):
+
+    def __init__(
+        self,
+        message: str = "Unable to apply fix: the report needs to be generated from a file. "
+        "Environment isn't supported yet.",
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -136,7 +156,10 @@ class InvalidRequirementError(SafetyError):
         message (str): The error message template.
         line (str): The invalid requirement line.
     """
-    def __init__(self, message: str = "Unable to parse the requirement: {line}", line: str = ""):
+
+    def __init__(
+        self, message: str = "Unable to parse the requirement: {line}", line: str = ""
+    ):
         self.message = message.format(line=line)
         super().__init__(self.message)
 
@@ -158,7 +181,12 @@ class DatabaseFileNotFoundError(DatabaseFetchError):
         db (Optional[str]): The database file path.
         message (str): The error message template.
     """
-    def __init__(self, db: Optional[str] = None, message: str = "Unable to find vulnerability database in {db}"):
+
+    def __init__(
+        self,
+        db: Optional[str] = None,
+        message: str = "Unable to find vulnerability database in {db}",
+    ):
         self.db = db
         self.message = message.format(db=db)
         super().__init__(self.message)
@@ -183,12 +211,21 @@ class InvalidCredentialError(DatabaseFetchError):
         reason (Optional[str]): The reason for the error.
     """
 
-    def __init__(self, credential: Optional[str] = None,
-                 message: str = "Your authentication credential{credential}is invalid. See {link}.",
-                 reason: Optional[str] = None):
+    def __init__(
+        self,
+        credential: Optional[str] = None,
+        message: str = "Your authentication credential{credential}is invalid. See {link}.",
+        reason: Optional[str] = None,
+    ):
         self.credential = credential
-        self.link = 'https://docs.safetycli.com/safety-docs/support/invalid-api-key-error'
-        self.message = message.format(credential=f" '{self.credential}' ", link=self.link) if self.credential else message.format(credential=' ', link=self.link)
+        self.link = (
+            "https://docs.safetycli.com/safety-docs/support/invalid-api-key-error"
+        )
+        self.message = (
+            message.format(credential=f" '{self.credential}' ", link=self.link)
+            if self.credential
+            else message.format(credential=" ", link=self.link)
+        )
         info = f" Reason: {reason}"
         self.message = self.message + (info if reason else "")
         super().__init__(self.message)
@@ -202,6 +239,7 @@ class InvalidCredentialError(DatabaseFetchError):
         """
         return EXIT_CODE_INVALID_AUTH_CREDENTIAL
 
+
 class NotVerifiedEmailError(SafetyError):
     """
     Error raised when the user's email is not verified.
@@ -209,6 +247,7 @@ class NotVerifiedEmailError(SafetyError):
     Args:
         message (str): The error message.
     """
+
     def __init__(self, message: str = "email is not verified"):
         self.message = message
         super().__init__(self.message)
@@ -222,6 +261,7 @@ class NotVerifiedEmailError(SafetyError):
         """
         return EXIT_CODE_EMAIL_NOT_VERIFIED
 
+
 class TooManyRequestsError(DatabaseFetchError):
     """
     Error raised when too many requests are made to the server.
@@ -230,8 +270,10 @@ class TooManyRequestsError(DatabaseFetchError):
         reason (Optional[str]): The reason for the error.
         message (str): The error message template.
     """
-    def __init__(self, reason: Optional[str] = None,
-                 message: str = "Too many requests."):
+
+    def __init__(
+        self, reason: Optional[str] = None, message: str = "Too many requests."
+    ):
         info = f" Reason: {reason}"
         self.message = message + (info if reason else "")
         super().__init__(self.message)
@@ -246,7 +288,7 @@ class TooManyRequestsError(DatabaseFetchError):
         return EXIT_CODE_TOO_MANY_REQUESTS
 
 
-class NetworkConnectionError(DatabaseFetchError):
+class NetworkConnectionError(SafetyError):
     """
     Error raised when there is a network connection issue.
 
@@ -254,7 +296,23 @@ class NetworkConnectionError(DatabaseFetchError):
         message (str): The error message.
     """
 
-    def __init__(self, message: str = "Check your network connection, unable to reach the server."):
+    def __init__(
+        self,
+        message: str = "Check your network connection, unable to reach the server.",
+    ):
+        self.message = message
+        super().__init__(self.message)
+
+
+class SSLCertificateError(NetworkConnectionError):
+    """
+    Error raised when there is a SSL certificate issue.
+
+    Args:
+        message (str): The error message.
+    """
+
+    def __init__(self, message: str = "There is a SSL certificate issue."):
         self.message = message
         super().__init__(self.message)
 
@@ -266,7 +324,10 @@ class RequestTimeoutError(DatabaseFetchError):
     Args:
         message (str): The error message.
     """
-    def __init__(self, message: str = "Check your network connection, the request timed out."):
+
+    def __init__(
+        self, message: str = "Check your network connection, the request timed out."
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -279,9 +340,13 @@ class ServerError(DatabaseFetchError):
         reason (Optional[str]): The reason for the error.
         message (str): The error message template.
     """
-    def __init__(self, reason: Optional[str] = None,
-                 message: str = "Sorry, something went wrong.\n"
-                                "Our engineers are working quickly to resolve the issue."):
+
+    def __init__(
+        self,
+        reason: Optional[str] = None,
+        message: str = "Sorry, something went wrong.\n"
+        "Our engineers are working quickly to resolve the issue.",
+    ):
         info = f" Reason: {reason}"
         self.message = message + (info if reason else "")
         super().__init__(self.message)

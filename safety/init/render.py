@@ -1,9 +1,9 @@
 import time
-from typing import List, Union
+from typing import TYPE_CHECKING, List, Union
 
 from rich.console import RenderableType
 from rich.prompt import Prompt
-import typer
+
 from safety.console import main_console as console
 from safety.events.utils.emission import (
     emit_codebase_setup_response_created,
@@ -14,6 +14,12 @@ from safety.init.constants import (
     MSG_SETUP_CONTINUE_PROMPT,
     MSG_SETUP_PACKAGE_FIREWALL_PROMPT,
 )
+
+if TYPE_CHECKING:
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 
 def typed_print(
@@ -63,7 +69,7 @@ def render_header(
     console.print()
 
 
-def ask_firewall_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
+def ask_firewall_setup(ctx: "SafetyContext", prompt_user: bool = True) -> bool:
     """
     Ask the user if they want to set up Safety Firewall.
 
@@ -91,7 +97,7 @@ def ask_firewall_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
     should_setup_firewall = firewall_choice == "y"
 
     emit_firewall_setup_response_created(
-        event_bus=ctx.obj.event_bus,
+        event_bus=ctx.obj.event_bus,  # type: ignore
         ctx=ctx,
         user_consent_requested=prompt_user,
         user_consent=should_setup_firewall if prompt_user else None,
@@ -100,7 +106,7 @@ def ask_firewall_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
     return should_setup_firewall
 
 
-def ask_codebase_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
+def ask_codebase_setup(ctx: "SafetyContext", prompt_user: bool = True) -> bool:
     """
     Ask the user if they want to set up a codebase.
 
@@ -128,7 +134,7 @@ def ask_codebase_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
     should_setup_codebase = codebase_response == "y"
 
     emit_codebase_setup_response_created(
-        event_bus=ctx.obj.event_bus,
+        event_bus=ctx.obj.event_bus,  # type: ignore
         ctx=ctx,
         user_consent_requested=prompt_user,
         user_consent=should_setup_codebase if prompt_user else None,
@@ -137,7 +143,7 @@ def ask_codebase_setup(ctx: typer.Context, prompt_user: bool = True) -> bool:
     return should_setup_codebase
 
 
-def ask_continue(ctx: typer.Context, prompt_user: bool = True) -> bool:
+def ask_continue(ctx: "SafetyContext", prompt_user: bool = True) -> bool:
     """
     Ask the user if they want to continue by typing enter
 

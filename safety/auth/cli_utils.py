@@ -1,29 +1,23 @@
 import logging
-from typing import Dict, Optional, Tuple, Any, Callable
+from typing import Optional, Any, Callable
 
 import click
 
 from .main import (
+    TYPE_CHECKING,
     get_auth_info,
     get_host_config,
     get_organization,
-    get_proxy_config,
     get_redirect_url,
-    get_token_data,
-    save_auth_config,
-    get_token,
-    clean_session,
 )
 from authlib.common.security import generate_token
 from safety.auth.constants import CLIENT_ID
 
 from safety.auth.models import Organization, Auth
 from safety.auth.utils import (
-    S3PresignedAdapter,
-    SafetyAuthSession,
-    get_keys,
     is_email_verified,
 )
+from safety.platform import SafetyPlatformClient
 from safety.scan.constants import (
     CLI_KEY_HELP,
     CLI_PROXY_HOST_HELP,
@@ -31,113 +25,25 @@ from safety.scan.constants import (
     CLI_PROXY_PROTOCOL_HELP,
     CLI_STAGE_HELP,
 )
-from safety.util import DependentOption, SafetyContext, get_proxy_dict
+from safety.util import DependentOption, SafetyContext
 from safety.models import SafetyCLI
 from safety_schemas.models import Stage
-
-LOG = logging.getLogger(__name__)
-
-
-def build_client_session(
-    api_key: Optional[str] = None,
-    proxies: Optional[Dict[str, str]] = None,
-    headers: Optional[Dict[str, str]] = None,
-) -> Tuple[SafetyAuthSession, Dict[str, Any]]:
-    """
-    Builds and configures the client session for authentication.
-
-    Args:
-        api_key (Optional[str]): The API key for authentication.
-        proxies (Optional[Dict[str, str]]): Proxy configuration.
-        headers (Optional[Dict[str, str]]): Additional headers.
-
-    Returns:
-        Tuple[SafetyAuthSession, Dict[str, Any]]: The configured client session and OpenID configuration.
-    """
-
-    kwargs = {}
-    target_proxies = proxies
-
-    # Global proxy defined in the config.ini
-    proxy_config, proxy_timeout, proxy_required = get_proxy_config()
-
-    if not proxies:
-        target_proxies = proxy_config
-
-    def update_token(tokens, **kwargs):
-        save_auth_config(
-            access_token=tokens["access_token"],
-            id_token=tokens["id_token"],
-            refresh_token=tokens["refresh_token"],
-        )
-        load_auth_session(click_ctx=click.get_current_context(silent=True))  # type: ignore
-
-    client_session = SafetyAuthSession(
-        client_id=CLIENT_ID,
-        code_challenge_method="S256",
-        redirect_uri=get_redirect_url(),
-        update_token=update_token,
-        scope="openid email profile offline_access",
-        **kwargs,
-    )
-
-    client_session.mount("https://pyup.io/static-s3/", S3PresignedAdapter())
-
-    client_session.proxy_required = proxy_required
-    client_session.proxy_timeout = proxy_timeout
-    client_session.proxies = target_proxies  # type: ignore
-    client_session.headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    openid_config = client_session.fetch_openid_config()
-
-    client_session.metadata["token_endpoint"] = openid_config.get(
-        "token_endpoint", None
-    )
-
-    if api_key:
-        client_session.api_key = api_key  # type: ignore
-        client_session.headers["X-Api-Key"] = api_key
-
-    if headers:
-        client_session.headers.update(headers)
-
-    return client_session, openid_config
+from safety.config.proxy import ProxyConfig
+from safety.auth.oauth2 import update_token
+from safety.auth.constants import (
+    SAFETY_PLATFORM_URL,
+    OAUTH2_SCOPE,
+    AUTH_SERVER_URL,
+    OPENID_CONFIG_URL,
+)
+from safety.config import get_proxy_config, get_tls_config
 
 
-def load_auth_session(click_ctx: click.Context) -> None:
-    """
-    Loads the authentication session from the context.
+if TYPE_CHECKING:
+    from safety.config.tls import TLSConfig
 
-    Args:
-        click_ctx (click.Context): The Click context object.
-    """
-    if not click_ctx:
-        LOG.warning("Click context is needed to be able to load the Auth data.")
-        return
 
-    client = click_ctx.obj.auth.client
-    keys = click_ctx.obj.auth.keys
-
-    access_token: str = get_token(name="access_token")  # type: ignore
-    refresh_token: str = get_token(name="refresh_token")  # type: ignore
-    id_token: str = get_token(name="id_token")  # type: ignore
-
-    if access_token and keys:
-        try:
-            token = get_token_data(access_token, keys, silent_if_expired=True)
-            client.token = {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "id_token": id_token,
-                "token_type": "bearer",
-                "expires_at": token.get("exp", None),  # type: ignore
-            }
-        except Exception as e:
-            print(e)
-            clean_session(client)
+logger = logging.getLogger(__name__)
 
 
 def proxy_options(func: Callable) -> Callable:
@@ -156,7 +62,7 @@ def proxy_options(func: Callable) -> Callable:
     func = click.option(
         "--proxy-protocol",
         type=click.Choice(["http", "https"]),
-        default="https",
+        default=None,
         cls=DependentOption,
         required_options=["proxy_host"],
         help=CLI_PROXY_PROTOCOL_HELP,
@@ -165,7 +71,7 @@ def proxy_options(func: Callable) -> Callable:
         "--proxy-port",
         multiple=False,
         type=int,
-        default=80,
+        default=None,
         cls=DependentOption,
         required_options=["proxy_host"],
         help=CLI_PROXY_PORT_HELP,
@@ -203,7 +109,37 @@ def auth_options(stage: bool = True) -> Callable:
     return decorator
 
 
-def inject_session(
+def _create_platform_client(
+    tls_config: "TLSConfig",
+    proxy_config: Optional[ProxyConfig] = None,
+    api_key: Optional[str] = None,
+    **kwargs,
+) -> SafetyPlatformClient:
+    """
+    Create a Safety Platform client with configuration.
+
+    Args:
+        tls_config: TLS configuration
+        proxy_config: Proxy configuration
+        api_key: API key for authentication
+
+    Returns:
+        SafetyPlatformClient: Configured platform client
+    """
+    safety_platform_client = SafetyPlatformClient(
+        base_url=SAFETY_PLATFORM_URL,
+        auth_server_url=AUTH_SERVER_URL,
+        openid_config_url=OPENID_CONFIG_URL,
+        api_key=api_key,
+        proxy_config=proxy_config,
+        tls_config=tls_config,
+        **kwargs,
+    )
+
+    return safety_platform_client
+
+
+def configure_auth_session(
     ctx: click.Context,
     proxy_protocol: Optional[str] = None,
     proxy_host: Optional[str] = None,
@@ -218,23 +154,34 @@ def inject_session(
         host_stage = get_host_config(key_name="stage")
         stage = host_stage if host_stage else Stage.development
 
-    proxy_config: Optional[Dict[str, str]] = get_proxy_dict(
-        proxy_protocol,  # type: ignore
-        proxy_host,  # type: ignore
-        proxy_port,  # type: ignore
+    proxy_config = get_proxy_config(
+        scheme=proxy_protocol,
+        host=proxy_host,
+        port=proxy_port,
     )
 
-    client_session, openid_config = build_client_session(
-        api_key=key, proxies=proxy_config
+    tls_config = get_tls_config()
+
+    platform_client = _create_platform_client(
+        api_key=key,
+        proxy_config=proxy_config,
+        tls_config=tls_config,
+        redirect_uri=get_redirect_url(),
+        update_token=update_token,
+        client_id=CLIENT_ID,
+        scope=OAUTH2_SCOPE,
+        code_challenge_method="S256",
     )
-    keys = get_keys(client_session, openid_config)
+
+    jwks = platform_client.get_jwks()
 
     auth = Auth(
         stage=stage,
-        keys=keys,
+        jwks=jwks,
         org=org,
-        client_id=CLIENT_ID,  # type: ignore
-        client=client_session,
+        client_id=CLIENT_ID,
+        http_client=platform_client._http_client,  # TODO: Improve this on a future refactor
+        platform=platform_client,
         code_verifier=generate_token(48),
     )
 
@@ -243,9 +190,10 @@ def inject_session(
 
     ctx.obj.auth = auth
 
-    load_auth_session(ctx)
+    if not platform_client.api_key:
+        platform_client.load_auth_token_from_storage(jwks=jwks)
 
-    info = get_auth_info(ctx)
+    info = get_auth_info(ctx.obj.auth)
 
     if info:
         ctx.obj.auth.name = info.get("name")
@@ -257,8 +205,8 @@ def inject_session(
 
     @ctx.call_on_close
     def clean_up_on_close():
-        LOG.debug("Closing requests session.")
-        ctx.obj.auth.client.close()
+        logger.debug("Closing requests session.")
+        ctx.obj.auth.http_client.close()
 
         if ctx.obj.event_bus:
             from safety.events.utils import (
@@ -285,6 +233,6 @@ def inject_session(
                     flush_future.result()
                     close_future.result()
                 except Exception as e:
-                    LOG.warning(f"Error waiting for events to process: {e}")
+                    logger.warning(f"Error waiting for events to process: {e}")
 
             ctx.obj.event_bus.stop()

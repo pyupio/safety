@@ -1,11 +1,11 @@
 import unittest
 from unittest.mock import patch, MagicMock
+import ssl
 
 from safety.meta import get_meta_http_headers
-from safety.safety import fetch_database_url, fetch_policy, get_announcements
+from safety.safety import fetch_database_url, get_announcements
 from safety.alerts.utils import fetch_changelog
 from safety.alerts.requirements import Requirement
-from safety.auth.utils import SafetyAuthSession
 
 
 class TestUserAgentIntegration(unittest.TestCase):
@@ -16,22 +16,21 @@ class TestUserAgentIntegration(unittest.TestCase):
         self.expected_headers = get_meta_http_headers()
         self.user_agent = self.expected_headers["User-Agent"]
 
-    @patch("safety.safety.requests.Session")
-    def test_fetch_database_url_includes_user_agent(self, mock_session_class):
+    def test_fetch_database_url_includes_user_agent(self):
         """Test that fetch_database_url includes user-agent in headers."""
         # Setup mock
-        mock_session = MagicMock()
+        mock_http_client = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"meta": {"schema_version": "2.0"}}
-        mock_session.get.return_value = mock_response
+        mock_http_client.get.return_value = mock_response
 
         # Call function
         from safety.constants import JSON_SCHEMA_VERSION
         from safety_schemas.models import Ecosystem
 
         fetch_database_url(
-            session=mock_session,
+            http_client=mock_http_client,
             mirror="https://api.safety.test/",
             db_name="insecure.json",
             cached=0,
@@ -41,8 +40,8 @@ class TestUserAgentIntegration(unittest.TestCase):
         )
 
         # Verify headers were passed correctly
-        mock_session.get.assert_called_once()
-        call_args = mock_session.get.call_args
+        mock_http_client.get.assert_called_once()
+        call_args = mock_http_client.get.call_args
         headers = call_args[1]["headers"]
 
         # Check that user-agent is included
@@ -55,55 +54,33 @@ class TestUserAgentIntegration(unittest.TestCase):
         self.assertEqual(headers["schema-version"], JSON_SCHEMA_VERSION)
         self.assertEqual(headers["ecosystem"], "python")
 
-    @patch("safety.safety.requests.Session")
-    def test_fetch_policy_includes_user_agent(self, mock_session_class):
-        """Test that fetch_policy includes user-agent in headers."""
-        # Setup mock
-        mock_session = MagicMock()
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "safety_policy": "",
-            "audit_and_monitor": False,
-        }
-        mock_session.get.return_value = mock_response
-
-        # Call function
-        fetch_policy(session=mock_session)
-
-        # Verify headers were passed correctly
-        mock_session.get.assert_called_once()
-        call_args = mock_session.get.call_args
-        headers = call_args[1]["headers"]
-
-        # Check that user-agent is included
-        self.assertIn("User-Agent", headers)
-        self.assertTrue(headers["User-Agent"].startswith("safety-cli/"))
-
-    @patch("safety.safety.requests.Session")
-    def test_get_announcements_includes_user_agent(self, mock_session_class):
+    def test_get_announcements_includes_user_agent(self):
         """Test that get_announcements includes user-agent in headers."""
         # Setup mock
-        mock_session = MagicMock()
+        mock_http_client = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"announcements": []}
 
         # Mock the method to return our response
-        mock_session.post = MagicMock(return_value=mock_response)
+        mock_http_client.post = MagicMock(return_value=mock_response)
+
+        auth = MagicMock()
+        auth.http_client = mock_http_client
 
         # Call function
-        get_announcements(session=mock_session, telemetry=False)
+        get_announcements(auth=auth, telemetry=False)
 
         # Verify headers were passed correctly
-        mock_session.post.assert_called_once()
-        call_args = mock_session.post.call_args
+        mock_http_client.post.assert_called_once()
+        call_args = mock_http_client.post.call_args
         headers = call_args[1]["headers"]
 
         # Check that user-agent is included
         self.assertIn("User-Agent", headers)
         self.assertTrue(headers["User-Agent"].startswith("safety-cli/"))
 
-    @patch("safety.alerts.utils.requests.get")
+    @patch("safety.alerts.utils.httpx.get")
     def test_fetch_changelog_includes_user_agent(self, mock_get):
         """Test that fetch_changelog includes user-agent in headers."""
         # Setup mock
@@ -132,7 +109,7 @@ class TestUserAgentIntegration(unittest.TestCase):
         # Check API key is included
         self.assertEqual(headers["X-Api-Key"], "test-key")
 
-    @patch("safety.alerts.requirements.requests.get")
+    @patch("safety.alerts.requirements.httpx.get")
     def test_requirement_get_hashes_includes_user_agent(self, mock_get):
         """Test that Requirement.get_hashes includes user-agent in headers."""
         # Setup mock
@@ -164,36 +141,6 @@ class TestUserAgentIntegration(unittest.TestCase):
         self.assertIn("User-Agent", headers)
         self.assertTrue(headers["User-Agent"].startswith("safety-cli/"))
 
-    def test_safety_auth_session_includes_user_agent(self):
-        """Test that SafetyAuthSession includes user-agent in headers."""
-        # Create session
-        session = SafetyAuthSession()
-
-        # Test with API key
-        session.api_key = "test-key"  # type: ignore
-
-        # Mock the parent class request method
-        with patch.object(
-            session.__class__.__bases__[0], "request"
-        ) as mock_super_request:
-            mock_response = MagicMock()
-            mock_super_request.return_value = mock_response
-
-            # Make a request
-            session.request("GET", "https://api.test.com/endpoint")
-
-            # Verify headers were passed correctly
-            mock_super_request.assert_called_once()
-            call_args = mock_super_request.call_args
-            headers = call_args[1]["headers"]
-
-            # Check that user-agent is included
-            self.assertIn("User-Agent", headers)
-            self.assertTrue(headers["User-Agent"].startswith("safety-cli/"))
-
-            # Check API key is included
-            self.assertEqual(headers["X-Api-Key"], "test-key")
-
     @patch("safety.events.handlers.common.httpx.AsyncClient")
     def test_events_handler_includes_user_agent(self, mock_client_class):
         """Test that event handler includes user-agent in headers."""
@@ -210,9 +157,14 @@ class TestUserAgentIntegration(unittest.TestCase):
 
         mock_client.post = mock_post
 
+        # Create mock SSL context
+        mock_ssl_context = MagicMock(spec=ssl.SSLContext)
+
         # Create handler
         handler = SecurityEventsHandler(
-            api_endpoint="https://events.safety.test/", api_key="test-key"
+            api_endpoint="https://events.safety.test/",
+            api_key="test-key",
+            tls_config=mock_ssl_context,
         )
 
         # Set the mock client

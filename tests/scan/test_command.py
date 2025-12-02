@@ -27,7 +27,7 @@ class TestScanCommand(unittest.TestCase):
 
     @patch.object(Auth, "is_valid", return_value=False)
     @patch(
-        "safety.auth.utils.SafetyAuthSession.get_authentication_type",
+        "safety.platform.SafetyPlatformClient.get_authentication_type",
         return_value="unauthenticated",
     )
     def test_scan(self, mock_is_valid, mock_get_auth_type):

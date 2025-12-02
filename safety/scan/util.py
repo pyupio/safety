@@ -11,7 +11,6 @@ from safety.scan.finder.handlers import (
     PythonFileHandler,
     SafetyProjectFileHandler,
 )
-from safety_schemas.models import Stage
 
 if TYPE_CHECKING:
     from safety_schemas.models import GITModel
@@ -50,37 +49,6 @@ class Output(Enum):
     """
 
     json = "json"
-
-
-class AuthenticationType(str, Enum):
-    """
-    Enum representing authentication types.
-    """
-
-    token = "token"
-    api_key = "api_key"
-    none = "unauthenticated"
-
-    def is_allowed_in(self, stage: Stage = Stage.development) -> bool:
-        """
-        Check if the authentication type is allowed in the given stage.
-
-        Args:
-            stage (Stage): The current stage.
-
-        Returns:
-            bool: True if the authentication type is allowed, otherwise False.
-        """
-        if self is AuthenticationType.none:
-            return False
-
-        if stage == Stage.development and self is AuthenticationType.api_key:
-            return False
-
-        if (not stage == Stage.development) and self is AuthenticationType.token:
-            return False
-
-        return True
 
 
 class GIT:

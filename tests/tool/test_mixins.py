@@ -62,7 +62,7 @@ class TestInstallationAuditMixin:
         diff_data = (added_packages, {}, updated_packages)  # (added, removed, updated)
 
         command = MockAuditableCommand(diff_data=diff_data)
-        self.ctx.obj.auth.client.audit_packages.return_value = {
+        self.ctx.obj.auth.platform.audit_packages.return_value = {
             "audit": {
                 "packages": [
                     {
@@ -75,12 +75,12 @@ class TestInstallationAuditMixin:
 
         result = command.audit_packages(self.ctx)
 
-        self.ctx.obj.auth.client.audit_packages.assert_called_once()
+        self.ctx.obj.auth.platform.audit_packages.assert_called_once()
         expected_packages = ["package1==1.0.0", "package2==2.0.0", "package3==3.0.0"]
-        actual_packages = self.ctx.obj.auth.client.audit_packages.call_args[0][0]
+        actual_packages = self.ctx.obj.auth.platform.audit_packages.call_args[0][0]
         assert sorted(actual_packages) == sorted(expected_packages)
         assert result == (
-            self.ctx.obj.auth.client.audit_packages.return_value,
+            self.ctx.obj.auth.platform.audit_packages.return_value,
             {**added_packages, **updated_packages},
         )
 
@@ -95,17 +95,17 @@ class TestInstallationAuditMixin:
         diff_data = ({}, {}, updated_packages)
 
         command = MockAuditableCommand(diff_data=diff_data)
-        self.ctx.obj.auth.client.audit_packages.return_value = {
+        self.ctx.obj.auth.platform.audit_packages.return_value = {
             "audit": {"packages": []}
         }
 
         result = command.audit_packages(self.ctx)
 
-        self.ctx.obj.auth.client.audit_packages.assert_called_once_with(
+        self.ctx.obj.auth.platform.audit_packages.assert_called_once_with(
             ["package1==1.0.0"], "pypi"
         )
         assert result == (
-            self.ctx.obj.auth.client.audit_packages.return_value,
+            self.ctx.obj.auth.platform.audit_packages.return_value,
             updated_packages,
         )
 
@@ -127,7 +127,7 @@ class TestInstallationAuditMixin:
         Test audit_packages method with exception.
         """
         command = MockAuditableCommand(diff_data=({"package1": "1.0.0"}, {}, {}))
-        self.ctx.obj.auth.client.audit_packages.side_effect = Exception("API error")
+        self.ctx.obj.auth.platform.audit_packages.side_effect = Exception("API error")
 
         result = command.audit_packages(self.ctx)
 

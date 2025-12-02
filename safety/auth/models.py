@@ -1,10 +1,15 @@
 from dataclasses import dataclass
 import os
-from typing import Any, Optional, Dict
+from typing import TYPE_CHECKING, Any, List, Optional, Dict, Union
 
 from authlib.integrations.base_client import BaseOAuth
 
 from safety_schemas.models import Stage
+
+if TYPE_CHECKING:
+    from authlib.integrations.httpx_client import OAuth2Client
+    from safety.platform import SafetyPlatformClient
+    import httpx
 
 
 @dataclass
@@ -25,8 +30,9 @@ class Organization:
 @dataclass
 class Auth:
     org: Optional[Organization]
-    keys: Any
-    client: Any
+    jwks: Dict[str, List[Dict[str, Any]]]
+    http_client: Union["OAuth2Client", "httpx.Client"]
+    platform: "SafetyPlatformClient"
     code_verifier: str
     client_id: str
     stage: Optional[Stage] = Stage.development
@@ -44,13 +50,13 @@ class Auth:
         if os.getenv("SAFETY_DB_DIR"):
             return True
 
-        if not self.client:
+        if not self.platform:
             return False
 
-        if self.client.api_key:
+        if self.platform.api_key:
             return True
 
-        return bool(self.client.token and self.email_verified)
+        return bool(self.platform.token and self.email_verified)
 
     def refresh_from(self, info: Dict) -> None:
         """
@@ -72,10 +78,10 @@ class Auth:
         Returns:
             str: The authentication method.
         """
-        if self.client.api_key:
+        if self.platform.api_key:
             return "API Key"
 
-        if self.client.token:
+        if self.platform.token:
             return "Token"
 
         return "None"

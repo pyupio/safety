@@ -16,7 +16,6 @@ from safety.config.tls import (
     _tls_from_cli_options,
     _tls_from_env,
     _tls_from_config_ini,
-    _get_system_context,
 )
 
 # Fixtures
@@ -50,10 +49,13 @@ def valid_tls_config(valid_ca_bundle_file: Path) -> TLSConfig:
     """
     A valid TLSConfig for reuse.
     """
+    import ssl
+
+    context = ssl.create_default_context(cafile=str(valid_ca_bundle_file))
     return TLSConfig(
         mode="bundle",
         bundle_path=valid_ca_bundle_file,
-        verify_context=str(valid_ca_bundle_file),
+        verify_context=context,
     )
 
 
@@ -86,6 +88,14 @@ def mock_certifi():
         yield mock
 
 
+@pytest.fixture
+def mock_ssl_context():
+    """
+    Mock SSLContext for reuse in tests.
+    """
+    return MagicMock(spec=ssl.SSLContext)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TLSConfig Tests
 # ─────────────────────────────────────────────────────────────────────────────
@@ -96,11 +106,13 @@ class TestTLSConfig:
     Tests for TLSConfig NamedTuple.
     """
 
-    def test_as_dict_with_bundle_path(self, valid_ca_bundle_file: Path) -> None:
+    def test_as_dict_with_bundle_path(
+        self, valid_ca_bundle_file: Path, mock_ssl_context
+    ) -> None:
         config = TLSConfig(
             mode="bundle",
             bundle_path=valid_ca_bundle_file,
-            verify_context=str(valid_ca_bundle_file),
+            verify_context=mock_ssl_context,
         )
 
         result = config.as_dict()
@@ -110,10 +122,13 @@ class TestTLSConfig:
         }
 
     def test_as_dict_without_bundle_path(self) -> None:
+        import ssl
+
+        context = ssl.create_default_context()
         config = TLSConfig(
             mode="default",
             bundle_path=None,
-            verify_context="/path/to/certifi.pem",
+            verify_context=context,
         )
 
         result = config.as_dict()
@@ -314,16 +329,23 @@ class TestBuildTlsConfig:
     Tests for _build_tls_config helper.
     """
 
-    def test_builds_bundle_mode_config(self, valid_ca_bundle_file: Path) -> None:
+    @patch("ssl.create_default_context")
+    def test_builds_bundle_mode_config(
+        self, mock_ssl_context, valid_ca_bundle_file: Path
+    ) -> None:
+        mock_context = MagicMock(spec=ssl.SSLContext)
+        mock_ssl_context.return_value = mock_context
+
         result = _build_tls_config(
             mode="bundle", bundle_path=valid_ca_bundle_file, source="test"
         )
 
         assert result.mode == "bundle"
         assert result.bundle_path == valid_ca_bundle_file.resolve()
-        assert result.verify_context == str(valid_ca_bundle_file.resolve())
+        assert result.verify_context == mock_context
+        mock_ssl_context.assert_called_once_with(cafile=valid_ca_bundle_file.resolve())
 
-    @patch("safety.config.tls._get_system_context")
+    @patch("safety.config.tls.get_system_tls_context")
     def test_builds_system_mode_config(self, mock_get_context) -> None:
         mock_context = MagicMock(spec=ssl.SSLContext)
         mock_get_context.return_value = mock_context
@@ -336,21 +358,32 @@ class TestBuildTlsConfig:
         mock_get_context.assert_called_once()
 
     @patch("safety.config.tls.certifi.where")
-    def test_builds_default_mode_config(self, mock_certifi) -> None:
+    @patch("ssl.create_default_context")
+    def test_builds_default_mode_config(self, mock_ssl_context, mock_certifi) -> None:
         mock_certifi.return_value = "/path/to/certifi.pem"
+        mock_context = MagicMock(spec=ssl.SSLContext)
+        mock_ssl_context.return_value = mock_context
 
         result = _build_tls_config(mode="default", bundle_path=None, source="test")
 
         assert result.mode == "default"
         assert result.bundle_path is None
-        assert result.verify_context == "/path/to/certifi.pem"
+        assert result.verify_context == mock_context
         mock_certifi.assert_called_once()
+        mock_ssl_context.assert_called_once_with(cafile="/path/to/certifi.pem")
 
-    def test_normalizes_mode_case(self, valid_ca_bundle_file: Path) -> None:
+    @patch("ssl.create_default_context")
+    def test_normalizes_mode_case(
+        self, mock_ssl_context, valid_ca_bundle_file: Path
+    ) -> None:
+        mock_context = MagicMock(spec=ssl.SSLContext)
+        mock_ssl_context.return_value = mock_context
+
         result = _build_tls_config(
             mode="BUNDLE", bundle_path=valid_ca_bundle_file, source="test"
         )
         assert result.mode == "bundle"
+        mock_ssl_context.assert_called_once_with(cafile=valid_ca_bundle_file.resolve())
 
     def test_raises_on_bundle_mode_without_path(self) -> None:
         with pytest.raises(ValueError):
@@ -617,98 +650,6 @@ class TestTlsFromConfigIni:
         assert result is None
 
 
-class TestGetSystemContext:
-    """
-    Tests for _get_system_context.
-    """
-
-    def test_uses_truststore_when_available(self) -> None:
-        mock_truststore = MagicMock()
-        mock_context = MagicMock(spec=ssl.SSLContext)
-        mock_truststore.SSLContext.return_value = mock_context
-
-        with patch.dict("sys.modules", {"truststore": mock_truststore}):
-            result = _get_system_context()
-
-        assert result == mock_context
-        mock_truststore.SSLContext.assert_called_once_with(ssl.PROTOCOL_TLS_CLIENT)
-
-    @patch("safety.config.tls.ssl.create_default_context")
-    def test_falls_back_to_ssl_when_truststore_unavailable(
-        self, mock_create_context
-    ) -> None:
-        mock_context = MagicMock(spec=ssl.SSLContext)
-        mock_create_context.return_value = mock_context
-
-        with patch(
-            "builtins.__import__",
-            side_effect=ImportError("No module named 'truststore'"),
-        ):
-            result = _get_system_context()
-
-        assert result == mock_context
-        mock_create_context.assert_called_once()
-
-    def test_logs_attempt_and_truststore_resolved(self, caplog) -> None:
-        import logging
-
-        caplog.set_level(logging.DEBUG)
-
-        mock_truststore = MagicMock()
-        mock_context = MagicMock(spec=ssl.SSLContext)
-        mock_truststore.SSLContext.return_value = mock_context
-
-        with patch.dict("sys.modules", {"truststore": mock_truststore}):
-            _get_system_context()
-
-        # Should log both attempt and resolved with truststore using structured codes
-        messages = [record.message for record in caplog.records]
-        assert any("config.tls.system_store_attempt" in msg for msg in messages)
-        assert any("config.tls.system_store_resolved" in msg for msg in messages)
-
-    def test_logs_attempt_and_fallback(self, caplog) -> None:
-        import logging
-        import sys
-
-        caplog.set_level(logging.DEBUG)
-
-        # Temporarily remove truststore from sys.modules if present
-        truststore_backup = sys.modules.pop("truststore", None)
-
-        try:
-            with patch(
-                "safety.config.tls.ssl.create_default_context"
-            ) as mock_create_context:
-                mock_context = MagicMock(spec=ssl.SSLContext)
-                mock_create_context.return_value = mock_context
-
-                # Force ImportError by making import fail
-                original_import = __builtins__["__import__"]
-
-                def mock_import(name, *args, **kwargs):
-                    if name == "truststore":
-                        raise ImportError("No module named 'truststore'")
-                    return original_import(name, *args, **kwargs)
-
-                with patch("builtins.__import__", side_effect=mock_import):
-                    result = _get_system_context()
-
-                assert result == mock_context
-        finally:
-            # Restore backup
-            if truststore_backup:
-                sys.modules["truststore"] = truststore_backup
-
-        # Should log both attempt and fallback using structured codes
-        messages = [record.message for record in caplog.records]
-        assert any("config.tls.system_store_attempt" in msg for msg in messages)
-        assert any(
-            "config.tls.system_store_unsupported" in msg
-            or "config.tls.system_store_resolved" in msg
-            for msg in messages
-        )
-
-
 class TestGetTlsConfig:
     """
     Tests for get_tls_config.
@@ -743,7 +684,7 @@ class TestGetTlsConfig:
                 mock_build.assert_called_once_with(
                     mode="bundle", bundle_path=valid_ca_bundle_file, source="CLI"
                 )
-                assert result == "cli_context"
+                assert result.verify_context == "cli_context"
 
     def test_env_takes_precedence_over_config(self, config_file_factory) -> None:
         # Set up config file
@@ -768,7 +709,7 @@ class TestGetTlsConfig:
                 mock_build.assert_called_once_with(
                     mode="system", bundle_path=None, source="environment"
                 )
-                assert result == "env_context"
+                assert result.verify_context == "env_context"
 
     def test_config_used_when_no_cli_or_env(self, config_file_factory) -> None:
         config_path = config_file_factory(
@@ -789,11 +730,16 @@ class TestGetTlsConfig:
                 mock_build.assert_called_once_with(
                     mode="system", bundle_path=None, source="config"
                 )
-                assert result == "config_context"
+                assert result.verify_context == "config_context"
 
     @patch("safety.config.tls.certifi.where")
-    def test_falls_back_to_default(self, mock_certifi, config_file_factory) -> None:
+    @patch("ssl.create_default_context")
+    def test_falls_back_to_default(
+        self, mock_ssl_context, mock_certifi, config_file_factory
+    ) -> None:
         mock_certifi.return_value = "/path/to/certifi.pem"
+        mock_context = MagicMock(spec=ssl.SSLContext)
+        mock_ssl_context.return_value = mock_context
 
         # Config file with no TLS section
         config_path = config_file_factory(tls_section=None)
@@ -801,8 +747,9 @@ class TestGetTlsConfig:
         with patch.dict(os.environ, {}, clear=True):
             result = get_tls_config(config_path=config_path)
 
-        assert result == "/path/to/certifi.pem"
+        assert result.verify_context == mock_context
         mock_certifi.assert_called_once()
+        mock_ssl_context.assert_called_once_with(cafile="/path/to/certifi.pem")
 
     def test_logs_cli_resolution(self, caplog) -> None:
         import logging
@@ -869,8 +816,11 @@ class TestGetTlsConfig:
 
         with patch.dict(os.environ, {}, clear=True):
             with patch("safety.config.tls.certifi.where") as mock_certifi:
-                mock_certifi.return_value = "/path/to/certifi.pem"
-                get_tls_config(config_path=config_path)
+                with patch("ssl.create_default_context") as mock_ssl_context:
+                    mock_certifi.return_value = "/path/to/certifi.pem"
+                    mock_context = MagicMock(spec=ssl.SSLContext)
+                    mock_ssl_context.return_value = mock_context
+                    get_tls_config(config_path=config_path)
 
         assert any("default" in record.message.lower() for record in caplog.records)
 

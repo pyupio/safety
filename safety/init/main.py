@@ -2,7 +2,6 @@ import logging
 import sys
 import uuid
 from rich.prompt import Prompt
-import typer
 from rich.console import Console
 
 from safety.events.utils.emission import emit_firewall_setup_completed
@@ -24,7 +23,6 @@ from pathlib import Path
 from safety_schemas.models import ProjectModel
 from safety_schemas.models.events.types import ToolType
 from safety.scan.util import GIT
-from ..auth.utils import SafetyAuthSession
 
 from typing import TYPE_CHECKING, Any, Literal, Optional, Tuple
 from safety.scan.render import (
@@ -38,13 +36,18 @@ if TYPE_CHECKING:
     from ..codebase_utils import UnverifiedProjectModel
     from ..models import SafetyCLI
     from .types import FirewallConfigStatus
+    from safety.platform import SafetyPlatformClient
+    from safety.auth.models import Auth
+    from safety.cli_util import CustomContext
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 logger = logging.getLogger(__name__)
 
 
 def check_project(
-    ctx: typer.Context,
-    session: SafetyAuthSession,
+    ctx: "SafetyContext",
+    platform: "SafetyPlatformClient",
     console: Console,
     unverified_project: "UnverifiedProjectModel",
     git_origin: Optional[str],
@@ -56,7 +59,7 @@ def check_project(
     Args:
         console: The console for output.
         ctx (typer.Context): The context of the Typer command.
-        session (SafetyAuthSession): The authentication session.
+        platform (SafetyPlatformClient): Safety Platform client.
         unverified_project (UnverifiedProjectModel): The unverified project model.
         stage (Stage): The current stage.
         git_origin (Optional[str]): The Git origin URL.
@@ -65,7 +68,7 @@ def check_project(
     Returns:
         dict: The result of the project check.
     """
-    stage = ctx.obj.auth.stage
+    stage = ctx.obj.auth.stage  # type: ignore
     source = ctx.obj.telemetry.safety_source if ctx.obj.telemetry else None
     data = {"scan_stage": stage, "safety_source": source}
 
@@ -106,7 +109,7 @@ def check_project(
     status = print_wait_project_verification(
         console,
         data[PRJ_SLUG_KEY] if data.get(PRJ_SLUG_KEY, None) else "-",
-        (session.check_project, data),
+        (platform.check_project, data),
         on_error_delay=1,
     )
 
@@ -115,8 +118,8 @@ def check_project(
 
 def verify_project(
     console: Console,
-    ctx: typer.Context,
-    session: SafetyAuthSession,
+    ctx: "SafetyContext",
+    platform: "SafetyPlatformClient",
     unverified_project: "UnverifiedProjectModel",
     git_origin: Optional[str],
     create_if_missing: bool = True,
@@ -129,7 +132,7 @@ def verify_project(
     Args:
         console: The console for output.
         ctx (typer.Context): The context of the Typer command.
-        session (SafetyAuthSession): The authentication session.
+        platform (SafetyPlatformClient): The platform client.
         unverified_project (UnverifiedProjectModel): The unverified project model.
         git_origin (Optional[str]): The Git origin URL.
         create_if_missing (bool): Whether to create codebase if it doesn't exist. Defaults to True.
@@ -154,7 +157,7 @@ def verify_project(
     while True:
         result = check_project(
             ctx,
-            session,
+            platform,
             console,
             unverified_project,
             git_origin,
@@ -206,7 +209,7 @@ def verify_project(
         verified_prj = print_wait_project_verification(
             console,
             unverified_slug,  # type: ignore
-            (session.project, {"project_id": unverified_slug}),
+            (platform.project, {"project_id": unverified_slug}),
             on_error_delay=1,
         )
 
@@ -230,7 +233,7 @@ def verify_project(
 
 
 def save_verified_project(
-    ctx: typer.Context,
+    ctx: "SafetyContext",
     slug: str,
     name: Optional[str],
     project_path: Path,
@@ -254,16 +257,16 @@ def save_verified_project(
 
     save_project_info(project=ctx.obj.project, project_path=project_path)
 
-    ctx.obj.org = {}
+    ctx.obj.org = {}  # type: ignore
     if organization:
-        ctx.obj.org = {
+        ctx.obj.org = {  # type: ignore
             "name": organization.get("name"),
             "slug": organization.get("slug"),
         }
 
 
 def create_project(
-    ctx: typer.Context,
+    ctx: "SafetyContext",
     console: Console,
     target: Path,
     unverified_project: Optional["UnverifiedProjectModel"] = None,
@@ -285,7 +288,7 @@ def create_project(
     if not unverified_project:
         unverified_project = load_unverified_project_from_config(project_root=target)
 
-    session = ctx.obj.auth.client
+    platform = ctx.obj.auth.platform  # type: ignore
     git_data = GIT(root=target).build_git_data()
     origin = None
 
@@ -296,7 +299,7 @@ def create_project(
         result = verify_project(
             console,
             ctx,
-            session,
+            platform,
             unverified_project,
             origin,
             create_if_missing,
@@ -310,7 +313,7 @@ def create_project(
         return (False, None)
 
 
-def launch_auth_if_needed(ctx: typer.Context, console: Console) -> Optional[str]:
+def launch_auth_if_needed(ctx: "SafetyContext", console: Console) -> Optional[str]:
     """
     Launch the authentication flow if needed.
 
@@ -321,13 +324,10 @@ def launch_auth_if_needed(ctx: typer.Context, console: Console) -> Optional[str]
         Optional[str]: The organization slug if authentication is successful
     """
     obj: "SafetyCLI" = ctx.obj
+    auth: Optional["Auth"] = obj.auth
     org_slug = None
 
-    if (
-        not obj.auth
-        or not obj.auth.client
-        or not obj.auth.client.is_using_auth_credentials()
-    ):
+    if not auth or not auth.platform.is_using_auth_credentials():
         console.print(MSG_NEED_AUTHENTICATION)
 
         if not console.is_interactive:
@@ -348,7 +348,7 @@ def launch_auth_if_needed(ctx: typer.Context, console: Console) -> Optional[str]
         login_command = get_command_for(name="login", typer_instance=auth_app)
         register_command = get_command_for(name="register", typer_instance=auth_app)
 
-        ctx.obj.only_auth_msg = True
+        ctx.obj.only_auth_msg = True  # type: ignore
 
         if auth_choice == "r":
             ctx.invoke(register_command)
@@ -356,7 +356,7 @@ def launch_auth_if_needed(ctx: typer.Context, console: Console) -> Optional[str]
             ctx.invoke(login_command)
 
     try:
-        data = ctx.obj.auth.client.initialize()
+        data = auth.platform.initialize()  # type: ignore
         org_slug = data.get("organization-data", {}).get("slug")
     except Exception:
         logger.exception("Unable to load data on the init command")

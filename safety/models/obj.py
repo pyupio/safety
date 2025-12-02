@@ -7,6 +7,7 @@ if TYPE_CHECKING:
         ConfigModel,
         MetadataModel,
         PolicyFileModel,
+        ProjectModel,
         ReportSchemaVersion,
         TelemetryModel,
     )
@@ -27,7 +28,7 @@ class SafetyCLI:
     telemetry: Optional["TelemetryModel"] = None
     metadata: Optional["MetadataModel"] = None
     schema: Optional["ReportSchemaVersion"] = None
-    project = None
+    project: Optional["ProjectModel"] = None
     config: Optional["ConfigModel"] = None
     console: Optional["Console"] = None
     system_scan_policy: Optional["PolicyFileModel"] = None

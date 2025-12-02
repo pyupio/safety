@@ -3,7 +3,7 @@ import os
 import platform
 import time
 from pathlib import Path
-from typing import Any, Dict, Generator, Optional, Set, Tuple
+from typing import Any, Dict, Generator, Optional, Set, Tuple, TYPE_CHECKING
 
 from pydantic import ValidationError
 from safety_schemas.models import (
@@ -17,7 +17,6 @@ from safety_schemas.models import (
 
 from safety.scan.util import GIT
 from ..encoding import detect_encoding
-from ..auth.utils import SafetyAuthSession
 from ..errors import SafetyError
 from .ecosystems.base import InspectableFile
 from .ecosystems.target import InspectableFileContext
@@ -27,14 +26,22 @@ from ..meta import get_version
 LOG = logging.getLogger(__name__)
 
 
+if TYPE_CHECKING:
+    from safety.models import SafetyCLI
+    from safety.platform import SafetyPlatformClient
+
+
 def download_policy(
-    session: SafetyAuthSession, project_id: str, stage: Stage, branch: Optional[str]
+    platform: "SafetyPlatformClient",
+    project_id: str,
+    stage: Stage,
+    branch: Optional[str],
 ) -> Optional[PolicyFileModel]:
     """
     Downloads the policy file from the cloud for the given project and stage.
 
     Args:
-        session (SafetyAuthSession): SafetyAuthSession object for authentication.
+        platform (SafetyPlatformClient): Safety Platform client.
         project_id (str): The ID of the project.
         stage (Stage): The stage of the project.
         branch (Optional[str]): The branch of the project (optional).
@@ -42,7 +49,7 @@ def download_policy(
     Returns:
         Optional[PolicyFileModel]: PolicyFileModel object if successful, otherwise None.
     """
-    result = session.download_policy(project_id=project_id, stage=stage, branch=branch)
+    result = platform.download_policy(project_id=project_id, stage=stage, branch=branch)
 
     if result and "uuid" in result and result["uuid"]:
         LOG.debug(f"Loading CLOUD policy file {result['uuid']} from cloud.")
@@ -206,8 +213,8 @@ def process_files(
     paths: Dict[str, Set[Path]],
     config: Optional[ConfigModel] = None,
     use_server_matching: bool = False,
-    obj=None,
-    target=Path("."),
+    obj: Optional["SafetyCLI"] = None,
+    target: Path = Path("."),
 ) -> Generator[Tuple[Path, InspectableFile], None, None]:
     """
     Processes the files and yields each file path along with its inspectable file.
@@ -268,7 +275,7 @@ def process_files(
             "files": files,
         }
 
-        response = obj.auth.client.upload_requirements(payload)  # type: ignore
+        response = obj.auth.platform.upload_requirements(payload)  # type: ignore
 
         if response.status_code == 200:
             LOG.info("Scan Payload successfully sent to the API.")

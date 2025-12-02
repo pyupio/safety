@@ -6,10 +6,9 @@ import logging
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 import sys
 
-import typer
 from rich.console import Console
 from rich.padding import Padding
 from rich.prompt import Prompt
@@ -33,6 +32,13 @@ from safety.meta import get_version
 from safety.output_utils import parse_html
 from safety.scan.constants import DEFAULT_SPINNER
 from safety.util import clean_project_id, get_basic_announcements
+
+if TYPE_CHECKING:
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
+
 
 LOG = logging.getLogger(__name__)
 
@@ -72,7 +78,7 @@ def print_header(console, targets: List[Path], is_system_scan: bool = False) -> 
     console.print(render_header(targets, is_system_scan), markup=True)
 
 
-def print_announcements(console: Console, ctx: typer.Context):
+def print_announcements(console: Console, ctx: "SafetyContext"):
     """
     Print announcements from Safety.
 
@@ -83,7 +89,7 @@ def print_announcements(console: Console, ctx: typer.Context):
     colors = {"error": "red", "warning": "yellow", "info": "default"}
 
     announcements = safety.get_announcements(
-        ctx.obj.auth.client,
+        ctx.obj.auth,
         telemetry=ctx.obj.config.telemetry_enabled,
         with_telemetry=ctx.obj.telemetry,
     )

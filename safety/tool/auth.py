@@ -1,24 +1,30 @@
 import base64
 import json
 
-import typer
 from urllib.parse import urlsplit, urlunsplit
 
 from safety.tool.constants import (
     NPMJS_PUBLIC_REPOSITORY_URL,
     PYPI_PUBLIC_REPOSITORY_URL,
 )
-from typing import Optional, Literal
+from typing import TYPE_CHECKING, Optional, Literal
+
+if TYPE_CHECKING:
+    from safety.auth.models import Auth
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 
-def index_credentials(ctx: typer.Context) -> str:
+def index_credentials(ctx: "SafetyContext") -> str:
     """
     Returns the index credentials for the current context.
     This should be used together with user:index_credential for index
     basic auth.
 
     Args:
-        ctx (typer.Context): The context.
+        ctx (SafetyContext): The context.
 
     Returns:
         str: The index credentials.
@@ -26,8 +32,12 @@ def index_credentials(ctx: typer.Context) -> str:
     api_key = None
     token = None
 
-    if auth := getattr(ctx.obj, "auth", None):
-        client = auth.client
+    auth_obj = getattr(ctx.obj, "auth", None)
+
+    if auth_obj is not None:
+        auth: "Auth" = auth_obj
+
+        client = auth.platform
         token = client.token.get("access_token") if client.token else None
         api_key = client.api_key
 
@@ -43,7 +53,7 @@ def index_credentials(ctx: typer.Context) -> str:
 
 
 def build_index_url(
-    ctx: typer.Context, index_url: Optional[str], index_type: Literal["pypi", "npm"]
+    ctx: "SafetyContext", index_url: Optional[str], index_type: Literal["pypi", "npm"]
 ) -> str:
     """
     Builds the index URL for the current context.

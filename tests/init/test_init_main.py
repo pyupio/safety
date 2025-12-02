@@ -194,7 +194,7 @@ class TestInitMain(unittest.TestCase):
         mock_verify.assert_called_once_with(
             console,
             ctx,
-            ctx.obj.auth.client,
+            ctx.obj.auth.platform,
             mock_project,
             "test-origin",
             True,

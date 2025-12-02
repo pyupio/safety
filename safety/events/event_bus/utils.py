@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, cast
 from .bus import EventBus
 
 from safety_schemas.models.events import EventType
@@ -9,10 +9,10 @@ from safety.constants import PLATFORM_API_EVENTS_ENDPOINT
 
 if TYPE_CHECKING:
     from safety.models import SafetyCLI
-    from safety.auth.utils import SafetyAuthSession
+    from safety.auth.models import Auth
 
 
-def start_event_bus(obj: "SafetyCLI", session: "SafetyAuthSession"):
+def start_event_bus(obj: "SafetyCLI", auth: "Auth"):
     """
     Initializes the event bus with the default security events handler
     for authenticated users.
@@ -23,21 +23,27 @@ def start_event_bus(obj: "SafetyCLI", session: "SafetyAuthSession"):
 
     Args:
         obj (SafetyCLI): The main application object.
-        session (SafetyAuthSession): The authentication session containing
-                                     the necessary credentials and proxies.
+        http_client: The HTTP client containing the necessary credentials and proxies.
 
     """
     event_bus = EventBus()
     event_bus.start()
     obj.event_bus = event_bus
 
-    token = session.token.get("access_token") if session.token else None
+    token: Optional[str] = (
+        cast(Optional[str], auth.platform.token.get("access_token"))
+        if auth.platform.token
+        else None
+    )
+    api_key: Optional[str] = auth.platform.api_key
 
+    # TODO: Improve this on a future refactor
     obj.security_events_handler = SecurityEventsHandler(
         api_endpoint=PLATFORM_API_EVENTS_ENDPOINT,
-        proxies=session.proxies,  # type: ignore
+        tls_config=auth.platform._tls_config.verify_context,
+        proxy_config=auth.platform._proxy_config,
         auth_token=token,
-        api_key=session.api_key,
+        api_key=api_key,
     )
 
     events = [

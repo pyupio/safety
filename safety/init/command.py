@@ -26,7 +26,7 @@ from safety.events.utils.emission import (
 )
 from safety.init.models import StepTracker
 from safety_schemas.models.events.types import ToolType
-
+from safety.errors import SafetyException
 
 from .render import (
     ask_codebase_setup,
@@ -100,6 +100,10 @@ from safety_schemas.models.events.payloads import AliasConfig, IndexConfig, Init
 if TYPE_CHECKING:
     import typer
     from safety.scan.init_scan import ScanResult
+    from safety.cli_util import CustomContext
+    from safety.models import SafetyCLI
+
+    SafetyContext = CustomContext[SafetyCLI]
 
 try:
     from typing import Annotated  # type: ignore
@@ -400,7 +404,7 @@ def process_scan_results(
         state.completed = True
 
 
-def init_scan_ui(ctx: "typer.Context", prompt_user: bool = False) -> InitScanState:
+def init_scan_ui(ctx: "SafetyContext", prompt_user: bool = False) -> InitScanState:
     """
     Initialize and run a scan for the init command, showing a live UI with scan progress.
     Uses the start_scan function to get an iterator of scan results and displays UI based on them.
@@ -408,6 +412,12 @@ def init_scan_ui(ctx: "typer.Context", prompt_user: bool = False) -> InitScanSta
     Args:
         ctx: The Typer context object containing configuration and project information
     """
+    if not ctx.obj.auth:
+        raise SafetyException("Missing auth initialization.")
+
+    if not ctx.obj.project or not ctx.obj.project.project_path:
+        raise SafetyException("Codebase is required and it's not loaded.")
+
     # Initialize state for tracking scan progress
     state = InitScanState()
 
@@ -420,9 +430,9 @@ def init_scan_ui(ctx: "typer.Context", prompt_user: bool = False) -> InitScanSta
         ctx=ctx,
         target=target,
         use_server_matching=use_server_matching,
-        auth_type=ctx.obj.auth.client.get_authentication_type(),
-        is_authenticated=ctx.obj.auth.client.is_using_auth_credentials(),
-        client=ctx.obj.auth.client,
+        auth_type=ctx.obj.auth.platform.get_authentication_type(),  # type: ignore
+        is_authenticated=ctx.obj.auth.platform.is_using_auth_credentials(),
+        client=ctx.obj.auth.platform,
         project=ctx.obj.project,
         platform_enabled=ctx.obj.platform_enabled,
     )
@@ -548,14 +558,17 @@ def init(
     # TODO: check if tty is available
     tracker = StepTracker()
     try:
-        do_init(ctx, directory, tracker, prompt_user=console.is_interactive)
+        do_init(ctx, directory, tracker, prompt_user=console.is_interactive)  # type: ignore
     except KeyboardInterrupt as e:
         emit_init_exited(ctx.obj.event_bus, ctx, exit_step=tracker.current_step)
         raise e
 
 
 def do_init(
-    ctx: typer.Context, directory: Path, tracker: StepTracker, prompt_user: bool = True
+    ctx: "SafetyContext",
+    directory: Path,
+    tracker: StepTracker,
+    prompt_user: bool = True,
 ):
     """
     Initialize Safety CLI with the new onboarding flow.
@@ -626,7 +639,7 @@ def do_init(
     local_files = find_local_tool_files(project_dir)
 
     emit_codebase_detection_status(
-        event_bus=ctx.obj.event_bus,
+        event_bus=ctx.obj.event_bus,  # type: ignore
         ctx=ctx,
         detected=any(local_files),
         detected_files=local_files if local_files else None,
@@ -659,16 +672,18 @@ def do_init(
                 link_behavior=link_behavior,
             )
 
-            configure_local_directory(project_dir, org_slug, ctx.obj.project.id)
+            configure_local_directory(project_dir, org_slug, ctx.obj.project.id)  # type: ignore
 
             emit_codebase_setup_completed(
-                event_bus=ctx.obj.event_bus,
+                event_bus=ctx.obj.event_bus,  # type: ignore
                 ctx=ctx,
                 is_created=project_created,
-                codebase_id=ctx.obj.project.id if project_created else None,
+                codebase_id=ctx.obj.project.id
+                if project_created and ctx.obj.project
+                else None,
             )
 
-            if project_created:
+            if project_created and ctx.obj.project:
                 console.print(
                     "\n"
                     + f"{ctx.obj.project.id} codebase {project_status} :white_heavy_check_mark:"
@@ -682,7 +697,7 @@ def do_init(
             project_scan_state = init_scan_ui(ctx, prompt_user)
             tracker.current_step = InitExitStep.POST_SCAN
             emit_init_scan_completed(
-                event_bus=ctx.obj.event_bus,
+                event_bus=ctx.obj.event_bus,  # type: ignore
                 ctx=ctx,
                 scan_id=project_scan_state.scan_id,
             )
@@ -759,7 +774,7 @@ def do_init(
 
     # Emit event for firewall configuration
     emit_firewall_configured(
-        event_bus=ctx.obj.event_bus,
+        event_bus=ctx.obj.event_bus,  # type: ignore
         status=status,
     )
     tracker.current_step = InitExitStep.COMPLETED

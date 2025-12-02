@@ -15,7 +15,7 @@ from dparse import filetypes, parse
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
-from requests import PreparedRequest
+from httpx import URL
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
 from safety.meta import get_version
@@ -40,7 +40,6 @@ if TYPE_CHECKING:
     from safety.cli_util import CustomContext
     from safety.models import SafetyCLI
     from safety.auth.models import Auth
-    from safety.auth.utils import SafetyAuthSession
 
     import typer
 
@@ -186,26 +185,6 @@ def read_requirements(fh: Any, resolve: bool = True) -> Generator[Package, None,
             latest_version_without_known_vulnerabilities=None,
             more_info_url=None,
         )
-
-
-def get_proxy_dict(
-    proxy_protocol: str, proxy_host: str, proxy_port: int
-) -> Optional[Dict[str, str]]:
-    """
-    Get the proxy dictionary for requests.
-
-    Args:
-        proxy_protocol (str): The proxy protocol.
-        proxy_host (str): The proxy host.
-        proxy_port (int): The proxy port.
-
-    Returns:
-        Optional[Dict[str, str]]: The proxy dictionary if all parameters are provided, None otherwise.
-    """
-    if proxy_protocol and proxy_host and proxy_port:
-        # Safety only uses https request, so only https dict will be passed to requests
-        return {"https": f"{proxy_protocol}://{proxy_host}:{str(proxy_port)}"}
-    return None
 
 
 def get_license_name_by_id(license_id: int, db: Dict[str, Any]) -> Optional[str]:
@@ -451,10 +430,8 @@ def build_remediation_info_url(
     if not version:
         params = {"spec": spec}
 
-    req = PreparedRequest()
-    req.prepare_url(base_url, params)
-
-    return req.url
+    url = URL(base_url, params=params)
+    return str(url)
 
 
 def get_processed_options(
@@ -1253,10 +1230,10 @@ def sync_safety_context(f):
         ctx = SafetyContext()
 
         legacy_key_added = False
-        if "session" in kwargs:
+        if "auth" in kwargs and (auth := kwargs["auth"]):
+            auth: "Auth" = auth
             legacy_key_added = True
-            session = kwargs.get("session")
-            kwargs["key"] = session.api_key if session else None
+            kwargs["key"] = auth.platform.api_key
 
         for attr in dir(ctx):
             if attr in kwargs:
@@ -1481,12 +1458,12 @@ def initialize_event_bus(ctx: Union["CustomContext", "typer.Context"]) -> bool:
         auth: Optional["Auth"] = None
 
         if obj and obj.events_enabled and (auth := getattr(obj, "auth", None)):
-            client: "SafetyAuthSession" = auth.client
-            token = client.token.get("access_token") if client.token else None
+            platform = auth.platform
+            token = platform.token.get("access_token") if platform.token else None
 
             # Start the event bus if the user has set up authn
-            if client and bool(token or client.api_key):
-                start_event_bus(obj, client)
+            if platform and bool(token or platform.api_key):
+                start_event_bus(obj, auth)
 
                 if event_bus := obj.event_bus:
                     # Trigger here CLI GROUP LOADED event

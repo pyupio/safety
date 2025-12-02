@@ -6,7 +6,7 @@ import random
 import socket
 import sys
 import time
-from typing import Any, Optional, Dict, Tuple
+from typing import Any, Optional, Dict, Tuple, TYPE_CHECKING
 import urllib.parse
 import threading
 import click
@@ -20,10 +20,15 @@ from safety.auth.constants import (
     CLI_LOGOUT_SUCCESS,
     HOST,
 )
-from safety.auth.main import save_auth_config
+from safety.config import AuthConfig
 from rich.prompt import Prompt
 
 LOG = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from authlib.integrations.httpx_client import OAuth2Client
+    from safety.platform import SafetyPlatformClient
 
 
 def find_available_port() -> Optional[int]:
@@ -50,7 +55,12 @@ def find_available_port() -> Optional[int]:
 
 
 def auth_process(
-    code: str, state: str, initial_state: str, code_verifier: str, client: Any
+    code: str,
+    state: str,
+    initial_state: str,
+    code_verifier: str,
+    http_client: "OAuth2Client",
+    platform: "SafetyPlatformClient",
 ) -> Any:
     """
     Process the authentication callback and exchange the authorization code for tokens.
@@ -86,20 +96,20 @@ def auth_process(
         sys.exit(1)
 
     try:
-        tokens = client.fetch_token(
+        token = http_client.fetch_token(
             url=f"{AUTH_SERVER_URL}/oauth/token",
             code_verifier=code_verifier,
-            client_id=client.client_id,
+            # client_id=http_client.client_id,
             grant_type="authorization_code",
             code=code,
         )
 
-        save_auth_config(
-            access_token=tokens["access_token"],
-            id_token=tokens["id_token"],
-            refresh_token=tokens["refresh_token"],
-        )
-        return client.fetch_user_info()
+        if auth_config := AuthConfig.from_token(token=token):
+            auth_config.save()
+        else:
+            raise ValueError("Invalid authentication token. Please try again.")
+
+        return platform.fetch_user_info()
 
     except Exception as e:
         LOG.exception(e)
@@ -125,7 +135,8 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
             state=state,
             initial_state=initial_state,
             code_verifier=ctx.obj.auth.code_verifier,
-            client=ctx.obj.auth.client,
+            http_client=ctx.obj.auth.http_client,
+            platform=ctx.obj.auth.platform,
         )
 
         self.server.callback = result
@@ -285,7 +296,8 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
                 state=state,
                 initial_state=initial_state,
                 code_verifier=ctx.obj.auth.code_verifier,
-                client=ctx.obj.auth.client,
+                http_client=ctx.obj.auth.http_client,
+                platform=ctx.obj.auth.platform,
             )
         else:
             # Wait for the browser authentication in non-headless mode

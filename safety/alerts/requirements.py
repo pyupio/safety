@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 
 from packaging.version import parse as parse_version
 from packaging.specifiers import SpecifierSet
-import requests
 from typing import Any, Optional, Generator, Tuple, List
 from safety.meta import get_meta_http_headers
 
@@ -11,6 +10,8 @@ from datetime import datetime
 from dparse import parse, parser, updater, filetypes
 from dparse.dependencies import Dependency
 from dparse.parser import setuptools_parse_requirements_backport as parse_requirements
+
+import httpx
 
 
 class RequirementFile(object):
@@ -468,7 +469,7 @@ class Requirement(object):
             List: A list of hashes for the specified version.
         """
         headers = get_meta_http_headers()
-        r = requests.get(
+        r = httpx.get(
             "https://pypi.org/pypi/{name}/{version}/json".format(
                 name=self.key, version=version
             ),

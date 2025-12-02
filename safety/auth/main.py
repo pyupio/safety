@@ -1,25 +1,29 @@
 import configparser
 
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
-from authlib.oidc.core import CodeIDToken
-from authlib.jose import jwt
 from authlib.jose.errors import ExpiredTokenError
 
 from safety.auth.models import Organization
 from safety.auth.constants import (
     CLI_AUTH_LOGOUT,
     CLI_CALLBACK,
-    AUTH_CONFIG_USER,
     CLI_AUTH,
 )
+from safety.auth.oauth2 import Token
+from safety.config import AuthConfig, AUTH_CONFIG_USER
 from safety.constants import CONFIG
+from safety.utils.auth_session import discard_token
 from safety_schemas.models import Stage
-from safety.util import get_proxy_dict
+
+from authlib.integrations.httpx_client import OAuth2Client
+
+if TYPE_CHECKING:
+    from safety.auth.models import Auth
 
 
 def get_authorization_data(
-    client,
+    http_client: "OAuth2Client",
     code_verifier: str,
     organization: Optional[Organization] = None,
     sign_up: bool = False,
@@ -30,7 +34,7 @@ def get_authorization_data(
     Generate the authorization URL for the authentication process.
 
     Args:
-        client: The authentication client.
+        http_client: The oauth2 client.
         code_verifier (str): The code verifier for the PKCE flow.
         organization (Optional[Organization]): The organization to authenticate with.
         sign_up (bool): Whether the URL is for sign-up.
@@ -50,7 +54,7 @@ def get_authorization_data(
     if organization:
         kwargs["organization"] = organization.id
 
-    return client.create_authorization_url(
+    return http_client.create_authorization_url(
         CLI_AUTH, code_verifier=code_verifier, **kwargs
     )
 
@@ -106,12 +110,32 @@ def get_organization() -> Optional[Organization]:
     return org
 
 
-def get_auth_info(ctx) -> Optional[Dict]:
+def get_id_token_claims(jwks: Dict[str, Any]) -> Dict:
+    id_token = None
+    if auth_config := AuthConfig.from_storage(jwks=jwks):
+        id_token = auth_config.id_token
+
+    if not id_token:
+        raise ValueError("Invalid auth config.")
+
+    claims = Token.get_claims_for(
+        token=id_token,
+        token_type="id_token",
+        jwks=jwks,
+    )
+
+    if not claims:
+        raise ValueError("Unable to get claims for id_token.")
+
+    return claims
+
+
+def get_auth_info(auth: "Auth") -> Optional[Dict]:
     """
     Retrieve the authentication information.
 
     Args:
-        ctx: The context object containing authentication data.
+        auth: The authentication object containing authentication data.
 
     Returns:
         Optional[Dict]: The authentication information, or None if not authenticated.
@@ -119,13 +143,15 @@ def get_auth_info(ctx) -> Optional[Dict]:
     from safety.auth.utils import is_email_verified
 
     info = None
-    if ctx.obj.auth.client.token:
-        try:
-            info = get_token_data(get_token(name="id_token"), keys=ctx.obj.auth.keys)  # type: ignore
+    if auth.platform.token and isinstance(auth.http_client, OAuth2Client):
+        oauth2_client = auth.http_client
 
-            verified = is_email_verified(info)  # type: ignore
+        try:
+            info = get_id_token_claims(jwks=auth.jwks)
+
+            verified = is_email_verified(info)
             if not verified:
-                user_info = ctx.obj.auth.client.fetch_user_info()
+                user_info = auth.platform.fetch_user_info()
                 verified = is_email_verified(user_info)
 
                 if verified:
@@ -135,44 +161,18 @@ def get_auth_info(ctx) -> Optional[Dict]:
         except ExpiredTokenError:
             # id_token expired. So fire a manually a refresh
             try:
-                ctx.obj.auth.client.refresh_token(
-                    ctx.obj.auth.client.metadata.get("token_endpoint"),
-                    refresh_token=ctx.obj.auth.client.token.get("refresh_token"),
+                oauth2_client.refresh_token(
+                    oauth2_client.metadata.get("token_endpoint"),
+                    refresh_token=oauth2_client.token.get("refresh_token"),
                 )
-                info = get_token_data(
-                    get_token(name="id_token"),  # type: ignore
-                    keys=ctx.obj.auth.keys,  # type: ignore
-                )
+                info = get_id_token_claims(jwks=auth.jwks)
+
             except Exception as _e:
-                clean_session(ctx.obj.auth.client)
+                discard_token(oauth2_client=oauth2_client)
         except Exception as _g:
-            clean_session(ctx.obj.auth.client)
+            discard_token(oauth2_client=oauth2_client)
 
     return info
-
-
-def get_token_data(
-    token: str, keys: Any, silent_if_expired: bool = False
-) -> Optional[Dict]:
-    """
-    Decode and validate the token data.
-
-    Args:
-        token (str): The token to decode.
-        keys (Any): The keys to use for decoding.
-        silent_if_expired (bool): Whether to silently ignore expired tokens.
-
-    Returns:
-        Optional[Dict]: The decoded token data, or None if invalid.
-    """
-    claims = jwt.decode(token, keys, claims_cls=CodeIDToken)
-    try:
-        claims.validate()
-    except ExpiredTokenError as e:
-        if not silent_if_expired:
-            raise e
-
-    return claims
 
 
 def get_token(name: str = "access_token") -> Optional[str]:
@@ -248,82 +248,3 @@ def str_to_bool(s: str) -> bool:
         return False
     else:
         raise ValueError(f"Cannot convert '{s}' to a boolean value.")
-
-
-def get_proxy_config() -> Tuple[Optional[Dict[str, str]], Optional[int], bool]:
-    """
-    Retrieve the proxy configuration.
-
-    Returns:
-        Tuple[Optional[Dict[str, str]], Optional[int], bool]: The proxy configuration, timeout, and whether it is required.
-    """
-    config = configparser.ConfigParser()
-    config.read(CONFIG)
-
-    proxy_dictionary = None
-    required = False
-    timeout = None
-    proxy = None
-
-    if config.has_section("proxy"):
-        proxy = dict(config.items("proxy"))
-
-    if proxy:
-        try:
-            proxy_dictionary = get_proxy_dict(
-                proxy["protocol"],
-                proxy["host"],
-                proxy["port"],  # type: ignore
-            )
-            required = str_to_bool(proxy["required"])
-            timeout = proxy["timeout"]
-        except Exception:
-            pass
-
-    return proxy_dictionary, timeout, required  # type: ignore
-
-
-def clean_session(client) -> bool:
-    """
-    Clean the authentication session.
-
-    Args:
-        client: The authentication client.
-
-    Returns:
-        bool: Always returns True.
-    """
-    config = configparser.ConfigParser()
-    config["auth"] = {"access_token": "", "id_token": "", "refresh_token": ""}
-
-    with open(AUTH_CONFIG_USER, "w") as configfile:
-        config.write(configfile)
-
-    client.token = None
-
-    return True
-
-
-def save_auth_config(
-    access_token: Optional[str] = None,
-    id_token: Optional[str] = None,
-    refresh_token: Optional[str] = None,
-) -> None:
-    """
-    Save the authentication configuration.
-
-    Args:
-        access_token (Optional[str]): The access token.
-        id_token (Optional[str]): The ID token.
-        refresh_token (Optional[str]): The refresh token.
-    """
-    config = configparser.ConfigParser()
-    config.read(AUTH_CONFIG_USER)
-    config["auth"] = {  # type: ignore
-        "access_token": access_token,
-        "id_token": id_token,
-        "refresh_token": refresh_token,
-    }
-
-    with open(AUTH_CONFIG_USER, "w") as configfile:
-        config.write(configfile)  # type: ignore

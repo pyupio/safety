@@ -112,7 +112,7 @@ def get_organization() -> Optional[Organization]:
 
 def get_id_token_claims(jwks: Dict[str, Any]) -> Dict:
     id_token = None
-    if auth_config := AuthConfig.from_storage(jwks=jwks):
+    if auth_config := AuthConfig.from_storage():
         id_token = auth_config.id_token
 
     if not id_token:
@@ -162,7 +162,7 @@ def get_auth_info(auth: "Auth") -> Optional[Dict]:
             # id_token expired. So fire a manually a refresh
             try:
                 oauth2_client.refresh_token(
-                    oauth2_client.metadata.get("token_endpoint"),
+                    auth.platform.get_openid_config().get("token_endpoint"),
                     refresh_token=oauth2_client.token.get("refresh_token"),
                 )
                 info = get_id_token_claims(jwks=auth.jwks)

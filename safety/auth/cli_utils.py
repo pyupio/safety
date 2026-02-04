@@ -196,8 +196,7 @@ def configure_auth_session(
     info = get_auth_info(ctx.obj.auth)
 
     if info:
-        ctx.obj.auth.name = info.get("name")
-        ctx.obj.auth.email = info.get("email")
+        ctx.obj.auth.refresh_from(info)
         ctx.obj.auth.email_verified = is_email_verified(info)  # type: ignore
         SafetyContext().account = info["email"]
     else:

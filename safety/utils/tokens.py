@@ -43,7 +43,6 @@ def get_token_claims(
     try:
         claims = jwt.decode(token, jwks, claims_cls=CodeIDToken)  # type: ignore
         claims.validate()
-
     except ExpiredTokenError as e:
         if not silent_if_expired:
             raise e

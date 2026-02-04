@@ -6,8 +6,10 @@ with the Safety Platform API, including authentication, codebase management,
 policy downloads, and report uploads.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Callable, Dict, List, Literal, Optional, Union, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Literal, Optional, TYPE_CHECKING, cast
 
 import httpx
 from authlib.integrations.httpx_client import OAuth2Client
@@ -116,12 +118,12 @@ class SafetyPlatformClient:
 
         return headers
 
-    def _create_http_client(self) -> Union[httpx.Client, OAuth2Client]:
+    def _create_http_client(self) -> httpx.Client:
         """
         Create HTTP client with current configuration.
 
         Returns:
-            Configured HTTP client (httpx.Client or OAuth2Client)
+            Configured HTTP client (httpx.Client)
         """
         # Build client configuration
         client_kwargs = {
@@ -147,13 +149,16 @@ class SafetyPlatformClient:
                     "OAuth2 auth dependencies must be provided when not using API key"
                 )
 
-            return OAuth2Client(
-                client_id=self._client_id,
-                code_challenge_method=self._code_challenge_method,
-                redirect_uri=self._redirect_uri,
-                update_token=self._update_token,
-                scope=self._scope,
-                **client_kwargs,
+            return cast(
+                httpx.Client,
+                OAuth2Client(
+                    client_id=self._client_id,
+                    code_challenge_method=self._code_challenge_method,
+                    redirect_uri=self._redirect_uri,
+                    update_token=self._update_token,
+                    scope=self._scope,
+                    **client_kwargs,
+                ),
             )
 
     def _initialize_with_tls_fallback(self) -> None:
@@ -270,13 +275,15 @@ class SafetyPlatformClient:
             jwks (Dict[str, Any]): The JWKS.
         """
 
-        auth_config = AuthConfig.from_storage(jwks=jwks)
+        auth_config = AuthConfig.from_storage()
 
         if isinstance(self._http_client, OAuth2Client) and auth_config:
             try:
                 self._http_client.token = auth_config.to_token(jwks=jwks)
             except Exception as e:
-                print(e)
+                logger.error(
+                    "Failed to load auth token from storage", extra={"error": str(e)}
+                )
                 discard_token(self._http_client)
 
     def get_credential(self) -> Optional[str]:

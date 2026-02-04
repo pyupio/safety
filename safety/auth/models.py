@@ -29,12 +29,13 @@ class Organization:
 
 @dataclass
 class Auth:
-    org: Optional[Organization]
+    org: Optional[Organization]  # TODO: Mix SSO orgs with non SSO orgs
     jwks: Dict[str, List[Dict[str, Any]]]
     http_client: Union["OAuth2Client", "httpx.Client"]
     platform: "SafetyPlatformClient"
     code_verifier: str
     client_id: str
+    org_name: Optional[str] = None
     stage: Optional[Stage] = Stage.development
     email: Optional[str] = None
     name: Optional[str] = None
@@ -69,6 +70,7 @@ class Auth:
 
         self.name = info.get("name")
         self.email = info.get("email")
+        self.org_name = info.get("https://api.safetycli.com/org_name")
         self.email_verified = is_email_verified(info)  # type: ignore
 
     def get_auth_method(self) -> str:

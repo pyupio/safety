@@ -1,5 +1,4 @@
 from authlib.oauth2.rfc6749 import OAuth2Token
-from authlib.jose.errors import ExpiredTokenError
 from dataclasses import dataclass
 import configparser
 
@@ -30,10 +29,8 @@ class AuthConfig:
     _TOKEN_TYPE = "bearer"
     _CLAIMS_EXPIRES_AT = "exp"
 
-    @classmethod
+    @staticmethod
     def is_valid(
-        cls,
-        jwks: Dict[str, Any],
         access_token: Optional[str] = None,
         id_token: Optional[str] = None,
         refresh_token: Optional[str] = None,
@@ -42,7 +39,6 @@ class AuthConfig:
         A helper to check if the auth config is valid.
 
         Args:
-            jwks (Dict[str, Any]): The JSON Web Key Set.
             access_token (Optional[str]): The access token.
             id_token (Optional[str]): The ID token.
             refresh_token (Optional[str]): The refresh token.
@@ -52,14 +48,6 @@ class AuthConfig:
         """
 
         if not access_token or not id_token or not refresh_token:
-            return None
-
-        try:
-            claims = get_token_claims(access_token, "access_token", jwks)
-            if not claims:
-                return None
-        except ExpiredTokenError as e:
-            logger.info("Token expired", e)
             return None
 
         return access_token, id_token, refresh_token
@@ -80,9 +68,7 @@ class AuthConfig:
         )
 
     @classmethod
-    def from_storage(
-        cls, jwks: Dict[str, Any], path: Optional[Path] = None
-    ) -> Optional["AuthConfig"]:
+    def from_storage(cls, path: Optional[Path] = None) -> Optional["AuthConfig"]:
         if not path:
             path = AUTH_CONFIG_USER
 
@@ -93,24 +79,23 @@ class AuthConfig:
             config[cls._SECTION_AUTH] if config.has_section(cls._SECTION_AUTH) else {}
         )
 
-        valid_token = cls.is_valid(
-            jwks=jwks,
+        auth_config = cls.is_valid(
             access_token=section.get(cls._KEY_ACCESS_TOKEN),
             id_token=section.get(cls._KEY_ID_TOKEN),
             refresh_token=section.get(cls._KEY_REFRESH_TOKEN),
         )
-        if not valid_token:
+        if not auth_config:
             return None
 
-        access_token, id_token, refresh_token = valid_token
+        access_token, id_token, refresh_token = auth_config
 
         return cls(
             access_token=access_token, id_token=id_token, refresh_token=refresh_token
         )
 
     @classmethod
-    def clear(cls):
-        cls(access_token="", id_token="", refresh_token="").save()
+    def clear(cls, path: Optional[Path] = None):
+        cls(access_token="", id_token="", refresh_token="").save(path)
 
     def save(self, path: Optional[Path] = None) -> None:
         if not path:
@@ -130,7 +115,22 @@ class AuthConfig:
             config.write(configfile)
 
     def to_token(self, jwks: Dict[str, Any]) -> OAuth2Token:
-        claims = get_token_claims(self.access_token, "access_token", jwks)
+        """
+        Validate the access token without expiration check.
+
+        Expiration check is not performed to allow authlib to trigger the refresh process.
+
+        Use this method when you want to format the auth config into an OAuth2Token for use with the authlib library.
+
+        Args:
+            jwks (Dict[str, Any]): The JSON Web Key Set.
+
+        Returns:
+            OAuth2Token: The OAuth2 token.
+        """
+        claims = get_token_claims(
+            self.access_token, "access_token", jwks, silent_if_expired=True
+        )
 
         if not claims:
             raise ValueError("Invalid access token")
@@ -140,11 +140,10 @@ class AuthConfig:
         if not expires_at:
             raise ValueError("Invalid access token, missing expiration time.")
 
-        # Use the same keys as the config file
         params = {
             self._KEY_ACCESS_TOKEN: self.access_token,
             self._KEY_REFRESH_TOKEN: self.refresh_token,
-            # self._KEY_ID_TOKEN: self.id_token,
+            self._KEY_ID_TOKEN: self.id_token,
             self._KEY_TOKEN_TYPE: self._TOKEN_TYPE,
             self._KEY_EXPIRES_AT: expires_at,
         }

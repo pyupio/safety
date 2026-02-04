@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from authlib.oauth2.rfc6749 import OAuth2Token
 from authlib.oidc.core import CodeIDToken
 from typing import Any, Dict, Literal, Optional
@@ -35,14 +37,18 @@ class Token:
 
 
 @log_call()
-def update_token(token: OAuth2Token, refresh_token: str, access_token: str):
+def update_token(
+    token: OAuth2Token,
+    refresh_token: str | None = None,
+    access_token: str | None = None,
+):
     """
     Saves the refreshed token to the default storage.
 
     Args:
         token: OAuth2Token - the NEW refreshed token
-        refresh_token: str - the OLD refresh_token string
-        access_token: str - the OLD access_token string
+        refresh_token: str | None - the OLD refresh_token string
+        access_token: str | None - the OLD access_token string
     """
 
     if auth_config := AuthConfig.from_token(token=token):

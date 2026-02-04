@@ -138,6 +138,11 @@ type = "container"
 [tool.hatch.envs.test.scripts]
 test = 'pytest -m "" {args:tests}'
 test-cov = 'coverage run -m pytest -m "" {args:tests}'
+test-cov-filter = [
+  "coverage run -m pytest -m \"\" {args}",
+  "coverage combine",
+  "coverage report --show-missing --include=\"{env:COV_INCLUDE:*}\""
+]
 cov-report = [
   "coverage combine",
   "coverage report --show-missing",
@@ -287,7 +292,11 @@ markers = [
     "unit: mark test to run only on unit tests",
     "basic: requires no extras",
     "windows_only: mark test to run only on Windows platforms",
-    "unix_only: mark test to run only on Unix platforms"
+    "unix_only: mark test to run only on Unix platforms",
+    "linux: mark test to run only on Linux platforms",
+    "darwin: mark test to run only on macOS platforms",
+    "integration: mark test as integration test",
+    "slow: mark test as slow running"
 ]
 
 [tool.coverage.run]
@@ -302,6 +311,7 @@ source = ["safety", "*/safety"]
 
 [tool.coverage.report]
 exclude_lines = [
+    "def .*\\) -> None: \\.\\.\\."
 ]
 [tool.commitizen]
 name = "cz_conventional_commits"

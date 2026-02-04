@@ -53,7 +53,8 @@ from safety.init.command import init_app
 from safety.meta import get_version
 from safety.output_utils import should_add_nl
 from safety.tool import tool_commands
-from safety.scan.command import scan_project_app, scan_system_app
+from safety.scan.command import scan_project_app
+from safety.system_scan.command import system_scan_app
 from safety.scan.constants import (
     CLI_CHECK_COMMAND_HELP,
     CLI_CHECK_UPDATES_HELP,
@@ -1374,7 +1375,7 @@ def check_updates(
 cli.add_command(typer.main.get_command(cli_app), name="check-updates")
 cli.add_command(typer.main.get_command(init_app), name="init")
 cli.add_command(typer.main.get_command(scan_project_app), name="scan")
-cli.add_command(typer.main.get_command(scan_system_app), name="system-scan")
+cli.add_command(typer.main.get_command(system_scan_app), name="system-scan")
 cli.add_command(typer.main.get_command(codebase_app), name="codebase")
 
 tool_commands.auto_register_tools(group=cli)

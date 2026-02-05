@@ -73,16 +73,13 @@ class BatchedQueue:
 
         while True:
             if len(batch) >= self.config.max_events:
-                print("max_events reached")
                 break
 
             if batch_bytes >= self.config.max_bytes:
-                print("max_bytes reached")
                 break
 
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                print("timeout reached")
                 break
 
             try:

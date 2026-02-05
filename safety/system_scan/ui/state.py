@@ -118,22 +118,23 @@ class ScanState:
 
     # === Mutators (called by callbacks) ===
 
+    def increment_asset_count(self, asset_kind: str) -> None:
+        """Increment counter for the given asset kind."""
+        if asset_kind == "execution_context" or asset_kind == "context":
+            self.contexts += 1
+        elif asset_kind == "runtime":
+            self.runtimes += 1
+        elif asset_kind == "environment":
+            self.environments += 1
+        elif asset_kind == "dependency":
+            self.dependencies += 1
+        elif asset_kind == "tool":
+            self.tools += 1
+
     def add_asset(self, asset: Asset) -> None:
         """Add discovered asset and update counts."""
         self.discoveries.append(asset)
-
-        # Update counters based on asset kind
-        if asset.kind.value == "context":
-            self.contexts += 1
-        elif asset.kind.value == "runtime":
-            self.runtimes += 1
-        elif asset.kind.value == "environment":
-            self.environments += 1
-        elif asset.kind.value == "dependency":
-            self.dependencies += 1
-        elif asset.kind.value == "tool":
-            self.tools += 1
-
+        self.increment_asset_count(asset.kind.value)
         self._refresh()
 
     def set_phase(self, phase: str) -> None:
@@ -230,3 +231,55 @@ class ScanState:
                 self._live.update(render_tui(self))
         except Exception:
             pass
+
+    def _format_duration_for_display(self) -> str:
+        """Format elapsed time as HH:MM:SS or MM:SS."""
+        total = int(self.elapsed)
+        h, rem = divmod(total, 3600)
+        m, s = divmod(rem, 60)
+        return f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+
+    def format_plain_summary(self, include_breakdown: bool = False) -> str:
+        """
+        Generate plain text summary for terminal output.
+
+        Args:
+            include_breakdown: Whether to include asset breakdown by type
+
+        Returns:
+            Formatted summary string
+        """
+        lines = [
+            "Safety System Scan Complete ✓",
+            "",
+            f"  Scan ID:        {self.scan_id or 'N/A'}",
+            f"  Organization:   {self.organization}",
+            f"  Duration:       {self._format_duration_for_display()}",
+            "",
+        ]
+
+        if include_breakdown:
+            lines.extend(
+                [
+                    "  Assets Discovered:",
+                    f"    • {self.dependencies} Dependencies",
+                    f"    • {self.runtimes} Runtimes",
+                    f"    • {self.environments} Environments",
+                    f"    • {self.contexts} Contexts",
+                    f"    • {self.tools} Tools",
+                    "",
+                ]
+            )
+
+        lines.append(f"  Total: {self.total_discovered} assets sent to Safety Platform")
+
+        return "\n".join(lines)
+
+    def format_plain_summary_with_breakdown(self) -> str:
+        """
+        Generate plain text summary with asset breakdown for interactive mode.
+
+        Returns:
+            Formatted summary string with breakdown by asset type.
+        """
+        return self.format_plain_summary(include_breakdown=True)

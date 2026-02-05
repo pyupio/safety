@@ -1,6 +1,8 @@
 from rich.live import Live
 from typing import Callable
 
+from safety.console import main_console as console
+
 from .state import ScanState
 from .renderer import render_tui
 
@@ -19,8 +21,18 @@ def live(system_scan_fn: Callable[..., None], state: ScanState):
                     state.update_countdown(remaining)
                     time.sleep(1)
 
-                # Auto-exit after countdown
-                return
+        # Print persistent summary after TUI exits
+        if state.is_completed:
+            console.print()
+            console.print(state.format_plain_summary_with_breakdown())
+            console.print()
 
+    except KeyboardInterrupt:
+        # Ensure summary is printed even on interruption if scan completed
+        if state.is_completed:
+            console.print()
+            console.print(state.format_plain_summary_with_breakdown())
+            console.print()
+        raise
     finally:
         pass

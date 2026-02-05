@@ -22,8 +22,9 @@ class TestRunNonInteractive:
     """
 
     @patch("safety.system_scan.main.SystemScanner")
+    @patch("safety.system_scan.main.console")
     def test_run_non_interactive_creates_scanner_and_runs(
-        self, mock_scanner_class: Mock
+        self, mock_console: Mock, mock_scanner_class: Mock
     ) -> None:
         """
         Test run_non_interactive creates scanner and calls run.
@@ -36,10 +37,17 @@ class TestRunNonInteractive:
 
         run_non_interactive(auth=mock_auth, config=mock_config, sink_cfg=mock_sink_cfg)
 
-        mock_scanner_class.assert_called_once_with(
-            config=mock_config, sink_cfg=mock_sink_cfg
-        )
+        # Verify scanner was called with config, sink_cfg, and callbacks
+        mock_scanner_class.assert_called_once()
+        args, kwargs = mock_scanner_class.call_args
+        assert kwargs["config"] == mock_config
+        assert kwargs["sink_cfg"] == mock_sink_cfg
+        assert "callbacks" in kwargs
+        assert kwargs["callbacks"] is not None
         mock_scanner.run.assert_called_once()
+
+        # Verify summary was printed
+        assert mock_console.print.call_count == 3  # Empty line, summary, empty line
 
 
 @pytest.mark.unit

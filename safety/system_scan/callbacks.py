@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .scanner import NullCallbacks, Detection, ScanSummary
 from .scanner.sinks.streaming.callbacks import (
     NullStreamingCallbacks,
@@ -6,7 +8,6 @@ from .scanner.sinks.streaming.callbacks import (
     QueuePressure,
 )
 from .ui.state import ScanState
-
 from .ui.adapters import convert_detection_to_asset
 from .ui.models import LogLevel, ConnectionState
 
@@ -73,3 +74,19 @@ class CliSafetyPlatformSinkCallbacks(NullStreamingCallbacks):
 
     def complete(self, summary: StreamingSummary) -> None:
         pass
+
+
+class NonInteractiveCallbacks(NullCallbacks):
+    def __init__(self, state: ScanState) -> None:
+        super().__init__()
+        self.state = state
+
+    def scan_id(self, scan_id: str) -> None:
+        self.state.scan_id = scan_id
+
+    def detection(self, detection: Detection) -> None:
+        """Track detection counts without creating UI assets."""
+        self.state.increment_asset_count(detection.kind.value)
+
+    def complete(self, summary: ScanSummary) -> None:
+        self.state.complete_scan()

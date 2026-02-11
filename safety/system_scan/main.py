@@ -9,8 +9,14 @@ import subprocess
 from typing import Any, TYPE_CHECKING
 from datetime import datetime
 
+from safety.console import main_console as console
+
 from .scanner import Config, SystemScanner, SinkConfig
-from .callbacks import CliCallbacks, CliSafetyPlatformSinkCallbacks
+from .callbacks import (
+    CliCallbacks,
+    CliSafetyPlatformSinkCallbacks,
+    NonInteractiveCallbacks,
+)
 from .ui.main import live
 from .ui.state import ScanState
 
@@ -19,8 +25,29 @@ if TYPE_CHECKING:
 
 
 def run_non_interactive(auth: Auth, config: Config, sink_cfg: SinkConfig):
-    scanner = SystemScanner(config=config, sink_cfg=sink_cfg)
+    """
+    Run system scan in non-interactive mode with summary output.
+
+    Args:
+        auth: Authentication object with org and user info
+        config: Scanner configuration
+        sink_cfg: Sink configuration for output
+    """
+    # Create state for tracking (same as interactive but no UI updates)
+    state = ScanState(
+        organization=auth.org_name or "Unknown",
+        user_email=auth.email or "Unknown",
+        start_time=datetime.now(),
+    )
+
+    callbacks = NonInteractiveCallbacks(state=state)
+    scanner = SystemScanner(config=config, sink_cfg=sink_cfg, callbacks=callbacks)
     scanner.run()
+
+    # Print summary after completion - with breakdown now available!
+    console.print()
+    console.print(state.format_plain_summary(include_breakdown=True))
+    console.print()
 
 
 def run_in_background(ctx: typer.Context) -> subprocess.Popen[str]:

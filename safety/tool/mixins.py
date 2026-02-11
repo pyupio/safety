@@ -142,7 +142,7 @@ class InstallationAuditMixin:
 
                 if (
                     hasattr(ctx.obj, "auth")
-                    and hasattr(ctx.obj.auth, "client")
+                    and hasattr(ctx.obj.auth, "platform")
                     and packages
                 ):
                     ecosystem = self.get_ecosystem()

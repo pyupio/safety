@@ -545,7 +545,7 @@ def check(
     json_version,
 ):
     """
-    [underline][DEPRECATED][/underline] `check` has been replaced by the `scan` command, and will be unsupported beyond 1 June 2024.Find vulnerabilities at a target file or enviroment.
+    [underline][DEPRECATED][/underline] `check` has been replaced by the `scan` command, and will be unsupported beyond 1 June 2024. Find vulnerabilities at a target file or environment.
     """
     LOG.info("Running check command")
 

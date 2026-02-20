@@ -143,8 +143,15 @@ def get_auth_info(auth: "Auth") -> Optional[Dict]:
     from safety.auth.utils import is_email_verified
 
     info = None
-    if auth.platform.token and isinstance(auth.http_client, OAuth2Client):
-        oauth2_client = auth.http_client
+    # Check client type first — this is the authoritative guard.
+    # platform.token also checks isinstance internally, but we don't
+    # rely on that: the isinstance here gates all OAuth2-specific calls
+    # (refresh_token, discard_token) below.
+    if isinstance(auth.platform.http_client, OAuth2Client) and auth.platform.token:
+        oauth2_client = auth.platform.http_client
+
+        if auth.jwks is None:
+            return None
 
         try:
             info = get_id_token_claims(jwks=auth.jwks)

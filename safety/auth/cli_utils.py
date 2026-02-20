@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Any, Callable
+from typing import Dict, Optional, Any, Callable
 
 import click
 
@@ -37,6 +37,7 @@ from safety.auth.constants import (
     OPENID_CONFIG_URL,
 )
 from safety.config import get_proxy_config, get_tls_config
+from safety.config.auth import AuthConfig, MachineCredentialConfig
 
 
 if TYPE_CHECKING:
@@ -44,6 +45,27 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+# Commands under `safety auth` that require an OAuth2Client (for
+# create_authorization_url()).  When machine creds are present but no
+# OAuth2 tokens exist, these commands must NOT use machine-token auth —
+# otherwise the plain httpx.Client will crash on OAuth2-specific methods.
+_OAUTH2_FLOW_AUTH_SUBCOMMANDS = frozenset({"login", "register"})
+
+
+def _is_oauth2_flow_command(ctx: click.Context) -> bool:
+    """Return True if the invoked command needs an OAuth2Client for login flows.
+
+    These commands call create_authorization_url() which requires an
+    OAuth2Client, not a plain httpx.Client with MachineTokenAuth.
+    """
+    args = getattr(ctx, "protected_args", []) or []
+    if not args or args[0] != "auth":
+        return False
+    # 'safety auth' without subcommand defaults to login
+    if len(args) < 2 or args[1].startswith("-"):
+        return True
+    return args[1] in _OAUTH2_FLOW_AUTH_SUBCOMMANDS
 
 
 def proxy_options(func: Callable) -> Callable:
@@ -113,7 +135,13 @@ def _create_platform_client(
     tls_config: "TLSConfig",
     proxy_config: Optional[ProxyConfig] = None,
     api_key: Optional[str] = None,
-    **kwargs,
+    client_id: Optional[str] = None,
+    redirect_uri: Optional[str] = None,
+    update_token: Optional[Any] = None,
+    scope: Optional[str] = None,
+    code_challenge_method: Optional[str] = None,
+    machine_id: Optional[str] = None,
+    machine_token: Optional[str] = None,
 ) -> SafetyPlatformClient:
     """
     Create a Safety Platform client with configuration.
@@ -122,21 +150,32 @@ def _create_platform_client(
         tls_config: TLS configuration
         proxy_config: Proxy configuration
         api_key: API key for authentication
+        client_id: OAuth2 client ID
+        redirect_uri: OAuth2 redirect URI
+        update_token: OAuth2 token update callback
+        scope: OAuth2 scope
+        code_challenge_method: OAuth2 code challenge method
+        machine_id: Machine credential ID
+        machine_token: Machine credential token
 
     Returns:
         SafetyPlatformClient: Configured platform client
     """
-    safety_platform_client = SafetyPlatformClient(
+    return SafetyPlatformClient(
         base_url=SAFETY_PLATFORM_URL,
         auth_server_url=AUTH_SERVER_URL,
         openid_config_url=OPENID_CONFIG_URL,
         api_key=api_key,
         proxy_config=proxy_config,
         tls_config=tls_config,
-        **kwargs,
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        update_token=update_token,
+        scope=scope,
+        code_challenge_method=code_challenge_method,
+        machine_id=machine_id,
+        machine_token=machine_token,
     )
-
-    return safety_platform_client
 
 
 def configure_auth_session(
@@ -146,7 +185,6 @@ def configure_auth_session(
     proxy_port: Optional[str] = None,
     key: Optional[str] = None,
     stage: Optional[Stage] = None,
-    invoked_command: str = "",
 ) -> Any:
     org: Optional[Organization] = get_organization()
 
@@ -162,10 +200,22 @@ def configure_auth_session(
 
     tls_config = get_tls_config()
 
-    platform_client = _create_platform_client(
-        api_key=key,
+    # Load machine credentials on every invocation (coexists with OAuth2)
+    machine_creds = MachineCredentialConfig.from_storage()
+
+    # Machine token is used when no API key or OAuth2 tokens are present,
+    # UNLESS the command needs an OAuth2Client for login flows.
+    # The server enforces which endpoints accept machine token auth.
+    use_machine_token = False
+    if not key and machine_creds:
+        oauth2_config = AuthConfig.from_storage()
+        if not oauth2_config and not _is_oauth2_flow_command(ctx):
+            use_machine_token = True
+
+    client_kwargs: Dict[str, Any] = dict(
         proxy_config=proxy_config,
         tls_config=tls_config,
+        api_key=key,
         redirect_uri=get_redirect_url(),
         update_token=update_token,
         client_id=CLIENT_ID,
@@ -173,14 +223,20 @@ def configure_auth_session(
         code_challenge_method="S256",
     )
 
-    jwks = platform_client.get_jwks()
+    if use_machine_token:
+        assert machine_creds is not None  # guarded by `if not key and machine_creds:`
+        client_kwargs["machine_id"] = machine_creds.machine_id
+        client_kwargs["machine_token"] = machine_creds.machine_token
+
+    platform_client = _create_platform_client(**client_kwargs)
+
+    jwks = None if use_machine_token else platform_client.get_jwks()
 
     auth = Auth(
         stage=stage,
         jwks=jwks,
         org=org,
         client_id=CLIENT_ID,
-        http_client=platform_client._http_client,  # TODO: Improve this on a future refactor
         platform=platform_client,
         code_verifier=generate_token(48),
     )
@@ -190,22 +246,26 @@ def configure_auth_session(
 
     ctx.obj.auth = auth
 
-    if not platform_client.api_key:
-        platform_client.load_auth_token_from_storage(jwks=jwks)
-
-    info = get_auth_info(ctx.obj.auth)
-
-    if info:
-        ctx.obj.auth.refresh_from(info)
-        ctx.obj.auth.email_verified = is_email_verified(info)  # type: ignore
-        SafetyContext().account = info["email"]
+    if use_machine_token:
+        assert machine_creds is not None  # guarded by `if not key and machine_creds:`
+        SafetyContext().account = f"machine:{machine_creds.machine_id}"
     else:
-        SafetyContext().account = ""
+        if not platform_client.api_key:
+            platform_client.load_auth_token_from_storage(jwks=jwks or {})
+
+        info = get_auth_info(ctx.obj.auth)
+
+        if info:
+            ctx.obj.auth.refresh_from(info)
+            ctx.obj.auth.email_verified = is_email_verified(info)  # type: ignore
+            SafetyContext().account = info["email"]
+        else:
+            SafetyContext().account = ""
 
     @ctx.call_on_close
     def clean_up_on_close():
-        logger.debug("Closing requests session.")
-        ctx.obj.auth.http_client.close()
+        logger.debug("Closing HTTP session.")
+        ctx.obj.auth.platform._http_client.close()
 
         if ctx.obj.event_bus:
             from safety.events.utils import (

@@ -65,8 +65,9 @@ class TestUserAgentIntegration(unittest.TestCase):
         # Mock the method to return our response
         mock_http_client.post = MagicMock(return_value=mock_response)
 
+        # get_announcements uses auth.platform.http_client
         auth = MagicMock()
-        auth.http_client = mock_http_client
+        auth.platform.http_client = mock_http_client
 
         # Call function
         get_announcements(auth=auth, telemetry=False)
@@ -161,14 +162,11 @@ class TestUserAgentIntegration(unittest.TestCase):
         mock_ssl_context = MagicMock(spec=ssl.SSLContext)
 
         # Create handler
-        handler = SecurityEventsHandler(
+        SecurityEventsHandler(
             api_endpoint="https://events.safety.test/",
             api_key="test-key",
             tls_config=mock_ssl_context,
         )
-
-        # Set the mock client
-        handler.http_client = mock_client
 
         # Verify that headers would include user-agent
         # This is already handled in the flush method which calls get_meta_http_headers()

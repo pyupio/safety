@@ -25,6 +25,7 @@ import httpx
 
 from safety.constants import DB_CACHE_FILE
 from safety.errors import (
+    DatabaseFetchError,
     DatabaseFileNotFoundError,
     InvalidCredentialError,
     MalformedDatabase,
@@ -37,6 +38,7 @@ from safety.safety import (
     calculate_remediations,
     check,
     compute_sec_ver,
+    fetch_database,
     get_announcements,
     get_closest_ver,
     get_licenses,
@@ -53,8 +55,8 @@ from tests.test_cli import get_vulnerability
 class TestSafety(unittest.TestCase):
     def setUp(self) -> None:
         self.auth = Mock()
-        self.auth.http_client = Mock()
         self.auth.platform = Mock()
+        self.auth.platform.has_machine_token = False
         self.maxDiff = None
         self.dirname = os.path.dirname(__file__)
         self.report = VALID_REPORT
@@ -305,6 +307,7 @@ class TestSafety(unittest.TestCase):
 
         auth = Mock()
         auth.platform = Mock()
+        auth.platform.has_machine_token = False
 
         licenses_db = get_licenses(
             auth=auth,
@@ -339,8 +342,8 @@ class TestSafety(unittest.TestCase):
     def test_get_packages_licenses_without_api_key(self):
         # without providing an API-KEY
 
-        self.auth.http_client.get.return_value.text = ""
-        self.auth.http_client.get.return_value.status_code = 403
+        self.auth.platform.http_client.get.return_value.text = ""
+        self.auth.platform.http_client.get.return_value.status_code = 403
 
         with self.assertRaises(InvalidCredentialError) as error:
             get_licenses(auth=self.auth, db_mirror=False, cached=0, telemetry=False)
@@ -353,12 +356,13 @@ class TestSafety(unittest.TestCase):
     def test_get_packages_licenses_with_invalid_api_key(self):
         auth = Mock()
         auth.platform = Mock()
+        auth.platform.has_machine_token = False
         api_key = "INVALID"
         auth.platform.api_key = api_key
         auth.platform.headers = {"X-Api-Key": api_key}
         mock = Mock()
         mock.status_code = 403
-        auth.http_client.get.return_value = mock
+        auth.platform.http_client.get.return_value = mock
 
         # proving an invalid API-KEY
         with self.assertRaises(InvalidCredentialError):
@@ -367,12 +371,13 @@ class TestSafety(unittest.TestCase):
     def test_get_packages_licenses_db_fetch_error(self):
         auth = Mock()
         auth.platform = Mock()
+        auth.platform.has_machine_token = False
         api_key = "MY-VALID-KEY"
         auth.platform.api_key = api_key
         auth.platform.headers = {"X-Api-Key": api_key}
         mock = Mock()
         mock.status_code = 500
-        auth.http_client.get.return_value = mock
+        auth.platform.http_client.get.return_value = mock
 
         with self.assertRaises(ServerError):
             get_licenses(auth=auth, db_mirror=False, cached=0, telemetry=False)
@@ -380,6 +385,7 @@ class TestSafety(unittest.TestCase):
     def test_get_packages_licenses_with_invalid_db_file(self):
         auth = Mock()
         auth.platform = Mock()
+        auth.platform.has_machine_token = False
 
         with self.assertRaises(DatabaseFileNotFoundError):
             get_licenses(
@@ -393,13 +399,14 @@ class TestSafety(unittest.TestCase):
         # if the request is made too often, an 429 error is raise by PyUp.io
         auth = Mock()
         auth.platform = Mock()
+        auth.platform.has_machine_token = False
         api_key = "MY-VALID-KEY"
         auth.platform.api_key = api_key
-        auth.http_client.headers = {"X-Api-Key": api_key}
+        auth.platform.http_client.headers = {"X-Api-Key": api_key}
 
         mock = Mock()
         mock.status_code = 429
-        auth.http_client.get.return_value = mock
+        auth.platform.http_client.get.return_value = mock
 
         with self.assertRaises(TooManyRequestsError):
             get_licenses(auth=auth, db_mirror=False, cached=0, telemetry=False)
@@ -415,14 +422,14 @@ class TestSafety(unittest.TestCase):
 
         auth = Mock()
         auth.platform = Mock()
-        auth.http_client = Mock()
+        auth.platform.has_machine_token = False
         api_key = "MY-VALID-KEY"
         auth.platform.api_key = api_key
-        auth.http_client.headers = {"X-Api-Key": api_key}
+        auth.platform.http_client.headers = {"X-Api-Key": api_key}
         mock = Mock()
         mock.status_code = 200
         mock.json.return_value = licenses_db
-        auth.http_client.get.return_value = mock
+        auth.platform.http_client.get.return_value = mock
 
         # lets clear the cache first
         try:
@@ -453,6 +460,49 @@ class TestSafety(unittest.TestCase):
 
         self.assertNotEqual(resp, licenses_db)
         self.assertEqual(resp, original_db)
+
+    def test_fetch_database_rejects_machine_token(self):
+        """
+        Verify that fetch_database() raises DatabaseFetchError when using
+        machine token authentication.
+
+        Machine token auth is not allowed for vulnerability database fetching.
+        Users must authenticate with OAuth2 (`safety auth login`) or provide
+        an API key (`--key`).
+        """
+        auth = Mock()
+        auth.platform = Mock()
+        auth.platform.has_machine_token = True
+        auth.platform.is_using_auth_credentials.return_value = True
+
+        with self.assertRaises(DatabaseFetchError) as context:
+            fetch_database(auth=auth, full=False, db=False, cached=0, telemetry=False)
+
+        error_msg = str(context.exception)
+        self.assertIn("Machine token authentication is not accepted", error_msg)
+        self.assertIn("safety auth login", error_msg)
+        self.assertIn("--key", error_msg)
+
+    def test_get_licenses_rejects_machine_token(self):
+        """
+        Verify that get_licenses() raises DatabaseFetchError when using
+        machine token authentication.
+
+        Machine token auth is not allowed for license database fetching.
+        Users must authenticate with OAuth2 (`safety auth login`) or provide
+        an API key (`--key`).
+        """
+        auth = Mock()
+        auth.platform = Mock()
+        auth.platform.has_machine_token = True
+
+        with self.assertRaises(DatabaseFetchError) as context:
+            get_licenses(auth=auth, db_mirror=False, cached=0, telemetry=False)
+
+        error_msg = str(context.exception)
+        self.assertIn("Machine token authentication is not accepted", error_msg)
+        self.assertIn("safety auth login", error_msg)
+        self.assertIn("--key", error_msg)
 
     def test_report_licenses_bare(self):
         reqs = StringIO("Django==1.8.1\n\rinexistent==1.0.0")
@@ -546,12 +596,14 @@ class TestSafety(unittest.TestCase):
     def test_get_announcements_catch_request_exceptions(self, get_used_options):
         get_used_options.return_value = {"key": {"--key": 1}, "output": {"--output": 1}}
         auth = Mock()
-        auth.http_client = Mock()
         auth.platform = Mock()
+        auth.platform.http_client = Mock()
 
         auth.platform.api_key = "somekey"
-        auth.http_client.headers = {"X-Api-Key": "somekey"}
-        auth.http_client.get.side_effect = httpx.RequestError(message="some error")
+        auth.platform.http_client.headers = {"X-Api-Key": "somekey"}
+        auth.platform.http_client.get.side_effect = httpx.RequestError(
+            message="some error"
+        )
         self.assertEqual(get_announcements(auth), [])
 
     @patch("safety.util.get_used_options")
@@ -601,16 +653,16 @@ class TestSafety(unittest.TestCase):
         expected = announcements.get("announcements")
 
         auth = Mock()
-        auth.http_client = Mock()
         auth.platform = Mock()
+        auth.platform.http_client = Mock()
 
         mock = Mock()
         mock.status_code = HTTPStatus.OK.value
         mock.json.return_value = announcements
         api_key = "somekey"
         auth.platform.api_key = api_key
-        auth.http_client.headers = {"X-Api-Key": api_key}
-        auth.http_client.post.return_value = mock
+        auth.platform.http_client.headers = {"X-Api-Key": api_key}
+        auth.platform.http_client.post.return_value = mock
 
         self.assertEqual(get_announcements(auth), expected)
 

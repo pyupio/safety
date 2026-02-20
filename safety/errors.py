@@ -2,10 +2,13 @@ from typing import Optional
 
 from safety.constants import (
     EXIT_CODE_EMAIL_NOT_VERIFIED,
+    EXIT_CODE_ENROLLMENT_FAILED,
+    EXIT_CODE_ENROLLMENT_FAILED_RETRYABLE,
     EXIT_CODE_FAILURE,
     EXIT_CODE_INVALID_AUTH_CREDENTIAL,
     EXIT_CODE_INVALID_PROVIDED_REPORT,
     EXIT_CODE_INVALID_REQUIREMENT,
+    EXIT_CODE_MACHINE_ID_UNAVAILABLE,
     EXIT_CODE_MALFORMED_DB,
     EXIT_CODE_TOO_MANY_REQUESTS,
     EXIT_CODE_UNABLE_TO_FETCH_VULNERABILITY_DB,
@@ -350,3 +353,72 @@ class ServerError(DatabaseFetchError):
         info = f" Reason: {reason}"
         self.message = message + (info if reason else "")
         super().__init__(self.message)
+
+
+class EnrollmentError(SafetyError):
+    """
+    Error raised when machine enrollment fails.
+
+    Args:
+        message (str): The error message.
+    """
+
+    def __init__(self, message: str = "Enrollment failed"):
+        self.message = message
+        super().__init__(self.message)
+
+    def get_exit_code(self) -> int:
+        """
+        Get the exit code associated with this error.
+
+        Returns:
+            int: The exit code.
+        """
+        return EXIT_CODE_ENROLLMENT_FAILED
+
+
+class EnrollmentTransientFailure(EnrollmentError):
+    """
+    Error raised when enrollment fails due to a transient/retryable condition.
+
+    Covers 5xx server errors and network failures (after retry exhaustion).
+    MDM orchestrators should retry enrollment when they see exit code 75.
+
+    Args:
+        message (str): The error message.
+    """
+
+    def __init__(self, message: str = "Enrollment failed (transient error)"):
+        self.message = message
+        super().__init__(self.message)
+
+    def get_exit_code(self) -> int:
+        """
+        Get the exit code associated with this error.
+
+        Returns:
+            int: The exit code.
+        """
+        return EXIT_CODE_ENROLLMENT_FAILED_RETRYABLE
+
+
+class MachineIdUnavailableError(SafetyError):
+    """
+    Error raised when the system machine identity cannot be determined.
+
+    Args:
+        message (str): The error message.
+    """
+
+    def __init__(self, message: str = "Unable to determine system identity"):
+        self.message = message
+        super().__init__(self.message)
+
+    def get_exit_code(self) -> int:
+        """
+        Get the exit code associated with this error.
+
+        Returns:
+            int: The exit code.
+        """
+        return EXIT_CODE_MACHINE_ID_UNAVAILABLE

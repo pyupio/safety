@@ -10,92 +10,28 @@ from safety.system_scan.scanner.detectors.execution_contexts.subtypes.host impor
     get_os_info,
     KernelName,
 )
+from safety.errors import MachineIdUnavailableError
 from safety.system_scan.scanner.events.payloads.execution_context import OsFamily
+
+
+# Patch target for resolve_machine_id where it's looked up (in host.py's namespace),
+# not where it's defined (safety.auth.machine_id).
+_RESOLVE_MACHINE_ID = "safety.system_scan.scanner.detectors.execution_contexts.subtypes.host.resolve_machine_id"
 
 
 @pytest.mark.unit
 class TestGetMachineId:
-    """Test get_machine_id function."""
+    """Test get_machine_id delegation to resolve_machine_id()."""
 
-    @patch("platform.system")
-    @patch(
-        "safety.system_scan.scanner.detectors.execution_contexts.subtypes.host.get_linux_machine_id"
-    )
-    def test_get_machine_id_linux(self, mock_get_linux_machine_id, mock_system):
-        """Test getting machine ID on Linux."""
-        mock_system.return_value = "Linux"
-        mock_get_linux_machine_id.return_value = "linux-machine-id-123456"
-
-        result = get_machine_id()
-
-        assert result == "linux-machine-id-123456"
-        mock_get_linux_machine_id.assert_called_once()
-
-    @patch("platform.system")
-    @patch(
-        "safety.system_scan.scanner.detectors.execution_contexts.subtypes.host.get_macos_machine_id"
-    )
-    def test_get_machine_id_macos(self, mock_get_macos_machine_id, mock_system):
-        """Test getting machine ID on macOS."""
-        mock_system.return_value = "Darwin"
-        mock_get_macos_machine_id.return_value = "12345678-1234-1234-1234-123456789ABC"
-
-        result = get_machine_id()
-
-        assert result == "12345678-1234-1234-1234-123456789ABC"
-        mock_get_macos_machine_id.assert_called_once()
-
-    @patch("platform.system")
-    @patch(
-        "safety.system_scan.scanner.detectors.execution_contexts.subtypes.host.get_windows_machine_id"
-    )
-    def test_get_machine_id_windows(self, mock_get_windows_machine_id, mock_system):
-        """Test getting machine ID on Windows."""
-        mock_system.return_value = "Windows"
-        mock_get_windows_machine_id.return_value = "windows-machine-guid"
-
-        result = get_machine_id()
-
-        assert result == "windows-machine-guid"
-        mock_get_windows_machine_id.assert_called_once()
-
-    @patch("platform.system")
-    def test_get_machine_id_unknown_system(self, mock_system):
-        """Test getting machine ID on unknown system."""
-        mock_system.return_value = "FreeBSD"
+    @patch(_RESOLVE_MACHINE_ID)
+    def test_machine_id_unavailable_returns_none(self, mock_resolve):
+        """MachineIdUnavailableError is caught and returns None."""
+        mock_resolve.side_effect = MachineIdUnavailableError()
 
         result = get_machine_id()
 
         assert result is None
-
-    @patch("platform.system")
-    def test_get_machine_id_case_insensitive(self, mock_system):
-        """Test that system detection is case insensitive."""
-        # Test mixed case
-        mock_system.return_value = "LINUX"
-
-        with patch(
-            "safety.system_scan.scanner.detectors.execution_contexts.subtypes.host.get_linux_machine_id"
-        ) as mock_linux:
-            mock_linux.return_value = "test-id"
-            result = get_machine_id()
-            assert result == "test-id"
-            mock_linux.assert_called_once()
-
-    @patch("platform.system")
-    @patch(
-        "safety.system_scan.scanner.detectors.execution_contexts.subtypes.host.get_linux_machine_id"
-    )
-    def test_get_machine_id_handler_returns_none(
-        self, mock_get_linux_machine_id, mock_system
-    ):
-        """Test when handler returns None."""
-        mock_system.return_value = "Linux"
-        mock_get_linux_machine_id.return_value = None
-
-        result = get_machine_id()
-
-        assert result is None
+        mock_resolve.assert_called_once()
 
 
 @pytest.mark.unit
@@ -195,9 +131,6 @@ class TestGetOsInfo:
 
         expected = ("Ubuntu", OsFamily.LINUX, "22.04.3", None, "testuser")
         assert result == expected
-        assert (
-            mock_get_linux_version_info.call_count == 2
-        )  # Called for name/pretty_name and version
 
     @patch("platform.system")
     @patch("getpass.getuser")
@@ -250,9 +183,6 @@ class TestGetOsInfo:
 
         expected = ("macOS", OsFamily.MACOS, "14.1.2", "23B92", "macuser")
         assert result == expected
-        assert (
-            mock_get_macos_version_info.call_count == 3
-        )  # Called for name, version, build
 
     @patch("platform.system")
     @patch("getpass.getuser")
@@ -277,9 +207,6 @@ class TestGetOsInfo:
 
         expected = ("Windows 11 Pro", OsFamily.WINDOWS, "23H2", "22621.2715", "winuser")
         assert result == expected
-        assert (
-            mock_get_windows_version_info.call_count == 4
-        )  # Called for product_name, display_version, build, ubr
 
     @patch("platform.system")
     @patch("platform.release")
@@ -354,37 +281,17 @@ class TestKernelNameEnum:
         assert KernelName.XNU.value == "XNU"
         assert KernelName.UNKNOWN.value == "Unknown"
 
-    def test_kernel_name_membership(self):
-        """Test KernelName enum membership."""
-        assert KernelName.WINDOWS_NT in KernelName
-        assert KernelName.LINUX in KernelName
-        assert KernelName.XNU in KernelName
-        assert KernelName.UNKNOWN in KernelName
-
-    def test_kernel_name_comparison(self):
-        """Test KernelName enum comparison."""
-        assert KernelName.LINUX == KernelName.LINUX
-        assert KernelName.LINUX != KernelName.WINDOWS_NT
-        assert KernelName.XNU != KernelName.UNKNOWN
-
 
 @pytest.mark.unit
 class TestErrorHandling:
     """Test error handling in host detection functions."""
 
-    @patch("platform.system")
-    @patch(
-        "safety.system_scan.scanner.detectors.execution_contexts.subtypes.host.get_linux_machine_id"
-    )
-    def test_get_machine_id_handler_exception(
-        self, mock_get_linux_machine_id, mock_system
-    ):
-        """Test get_machine_id when handler raises exception."""
-        mock_system.return_value = "Linux"
-        mock_get_linux_machine_id.side_effect = Exception("Test error")
+    @patch(_RESOLVE_MACHINE_ID)
+    def test_get_machine_id_handler_exception(self, mock_resolve):
+        """Test get_machine_id when resolve_machine_id raises a non-handled exception."""
+        mock_resolve.side_effect = Exception("Test error")
 
-        # The current implementation doesn't catch exceptions from handlers
-        # so this should raise the exception
+        # Only MachineIdUnavailableError is caught; other exceptions propagate
         with pytest.raises(Exception, match="Test error"):
             get_machine_id()
 

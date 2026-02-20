@@ -388,6 +388,13 @@ def fetch_database(
     Returns:
         Dict[str, Any]: The fetched database.
     """
+    # Check if using machine token auth - not allowed for database fetching
+    if auth.platform.has_machine_token:
+        raise DatabaseFetchError(
+            "Machine token authentication is not accepted for this operation. "
+            "Run `safety auth login` or use `--key` to authenticate."
+        )
+
     is_open_mirror = False
     if auth.platform.is_using_auth_credentials():
         mirrors = API_MIRRORS
@@ -404,7 +411,7 @@ def fetch_database(
             if ecosystem is None:
                 ecosystem = Ecosystem.PYTHON
             data = fetch_database_url(
-                auth.http_client,
+                auth.platform.http_client,
                 mirror,
                 db_name=db_name,
                 cached=cached,
@@ -1692,6 +1699,13 @@ def get_licenses(
     Returns:
         Dict[str, Any]: The licenses dictionary.
     """
+    # Check if using machine token auth - not allowed for database fetching
+    if auth.platform.has_machine_token:
+        raise DatabaseFetchError(
+            "Machine token authentication is not accepted for this operation. "
+            "Run `safety auth login` or use `--key` to authenticate."
+        )
+
     if db_mirror:
         mirrors = [db_mirror]
     else:
@@ -1703,7 +1717,7 @@ def get_licenses(
         # mirror can either be a local path or a URL
         if is_a_remote_mirror(mirror):
             licenses = fetch_database_url(
-                http_client=auth.http_client,
+                http_client=auth.platform.http_client,
                 mirror=mirror,
                 db_name=db_name,
                 cached=cached,
@@ -1807,7 +1821,9 @@ def get_announcements(
 
     LOG.debug(f"Telemetry data sent: {data}")
 
-    http_client = auth.http_client
+    # Use platform HTTP client for machine token auth compatibility.
+    # Machine tokens are explicitly allowed for telemetry operations (POST /api/events/).
+    http_client = auth.platform.http_client
 
     try:
         request_func = getattr(http_client, method)

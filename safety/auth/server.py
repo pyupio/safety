@@ -135,7 +135,7 @@ class CallbackHandler(http.server.BaseHTTPRequestHandler):
             state=state,
             initial_state=initial_state,
             code_verifier=ctx.obj.auth.code_verifier,
-            http_client=ctx.obj.auth.http_client,
+            http_client=ctx.obj.auth.platform.http_client,
             platform=ctx.obj.auth.platform,
         )
 
@@ -296,7 +296,7 @@ def process_browser_callback(uri: str, **kwargs: Any) -> Any:
                 state=state,
                 initial_state=initial_state,
                 code_verifier=ctx.obj.auth.code_verifier,
-                http_client=ctx.obj.auth.http_client,
+                http_client=ctx.obj.auth.platform.http_client,
                 platform=ctx.obj.auth.platform,
             )
         else:

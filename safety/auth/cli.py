@@ -1,7 +1,9 @@
 # type: ignore
 import logging
+import os
+import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 from safety.auth.models import Auth
 from safety.auth.utils import initialize, is_email_verified
@@ -36,11 +38,14 @@ from safety.events.utils import emit_auth_started, emit_auth_completed
 from safety.util import initialize_event_bus
 from safety.scan.constants import (
     CLI_AUTH_COMMAND_HELP,
+    CLI_AUTH_ENROLL_HELP,
     CLI_AUTH_HEADLESS_HELP,
     CLI_AUTH_LOGIN_HELP,
     CLI_AUTH_LOGOUT_HELP,
     CLI_AUTH_STATUS_HELP,
 )
+from safety.config.auth import MachineCredentialConfig
+from safety.errors import EnrollmentError
 from safety.utils.auth_session import discard_token
 
 from ..cli_util import SafetyCLISubGroup, get_command_for, pass_safety_cli_obj
@@ -62,6 +67,7 @@ CMD_LOGIN_NAME = "login"
 CMD_REGISTER_NAME = "register"
 CMD_STATUS_NAME = "status"
 CMD_LOGOUT_NAME = "logout"
+CMD_ENROLL_NAME = "enroll"
 DEFAULT_CMD = CMD_LOGIN_NAME
 
 
@@ -190,9 +196,8 @@ def login(
     if headless:
         brief_msg = "Running in headless mode. Please copy and open the following URL in a browser"
 
-    # Get authorization data and generate the authorization URL
     uri, initial_state = get_authorization_data(
-        http_client=ctx.obj.auth.http_client,
+        http_client=ctx.obj.auth.platform.http_client,
         code_verifier=ctx.obj.auth.code_verifier,
         organization=ctx.obj.auth.org,
         headless=headless,
@@ -277,8 +282,7 @@ def logout(ctx: typer.Context) -> None:
     msg = MSG_NON_AUTHENTICATED
 
     if id_token:
-        # Clean the session if an ID token is found
-        if discard_token(ctx.obj.auth.http_client):
+        if discard_token(ctx.obj.auth.platform.http_client):
             msg = MSG_LOGOUT_DONE
         else:
             msg = MSG_LOGOUT_FAILED
@@ -317,6 +321,24 @@ def status(
     safety_version = get_version()
     console.print(f"[{current_time}]: Safety {safety_version}")
 
+    # Machine token auth: display status and return early
+    if ctx.obj.auth.platform.has_machine_token:
+        machine_id = ctx.obj.auth.platform.machine_id
+        if not machine_id:
+            console.print(
+                "[red]Machine token authentication is misconfigured: no machine ID found.\n"
+                "Try re-enrolling with [bold]`safety auth enroll --force`[/bold][/red]"
+            )
+            sys.exit(1)
+        console.print(
+            f"[green]Authenticated via machine token (machine:{machine_id})[/green]"
+        )
+        initialize(ctx, refresh=True)
+        return
+
+    # Load enrollment state from storage
+    machine_cred = MachineCredentialConfig.from_storage()
+
     info = get_auth_info(ctx.obj.auth)
 
     initialize(ctx, refresh=True)
@@ -336,7 +358,7 @@ def status(
         )
         console.print()
         uri, initial_state = get_authorization_data(
-            http_client=ctx.obj.auth.http_client,
+            http_client=ctx.obj.auth.platform.http_client,
             code_verifier=ctx.obj.auth.code_verifier,
             organization=ctx.obj.auth.org,
             ensure_auth=ensure_auth,
@@ -361,7 +383,14 @@ def status(
         console.print()
 
     else:
-        console.print(MSG_NON_AUTHENTICATED)
+        if not machine_cred:
+            console.print(MSG_NON_AUTHENTICATED)
+
+    # Show enrollment status if enrolled
+    if machine_cred:
+        console.print(f"  Enrolled system: {machine_cred.machine_id}")
+        if machine_cred.enrolled_at:
+            console.print(f"  Enrolled at: {machine_cred.enrolled_at}")
 
 
 @auth_app.command(name=CMD_REGISTER_NAME)
@@ -379,9 +408,8 @@ def register(ctx: typer.Context) -> None:
     # Check if the user is already authenticated
     fail_if_authenticated(ctx, with_msg=MSG_FAIL_REGISTER_AUTHED)
 
-    # Get authorization data and generate the registration URL
     uri, initial_state = get_authorization_data(
-        http_client=ctx.obj.auth.http_client,
+        http_client=ctx.obj.auth.platform.http_client,
         code_verifier=ctx.obj.auth.code_verifier,
         sign_up=True,
     )
@@ -400,3 +428,110 @@ def register(ctx: typer.Context) -> None:
         console.print()
     else:
         console.print("[red]Unable to register in this time, try again.[/red]")
+
+
+@auth_app.command(name=CMD_ENROLL_NAME, help=CLI_AUTH_ENROLL_HELP)
+@handle_cmd_exception
+@notify
+def enroll(
+    ctx: typer.Context,
+    enrollment_key: Annotated[
+        Optional[str],
+        typer.Argument(
+            envvar="SAFETY_ENROLLMENT_KEY",
+            help="Enrollment key provided by your MDM administrator.",
+        ),
+    ] = None,
+    machine_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--machine-id",
+            envvar="SAFETY_MACHINE_ID",
+            help="Override machine identity. If not set, auto-detected. Note: separate from hostname, which is also transmitted to the server.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Force re-enrollment even if already enrolled.",
+        ),
+    ] = False,
+) -> None:
+    """Enroll this machine with the Safety Platform for MDM-managed scanning."""
+    from safety.auth.constants import ENROLLMENT_KEY_PATTERN
+    from safety.auth.enrollment import call_enrollment_endpoint
+    from safety.auth.machine_id import resolve_machine_id
+
+    LOG.info("enroll started")
+
+    # 1. Check if already enrolled
+    existing = MachineCredentialConfig.from_storage()
+    if existing and not force:
+        LOG.info("machine already enrolled, skipping (use --force to re-enroll)")
+        console.print()
+        console.print("[green]This machine is already enrolled.[/green]")
+        console.print(f"  Machine ID: {existing.machine_id}")
+        console.print(f"  Enrolled at: {existing.enrolled_at}")
+        console.print()
+        console.print("Use [bold]--force[/bold] to re-enroll.")
+        return
+
+    # 2. Resolve enrollment key
+    if not enrollment_key:
+        raise EnrollmentError("Enrollment key is required")
+
+    # 3. Validate enrollment key format
+    if not re.match(ENROLLMENT_KEY_PATTERN, enrollment_key):
+        raise EnrollmentError("Invalid enrollment key format")
+
+    # 4. Resolve machine ID — determine source for logging
+    if machine_id is not None:
+        machine_id_source = "flag (--machine-id)"
+    elif os.environ.get("SAFETY_MACHINE_ID"):
+        machine_id_source = "env (SAFETY_MACHINE_ID)"
+    else:
+        machine_id_source = "platform detection"
+
+    LOG.info(
+        "enrollment attempt: machine_id_source=%s, force=%s",
+        machine_id_source,
+        force,
+    )
+
+    resolved_machine_id = resolve_machine_id(override=machine_id, skip_enrolled=True)
+
+    # 5. Call enrollment HTTP helper (reuses the platform client created
+    #    during CLI startup — TLS/proxy already probed)
+    response = call_enrollment_endpoint(
+        platform_client=ctx.obj.auth.platform,
+        enrollment_key=enrollment_key,
+        machine_id=resolved_machine_id,
+        force=force,
+    )
+
+    # 6. Save credentials
+    response_token = response.get("machine_token")
+    if not response_token:
+        LOG.info("enrollment failed: server response missing machine token")
+        raise EnrollmentError("Server response missing machine token")
+    enrolled_at = datetime.now(timezone.utc).isoformat()
+
+    MachineCredentialConfig(
+        machine_id=resolved_machine_id,
+        machine_token=response_token,
+        enrolled_at=enrolled_at,
+    ).save()
+
+    LOG.info("enrollment successful: machine_id=%s", resolved_machine_id)
+
+    # 7. Print success
+    console.print()
+    console.print("[bold][green]Enrollment successful![/green][/bold]")
+    console.print(f"  Machine ID:    {resolved_machine_id}")
+    console.print(f"  Machine Token: {response_token}")
+    console.print(f"  Enrolled at:   {enrolled_at}")
+    console.print()
+    console.print(
+        "[green]You don't need to save these, they are automatically stored.[/green]"
+    )

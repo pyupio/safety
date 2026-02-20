@@ -156,6 +156,10 @@ CLI_AUTH_STATUS_HELP = (
     "Show the current authentication status.\n\n"
     "[bold]Example: safety auth status[/bold]"
 )
+CLI_AUTH_ENROLL_HELP = (
+    "Enroll this machine with the Safety Platform for MDM-managed scanning.\n\n"
+    "[bold]Example: safety auth enroll YOUR_KEY[/bold]"
+)
 
 # Configure options
 CLI_CONFIGURE_PROXY_HOST_HELP = "Specify a proxy host for network communications to be saved into Safety's configuration. \n\n"

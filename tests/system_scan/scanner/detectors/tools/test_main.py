@@ -112,6 +112,75 @@ class TestValidate:
 
         assert result == "package_manager:pip"
 
+    @pytest.mark.parametrize(
+        "filename,expected_subtype",
+        [
+            # Unix extensionless tools
+            ("pip", "package_manager:pip"),
+            ("pip3", "package_manager:pip"),
+            ("poetry", "package_manager:poetry"),
+            ("pipenv", "package_manager:pipenv"),
+            ("conda", "package_manager:conda"),
+            ("uv", "package_manager:uv"),
+            ("rye", "package_manager:rye"),
+            ("pdm", "package_manager:pdm"),
+            ("hatch", "package_manager:hatch"),
+            ("git", "vcs:git"),
+            ("docker", "container:docker"),
+            ("podman", "container:podman"),
+            ("cursor", "ide:cursor"),
+            ("windsurf", "ide:windsurf"),
+            ("claude", "ai:claude"),
+            ("codex", "ai:codex"),
+            # Unix versioned (pathlib treats .14 as suffix)
+            ("pip3.14", "package_manager:pip"),
+            ("pip3.13", "package_manager:pip"),
+            # Windows .exe extensions
+            ("pip.exe", "package_manager:pip"),
+            ("pip3.exe", "package_manager:pip"),
+            ("poetry.exe", "package_manager:poetry"),
+            ("git.exe", "vcs:git"),
+            ("uv.exe", "package_manager:uv"),
+            ("docker.exe", "container:docker"),
+            # Windows .bat/.cmd extensions
+            ("pip.bat", "package_manager:pip"),
+            ("pip3.bat", "package_manager:pip"),
+            ("uv.bat", "package_manager:uv"),
+            ("pip.cmd", "package_manager:pip"),
+            # Windows versioned .exe (the bug fix)
+            ("pip3.14.exe", "package_manager:pip"),
+            ("pip3.13.exe", "package_manager:pip"),
+            ("pip3.14.15.exe", "package_manager:pip"),
+            # Executable backups (should match — they are real executables)
+            ("pip.bak.exe", "package_manager:pip"),
+            ("git.old.exe", "vcs:git"),
+            # Unknown tools (must be None)
+            ("unknown", None),
+            ("ruff.exe", None),
+            ("random.exe", None),
+            # Must NOT match on inner segments
+            ("foo.pip.exe", None),
+            ("my.poetry.exe", None),
+            ("not.a.tool", None),
+            # Edge cases
+            (".exe", None),
+            (".hidden", None),
+            # Case insensitive with extensions
+            ("PIP.EXE", "package_manager:pip"),
+            ("PIP3.14.EXE", "package_manager:pip"),
+        ],
+    )
+    def test_validate_tool_name_matching(
+        self, detector: ToolDetector, filename: str, expected_subtype: str | None
+    ):
+        """Test tool name matching across platforms and naming conventions."""
+        mock_fs = Mock(spec=FsRuntime)
+        mock_fs.is_file.return_value = True
+        mock_fs.is_executable.return_value = True
+
+        result = detector._validate(Path(filename), mock_fs)
+        assert result == expected_subtype
+
 
 @pytest.mark.unit
 class TestGetStableId:

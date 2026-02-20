@@ -57,8 +57,8 @@ class ToolDetector:
         if not fs.is_file(path) or not fs.is_executable(path):
             return None
 
-        name = path.stem.lower()
-        return self.TOOL_PATTERNS.get(name)
+        base, _, _ = path.name.lower().partition(".")
+        return self.TOOL_PATTERNS.get(base)
 
     def _get_stable_id(self, path: Path, fs: FsRuntime) -> str:
         """Generate stable ID based on inode."""

@@ -1,15 +1,13 @@
 from dataclasses import dataclass
 import os
-from typing import TYPE_CHECKING, Any, List, Optional, Dict, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Dict
 
 from authlib.integrations.base_client import BaseOAuth
 
 from safety_schemas.models import Stage
 
 if TYPE_CHECKING:
-    from authlib.integrations.httpx_client import OAuth2Client
     from safety.platform import SafetyPlatformClient
-    import httpx
 
 
 @dataclass
@@ -29,12 +27,23 @@ class Organization:
 
 @dataclass
 class Auth:
+    """
+    Authentication state container for Safety CLI.
+
+    This dataclass holds all authentication-related state including credentials,
+    platform client, user information, and organization context.
+
+
+    Each CLI invocation resolves to exactly one auth path (API key, OAuth2, or
+    machine token). The single HTTP client lives in ``platform.http_client``.
+    """
+
     org: Optional[Organization]  # TODO: Mix SSO orgs with non SSO orgs
-    jwks: Dict[str, List[Dict[str, Any]]]
-    http_client: Union["OAuth2Client", "httpx.Client"]
+
     platform: "SafetyPlatformClient"
     code_verifier: str
     client_id: str
+    jwks: Optional[Dict[str, List[Dict[str, Any]]]] = None
     org_name: Optional[str] = None
     stage: Optional[Stage] = Stage.development
     email: Optional[str] = None
@@ -55,6 +64,9 @@ class Auth:
             return False
 
         if self.platform.api_key:
+            return True
+
+        if self.platform.has_machine_token:
             return True
 
         return bool(self.platform.token and self.email_verified)
@@ -82,6 +94,9 @@ class Auth:
         """
         if self.platform.api_key:
             return "API Key"
+
+        if self.platform.has_machine_token:
+            return "Machine Token"
 
         if self.platform.token:
             return "Token"

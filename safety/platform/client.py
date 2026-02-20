@@ -8,13 +8,22 @@ policy downloads, and report uploads.
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
+import socket
 from typing import Any, Callable, Dict, List, Literal, Optional, TYPE_CHECKING, cast
 
 import httpx
 from authlib.integrations.httpx_client import OAuth2Client
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 from safety_schemas.models import STAGE_ID_MAPPING, Stage
-from safety.errors import SSLCertificateError
 
 from safety.constants import (
     PLATFORM_API_CHECK_UPDATES_ENDPOINT,
@@ -28,17 +37,17 @@ from safety.constants import (
     REQUEST_TIMEOUT,
     FIREWALL_AUDIT_PYPI_PACKAGES_ENDPOINT,
     FIREWALL_AUDIT_NPMJS_PACKAGES_ENDPOINT,
-    CONFIG,
 )
 from safety.meta import get_meta_http_headers
 from safety.utils.auth_session import AuthenticationType
 from safety.util import SafetyContext
 from .http_utils import parse_response
 
-from safety.config import AuthConfig, get_tls_config
+from safety.config import AuthConfig
+from safety.errors import EnrollmentError, EnrollmentTransientFailure
 
 from safety.utils.auth_session import discard_token
-from configparser import ConfigParser
+from safety.utils.tls_probe import probe_tls_connectivity
 
 
 if TYPE_CHECKING:
@@ -59,6 +68,29 @@ class ApiKeyAuth(httpx.Auth):
 
     def auth_flow(self, request):
         request.headers["X-Api-Key"] = self.api_key
+        yield request
+
+
+class MachineTokenAuth(httpx.Auth):
+    """
+    Custom auth that uses Basic Auth with machine_id:machine_token.
+
+    Note: This is functionally identical to ``httpx.BasicAuth(machine_id,
+    machine_token)``.  The dedicated class exists so that auth-type
+    detection in middleware (e.g. ``http_utils.parse_response``) can
+    distinguish machine-token requests from other Basic-auth uses by
+    inspecting the Authorization header.
+    """
+
+    def __init__(self, machine_id: str, machine_token: str):
+        self.machine_id = machine_id
+        self.machine_token = machine_token
+
+    def auth_flow(self, request):
+        credentials = base64.b64encode(
+            f"{self.machine_id}:{self.machine_token}".encode()
+        ).decode()
+        request.headers["Authorization"] = f"Basic {credentials}"
         yield request
 
 
@@ -85,9 +117,19 @@ class SafetyPlatformClient:
         update_token: Optional[Callable] = None,
         scope: Optional[str] = None,
         code_challenge_method: Optional[str] = None,
+        machine_id: Optional[str] = None,
+        machine_token: Optional[str] = None,
     ):
         self.base_url = base_url.rstrip("/")
         self._api_key = api_key
+        self._machine_id = machine_id
+        self._machine_token = machine_token
+
+        if self._machine_token and not self._machine_id:
+            raise ValueError("machine_id is required when machine_token is provided")
+        if self._machine_id and not self._machine_token:
+            raise ValueError("machine_token is required when machine_id is provided")
+
         self._timeout = timeout
         self._proxy_config = proxy_config
         self._tls_config = tls_config
@@ -109,7 +151,8 @@ class SafetyPlatformClient:
         # Initialize and test TLS configuration
         self._initialize_with_tls_fallback()
 
-    def _get_headers(self) -> Dict[str, str]:
+    @staticmethod
+    def _get_headers() -> Dict[str, str]:
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -118,6 +161,23 @@ class SafetyPlatformClient:
 
         return headers
 
+    @staticmethod
+    def _build_client_kwargs(
+        tls_config: "TLSConfig",
+        proxy_config: Optional["ProxyConfig"] = None,
+        timeout: Optional[float] = REQUEST_TIMEOUT,
+    ) -> dict:
+        """Build common httpx.Client constructor kwargs (TLS, headers, proxy, timeout)."""
+        kwargs: dict = {
+            "verify": tls_config.verify_context,
+            "headers": SafetyPlatformClient._get_headers(),
+            "timeout": httpx.Timeout(timeout),
+            "trust_env": False,
+        }
+        if proxy_config:
+            kwargs["proxy"] = proxy_config.endpoint.as_url()
+        return kwargs
+
     def _create_http_client(self) -> httpx.Client:
         """
         Create HTTP client with current configuration.
@@ -125,20 +185,19 @@ class SafetyPlatformClient:
         Returns:
             Configured HTTP client (httpx.Client)
         """
-        # Build client configuration
-        client_kwargs = {
-            "verify": self._tls_config.verify_context,
-            "headers": self._get_headers(),
-            "timeout": httpx.Timeout(self._timeout),
-            "trust_env": False,
-        }
-
-        if self._proxy_config:
-            client_kwargs["proxy"] = self._proxy_config.endpoint.as_url()
+        client_kwargs = self._build_client_kwargs(
+            self._tls_config, self._proxy_config, self._timeout
+        )
 
         # Create the appropriate client type
         if self._api_key:
             auth = ApiKeyAuth(self._api_key)
+            return httpx.Client(auth=auth, **client_kwargs)
+        elif self._machine_token:
+            assert (
+                self._machine_id is not None
+            )  # machine_id required with machine_token
+            auth = MachineTokenAuth(self._machine_id, self._machine_token)
             return httpx.Client(auth=auth, **client_kwargs)
         else:
             # Use injected auth dependencies
@@ -162,103 +221,63 @@ class SafetyPlatformClient:
             )
 
     def _initialize_with_tls_fallback(self) -> None:
-        """
-        Initialize the client by testing TLS configuration.
+        """Initialize the client by testing TLS with a lightweight HEAD probe.
 
-        Attempts to fetch OpenID config to verify TLS works. If SSL error occurs
-        and we're using default (certifi) TLS, falls back to system trust store.
+        Uses a HEAD request to verify TLS connectivity. If SSL error occurs
+        with the default (certifi) trust store, falls back to the system trust
+        store and recreates the HTTP client. OpenID config is fetched lazily
+        on first use, not during initialization.
 
         Raises:
-            Exception: If neither default nor system TLS configuration works.
+            SSLCertificateError: If TLS cannot be established.
+            Exception: On non-TLS errors (DNS, timeout, refused, etc.).
         """
         try:
-            # Test TLS by fetching OpenID config
-            self.get_openid_config()
-            logger.debug("TLS configuration verified successfully")
-        except SSLCertificateError as e:
-            logger.warning(f"TLS initialization failed with SSL error: {e}")
-
-            # Only attempt fallback if using default (certifi) TLS
-            if self._tls_config.mode == "default":
-                logger.warning(
-                    "Attempting TLS fallback to system trust store during initialization"
-                )
-                try:
-                    self._recreate_client_with_system_tls()
-                    # Test again with system TLS
-                    self._openid_config = None  # Clear cache to force fresh fetch
-                    self.get_openid_config()
-                    # Save the successful fallback preference
-                    self._save_tls_fallback_preference()
-                    logger.info(
-                        "TLS initialization successful after fallback to system trust store"
-                    )
-                except Exception as fallback_error:
-                    logger.error(
-                        f"TLS fallback failed during initialization: {fallback_error}"
-                    )
-                    raise Exception(f"TLS initialization failed: {e}") from e
-            else:
-                logger.error("No TLS fallback available, initialization failed")
-                raise Exception(f"TLS initialization failed: {e}") from e
+            result = probe_tls_connectivity(
+                probe_url=self._openid_config_url,
+                tls_config=self._tls_config,
+                proxy_config=self._proxy_config,
+                save_preference=True,
+            )
         except Exception as e:
-            logger.warning(f"Failed to initialize SafetyPlatformClient: {e}")
+            logger.warning("Failed to initialize SafetyPlatformClient: %s", e)
             raise
 
-    def _recreate_client_with_system_tls(self) -> None:
+        if result.fell_back:
+            logger.warning("Recreating HTTP client with system TLS trust store")
+            self._tls_config = result.tls_config
+            self._http_client.close()
+            self._http_client = self._create_http_client()
+
+        logger.debug("TLS configuration verified successfully")
+
+    @property
+    def http_client(self) -> httpx.Client:
         """
-        Recreate HTTP client using system TLS trust store as fallback.
+        The HTTP client configured for this invocation's auth path.
 
-        This method is called when TLS verification fails with the default
-        configuration, attempting to use the system's trust store instead.
+        Pre-configured with authentication (API key, machine token, or OAuth2),
+        TLS settings, proxy configuration, and appropriate headers. On the OAuth2
+        path this is an ``OAuth2Client`` (supports login flows AND API calls).
+
+        Returns:
+            httpx.Client: The configured HTTP client.
         """
-        logger.warning("Recreating HTTP client with system TLS trust store")
-
-        # Update TLS config to use system context
-        self._tls_config = get_tls_config(mode="system")
-
-        # Recreate the HTTP client with new TLS config
-        old_client = self._http_client
-        self._http_client = self._create_http_client()
-
-        # Close old client
-        if hasattr(old_client, "close"):
-            old_client.close()
-
-        logger.info("Successfully recreated HTTP client with system TLS")
-
-    def _save_tls_fallback_preference(self) -> None:
-        """
-        Save successful system trust store fallback to config file.
-        """
-        try:
-            config = ConfigParser()
-            config.read(CONFIG)
-
-            if not config.has_section("tls"):
-                config.add_section("tls")
-
-            config.set("tls", "mode", "system")
-
-            # Create parent directory if it doesn't exist
-            CONFIG.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(CONFIG, "w") as configfile:
-                config.write(configfile)
-
-            logger.info(
-                "Saved system trust store preference to config",
-                extra={"config_path": str(CONFIG)},
-            )
-        except Exception as e:
-            logger.warning(
-                "Failed to save TLS fallback preference",
-                extra={"config_path": str(CONFIG), "error": str(e)},
-            )
+        return self._http_client
 
     @property
     def api_key(self) -> Optional[str]:
         return self._api_key
+
+    @property
+    def has_machine_token(self) -> bool:
+        """Whether this client is using machine token authentication."""
+        return bool(self._machine_token)
+
+    @property
+    def machine_id(self) -> Optional[str]:
+        """The machine ID, if using machine token auth."""
+        return self._machine_id
 
     @property
     def token(self) -> Optional["OAuth2Token"]:
@@ -274,6 +293,8 @@ class SafetyPlatformClient:
         Args:
             jwks (Dict[str, Any]): The JWKS.
         """
+        if self._machine_token:
+            return
 
         auth_config = AuthConfig.from_storage()
 
@@ -295,6 +316,9 @@ class SafetyPlatformClient:
         """
         if self.api_key:
             return self.api_key
+
+        if self._machine_token:
+            return self._machine_id
 
         if isinstance(self._http_client, OAuth2Client) and self._http_client.token:
             return SafetyContext().account
@@ -321,6 +345,9 @@ class SafetyPlatformClient:
         """
         if self.api_key:
             return AuthenticationType.api_key
+
+        if self._machine_token:
+            return AuthenticationType.machine_token
 
         if self.token:
             return AuthenticationType.token
@@ -579,15 +606,123 @@ class SafetyPlatformClient:
         Returns:
             Any: The initialization result.
         """
-        try:
-            response = self._http_client.get(
-                url=PLATFORM_API_INITIALIZE_ENDPOINT,
-                # headers={"Content-Type": "application/json"},
-                timeout=5,
+        return self._http_client.get(
+            url=PLATFORM_API_INITIALIZE_ENDPOINT,
+            timeout=5,
+        )
+
+    # ------------------------------------------------------------------
+    # Enrollment
+    # ------------------------------------------------------------------
+
+    def enroll(
+        self,
+        enrollment_base_url: str,
+        enrollment_key: str,
+        machine_id: str,
+        force: bool = False,
+    ) -> dict:
+        """Enroll a machine with the Safety Platform.
+
+        Uses the instance's already-configured HTTP client (TLS and proxy
+        were probed during ``__init__``), then retries the POST up to 3
+        times on transient network errors.
+
+        Args:
+            enrollment_base_url: Base URL for the enrollment API
+                (typically ``SAFETY_PLATFORM_V2_URL``).
+            enrollment_key: The enrollment key provided by the MDM administrator.
+            machine_id: The machine identity to enroll.
+            force: When True, request re-enrollment for an already-enrolled machine.
+
+        Returns:
+            dict with keys 'machine_id' and 'machine_token' on success.
+
+        Raises:
+            EnrollmentError: On 401 (invalid key), 409 (already enrolled),
+                or other 4xx failures.
+            EnrollmentTransientFailure: On 5xx server errors.
+            httpx.ConnectError: On network errors (retried, then re-raised).
+            httpx.TimeoutException: On timeouts (retried, then re-raised).
+        """
+        return self._enroll_post(
+            self._http_client, enrollment_base_url, enrollment_key, machine_id, force
+        )
+
+    @staticmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=0.5, max=8.0, exp_base=3, jitter=0.3),
+        reraise=True,
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def _enroll_post(
+        client: httpx.Client,
+        base_url: str,
+        enrollment_key: str,
+        machine_id: str,
+        force: bool,
+    ) -> dict:
+        """POST enrollment request with tenacity retry on transient errors."""
+        # Lazy import: safety.auth.constants -> safety.auth -> safety.auth.cli_utils
+        # -> safety.platform (circular)
+        from safety.auth.constants import ENROLLMENT_ENDPOINT
+
+        url = f"{base_url}{ENROLLMENT_ENDPOINT}"
+        hostname = socket.gethostname()
+
+        payload: dict = {"machine_id": machine_id, "hostname": hostname}
+        if force:
+            payload["force"] = True
+
+        response = client.post(
+            url,
+            json=payload,
+            auth=httpx.BasicAuth(enrollment_key, ""),
+            follow_redirects=True,
+        )
+        return SafetyPlatformClient._parse_enrollment_response(response, force)
+
+    @staticmethod
+    def _parse_enrollment_response(response: httpx.Response, force: bool) -> dict:
+        """Parse the enrollment HTTP response.
+
+        NOT decorated with @parse_response — enrollment has its own
+        error semantics distinct from the standard platform API.
+        """
+        if response.status_code in (200, 201):
+            return response.json()
+
+        if response.status_code == 401:
+            raise EnrollmentError("Invalid or expired enrollment key")
+
+        if response.status_code == 409:
+            if force:
+                raise EnrollmentError(
+                    "Machine is already enrolled and the server rejected re-enrollment. "
+                    "Contact your administrator."
+                )
+            raise EnrollmentError(
+                "Machine is already enrolled on the server. Use --force to re-enroll."
             )
-            return response
-        except httpx.TimeoutException:
-            logger.error("Auth request to initialize timed out after 5 seconds.")
-        except Exception:
-            logger.exception("Exception trying to auth initialize", exc_info=True)
-        return None
+
+        # 5xx server errors are transient — MDM orchestrators should retry
+        if response.status_code >= 500:
+            try:
+                detail = response.json().get("detail", response.text)
+            except (json.JSONDecodeError, ValueError, AttributeError):
+                detail = response.text
+            raise EnrollmentTransientFailure(
+                f"Enrollment failed (HTTP {response.status_code}): {detail}"
+            )
+
+        # Other error (4xx not handled above)
+        try:
+            detail = response.json().get("detail", response.text)
+        except (json.JSONDecodeError, ValueError, AttributeError):
+            detail = response.text
+
+        raise EnrollmentError(
+            f"Enrollment failed (HTTP {response.status_code}): {detail}"
+        )

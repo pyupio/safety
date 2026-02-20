@@ -70,6 +70,7 @@ class TestConfigModulePublicAPI:
             "get_proxy_config",
             "get_tls_config",
             "AuthConfig",
+            "MachineCredentialConfig",
             "AUTH_CONFIG_USER",
         }
 

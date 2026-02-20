@@ -20,7 +20,8 @@ CLI_CALLBACK = f"{SAFETY_PLATFORM_URL}/cli/callback"
 CLI_LOGOUT_SUCCESS = f"{SAFETY_PLATFORM_URL}/cli/logout/success"
 
 MSG_NON_AUTHENTICATED = (
-    "Safety is not authenticated. Please run 'safety auth login' to log in."
+    "Safety is not authenticated. Please run 'safety auth login' to log in"
+    " or 'safety auth enroll' to enroll via MDM."
 )
 MSG_FAIL_LOGIN_AUTHED = """[green]You are authenticated as[/green] {email}.
 
@@ -29,3 +30,8 @@ MSG_FAIL_REGISTER_AUTHED = "You are currently logged in to {email}, please logou
 
 MSG_LOGOUT_DONE = "[green]Logout done.[/green]"
 MSG_LOGOUT_FAILED = "[red]Logout failed. Try again.[/red]"
+
+ENROLLMENT_ENDPOINT = "/api/enroll"
+ENROLLMENT_KEY_PATTERN = r"^sfek_[A-Za-z0-9_-]{43}$"
+MACHINE_ID_MAX_LENGTH = 255
+MSG_MACHINE_TOKEN_NOT_ACCEPTED = "Machine token authentication is not accepted for this operation. Run 'safety auth login' or use '--key' to authenticate."

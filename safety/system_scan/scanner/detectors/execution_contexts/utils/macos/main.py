@@ -16,39 +16,6 @@ class SwVersKey(str, Enum):
 SW_VERS_KEYS = frozenset(e.value for e in SwVersKey)
 
 
-def get_macos_machine_id() -> str | None:
-    """
-    Get macOS hardware UUID (IOPlatformUUID).
-
-    Returns:
-        str: The hardware UUID or None if not found
-    """
-    try:
-        result = subprocess.run(
-            ["ioreg", "-d2", "-c", "IOPlatformExpertDevice"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            encoding="utf-8",
-        )
-
-        if result.returncode != 0:
-            return None
-
-        for line in result.stdout.splitlines():
-            if "IOPlatformUUID" in line:
-                _, _, value = line.partition("=")
-                value = value.strip().strip('"').strip()
-
-                if value:
-                    return value
-
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
-
-    return None
-
-
 def get_xnu_kernel_version() -> str:
     """
     Extracts the XNU kernel version from platform.version() on macOS.

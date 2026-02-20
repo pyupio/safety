@@ -25,6 +25,8 @@ def discard_token(oauth2_client: "OAuth2Client") -> bool:
     """
 
     AuthConfig.clear()
+    if not hasattr(oauth2_client, "token"):
+        return True
     oauth2_client.token = None
 
     return True
@@ -37,6 +39,7 @@ class AuthenticationType(str, Enum):
 
     token = "token"
     api_key = "api_key"
+    machine_token = "machine_token"
     none = "unauthenticated"
 
     def is_allowed_in(self, stage: Stage = Stage.development) -> bool:
@@ -51,6 +54,9 @@ class AuthenticationType(str, Enum):
         """
         if self is AuthenticationType.none:
             return False
+
+        if self is AuthenticationType.machine_token:
+            return True
 
         if stage == Stage.development and self is AuthenticationType.api_key:
             return False

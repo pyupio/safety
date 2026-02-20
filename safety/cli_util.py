@@ -26,7 +26,6 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 from typer.core import MarkupMode, TyperCommand, TyperGroup
-from click.utils import make_str
 
 
 from safety.constants import (
@@ -907,9 +906,7 @@ class SafetyCLILegacyGroup(click.Group):
             "key": ctx.params.pop("key", None),
             "stage": ctx.params.pop("stage", None),
         }
-        invoked_command = make_str(next(iter(ctx.protected_args), ""))
-
-        configure_auth_session(**session_kwargs, invoked_command=invoked_command)
+        configure_auth_session(**session_kwargs)
 
         # call initialize if the --key is used.
         if session_kwargs["key"]:

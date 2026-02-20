@@ -5,7 +5,6 @@ import subprocess
 from unittest.mock import patch, Mock
 
 from safety.system_scan.scanner.detectors.execution_contexts.utils.macos.main import (
-    get_macos_machine_id,
     get_xnu_kernel_version,
     get_macos_version_info,
     SwVersKey,
@@ -14,120 +13,6 @@ from safety.system_scan.scanner.detectors.execution_contexts.utils.macos.main im
 from safety.system_scan.scanner.detectors.execution_contexts.utils.main import (
     MacOSVersionInfo,
 )
-
-
-@pytest.mark.unit
-class TestGetMacOSMachineId:
-    """Test get_macos_machine_id function."""
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_success(self, mock_run):
-        """Test getting macOS machine ID successfully."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = """
-+-o Root  <class IORegistryEntry:IOService:IOPlatformExpertDevice, id 0x100000100, !registered, !matched, active, busy 0, children 1>
-| |   "IOPlatformUUID" = "12345678-1234-1234-1234-123456789ABC"
-| |   "model" = "MacBookPro18,3"
-"""
-        mock_run.return_value = mock_result
-
-        result = get_macos_machine_id()
-
-        assert result == "12345678-1234-1234-1234-123456789ABC"
-        mock_run.assert_called_once_with(
-            ["ioreg", "-d2", "-c", "IOPlatformExpertDevice"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            encoding="utf-8",
-        )
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_command_fails(self, mock_run):
-        """Test getting macOS machine ID when command fails."""
-        mock_result = Mock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_run.return_value = mock_result
-
-        result = get_macos_machine_id()
-
-        assert result is None
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_no_uuid_in_output(self, mock_run):
-        """Test getting macOS machine ID when UUID not found in output."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = """
-+-o Root  <class IORegistryEntry:IOService:IOPlatformExpertDevice>
-| |   "model" = "MacBookPro18,3"
-| |   "product-name" = "MacBook Pro"
-"""
-        mock_run.return_value = mock_result
-
-        result = get_macos_machine_id()
-
-        assert result is None
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_empty_uuid(self, mock_run):
-        """Test getting macOS machine ID when UUID is empty."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = """
-+-o Root  <class IORegistryEntry:IOService:IOPlatformExpertDevice>
-| |   "IOPlatformUUID" = ""
-| |   "model" = "MacBookPro18,3"
-"""
-        mock_run.return_value = mock_result
-
-        result = get_macos_machine_id()
-
-        assert result is None
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_uuid_with_spaces(self, mock_run):
-        """Test getting macOS machine ID with spaces around UUID."""
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stdout = """
-+-o Root  <class IORegistryEntry:IOService:IOPlatformExpertDevice>
-| |   "IOPlatformUUID" =   "  12345678-1234-1234-1234-123456789ABC  "
-"""
-        mock_run.return_value = mock_result
-
-        result = get_macos_machine_id()
-
-        assert result == "12345678-1234-1234-1234-123456789ABC"
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_file_not_found(self, mock_run):
-        """Test getting macOS machine ID when ioreg command not found."""
-        mock_run.side_effect = FileNotFoundError("ioreg not found")
-
-        result = get_macos_machine_id()
-
-        assert result is None
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_timeout(self, mock_run):
-        """Test getting macOS machine ID when command times out."""
-        mock_run.side_effect = subprocess.TimeoutExpired(["ioreg"], 5)
-
-        result = get_macos_machine_id()
-
-        assert result is None
-
-    @patch("subprocess.run")
-    def test_get_macos_machine_id_os_error(self, mock_run):
-        """Test getting macOS machine ID when OS error occurs."""
-        mock_run.side_effect = OSError("Permission denied")
-
-        result = get_macos_machine_id()
-
-        assert result is None
 
 
 @pytest.mark.unit
@@ -325,8 +210,8 @@ buildversion:\t23B92"""
         """Test getting macOS version info with extra whitespace."""
         mock_result = Mock()
         mock_result.returncode = 0
-        mock_result.stdout = """  ProductName  :  macOS  
-  ProductVersion  :  14.1.2  
+        mock_result.stdout = """  ProductName  :  macOS
+  ProductVersion  :  14.1.2
   BuildVersion  :  23B92  """
         mock_run.return_value = mock_result
 

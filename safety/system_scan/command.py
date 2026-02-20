@@ -23,6 +23,7 @@ from safety.constants import (
     CONTEXT_COMMAND_TYPE,
     CONTEXT_FEATURE_TYPE,
     EXIT_CODE_INVALID_AUTH_CREDENTIAL,
+    get_required_config_setting,
 )
 
 from safety.error_handlers import handle_cmd_exception
@@ -93,7 +94,7 @@ def run_discovery(
         hidden=True,
     ),
     platform_url: str = typer.Option(
-        "https://service.platformv2.safetycli.com",
+        get_required_config_setting("SAFETY_PLATFORM_V2_URL"),
         "--platform-url",
         help="Base URL for Safety Platform sink",
         hidden=True,
@@ -126,7 +127,7 @@ def run_discovery(
         )
     elif sink == "platform":
         sink_cfg = SafetyPlatformSinkConfig(
-            base_url=platform_url, timeout=30, http_client=auth.http_client
+            base_url=platform_url, timeout=30, http_client=auth.platform.http_client
         )
     else:
         console.print(

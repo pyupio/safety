@@ -9,13 +9,12 @@ from ..utils import (
     get_xnu_kernel_version,
     get_windows_version_info,
     get_macos_version_info,
-    get_macos_machine_id,
-    get_linux_machine_id,
-    get_windows_machine_id,
     get_linux_version_info,
 )
 
 from ....events.payloads.execution_context import OsFamily
+from safety.auth.machine_id import resolve_machine_id
+from safety.errors import MachineIdUnavailableError
 
 
 class KernelName(Enum):
@@ -29,24 +28,16 @@ def get_machine_id() -> str | None:
     """
     Returns the machine ID for the current platform.
 
+    Delegates to the unified resolve_machine_id() which checks enrolled
+    identity, environment variable, and platform detection in order.
+
     Returns:
-        Machine ID
+        Machine ID or None if unavailable.
     """
-    system = platform.system().lower()
-
-    handlers = {
-        "linux": lambda: get_linux_machine_id(),
-        "darwin": lambda: get_macos_machine_id(),
-        "windows": lambda: get_windows_machine_id(),
-    }
-
     try:
-        return handlers[system]()
-    except KeyError:
-        # TODO: Log this
-        pass
-
-    return None
+        return resolve_machine_id()
+    except MachineIdUnavailableError:
+        return None
 
 
 def get_kernel_info() -> tuple[KernelName, str]:

@@ -10,29 +10,6 @@ if TYPE_CHECKING or platform.system().lower() == "windows":
     import winreg
 
 
-def get_windows_machine_id() -> str | None:
-    """
-    Get Windows machine GUID from the registry.
-
-    Returns:
-        The machine GUID or None if not found
-    """
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE,
-            r"SOFTWARE\Microsoft\Cryptography",
-        ) as key:
-            value, reg_type = winreg.QueryValueEx(key, "MachineGuid")
-
-        if reg_type != winreg.REG_SZ or not isinstance(value, str) or not value:
-            return None
-
-        return value
-
-    except (OSError, ValueError, TypeError):
-        return None
-
-
 def get_windows_version_info() -> WindowsVersionInfo:
     """
     Get Windows version info mainly from registry.

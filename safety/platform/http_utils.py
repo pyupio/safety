@@ -74,10 +74,23 @@ def parse_response(func: F) -> F:
         try:
             response = func(*args, **kwargs)
 
+            if response is None:
+                raise ServerError(message="No response received from server")
+
             if response.is_success:
                 return _parse_successful_response(response)
 
             if response.status_code == 403:
+                # Check if this is a machine-token-authenticated request
+                # by inspecting the response's request for Basic auth header
+                request_auth = response.request.headers.get("authorization", "")
+                if request_auth.lower().startswith("basic "):
+                    from safety.auth.constants import MSG_MACHINE_TOKEN_NOT_ACCEPTED
+
+                    raise InvalidCredentialError(
+                        credential="machine token",
+                        reason=MSG_MACHINE_TOKEN_NOT_ACCEPTED,
+                    )
                 return _handle_forbidden(response)
             elif response.status_code == 429:
                 return _handle_rate_limit(response)
@@ -96,7 +109,7 @@ def parse_response(func: F) -> F:
             ) from e
 
         except httpx.ConnectError as e:
-            if _is_ca_certificate_error(e):
+            if is_ca_certificate_error(e):
                 raise SSLCertificateError() from e
 
             raise NetworkConnectionError() from e
@@ -158,7 +171,7 @@ def _handle_server_error(response: httpx.Response) -> None:
     raise ServerError(reason=detail)
 
 
-def _is_ca_certificate_error(exception: Exception) -> bool:
+def is_ca_certificate_error(exception: Exception) -> bool:
     """
     Check if the exception is a CA/certificate verification error
     that might be resolved by switching trust stores.

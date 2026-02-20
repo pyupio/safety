@@ -2,6 +2,7 @@ from authlib.oauth2.rfc6749 import OAuth2Token
 from dataclasses import dataclass
 import configparser
 
+from filelock import FileLock
 from pathlib import Path
 from .main import AUTH_CONFIG_USER
 from safety.utils.tokens import get_token_claims
@@ -95,6 +96,8 @@ class AuthConfig:
 
     @classmethod
     def clear(cls, path: Optional[Path] = None):
+        # Clears by writing empty values to preserve the [auth] section header.
+        # (MachineCredentialConfig.clear() removes the entire section instead.)
         cls(access_token="", id_token="", refresh_token="").save(path)
 
     def save(self, path: Optional[Path] = None) -> None:
@@ -103,16 +106,21 @@ class AuthConfig:
 
         logger.info("Saving auth config to %s", path)
 
-        config = configparser.ConfigParser()
-        config.read(path)
-        config[self._SECTION_AUTH] = {
-            self._KEY_ACCESS_TOKEN: self.access_token,
-            self._KEY_ID_TOKEN: self.id_token,
-            self._KEY_REFRESH_TOKEN: self.refresh_token,
-        }
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, "w") as configfile:
-            config.write(configfile)
+        lock = FileLock(str(path) + ".lock")
+
+        with lock:
+            config = configparser.ConfigParser()
+            config.read(path)
+            config[self._SECTION_AUTH] = {
+                self._KEY_ACCESS_TOKEN: self.access_token,
+                self._KEY_ID_TOKEN: self.id_token,
+                self._KEY_REFRESH_TOKEN: self.refresh_token,
+            }
+
+            with open(path, "w") as configfile:
+                config.write(configfile)
 
     def to_token(self, jwks: Dict[str, Any]) -> OAuth2Token:
         """
@@ -149,3 +157,73 @@ class AuthConfig:
         }
 
         return OAuth2Token.from_dict(params)
+
+
+@dataclass
+class MachineCredentialConfig:
+    machine_id: str
+    machine_token: str
+    enrolled_at: str
+
+    _SECTION_MACHINE = "machine"
+
+    @classmethod
+    def from_storage(
+        cls, path: Optional[Path] = None
+    ) -> Optional["MachineCredentialConfig"]:
+        if not path:
+            path = AUTH_CONFIG_USER
+
+        config = configparser.ConfigParser()
+        config.read(path)
+
+        if not config.has_section(cls._SECTION_MACHINE):
+            return None
+
+        section = config[cls._SECTION_MACHINE]
+        machine_id = section.get("machine_id", "")
+        machine_token = section.get("machine_token", "")
+        enrolled_at = section.get("enrolled_at", "")
+
+        if not machine_id or not machine_token:
+            return None
+
+        return cls(
+            machine_id=machine_id,
+            machine_token=machine_token,
+            enrolled_at=enrolled_at,
+        )
+
+    def save(self, path: Optional[Path] = None) -> None:
+        if not path:
+            path = AUTH_CONFIG_USER
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock = FileLock(str(path) + ".lock")
+
+        with lock:
+            config = configparser.ConfigParser()
+            config.read(path)
+            config[self._SECTION_MACHINE] = {
+                "machine_id": self.machine_id,
+                "machine_token": self.machine_token,
+                "enrolled_at": self.enrolled_at,
+            }
+
+            with open(path, "w") as configfile:
+                config.write(configfile)
+
+    @classmethod
+    def clear(cls, path: Optional[Path] = None) -> None:
+        if not path:
+            path = AUTH_CONFIG_USER
+
+        lock = FileLock(str(path) + ".lock")
+
+        with lock:
+            config = configparser.ConfigParser()
+            config.read(path)
+            if config.has_section(cls._SECTION_MACHINE):
+                config.remove_section(cls._SECTION_MACHINE)
+                with open(path, "w") as configfile:
+                    config.write(configfile)

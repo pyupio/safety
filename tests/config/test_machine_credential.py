@@ -243,6 +243,7 @@ class TestMachineCredentialConfigSave:
         assert loaded.machine_id == original.machine_id
         assert loaded.machine_token == original.machine_token
         assert loaded.enrolled_at == original.enrolled_at
+        assert loaded.org_slug == original.org_slug
 
 
 # ─────────────────────────────────────────────────────────────────────────────

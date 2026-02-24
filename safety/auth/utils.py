@@ -167,28 +167,38 @@ def initialize(ctx: Any, refresh: bool = True) -> None:
     if not ctx.obj:
         ctx.obj = SafetyCLI()
 
-    for feature in FeatureType:
-        value = get_config_setting(feature.name)
-        if value is not None:
-            current_values[feature] = str_to_bool(value)
+    has_machine_token = (
+        ctx.obj.auth
+        and ctx.obj.auth.platform
+        and ctx.obj.auth.platform.has_machine_token
+    )
 
-    if refresh:
-        try:
-            settings = ctx.obj.auth.platform.initialize()  # type: ignore
-        except Exception:
-            LOG.info("Unable to initialize, continue with default values.")
-
-    if settings:
+    if not has_machine_token:
         for feature in FeatureType:
-            server_value = str_to_bool(settings.get(feature.config_key))
-            if server_value is not None:
-                if (
-                    feature not in current_values
-                    or current_values[feature] != server_value
-                ):
-                    current_values[feature] = server_value
+            value = get_config_setting(feature.name)
+            if value is not None:
+                current_values[feature] = str_to_bool(value)
 
-        save_flags_config(current_values)
+        if refresh:
+            try:
+                settings = ctx.obj.auth.platform.initialize()  # type: ignore
+            except Exception:
+                LOG.info("Unable to initialize, continue with default values.")
+
+        if settings:
+            for feature in FeatureType:
+                server_value = str_to_bool(settings.get(feature.config_key))
+                if server_value is not None:
+                    if (
+                        feature not in current_values
+                        or current_values[feature] != server_value
+                    ):
+                        current_values[feature] = server_value
+
+            save_flags_config(current_values)
+    else:
+        for feature in FeatureType:
+            current_values[feature] = True
 
     for feature, value in current_values.items():
         if value is not None:

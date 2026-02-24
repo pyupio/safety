@@ -40,6 +40,7 @@ class TestUtils(unittest.TestCase):
         mock_initialize = Mock(side_effect=InvalidCredentialError())
         mock_client = Mock()
         mock_client.initialize = mock_initialize
+        mock_client.has_machine_token = False
         mock_auth = Mock()
         mock_auth.platform = mock_client
         mock_safety_cli.auth = mock_auth
@@ -68,6 +69,7 @@ class TestUtils(unittest.TestCase):
             patch("safety.auth.utils.setattr") as mock_setattr,
         ):
             mock_safety_cli = MockSafetyCLI.return_value
+            mock_safety_cli.auth.platform.has_machine_token = False
 
             initialize(ctx, refresh=False)
 
@@ -111,6 +113,7 @@ class TestUtils(unittest.TestCase):
         )
         mock_client = Mock()
         mock_client.initialize = mock_initialize
+        mock_client.has_machine_token = False
         mock_auth = Mock()
         mock_auth.platform = mock_client
         mock_safety_cli.auth = mock_auth

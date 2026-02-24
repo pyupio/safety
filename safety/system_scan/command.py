@@ -16,12 +16,10 @@ from ..cli_util import (
     get_command_for,
     pass_safety_cli_obj,
     CommandType,
-    FeatureType,
 )
 from safety.constants import (
     DEFAULT_EPILOG,
     CONTEXT_COMMAND_TYPE,
-    CONTEXT_FEATURE_TYPE,
     EXIT_CODE_INVALID_AUTH_CREDENTIAL,
     get_required_config_setting,
 )
@@ -54,7 +52,7 @@ CLI_SYSTEM_SCAN_COMMAND_HELP = (
         "allow_extra_args": True,
         "ignore_unknown_options": True,
         CONTEXT_COMMAND_TYPE: CommandType.BETA,
-        CONTEXT_FEATURE_TYPE: FeatureType.PLATFORM,
+        # CONTEXT_FEATURE_TYPE: FeatureType.PLATFORM,  TODO: We're disabling this until we have feature flags working with the new MDM auth
     },
 )
 @pass_safety_cli_obj

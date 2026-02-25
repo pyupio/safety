@@ -8,6 +8,21 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.8.0b1 (2026-02-25)
+
+### Feat
+
+- implement MDM enrollment authentication system (#834)
+- display system scan summary to stdout after interactive scan completes (#832)
+- major revamp of the system scan beta command (#829)
+
+### Fix
+
+- drop FF for MDM authd cases (#838)
+- **system-scan**: disable feature flag gate for MDM auth compatibility (#837)
+- **system-scan**: resolve tool detection for versioned Windows executables (#835)
+- **cli**: correct typos in check command docstring (#833)
+
 ## 3.8.0b0 (2025-12-02)
 
 ### Feat

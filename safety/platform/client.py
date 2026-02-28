@@ -621,6 +621,7 @@ class SafetyPlatformClient:
         enrollment_key: str,
         machine_id: str,
         force: bool = False,
+        org_legacy_uuid: str = "",
     ) -> dict:
         """Enroll a machine with the Safety Platform.
 
@@ -634,19 +635,26 @@ class SafetyPlatformClient:
             enrollment_key: The enrollment key provided by the MDM administrator.
             machine_id: The machine identity to enroll.
             force: When True, request re-enrollment for an already-enrolled machine.
+            org_legacy_uuid: When non-empty, the org UUID of the authenticated user
+                is sent to the server to detect cross-org enrollment attempts.
 
         Returns:
             dict with keys 'machine_id' and 'machine_token' on success.
 
         Raises:
-            EnrollmentError: On 401 (invalid key), 409 (already enrolled),
-                or other 4xx failures.
+            EnrollmentError: On 401 (invalid key), 403 (org mismatch),
+                409 (already enrolled), or other 4xx failures.
             EnrollmentTransientFailure: On 5xx server errors.
             httpx.ConnectError: On network errors (retried, then re-raised).
             httpx.TimeoutException: On timeouts (retried, then re-raised).
         """
         return self._enroll_post(
-            self._http_client, enrollment_base_url, enrollment_key, machine_id, force
+            self._http_client,
+            enrollment_base_url,
+            enrollment_key,
+            machine_id,
+            force,
+            org_legacy_uuid,
         )
 
     @staticmethod
@@ -663,6 +671,7 @@ class SafetyPlatformClient:
         enrollment_key: str,
         machine_id: str,
         force: bool,
+        org_legacy_uuid: str = "",
     ) -> dict:
         """POST enrollment request with tenacity retry on transient errors."""
         # Lazy import: safety.auth.constants -> safety.auth -> safety.auth.cli_utils
@@ -675,6 +684,8 @@ class SafetyPlatformClient:
         payload: dict = {"machine_id": machine_id, "hostname": hostname}
         if force:
             payload["force"] = True
+        if org_legacy_uuid:
+            payload["org_legacy_uuid"] = org_legacy_uuid
 
         response = client.post(
             url,
@@ -696,6 +707,23 @@ class SafetyPlatformClient:
 
         if response.status_code == 401:
             raise EnrollmentError("Invalid or expired enrollment key")
+
+        if response.status_code == 403:
+            try:
+                detail = response.json().get("detail", "")
+            except (json.JSONDecodeError, ValueError, AttributeError):
+                detail = ""
+            if detail == "Organization identity mismatch":
+                raise EnrollmentError(
+                    "You are trying to enroll this device into a different "
+                    "organization from its currently authenticated Safety user. "
+                    "Please either logout of Safety (`safety auth logout`) or "
+                    "ensure your enrollment key is for the same organization "
+                    "as your user account."
+                )
+            raise EnrollmentError(
+                f"Enrollment forbidden (HTTP 403): {detail or response.text}"
+            )
 
         if response.status_code == 409:
             if force:

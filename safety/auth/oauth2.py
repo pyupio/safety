@@ -51,7 +51,10 @@ def update_token(
         access_token: str | None - the OLD access_token string
     """
 
+    existing = AuthConfig.from_storage()
     if auth_config := AuthConfig.from_token(token=token):
+        if existing and existing.org_legacy_uuid:
+            auth_config.org_legacy_uuid = existing.org_legacy_uuid
         auth_config.save()
     else:
         raise ValueError("Invalid authentication token.")

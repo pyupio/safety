@@ -755,3 +755,129 @@ class TestSafetyPlatformClientEnrollment:
                 enrollment_key=self.ENROLLMENT_KEY,
                 machine_id=self.MACHINE_ID,
             )
+
+    # -- 15. 403 cross-org mismatch raises EnrollmentError with descriptive message --
+
+    def test_enroll_403_org_mismatch_shows_user_friendly_message(self):
+        """403 with 'Organization identity mismatch' detail shows actionable message."""
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = self._mock_response(
+            403, json_data={"detail": "Organization identity mismatch"}
+        )
+
+        with pytest.raises(EnrollmentError, match="different organization"):
+            instance.enroll(
+                enrollment_base_url=self.BASE_URL,
+                enrollment_key=self.ENROLLMENT_KEY,
+                machine_id=self.MACHINE_ID,
+            )
+
+    def test_enroll_403_org_mismatch_includes_logout_instruction(self):
+        """403 org mismatch message tells user how to resolve via logout."""
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = self._mock_response(
+            403, json_data={"detail": "Organization identity mismatch"}
+        )
+
+        with pytest.raises(EnrollmentError) as exc_info:
+            instance.enroll(
+                enrollment_base_url=self.BASE_URL,
+                enrollment_key=self.ENROLLMENT_KEY,
+                machine_id=self.MACHINE_ID,
+            )
+
+        assert "safety auth logout" in str(exc_info.value)
+
+    def test_enroll_403_unknown_detail_shows_server_message(self):
+        """403 with an unrecognized detail passes the server message through."""
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = self._mock_response(
+            403, json_data={"detail": "Insufficient permissions"}
+        )
+
+        with pytest.raises(EnrollmentError, match="Insufficient permissions"):
+            instance.enroll(
+                enrollment_base_url=self.BASE_URL,
+                enrollment_key=self.ENROLLMENT_KEY,
+                machine_id=self.MACHINE_ID,
+            )
+
+    def test_enroll_403_bad_json_falls_back_to_text(self):
+        """403 response with non-JSON body falls back to response.text in error message."""
+        mock_resp = self._mock_response(403, text="Forbidden")
+        mock_resp.json.side_effect = ValueError("No JSON")
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = mock_resp
+
+        with pytest.raises(EnrollmentError, match="Forbidden"):
+            instance.enroll(
+                enrollment_base_url=self.BASE_URL,
+                enrollment_key=self.ENROLLMENT_KEY,
+                machine_id=self.MACHINE_ID,
+            )
+
+    def test_enroll_403_not_retried(self):
+        """403 EnrollmentError is not retried — exactly 1 POST call."""
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = self._mock_response(403)
+
+        with pytest.raises(EnrollmentError):
+            instance.enroll(
+                enrollment_base_url=self.BASE_URL,
+                enrollment_key=self.ENROLLMENT_KEY,
+                machine_id=self.MACHINE_ID,
+            )
+
+        assert mock_http.post.call_count == 1
+
+    # -- 16. org_legacy_uuid included in payload when non-empty --
+
+    def test_enroll_org_legacy_uuid_included_in_payload_when_set(self):
+        """When org_legacy_uuid is provided, it appears in the POST payload."""
+        expected = {"machine_id": self.MACHINE_ID, "machine_token": "sfmt_tok"}
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = self._mock_response(200, json_data=expected)
+
+        instance.enroll(
+            enrollment_base_url=self.BASE_URL,
+            enrollment_key=self.ENROLLMENT_KEY,
+            machine_id=self.MACHINE_ID,
+            org_legacy_uuid="org-uuid-1234",
+        )
+
+        call_kwargs = mock_http.post.call_args[1]
+        payload = call_kwargs["json"]
+        assert payload["org_legacy_uuid"] == "org-uuid-1234"
+
+    def test_enroll_org_legacy_uuid_omitted_from_payload_when_empty(self):
+        """When org_legacy_uuid is empty string (default), it is NOT in the POST payload."""
+        expected = {"machine_id": self.MACHINE_ID, "machine_token": "sfmt_tok"}
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = self._mock_response(200, json_data=expected)
+
+        instance.enroll(
+            enrollment_base_url=self.BASE_URL,
+            enrollment_key=self.ENROLLMENT_KEY,
+            machine_id=self.MACHINE_ID,
+        )
+
+        call_kwargs = mock_http.post.call_args[1]
+        payload = call_kwargs["json"]
+        assert "org_legacy_uuid" not in payload
+
+    def test_enroll_org_legacy_uuid_omitted_when_explicitly_empty_string(self):
+        """Explicitly passing org_legacy_uuid='' still omits it from the payload."""
+        expected = {"machine_id": self.MACHINE_ID, "machine_token": "sfmt_tok"}
+        instance, mock_http = self._make_instance()
+        mock_http.post.return_value = self._mock_response(200, json_data=expected)
+
+        instance.enroll(
+            enrollment_base_url=self.BASE_URL,
+            enrollment_key=self.ENROLLMENT_KEY,
+            machine_id=self.MACHINE_ID,
+            org_legacy_uuid="",
+        )
+
+        call_kwargs = mock_http.post.call_args[1]
+        payload = call_kwargs["json"]
+        assert "org_legacy_uuid" not in payload

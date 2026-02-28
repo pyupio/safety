@@ -108,6 +108,7 @@ class SafetyPlatformClient:
         tls_config: "TLSConfig",
         auth_server_url: str,
         openid_config_url: str,
+        auth_type: AuthenticationType,
         api_key: Optional[str] = None,
         proxy_config: Optional["ProxyConfig"] = None,
         timeout: Optional[float] = REQUEST_TIMEOUT,
@@ -125,10 +126,32 @@ class SafetyPlatformClient:
         self._machine_id = machine_id
         self._machine_token = machine_token
 
-        if self._machine_token and not self._machine_id:
-            raise ValueError("machine_id is required when machine_token is provided")
-        if self._machine_id and not self._machine_token:
-            raise ValueError("machine_token is required when machine_id is provided")
+        # Validate auth_type against provided credentials
+        if auth_type == AuthenticationType.none:
+            raise ValueError(
+                "auth_type must be a concrete type (api_key, token, or machine_token), "
+                "not 'none'"
+            )
+        elif auth_type == AuthenticationType.api_key:
+            if not api_key or not api_key.strip():
+                raise ValueError("api_key is required when auth_type is api_key")
+        elif auth_type == AuthenticationType.machine_token:
+            if not machine_id or not machine_token:
+                raise ValueError(
+                    "machine_id and machine_token are both required when "
+                    "auth_type is machine_token"
+                )
+        elif auth_type == AuthenticationType.token:
+            if not all(
+                [client_id, redirect_uri, update_token, scope, code_challenge_method]
+            ):
+                raise ValueError(
+                    "client_id, redirect_uri, update_token, scope, and "
+                    "code_challenge_method are all required when auth_type is token"
+                )
+        else:
+            raise ValueError(f"Unknown auth_type: {auth_type!r}")
+        self._auth_type = auth_type
 
         self._timeout = timeout
         self._proxy_config = proxy_config
@@ -180,7 +203,7 @@ class SafetyPlatformClient:
 
     def _create_http_client(self) -> httpx.Client:
         """
-        Create HTTP client with current configuration.
+        Create HTTP client based on the resolved ``_auth_type``.
 
         Returns:
             Configured HTTP client (httpx.Client)
@@ -189,25 +212,10 @@ class SafetyPlatformClient:
             self._tls_config, self._proxy_config, self._timeout
         )
 
-        # Create the appropriate client type
-        if self._api_key:
-            auth = ApiKeyAuth(self._api_key)
-            return httpx.Client(auth=auth, **client_kwargs)
-        elif self._machine_token:
-            assert (
-                self._machine_id is not None
-            )  # machine_id required with machine_token
-            auth = MachineTokenAuth(self._machine_id, self._machine_token)
-            return httpx.Client(auth=auth, **client_kwargs)
-        else:
-            # Use injected auth dependencies
-            if not all(
-                [self._client_id, self._redirect_uri, self._update_token, self._scope]
-            ):
-                raise ValueError(
-                    "OAuth2 auth dependencies must be provided when not using API key"
-                )
-
+        if self._auth_type == AuthenticationType.api_key:
+            assert self._api_key is not None  # guaranteed by __init__ validation
+            return httpx.Client(auth=ApiKeyAuth(self._api_key), **client_kwargs)
+        elif self._auth_type == AuthenticationType.token:
             return cast(
                 httpx.Client,
                 OAuth2Client(
@@ -219,6 +227,15 @@ class SafetyPlatformClient:
                     **client_kwargs,
                 ),
             )
+        elif self._auth_type == AuthenticationType.machine_token:
+            assert self._machine_id is not None  # guaranteed by __init__ validation
+            assert self._machine_token is not None
+            return httpx.Client(
+                auth=MachineTokenAuth(self._machine_id, self._machine_token),
+                **client_kwargs,
+            )
+        else:
+            raise ValueError(f"Unexpected auth_type: {self._auth_type}")
 
     def _initialize_with_tls_fallback(self) -> None:
         """Initialize the client by testing TLS with a lightweight HEAD probe.
@@ -271,13 +288,18 @@ class SafetyPlatformClient:
 
     @property
     def has_machine_token(self) -> bool:
-        """Whether this client is using machine token authentication."""
+        """Whether this client holds a machine token credential."""
         return bool(self._machine_token)
 
     @property
     def machine_id(self) -> Optional[str]:
         """The machine ID, if using machine token auth."""
         return self._machine_id
+
+    @property
+    def machine_token(self) -> Optional[str]:
+        """Return the raw ``sfmt_xxx`` machine token"""
+        return self._machine_token
 
     @property
     def token(self) -> Optional["OAuth2Token"]:
@@ -293,7 +315,7 @@ class SafetyPlatformClient:
         Args:
             jwks (Dict[str, Any]): The JWKS.
         """
-        if self._machine_token:
+        if self._auth_type != AuthenticationType.token:
             return
 
         auth_config = AuthConfig.from_storage()
@@ -312,17 +334,16 @@ class SafetyPlatformClient:
         Get the current authentication credential.
 
         Returns:
-            Optional[str]: The API key, token, or None.
+            Optional[str]: The API key, account name, machine ID, or None.
         """
-        if self.api_key:
-            return self.api_key
-
-        if self._machine_token:
+        if self._auth_type == AuthenticationType.api_key:
+            return self._api_key
+        elif self._auth_type == AuthenticationType.token:
+            if self.token:
+                return SafetyContext().account
+            return None
+        elif self._auth_type == AuthenticationType.machine_token:
             return self._machine_id
-
-        if isinstance(self._http_client, OAuth2Client) and self._http_client.token:
-            return SafetyContext().account
-
         return None
 
     def is_using_auth_credentials(self) -> bool:
@@ -340,19 +361,16 @@ class SafetyPlatformClient:
         """
         Get the type of authentication being used.
 
+        For the OAuth2 (``token``) path, returns ``none`` when no token is
+        actually loaded (user not yet logged in).  For all other auth types
+        the stored ``_auth_type`` is returned directly.
+
         Returns:
             AuthenticationType: The type of authentication.
         """
-        if self.api_key:
-            return AuthenticationType.api_key
-
-        if self._machine_token:
-            return AuthenticationType.machine_token
-
-        if self.token:
-            return AuthenticationType.token
-
-        return AuthenticationType.none
+        if self._auth_type == AuthenticationType.token and not self.token:
+            return AuthenticationType.none
+        return self._auth_type
 
     def get_openid_config(self, force_refresh: bool = False) -> Dict[str, Any]:
         """

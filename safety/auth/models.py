@@ -66,10 +66,13 @@ class Auth:
         if self.platform.api_key:
             return True
 
+        if self.platform.token and self.email_verified:
+            return True
+
         if self.platform.has_machine_token:
             return True
 
-        return bool(self.platform.token and self.email_verified)
+        return False
 
     def refresh_from(self, info: Dict) -> None:
         """
@@ -84,24 +87,6 @@ class Auth:
         self.email = info.get("email")
         self.org_name = info.get("https://api.safetycli.com/org_name")
         self.email_verified = is_email_verified(info)  # type: ignore
-
-    def get_auth_method(self) -> str:
-        """
-        Get the authentication method.
-
-        Returns:
-            str: The authentication method.
-        """
-        if self.platform.api_key:
-            return "API Key"
-
-        if self.platform.has_machine_token:
-            return "Machine Token"
-
-        if self.platform.token:
-            return "Token"
-
-        return "None"
 
 
 class XAPIKeyAuth(BaseOAuth):

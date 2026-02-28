@@ -154,6 +154,15 @@ class TestSafetyCLI(unittest.TestCase):
             ]
         }
 
+        # Prevent real machine credentials from leaking into tests.
+        # AUTH_CONFIG_USER is a module-level constant resolved at import time,
+        # so patching get_user_dir does NOT redirect it.
+        self.machine_creds_patcher = patch(
+            "safety.auth.cli_utils.MachineCredentialConfig.from_storage",
+            return_value=None,
+        )
+        self.machine_creds_patcher.start()
+
         # Set up common get_openid_config patch
         self.get_openid_config = patch(
             "safety.auth.cli_utils.SafetyPlatformClient.get_openid_config"
@@ -178,6 +187,7 @@ class TestSafetyCLI(unittest.TestCase):
         self.get_openid_config.stop()
         self.get_keys_patcher.stop()
         self.fetch_database_url_patcher.stop()
+        self.machine_creds_patcher.stop()
 
         # Stop config directory mocks
         self.mock_user_dir_patcher.stop()

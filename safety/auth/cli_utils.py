@@ -38,6 +38,7 @@ from safety.auth.constants import (
 )
 from safety.config import get_proxy_config, get_tls_config
 from safety.config.auth import AuthConfig, MachineCredentialConfig
+from safety.utils.auth_session import AuthenticationType
 
 
 if TYPE_CHECKING:
@@ -133,6 +134,7 @@ def auth_options(stage: bool = True) -> Callable:
 
 def _create_platform_client(
     tls_config: "TLSConfig",
+    auth_type: AuthenticationType,
     proxy_config: Optional[ProxyConfig] = None,
     api_key: Optional[str] = None,
     client_id: Optional[str] = None,
@@ -148,6 +150,7 @@ def _create_platform_client(
 
     Args:
         tls_config: TLS configuration
+        auth_type: The resolved authentication type
         proxy_config: Proxy configuration
         api_key: API key for authentication
         client_id: OAuth2 client ID
@@ -165,6 +168,7 @@ def _create_platform_client(
         base_url=SAFETY_PLATFORM_URL,
         auth_server_url=AUTH_SERVER_URL,
         openid_config_url=OPENID_CONFIG_URL,
+        auth_type=auth_type,
         api_key=api_key,
         proxy_config=proxy_config,
         tls_config=tls_config,
@@ -203,34 +207,52 @@ def configure_auth_session(
     # Load machine credentials on every invocation (coexists with OAuth2)
     machine_creds = MachineCredentialConfig.from_storage()
 
-    # Machine token is used when no API key or OAuth2 tokens are present,
-    # UNLESS the command needs an OAuth2Client for login flows.
-    # The server enforces which endpoints accept machine token auth.
-    use_machine_token = False
-    if not key and machine_creds:
-        oauth2_config = AuthConfig.from_storage()
-        if not oauth2_config and not _is_oauth2_flow_command(ctx):
-            use_machine_token = True
+    # Resolve the auth type ONCE.  Priority: API Key > OAuth2 > Machine Token.
+    if key:
+        resolved_auth = AuthenticationType.api_key
+    elif (
+        machine_creds
+        and not AuthConfig.from_storage()
+        and not _is_oauth2_flow_command(ctx)
+    ):
+        resolved_auth = AuthenticationType.machine_token
+    else:
+        resolved_auth = (
+            AuthenticationType.token
+        )  # OAuth2 path (may or may not have token)
 
+    # Build kwargs conditionally based on the resolved auth type.
     client_kwargs: Dict[str, Any] = dict(
         proxy_config=proxy_config,
         tls_config=tls_config,
-        api_key=key,
-        redirect_uri=get_redirect_url(),
-        update_token=update_token,
-        client_id=CLIENT_ID,
-        scope=OAUTH2_SCOPE,
-        code_challenge_method="S256",
+        auth_type=resolved_auth,
     )
 
-    if use_machine_token:
-        assert machine_creds is not None  # guarded by `if not key and machine_creds:`
+    if resolved_auth == AuthenticationType.machine_token:
+        assert machine_creds is not None
         client_kwargs["machine_id"] = machine_creds.machine_id
         client_kwargs["machine_token"] = machine_creds.machine_token
+    else:
+        # API key and OAuth2 paths both pass OAuth2 deps (preserves existing
+        # behavior).  On the API key path these are stored but unused by
+        # _create_http_client; we keep them to avoid risk from changing what
+        # SafetyPlatformClient receives.
+        client_kwargs.update(
+            api_key=key,
+            redirect_uri=get_redirect_url(),
+            update_token=update_token,
+            client_id=CLIENT_ID,
+            scope=OAUTH2_SCOPE,
+            code_challenge_method="S256",
+        )
 
     platform_client = _create_platform_client(**client_kwargs)
 
-    jwks = None if use_machine_token else platform_client.get_jwks()
+    jwks = (
+        None
+        if resolved_auth == AuthenticationType.machine_token
+        else platform_client.get_jwks()
+    )
 
     auth = Auth(
         stage=stage,
@@ -246,8 +268,8 @@ def configure_auth_session(
 
     ctx.obj.auth = auth
 
-    if use_machine_token:
-        assert machine_creds is not None  # guarded by `if not key and machine_creds:`
+    if resolved_auth == AuthenticationType.machine_token:
+        assert machine_creds is not None
         SafetyContext().account = f"machine:{machine_creds.machine_id}"
     else:
         if not platform_client.api_key:

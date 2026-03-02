@@ -50,7 +50,7 @@ class TestEnrollCommand(unittest.TestCase):
         if Version(version("click")) >= Version("8.2.0"):
             self.runner = CliRunner()
         else:
-            self.runner = CliRunner(mix_stderr=False)
+            self.runner = CliRunner(mix_stderr=False)  # type: ignore[call-arg]
 
         cli.commands = cli.all_commands
         self.cli = cli
@@ -313,6 +313,7 @@ class TestCallEnrollmentEndpoint(unittest.TestCase):
             enrollment_key=VALID_KEY,
             machine_id=FAKE_MACHINE_ID,
             force=False,
+            org_legacy_uuid="",
         )
 
     # ------------------------------------------------------------------
@@ -368,6 +369,52 @@ class TestCallEnrollmentEndpoint(unittest.TestCase):
 
         self.assertIn("request timed out", str(ctx.exception))
 
+    # ------------------------------------------------------------------
+    # 5. org_legacy_uuid forwarded to platform_client.enroll when provided
+    # ------------------------------------------------------------------
+    @patch("safety.auth.enrollment.get_required_config_setting")
+    def test_org_legacy_uuid_forwarded_to_enroll(self, mock_config):
+        mock_config.return_value = "https://service.platformv2.safetycli.com"
+        self.mock_client.enroll.return_value = {
+            "machine_id": FAKE_MACHINE_ID,
+            "machine_token": FAKE_MACHINE_TOKEN,
+        }
+
+        call_enrollment_endpoint(
+            platform_client=self.mock_client,
+            enrollment_key=VALID_KEY,
+            machine_id=FAKE_MACHINE_ID,
+            org_legacy_uuid="test-org-uuid-5678",
+        )
+
+        self.mock_client.enroll.assert_called_once_with(
+            enrollment_base_url="https://service.platformv2.safetycli.com",
+            enrollment_key=VALID_KEY,
+            machine_id=FAKE_MACHINE_ID,
+            force=False,
+            org_legacy_uuid="test-org-uuid-5678",
+        )
+
+    # ------------------------------------------------------------------
+    # 6. org_legacy_uuid defaults to empty string (forwarded as "")
+    # ------------------------------------------------------------------
+    @patch("safety.auth.enrollment.get_required_config_setting")
+    def test_org_legacy_uuid_defaults_to_empty_string(self, mock_config):
+        mock_config.return_value = "https://service.platformv2.safetycli.com"
+        self.mock_client.enroll.return_value = {
+            "machine_id": FAKE_MACHINE_ID,
+            "machine_token": FAKE_MACHINE_TOKEN,
+        }
+
+        call_enrollment_endpoint(
+            platform_client=self.mock_client,
+            enrollment_key=VALID_KEY,
+            machine_id=FAKE_MACHINE_ID,
+        )
+
+        call_kwargs = self.mock_client.enroll.call_args.kwargs
+        self.assertEqual(call_kwargs["org_legacy_uuid"], "")
+
 
 @pytest.mark.unit
 class TestEnrollCommandErrorPaths(unittest.TestCase):
@@ -378,7 +425,7 @@ class TestEnrollCommandErrorPaths(unittest.TestCase):
         if Version(version("click")) >= Version("8.2.0"):
             self.runner = CliRunner()
         else:
-            self.runner = CliRunner(mix_stderr=False)
+            self.runner = CliRunner(mix_stderr=False)  # type: ignore[call-arg]
 
         cli.commands = cli.all_commands
         self.cli = cli

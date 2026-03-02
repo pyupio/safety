@@ -301,7 +301,46 @@ class TestAuthStatusEnrollmentDisplay(unittest.TestCase):
         mock_get_auth_info.assert_called_once()
 
     # ------------------------------------------------------------------
-    # 7. --ensure-auth triggers browser login flow on timeout
+    # 7. Enrolled with org fields shows org_id, org_slug, and org_legacy_uuid
+    # ------------------------------------------------------------------
+    @patch("safety.auth.cli.initialize")
+    @patch("safety.auth.cli.get_auth_info", return_value=None)
+    def test_enrolled_with_org_fields_shows_org_info(
+        self,
+        mock_get_auth_info,
+        mock_initialize,
+    ):
+        """When enrolled with org fields, status displays Organization ID,
+        Organization Slug, and Organization."""
+        fake_cred = MachineCredentialConfig(
+            machine_id="org-machine-55",
+            machine_token="sfmt_org_token",
+            enrolled_at="2025-08-01T12:00:00",
+            org_id="platform-org-id-abc",
+            org_slug="acme-corp",
+            org_legacy_uuid="legacy-uuid-xyz",
+        )
+
+        with (
+            _make_configure_auth_session_mock(),
+            patch(
+                "safety.config.auth.MachineCredentialConfig.from_storage",
+                return_value=fake_cred,
+            ),
+        ):
+            result = self.runner.invoke(self.cli, ["auth", "status"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+        self.assertIn("Enrolled system: org-machine-55", result.output)
+        self.assertIn("Organization ID: platform-org-id-abc", result.output)
+        self.assertIn("Organization Slug: acme-corp", result.output)
+        self.assertIn("Organization UUID: legacy-uuid-xyz", result.output)
+
+        mock_get_auth_info.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # 8. --ensure-auth triggers browser login flow on timeout
     # ------------------------------------------------------------------
     @patch("safety.auth.cli.initialize")
     @patch("safety.auth.cli.get_auth_info", return_value=None)

@@ -23,6 +23,7 @@ def call_enrollment_endpoint(
     enrollment_key: str,
     machine_id: str,
     force: bool = False,
+    org_legacy_uuid: str = "",
 ) -> dict:
     """Public wrapper — delegates to platform_client.enroll().
 
@@ -36,12 +37,14 @@ def call_enrollment_endpoint(
         enrollment_key: The enrollment key provided by the MDM administrator.
         machine_id: The machine identity to enroll.
         force: When True, request re-enrollment for an already-enrolled machine.
+        org_legacy_uuid: When non-empty, the org UUID of the authenticated user
+            is sent to the server to detect cross-org enrollment attempts.
 
     Returns:
         dict with keys 'machine_id' and 'machine_token' on success.
 
     Raises:
-        EnrollmentError: On non-retryable failures (401, 409, invalid key).
+        EnrollmentError: On non-retryable failures (401, 403, 409, invalid key).
         EnrollmentTransientFailure: On transient failures (5xx, network errors).
     """
     platform_url = get_required_config_setting("SAFETY_PLATFORM_V2_URL")
@@ -52,6 +55,7 @@ def call_enrollment_endpoint(
             enrollment_key=enrollment_key,
             machine_id=machine_id,
             force=force,
+            org_legacy_uuid=org_legacy_uuid,
         )
     # Broader than @retry's types: also wraps ReadError/WriteError/CloseError
     # (transient, but not retried) as exit-code 75 for MDM orchestrators.

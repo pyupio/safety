@@ -44,7 +44,8 @@ from safety.scan.constants import (
     CLI_AUTH_LOGOUT_HELP,
     CLI_AUTH_STATUS_HELP,
 )
-from safety.config.auth import MachineCredentialConfig
+from safety.config.auth import AuthConfig, MachineCredentialConfig
+from safety.utils.tokens import get_token_claims
 from safety.errors import EnrollmentError
 from safety.utils.auth_session import discard_token
 
@@ -61,6 +62,62 @@ from .constants import (
 LOG = logging.getLogger(__name__)
 
 auth_app = Typer(rich_markup_mode="rich", name="auth")
+
+
+def _extract_org_uuid_from_jwt(ctx: "typer.Context") -> str:
+    """Extract the org legacy UUID from the current JWT access token.
+
+    Pure read — does not persist anything.  Returns ``""`` on failure.
+    """
+    auth_config = AuthConfig.from_storage()
+    if not auth_config:
+        return ""
+    try:
+        claims = get_token_claims(
+            auth_config.access_token,
+            "access_token",
+            ctx.obj.auth.jwks,
+            silent_if_expired=True,
+        )
+        if claims:
+            org_uuid = claims.get("https://api.safetycli.com/org_uuid", "")
+            return str(org_uuid) if org_uuid else ""
+    except Exception:
+        LOG.warning("Failed to extract org UUID from access token", exc_info=True)
+    return ""
+
+
+def _check_cross_org_enrollment(login_org_uuid: str, ctx: "typer.Context") -> bool:
+    """Check that *login_org_uuid* matches the enrolled org (if any).
+
+    Returns True if login should proceed, False if cross-org mismatch
+    detected (tokens are discarded in that case).
+    """
+    machine_cred = MachineCredentialConfig.from_storage()
+    if not (login_org_uuid and machine_cred and machine_cred.org_legacy_uuid):
+        return True
+
+    if machine_cred.org_legacy_uuid != login_org_uuid:
+        discard_token(ctx.obj.auth.platform.http_client)
+        console.print()
+        console.print(
+            "[red]This device is enrolled with machine authentication to a different "
+            "organization than the one you are attempting to log in to. "
+            "Please log in with a user in the same organization.[/red]"
+        )
+        return False
+
+    return True
+
+
+def _save_org_uuid(org_uuid: str) -> None:
+    """Persist *org_uuid* to AuthConfig on disk."""
+    if not org_uuid:
+        return
+    auth_config = AuthConfig.from_storage()
+    if auth_config:
+        auth_config.org_legacy_uuid = org_uuid
+        auth_config.save()
 
 
 CMD_LOGIN_NAME = "login"
@@ -224,6 +281,19 @@ def login(
                 console.print()
 
             initialize(ctx, refresh=True)
+
+            login_org_uuid = _extract_org_uuid_from_jwt(ctx)
+            if not _check_cross_org_enrollment(login_org_uuid, ctx):
+                is_success = False
+                emit_auth_completed(
+                    ctx.obj.event_bus,
+                    ctx,
+                    success=False,
+                    error_message="Cross-org enrollment mismatch",
+                )
+                return
+            _save_org_uuid(login_org_uuid)
+
             initialize_event_bus(ctx=ctx)
             render_successful_login(ctx.obj.auth, organization=organization)
             is_success = True
@@ -375,6 +445,11 @@ def status(
             )
             sys.exit(1)
 
+        login_org_uuid = _extract_org_uuid_from_jwt(ctx)
+        if not _check_cross_org_enrollment(login_org_uuid, ctx):
+            sys.exit(1)
+        _save_org_uuid(login_org_uuid)
+
         organization = None
         if ctx.obj.auth.org and ctx.obj.auth.org.name:
             organization = ctx.obj.auth.org.name
@@ -391,6 +466,12 @@ def status(
         console.print(f"  Enrolled system: {machine_cred.machine_id}")
         if machine_cred.enrolled_at:
             console.print(f"  Enrolled at: {machine_cred.enrolled_at}")
+        if machine_cred.org_id:
+            console.print(f"  Organization ID: {machine_cred.org_id}")
+        if machine_cred.org_slug:
+            console.print(f"  Organization Slug: {machine_cred.org_slug}")
+        if machine_cred.org_legacy_uuid:
+            console.print(f"  Organization UUID: {machine_cred.org_legacy_uuid}")
 
 
 @auth_app.command(name=CMD_REGISTER_NAME)
@@ -501,6 +582,12 @@ def enroll(
 
     resolved_machine_id = resolve_machine_id(override=machine_id, skip_enrolled=True)
 
+    # Cross-org guard rail: if user is logged in, pass org identity for server-side validation
+    auth_config = AuthConfig.from_storage()
+    org_legacy_uuid_for_request = ""
+    if auth_config and auth_config.org_legacy_uuid:
+        org_legacy_uuid_for_request = auth_config.org_legacy_uuid
+
     # 5. Call enrollment HTTP helper (reuses the platform client created
     #    during CLI startup — TLS/proxy already probed)
     response = call_enrollment_endpoint(
@@ -508,6 +595,7 @@ def enroll(
         enrollment_key=enrollment_key,
         machine_id=resolved_machine_id,
         force=force,
+        org_legacy_uuid=org_legacy_uuid_for_request,
     )
 
     # 6. Save credentials
@@ -521,16 +609,28 @@ def enroll(
         machine_id=resolved_machine_id,
         machine_token=response_token,
         enrolled_at=enrolled_at,
+        org_id=str(response.get("org_id") or ""),
+        org_legacy_uuid=str(response.get("org_legacy_uuid") or ""),
+        org_slug=str(response.get("org_slug") or ""),
     ).save()
 
     LOG.info("enrollment successful: machine_id=%s", resolved_machine_id)
 
     # 7. Print success
+    org_id = str(response.get("org_id") or "")
+    org_legacy_uuid = str(response.get("org_legacy_uuid") or "")
+    org_slug = str(response.get("org_slug") or "")
     console.print()
     console.print("[bold][green]Enrollment successful![/green][/bold]")
-    console.print(f"  Machine ID:    {resolved_machine_id}")
-    console.print(f"  Machine Token: {response_token}")
-    console.print(f"  Enrolled at:   {enrolled_at}")
+    console.print(f"  Machine ID:      {resolved_machine_id}")
+    console.print(f"  Machine Token:   {response_token}")
+    console.print(f"  Enrolled at:     {enrolled_at}")
+    if org_id:
+        console.print(f"  Organization ID: {org_id}")
+    if org_slug:
+        console.print(f"  Organization Slug: {org_slug}")
+    if org_legacy_uuid:
+        console.print(f"  Organization UUID: {org_legacy_uuid}")
     console.print()
     console.print(
         "[green]You don't need to save these, they are automatically stored.[/green]"

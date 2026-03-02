@@ -17,12 +17,14 @@ class AuthConfig:
     access_token: str
     id_token: str
     refresh_token: str
+    org_legacy_uuid: str = ""  # from JWT claim, cached for cross-org check
 
     # Keys used in the auth config file
     _SECTION_AUTH = "auth"
     _KEY_ACCESS_TOKEN = "access_token"
     _KEY_ID_TOKEN = "id_token"
     _KEY_REFRESH_TOKEN = "refresh_token"
+    _KEY_ORG_LEGACY_UUID = "org_legacy_uuid"
 
     # Keys used in the OAuth2Token format
     _KEY_TOKEN_TYPE = "token_type"
@@ -90,8 +92,13 @@ class AuthConfig:
 
         access_token, id_token, refresh_token = auth_config
 
+        org_legacy_uuid = section.get(cls._KEY_ORG_LEGACY_UUID, "")
+
         return cls(
-            access_token=access_token, id_token=id_token, refresh_token=refresh_token
+            access_token=access_token,
+            id_token=id_token,
+            refresh_token=refresh_token,
+            org_legacy_uuid=org_legacy_uuid,
         )
 
     @classmethod
@@ -117,6 +124,7 @@ class AuthConfig:
                 self._KEY_ACCESS_TOKEN: self.access_token,
                 self._KEY_ID_TOKEN: self.id_token,
                 self._KEY_REFRESH_TOKEN: self.refresh_token,
+                self._KEY_ORG_LEGACY_UUID: self.org_legacy_uuid,
             }
 
             with open(path, "w") as configfile:
@@ -164,6 +172,9 @@ class MachineCredentialConfig:
     machine_id: str
     machine_token: str
     enrolled_at: str
+    org_id: str = ""  # platform-v2 org UUID (future-proofing)
+    org_legacy_uuid: str = ""  # legacy org UUID (used for cross-org comparison)
+    org_slug: str = ""  # human-readable org identifier
 
     _SECTION_MACHINE = "machine"
 
@@ -184,6 +195,9 @@ class MachineCredentialConfig:
         machine_id = section.get("machine_id", "")
         machine_token = section.get("machine_token", "")
         enrolled_at = section.get("enrolled_at", "")
+        org_id = section.get("org_id", "")
+        org_legacy_uuid = section.get("org_legacy_uuid", "")
+        org_slug = section.get("org_slug", "")
 
         if not machine_id or not machine_token:
             return None
@@ -192,6 +206,9 @@ class MachineCredentialConfig:
             machine_id=machine_id,
             machine_token=machine_token,
             enrolled_at=enrolled_at,
+            org_id=org_id,
+            org_legacy_uuid=org_legacy_uuid,
+            org_slug=org_slug,
         )
 
     def save(self, path: Optional[Path] = None) -> None:
@@ -208,6 +225,9 @@ class MachineCredentialConfig:
                 "machine_id": self.machine_id,
                 "machine_token": self.machine_token,
                 "enrolled_at": self.enrolled_at,
+                "org_id": self.org_id,
+                "org_legacy_uuid": self.org_legacy_uuid,
+                "org_slug": self.org_slug,
             }
 
             with open(path, "w") as configfile:

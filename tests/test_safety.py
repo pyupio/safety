@@ -470,9 +470,14 @@ class TestSafety(unittest.TestCase):
         Users must authenticate with OAuth2 (`safety auth login`) or provide
         an API key (`--key`).
         """
+        from safety.utils.auth_session import AuthenticationType
+
         auth = Mock()
         auth.platform = Mock()
         auth.platform.has_machine_token = True
+        auth.platform.get_authentication_type.return_value = (
+            AuthenticationType.machine_token
+        )
         auth.platform.is_using_auth_credentials.return_value = True
 
         with self.assertRaises(DatabaseFetchError) as context:
@@ -492,9 +497,14 @@ class TestSafety(unittest.TestCase):
         Users must authenticate with OAuth2 (`safety auth login`) or provide
         an API key (`--key`).
         """
+        from safety.utils.auth_session import AuthenticationType
+
         auth = Mock()
         auth.platform = Mock()
         auth.platform.has_machine_token = True
+        auth.platform.get_authentication_type.return_value = (
+            AuthenticationType.machine_token
+        )
 
         with self.assertRaises(DatabaseFetchError) as context:
             get_licenses(auth=auth, db_mirror=False, cached=0, telemetry=False)

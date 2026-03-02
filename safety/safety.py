@@ -388,8 +388,9 @@ def fetch_database(
     Returns:
         Dict[str, Any]: The fetched database.
     """
-    # Check if using machine token auth - not allowed for database fetching
-    if auth.platform.has_machine_token:
+    from safety.utils.auth_session import AuthenticationType
+
+    if auth.platform.get_authentication_type() == AuthenticationType.machine_token:
         raise DatabaseFetchError(
             "Machine token authentication is not accepted for this operation. "
             "Run `safety auth login` or use `--key` to authenticate."
@@ -1699,8 +1700,12 @@ def get_licenses(
     Returns:
         Dict[str, Any]: The licenses dictionary.
     """
-    # Check if using machine token auth - not allowed for database fetching
-    if auth.platform.has_machine_token:
+    # Machine token auth cannot fetch the license database — same rationale
+    # as fetch_database().  Respect the priority chain via
+    # get_authentication_type() instead of has_machine_token.
+    from safety.utils.auth_session import AuthenticationType
+
+    if auth.platform.get_authentication_type() == AuthenticationType.machine_token:
         raise DatabaseFetchError(
             "Machine token authentication is not accepted for this operation. "
             "Run `safety auth login` or use `--key` to authenticate."

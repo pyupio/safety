@@ -155,18 +155,21 @@ def scan_project_command_init(func):
         if ctx.obj.auth.org and ctx.obj.auth.org.name:
             console.print(f"[bold]Organization[/bold]: {ctx.obj.auth.org.name}")
 
-        # Check if an API key is set
-        if ctx.obj.auth.platform.get_authentication_type() == "api_key":
+        # Display account info based on auth type
+        auth_type = ctx.obj.auth.platform.get_authentication_type()
+        if auth_type == "api_key":
             details = {"Account": "API key used"}
-        else:
-            if ctx.obj.auth.platform.get_authentication_type() == "token":
-                content = ctx.obj.auth.email
-                if ctx.obj.auth.name != ctx.obj.auth.email:
-                    content = f"{ctx.obj.auth.name}, {ctx.obj.auth.email}"
+        elif auth_type == "token":
+            content = ctx.obj.auth.email
+            if ctx.obj.auth.name != ctx.obj.auth.email:
+                content = f"{ctx.obj.auth.name}, {ctx.obj.auth.email}"
 
-                details = {"Account": f"{content} {render_email_note(ctx.obj.auth)}"}
-            else:
-                details = {"Account": f"Offline - {os.getenv('SAFETY_DB_DIR')}"}
+            details = {"Account": f"{content} {render_email_note(ctx.obj.auth)}"}
+        elif auth_type == "machine_token":
+            machine_id = ctx.obj.auth.platform.machine_id or "unknown"
+            details = {"Account": f"Machine token (machine:{machine_id})"}
+        else:
+            details = {"Account": f"Offline - {os.getenv('SAFETY_DB_DIR')}"}
 
         if ctx.obj.project.id:
             details["Project"] = ctx.obj.project.id

@@ -25,6 +25,18 @@ class TestScanCommand(unittest.TestCase):
         cli.commands = cli.all_commands
         self.cli = cli
 
+        # Prevent real machine credentials from leaking into tests.
+        # AUTH_CONFIG_USER is a module-level constant resolved at import time,
+        # so patching get_user_dir does NOT redirect it.
+        self.machine_creds_patcher = patch(
+            "safety.auth.cli_utils.MachineCredentialConfig.from_storage",
+            return_value=None,
+        )
+        self.machine_creds_patcher.start()
+
+    def tearDown(self):
+        self.machine_creds_patcher.stop()
+
     @patch.object(Auth, "is_valid", return_value=False)
     @patch(
         "safety.platform.SafetyPlatformClient.get_authentication_type",

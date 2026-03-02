@@ -31,6 +31,8 @@ def index_credentials(ctx: "SafetyContext") -> str:
     """
     api_key = None
     token = None
+    machine_id = None
+    machine_token = None
 
     auth_obj = getattr(ctx.obj, "auth", None)
 
@@ -38,17 +40,45 @@ def index_credentials(ctx: "SafetyContext") -> str:
         auth: "Auth" = auth_obj
 
         client = auth.platform
-        token = client.token.get("access_token") if client.token else None
-        api_key = client.api_key
+        # Priority: API Key > OAuth > Machine Token
+        # Matches _create_http_client() and get_authentication_type().
+        # v1.0 envelope carries both access_token and api_key — the
+        # gateway/legacy platform decides which to use.
+        # v2.0 envelope is ONLY used when machine_token is the sole auth.
+        if client.api_key:
+            api_key = client.api_key
+            token = client.token.get("access_token") if client.token else None
+        elif client.token:
+            token = client.token.get("access_token") if client.token else None
+        elif client.has_machine_token:
+            machine_id = client.machine_id
+            machine_token = client.machine_token
+            if not machine_id or not machine_token:
+                raise ValueError(
+                    "Machine token auth active but credentials incomplete "
+                    f"(machine_id={bool(machine_id)}, machine_token={bool(machine_token)})"
+                )
 
-    auth_envelop = json.dumps(
-        {
-            "version": "1.0",
-            "access_token": token,
-            "api_key": api_key,
-            "project_id": ctx.obj.project.id if ctx.obj.project else None,
-        }
-    )
+    # Envelope selection: machine vars are guaranteed non-None by the
+    # ValueError guard above when the machine-token branch was taken.
+    if machine_id and machine_token:
+        auth_envelop = json.dumps(
+            {
+                "version": "2.0",
+                "machine_id": machine_id,
+                "machine_token": machine_token,
+                "project_id": ctx.obj.project.id if ctx.obj.project else None,
+            }
+        )
+    else:
+        auth_envelop = json.dumps(
+            {
+                "version": "1.0",
+                "access_token": token,
+                "api_key": api_key,
+                "project_id": ctx.obj.project.id if ctx.obj.project else None,
+            }
+        )
     return base64.urlsafe_b64encode(auth_envelop.encode("utf-8")).decode("utf-8")
 
 

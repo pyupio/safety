@@ -14,6 +14,7 @@ import pytest
 from safety.auth.constants import MSG_MACHINE_TOKEN_NOT_ACCEPTED
 from safety.errors import InvalidCredentialError
 from safety.platform.client import SafetyPlatformClient
+from safety.utils.auth_session import AuthenticationType
 from safety.utils.tls_probe import TLSProbeResult
 
 
@@ -44,6 +45,7 @@ def _build_machine_token_client():
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -57,6 +59,7 @@ def _build_api_key_client():
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.api_key,
             api_key="test-api-key-123",
         )
 

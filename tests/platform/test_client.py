@@ -1,4 +1,4 @@
-"""Unit tests for SafetyPlatformClient machine token integration."""
+"""Unit tests for SafetyPlatformClient auth routing and machine token integration."""
 
 import ssl
 from unittest.mock import MagicMock, patch
@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from safety.errors import EnrollmentError, EnrollmentTransientFailure
-from safety.platform.client import MachineTokenAuth, SafetyPlatformClient
+from safety.platform.client import ApiKeyAuth, MachineTokenAuth, SafetyPlatformClient
 from safety.utils.auth_session import AuthenticationType
 from safety.utils.tls_probe import TLSProbeResult
 
@@ -47,6 +47,7 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -62,6 +63,7 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -75,34 +77,11 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
         assert isinstance(client._http_client._auth, MachineTokenAuth)
-
-    @_PATCH_META
-    def test_init_requires_machine_id_with_token(self, _mock_meta, _mock_probe):
-        """machine_token without machine_id should raise ValueError."""
-        with pytest.raises(ValueError, match="machine_id is required"):
-            SafetyPlatformClient(
-                base_url="https://api.example.com",
-                tls_config=_make_tls_config(),
-                auth_server_url="https://auth.example.com",
-                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
-                machine_token="sfmt_abc123",
-            )
-
-    @_PATCH_META
-    def test_init_requires_machine_token_with_id(self, _mock_meta, _mock_probe):
-        """machine_id without machine_token should raise ValueError."""
-        with pytest.raises(ValueError, match="machine_token is required"):
-            SafetyPlatformClient(
-                base_url="https://api.example.com",
-                tls_config=_make_tls_config(),
-                auth_server_url="https://auth.example.com",
-                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
-                machine_id="machine-001",
-            )
 
     # -- 2. get_authentication_type() returns machine_token --
 
@@ -115,42 +94,42 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
         assert client.get_authentication_type() == AuthenticationType.machine_token
 
-    # -- 3. API key takes priority when both api_key and machine_token provided --
+    # -- 3. auth_type=api_key creates ApiKeyAuth client (even if machine creds present) --
 
     @_PATCH_META
-    def test_api_key_takes_priority_in_http_client(self, _mock_meta, _mock_probe):
-        """When both api_key and machine_token are provided, HTTP client uses ApiKeyAuth."""
-        from safety.platform.client import ApiKeyAuth
-
+    def test_api_key_auth_type_creates_api_key_client(self, _mock_meta, _mock_probe):
+        """auth_type=api_key creates ApiKeyAuth client, ignoring machine creds."""
         with patch.object(SafetyPlatformClient, "_initialize_with_tls_fallback"):
             client = SafetyPlatformClient(
                 base_url="https://api.example.com",
                 tls_config=_make_tls_config(),
                 auth_server_url="https://auth.example.com",
                 openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.api_key,
                 api_key="my-api-key",
                 machine_id="machine-001",
                 machine_token="sfmt_abc123",
             )
-        # _create_http_client checks api_key first, so HTTP client uses ApiKeyAuth
         assert isinstance(client._http_client._auth, ApiKeyAuth)
 
     @_PATCH_META
-    def test_api_key_takes_priority_in_get_authentication_type(
+    def test_api_key_auth_type_returns_api_key_authentication_type(
         self, _mock_meta, _mock_probe
     ):
-        """When both api_key and machine_token provided, get_authentication_type returns api_key."""
+        """auth_type=api_key → get_authentication_type() returns api_key."""
         with patch.object(SafetyPlatformClient, "_initialize_with_tls_fallback"):
             client = SafetyPlatformClient(
                 base_url="https://api.example.com",
                 tls_config=_make_tls_config(),
                 auth_server_url="https://auth.example.com",
                 openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.api_key,
                 api_key="my-api-key",
                 machine_id="machine-001",
                 machine_token="sfmt_abc123",
@@ -158,19 +137,46 @@ class TestSafetyPlatformClientMachineToken:
         assert client.get_authentication_type() == AuthenticationType.api_key
 
     @_PATCH_META
-    def test_api_key_takes_priority_in_get_credential(self, _mock_meta, _mock_probe):
-        """When both api_key and machine_token provided, get_credential returns api_key."""
+    def test_api_key_auth_type_get_credential_returns_api_key(
+        self, _mock_meta, _mock_probe
+    ):
+        """auth_type=api_key → get_credential() returns the API key."""
         with patch.object(SafetyPlatformClient, "_initialize_with_tls_fallback"):
             client = SafetyPlatformClient(
                 base_url="https://api.example.com",
                 tls_config=_make_tls_config(),
                 auth_server_url="https://auth.example.com",
                 openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.api_key,
                 api_key="my-api-key",
                 machine_id="machine-001",
                 machine_token="sfmt_abc123",
             )
         assert client.get_credential() == "my-api-key"
+
+    # -- 3b. auth_type=token creates OAuth2Client (even if machine creds present) --
+
+    @_PATCH_META
+    def test_token_auth_type_creates_oauth2_client(self, _mock_meta, _mock_probe):
+        """auth_type=token creates OAuth2Client, ignoring machine creds."""
+        from authlib.integrations.httpx_client import OAuth2Client
+
+        with patch.object(SafetyPlatformClient, "_initialize_with_tls_fallback"):
+            client = SafetyPlatformClient(
+                base_url="https://api.example.com",
+                tls_config=_make_tls_config(),
+                auth_server_url="https://auth.example.com",
+                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.token,
+                client_id="test-client-id",
+                redirect_uri="http://localhost:8080/callback",
+                update_token=lambda token, *args, **kwargs: None,
+                scope="openid profile email",
+                code_challenge_method="S256",
+                machine_id="machine-001",
+                machine_token="sfmt_abc123",
+            )
+        assert isinstance(client._http_client, OAuth2Client)
 
     # -- 4. _initialize_with_tls_fallback() runs probe but skips OpenID config fetch --
 
@@ -183,6 +189,7 @@ class TestSafetyPlatformClientMachineToken:
                 tls_config=_make_tls_config(),
                 auth_server_url="https://auth.example.com",
                 openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.machine_token,
                 machine_id="machine-001",
                 machine_token="sfmt_abc123",
             )
@@ -199,6 +206,7 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -214,6 +222,7 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -232,6 +241,7 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -247,6 +257,7 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -260,10 +271,117 @@ class TestSafetyPlatformClientMachineToken:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
         assert client.base_url == "https://api.example.com"
+
+    # -- machine_token() --
+
+    @_PATCH_META
+    def test_get_machine_token_returns_token(self, _mock_meta, _mock_probe):
+        """machine_token returns the token when set."""
+        client = SafetyPlatformClient(
+            base_url="https://api.example.com",
+            tls_config=_make_tls_config(),
+            auth_server_url="https://auth.example.com",
+            openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
+            machine_id="machine-001",
+            machine_token="sfmt_abc123",
+        )
+        assert client.machine_token == "sfmt_abc123"
+
+    @_PATCH_META
+    def test_machine_token_returns_none_without_token(self, _mock_meta, _mock_probe):
+        """machine_token returns None when not using machine token auth."""
+        client = SafetyPlatformClient(
+            base_url="https://api.example.com",
+            tls_config=_make_tls_config(),
+            auth_server_url="https://auth.example.com",
+            openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.api_key,
+            api_key="test-api-key",
+        )
+        assert client.machine_token is None
+
+
+# ---------------------------------------------------------------------------
+# auth_type validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestAuthTypeValidation:
+    """auth_type is validated against provided credentials on construction."""
+
+    @_PATCH_META
+    @_PATCH_PROBE
+    def test_auth_type_none_rejected(self, _mock_probe, _mock_meta):
+        """auth_type=none is never valid — caller must resolve to a concrete type."""
+        with pytest.raises(ValueError, match="must be a concrete type"):
+            SafetyPlatformClient(
+                base_url="https://api.example.com",
+                tls_config=_make_tls_config(),
+                auth_server_url="https://auth.example.com",
+                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.none,
+            )
+
+    @_PATCH_META
+    @_PATCH_PROBE
+    def test_auth_type_api_key_requires_api_key(self, _mock_probe, _mock_meta):
+        """auth_type=api_key without api_key raises ValueError."""
+        with pytest.raises(ValueError, match="api_key is required"):
+            SafetyPlatformClient(
+                base_url="https://api.example.com",
+                tls_config=_make_tls_config(),
+                auth_server_url="https://auth.example.com",
+                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.api_key,
+            )
+
+    @_PATCH_META
+    @_PATCH_PROBE
+    def test_auth_type_machine_token_requires_both_creds(self, _mock_probe, _mock_meta):
+        """auth_type=machine_token without machine_id raises ValueError."""
+        with pytest.raises(ValueError, match="machine_id and machine_token"):
+            SafetyPlatformClient(
+                base_url="https://api.example.com",
+                tls_config=_make_tls_config(),
+                auth_server_url="https://auth.example.com",
+                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.machine_token,
+                machine_token="sfmt_abc123",
+            )
+
+    @_PATCH_META
+    @_PATCH_PROBE
+    def test_auth_type_machine_token_requires_token(self, _mock_probe, _mock_meta):
+        """auth_type=machine_token without machine_token raises ValueError."""
+        with pytest.raises(ValueError, match="machine_id and machine_token"):
+            SafetyPlatformClient(
+                base_url="https://api.example.com",
+                tls_config=_make_tls_config(),
+                auth_server_url="https://auth.example.com",
+                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.machine_token,
+                machine_id="machine-001",
+            )
+
+    @_PATCH_META
+    @_PATCH_PROBE
+    def test_auth_type_token_requires_oauth2_deps(self, _mock_probe, _mock_meta):
+        """auth_type=token without OAuth2 deps raises ValueError."""
+        with pytest.raises(ValueError, match="client_id, redirect_uri"):
+            SafetyPlatformClient(
+                base_url="https://api.example.com",
+                tls_config=_make_tls_config(),
+                auth_server_url="https://auth.example.com",
+                openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.token,
+            )
 
 
 @pytest.mark.unit
@@ -292,6 +410,7 @@ class TestInitializeTimeoutErrorMessages:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -335,6 +454,7 @@ class TestInitializeTimeoutErrorMessages:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -369,6 +489,7 @@ class TestInitializeTimeoutErrorMessages:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -389,6 +510,7 @@ class TestInitializeTimeoutErrorMessages:
             tls_config=_make_tls_config(),
             auth_server_url="https://auth.example.com",
             openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+            auth_type=AuthenticationType.machine_token,
             machine_id="machine-001",
             machine_token="sfmt_abc123",
         )
@@ -433,6 +555,7 @@ class TestTlsInitUnifiedPath:
                 tls_config=_make_tls_config(),
                 auth_server_url="https://auth.example.com",
                 openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.api_key,
                 api_key="test-api-key",
             )
         mock_probe.assert_called_once()
@@ -456,6 +579,7 @@ class TestTlsInitUnifiedPath:
                 tls_config=tls_original,
                 auth_server_url="https://auth.example.com",
                 openid_config_url="https://auth.example.com/.well-known/openid-configuration",
+                auth_type=AuthenticationType.api_key,
                 api_key="test-api-key",
             )
 

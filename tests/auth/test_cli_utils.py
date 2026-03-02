@@ -1,4 +1,4 @@
-"""Unit tests for configure_auth_session() machine token precedence and cleanup."""
+"""Unit tests for configure_auth_session() auth-type routing and cleanup."""
 
 from typing import Dict, Optional
 from unittest.mock import MagicMock, patch
@@ -9,6 +9,7 @@ import pytest
 
 from safety.auth.models import Auth
 from safety.config.auth import MachineCredentialConfig
+from safety.utils.auth_session import AuthenticationType
 
 
 # ---------------------------------------------------------------------------
@@ -116,10 +117,11 @@ class TestPrecedenceHierarchy:
 
         # JWKS should be fetched (non-machine path)
         mock_platform.get_jwks.assert_called_once()
-        # _create_platform_client should receive the API key
+        # _create_platform_client should receive api_key auth_type
         mock_create = patches[f"{_MOD}._create_platform_client"]
         call_kwargs = mock_create.call_args.kwargs
         assert call_kwargs.get("api_key") == "my-api-key"
+        assert call_kwargs.get("auth_type") == AuthenticationType.api_key
 
     @pytest.mark.unit
     def test_oauth2_takes_precedence_over_machine_token(self) -> None:
@@ -135,6 +137,10 @@ class TestPrecedenceHierarchy:
 
         # JWKS should be fetched (OAuth2 path, not machine)
         mock_platform.get_jwks.assert_called_once()
+        # auth_type should be token (OAuth2)
+        mock_create = patches[f"{_MOD}._create_platform_client"]
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs.get("auth_type") == AuthenticationType.token
 
     @pytest.mark.unit
     def test_machine_token_used_when_no_api_key_no_oauth2(self) -> None:
@@ -148,10 +154,46 @@ class TestPrecedenceHierarchy:
 
         # JWKS fetch should be SKIPPED
         mock_platform.get_jwks.assert_not_called()
+        # auth_type should be machine_token
+        mock_create = patches[f"{_MOD}._create_platform_client"]
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs.get("auth_type") == AuthenticationType.machine_token
+
+    @pytest.mark.unit
+    def test_machine_token_path_omits_oauth2_deps(self) -> None:
+        """OAuth2 deps (client_id, etc.) must NOT be passed to the client on machine token path.
+
+        configure_auth_session() builds kwargs conditionally based on the
+        resolved auth type. On the machine_token path, OAuth2 deps are never
+        added to the kwargs dict in the first place.
+        """
+        creds = _make_machine_creds()
+        patches, mock_platform = _build_patches(
+            machine_creds=creds,
+            oauth2_config=None,
+        )
+
+        _run_configure(patches)
+
+        mock_create = patches[f"{_MOD}._create_platform_client"]
+        call_kwargs = mock_create.call_args.kwargs
+        # Machine token credentials MUST be present
+        assert call_kwargs["machine_id"] == creds.machine_id
+        assert call_kwargs["machine_token"] == creds.machine_token
+        # OAuth2 deps MUST be stripped
+        assert "client_id" not in call_kwargs
+        assert "redirect_uri" not in call_kwargs
+        assert "update_token" not in call_kwargs
+        assert "scope" not in call_kwargs
+        assert "code_challenge_method" not in call_kwargs
 
     @pytest.mark.unit
     def test_unauthenticated_when_nothing_available(self) -> None:
-        """Falls back to unauthenticated when no key, no OAuth2, no machine creds."""
+        """Falls back to OAuth2 (token) path when no key, no OAuth2, no machine creds.
+
+        The client may have no token loaded yet, so get_authentication_type()
+        will return ``none`` — but the resolved auth_type is ``token``.
+        """
         patches, mock_platform = _build_patches(
             machine_creds=None,
             oauth2_config=None,
@@ -161,6 +203,10 @@ class TestPrecedenceHierarchy:
 
         # JWKS should be fetched (standard path)
         mock_platform.get_jwks.assert_called_once()
+        # auth_type should be token (OAuth2 path)
+        mock_create = patches[f"{_MOD}._create_platform_client"]
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs.get("auth_type") == AuthenticationType.token
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +515,7 @@ class TestMachineTokenPathClientCreation:
 
     @pytest.mark.unit
     def test_platform_client_receives_machine_credentials(self) -> None:
-        """_create_platform_client is called with machine_id and machine_token."""
+        """_create_platform_client is called with machine_id, machine_token, and auth_type."""
         creds = _make_machine_creds(machine_id="device-xyz", machine_token="tok-secret")
         patches, _ = _build_patches(
             machine_creds=creds,
@@ -484,6 +530,7 @@ class TestMachineTokenPathClientCreation:
         call_kwargs = mock_create.call_args
         assert call_kwargs.kwargs.get("machine_id") == "device-xyz"
         assert call_kwargs.kwargs.get("machine_token") == "tok-secret"
+        assert call_kwargs.kwargs.get("auth_type") == AuthenticationType.machine_token
 
     @pytest.mark.unit
     def test_non_machine_path_does_not_pass_machine_credentials(self) -> None:
@@ -497,8 +544,9 @@ class TestMachineTokenPathClientCreation:
         _run_configure(patches)
 
         call_kwargs = mock_create.call_args
-        assert call_kwargs.kwargs.get("machine_id") is None
-        assert call_kwargs.kwargs.get("machine_token") is None
+        assert "machine_id" not in call_kwargs.kwargs
+        assert "machine_token" not in call_kwargs.kwargs
+        assert call_kwargs.kwargs.get("auth_type") == AuthenticationType.token
 
 
 # ---------------------------------------------------------------------------

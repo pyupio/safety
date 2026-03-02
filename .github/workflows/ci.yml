@@ -32,8 +32,8 @@ jobs:
       - name: Install Hatch
         run: |
           python -m pip install --upgrade pip
-          pip install hatch "click<8.3.0"
-          
+          pip install hatch "click<8.3.0" "virtualenv<21"
+
       - name: Validate commit messages
         run: |
           # For PRs, validate all commits in the PR
@@ -89,7 +89,7 @@ jobs:
         if: steps.check-files.outputs.should_check == 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install hatch "click<8.3.0"
+          pip install hatch "click<8.3.0" "virtualenv<21"
   
       - name: Run style and typing checks
         if: steps.check-files.outputs.should_check == 'true'
@@ -147,7 +147,7 @@ jobs:
     - name: Install Hatch
       run: |
         python -m pip install --upgrade pip
-        pip install hatch "click<8.3.0"
+        pip install hatch "click<8.3.0" "virtualenv<21"
 
     - name: Create temporary CI config
       run: |

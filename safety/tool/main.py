@@ -45,7 +45,21 @@ def find_local_tool_files(directory: Path) -> List[Path]:
     return results
 
 
-def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[Path]]]:
+def configure_system(
+    org_slug: Optional[str], tools: Optional[List[str]] = None
+) -> List[Tuple[ToolType, Optional[Path]]]:
+    """
+    Configure global package manager indexes to use the Safety proxy.
+
+    Args:
+        org_slug: Organization slug for building org-scoped repository URLs.
+        tools: List of tool names to configure (e.g. ["pip", "uv"]).
+            If not specified, all supported tools will be configured.
+
+    Returns:
+        List of (ToolType, path) tuples indicating which tools were configured
+        and the path to the config file modified (or None on failure).
+    """
     configurators: List[Tuple[ToolType, Any, Dict[str, Any]]] = [
         (ToolType.PIP, PipConfigurator(), {"org_slug": org_slug}),
         (ToolType.POETRY, PoetryConfigurator(), {"org_slug": org_slug}),
@@ -55,6 +69,8 @@ def configure_system(org_slug: Optional[str]) -> List[Tuple[ToolType, Optional[P
 
     results = []
     for tool_type, configurator, kwargs in configurators:
+        if tools and tool_type.value not in tools:
+            continue
         result = configurator.configure(**kwargs)
         results.append((tool_type, result))
     return results

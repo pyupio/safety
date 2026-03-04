@@ -27,8 +27,9 @@ from ..constants import (
     EXIT_CODE_OK,
     DEFAULT_EPILOG,
 )
+from ..utils.org import resolve_org_slug
 from ..tool.interceptors import create_interceptor
-from ..tool.main import reset_system
+from ..tool.main import configure_system, reset_system
 from .constants import (
     FIREWALL_CMD_NAME,
     FIREWALL_HELP,
@@ -179,6 +180,16 @@ def init(
 ):
     console.print()
 
+    # Resolve org_slug first — authentication is required
+    org_slug = resolve_org_slug(ctx.obj.auth)
+    if not org_slug:
+        console.print(
+            "[red]Error: Unable to resolve organization. "
+            "Please authenticate first using `safety auth login` "
+            "or ensure your machine is enrolled via MDM.[/red]"
+        )
+        sys.exit(1)
+
     interceptor = create_interceptor()
 
     # If no tools specified, use all tools
@@ -193,6 +204,7 @@ def init(
         f"Initializing safety firewall for tools: {', '.join(selected_tools)}"
     )
 
+    configure_system(org_slug, tools=selected_tools)
     interceptor.install_interceptors(tools=selected_tools)
     console.print()
 

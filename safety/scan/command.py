@@ -951,8 +951,6 @@ def scan(
         ):
             # Update counts and track vulnerabilities
             count += len(analyzed_file.dependency_results.dependencies)
-            if exit_code == 0 and analyzed_file.dependency_results.failed:
-                exit_code = EXIT_CODE_VULNERABILITIES_FOUND
 
             affected_specifications = (
                 analyzed_file.dependency_results.get_affected_specifications()
@@ -985,6 +983,12 @@ def scan(
                     vulns_to_report = sort_and_filter_vulnerabilities(
                         spec.vulnerabilities, key_func=sort_vulns_by_score
                     )
+
+                    # Set exit code if there are non-ignored vulnerabilities
+                    # This ensures we return non-zero exit code when vulnerabilities
+                    # are detected, regardless of policy configuration
+                    if exit_code == 0 and vulns_to_report:
+                        exit_code = EXIT_CODE_VULNERABILITIES_FOUND
                     critical_vulns_count = count_critical_vulnerabilities(
                         vulns_to_report
                     )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, TYPE_CHECKING
 from ...models import Candidate, Detection, DetectionKind
 from ...filesystem import FsRuntime
 from ...events.payloads.links import (
@@ -17,6 +17,10 @@ import os
 from ...context import DetectContext
 from ...registry import ScanRefRegistry
 
+if TYPE_CHECKING:
+    from ..environments.base_user import BaseUserEnvDetector
+    from ...events.payloads.runtime import PythonRuntime
+
 
 class PythonRuntimeDetector:
     """
@@ -29,7 +33,8 @@ class PythonRuntimeDetector:
     # - pythonX.Y (e.g., python3.9, python3.10, etc.)
     PYTHON_PATTERN = re.compile(r"^python(?:\d+(?:\.\d+)?)?(?:\.exe)?$", re.IGNORECASE)
 
-    def __init__(self):
+    def __init__(self, base_user_env_detector: BaseUserEnvDetector | None = None):
+        self.base_user_env_detector = base_user_env_detector
         self.system = platform.system().lower()
 
         if self.system == "windows":
@@ -114,6 +119,11 @@ class PythonRuntimeDetector:
     ) -> Iterator[Detection]:
         """
         Detect Python runtime from candidate.
+
+        After yielding the runtime detection, cascades to base/user
+        environment detection if a BaseUserEnvDetector is configured.
+        This cascade only happens here (direct candidate processing),
+        NOT in detect_from_ref() which is used by venv detection.
         """
         fs: FsRuntime = ctx.fs
         exec_context_ref: ExecutionContextRelation = ctx.exec_ctx_rel
@@ -131,9 +141,34 @@ class PythonRuntimeDetector:
         if not runtime_ref:
             return
 
-        yield from self.detect_from_ref(
-            runtime_ref, fs, exec_context_ref, scan_registry, source=candidate.source
+        runtime_detection = next(
+            self.detect_from_ref(
+                runtime_ref,
+                fs,
+                exec_context_ref,
+                scan_registry,
+                source=candidate.source,
+            ),
+            None,
         )
+
+        if not runtime_detection:
+            return
+
+        yield runtime_detection
+
+        # Cascade to base/user environment detection
+        if self.base_user_env_detector:
+            runtime_meta: PythonRuntime = runtime_detection.meta
+
+            yield from self.base_user_env_detector.detect_for_runtime(
+                candidate_path=candidate.path,
+                runtime_ref=runtime_ref,
+                fs=fs,
+                exec_context_ref=exec_context_ref,
+                scan_registry=scan_registry,
+                runtime_version=runtime_meta.version,
+            )
 
     def detect_from_ref(
         self,

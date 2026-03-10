@@ -47,6 +47,26 @@ def get_project_dependencies():
         return {}
 
 
+_PLATFORM_MARKERS = {
+    "unix_only": sys.platform != "win32",
+    "windows_only": sys.platform == "win32",
+    "linux": sys.platform in ("linux", "linux2"),
+    "darwin": sys.platform == "darwin",
+}
+
+
+def pytest_collection_modifyitems(config, items):
+    for marker_name, condition_met in _PLATFORM_MARKERS.items():
+        if condition_met:
+            continue
+        skip = pytest.mark.skip(
+            reason=f"requires {marker_name} (platform={sys.platform})"
+        )
+        for item in items:
+            if marker_name in item.keywords:
+                item.add_marker(skip)
+
+
 def pytest_configure(config):
     main_deps_specs = get_project_dependencies()
     all_dists = {

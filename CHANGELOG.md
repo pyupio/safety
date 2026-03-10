@@ -8,6 +8,21 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.8.0b2 (2026-03-10)
+
+### Feat
+
+- **firewall**: emit v2.0 auth envelope for machine token (MDM) auth (#841)
+- **auth**: implement cross-org enrollment prevention (CLI side) (#839)
+- **auth**: add org_slug to MachineCredentialConfig from enrollment API
+
+### Fix
+
+- **firewall**: configure global package manager indexes on firewall init (#842)
+- **firewall**: align auth priority in index_credentials with platform client
+- **auth**: align auth priority to API Key > OAuth > Machine Token everywhere
+- **scan**: display machine token auth in scan header instead of "Offline"
+
 ## 3.8.0b1 (2026-02-25)
 
 ### Feat

@@ -76,16 +76,14 @@ class PythonDependencyDetector:
             dist_info_path.name, self.DIST_INFO_SUFFIX
         )
 
-        # Only read METADATA if we couldn't parse from dirname
+        # Read METADATA if either field is missing; prefer METADATA as source of truth
         if not name or not version:
             metadata_content = fs.read_text(
                 dist_info_path / "METADATA", max_bytes=64_000
             )
             if metadata_content:
-                if not name:
-                    name = extract_metadata_field(metadata_content, "Name")
-                if not version:
-                    version = extract_metadata_field(metadata_content, "Version")
+                name = extract_metadata_field(metadata_content, "Name") or name
+                version = extract_metadata_field(metadata_content, "Version") or version
 
         if not name:
             return  # Can't create a package without a name
@@ -127,12 +125,12 @@ class PythonDependencyDetector:
         # Parse name and version from directory name
         name, version = parse_egg_info_dirname(egg_info_path.name, self.EGG_INFO_SUFFIX)
 
-        if not name:
-            # Try PKG-INFO file
+        # Read PKG-INFO if either field is missing; prefer PKG-INFO as source of truth
+        if not name or not version:
             pkg_info = fs.read_text(egg_info_path / "PKG-INFO", max_bytes=32_000)
             if pkg_info:
-                name = extract_metadata_field(pkg_info, "Name")
-                version = extract_metadata_field(pkg_info, "Version")
+                name = extract_metadata_field(pkg_info, "Name") or name
+                version = extract_metadata_field(pkg_info, "Version") or version
 
         if not name:
             return

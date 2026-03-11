@@ -51,6 +51,10 @@ def parse_egg_info_dirname(dirname: str, suffix: str) -> tuple[str | None, str |
         return None, None
 
     base = dirname[: -len(suffix)]
+
+    # Strip optional Python version tag (e.g., -py3.9, -py3.12, -py3.9.1)
+    base = re.sub(r"-py\d+\.\d+(\.\d+)?$", "", base)
+
     if "-" not in base:
         return base, None
 

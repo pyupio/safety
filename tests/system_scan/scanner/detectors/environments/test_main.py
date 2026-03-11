@@ -202,7 +202,10 @@ class TestPythonEnvironmentDetector:
         self, environment_detector: PythonEnvironmentDetector, mock_context: Mock
     ) -> None:
         """
-        Test detect with irrelevant hint.
+        Test detect with irrelevant hint produces no detections.
+
+        Base/user environment detection is now handled by BaseUserEnvDetector
+        cascaded from PythonRuntimeDetector, so irrelevant hints are simply ignored.
         """
         candidate = Candidate(
             path=Path("/project"),

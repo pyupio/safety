@@ -25,6 +25,7 @@ from .detectors import (
     PythonDependencyDetector,
     ToolDetector,
 )
+from .detectors.environments.base_user import BaseUserEnvDetector
 
 from .pipeline import run_pipeline
 
@@ -76,7 +77,12 @@ class SystemScanner:
         dependency_detector = PythonDependencyDetector()
         tool_detector = ToolDetector()
 
-        runtime_detector = PythonRuntimeDetector()
+        base_user_env_detector = BaseUserEnvDetector(
+            dependency_detector=dependency_detector,
+        )
+        runtime_detector = PythonRuntimeDetector(
+            base_user_env_detector=base_user_env_detector,
+        )
         env_detector = PythonEnvironmentDetector(
             dependency_detector=dependency_detector,
             tool_detector=tool_detector,

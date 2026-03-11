@@ -32,12 +32,14 @@ if TYPE_CHECKING:
     from ..dependencies.main import PythonDependencyDetector
     from ..tools.main import ToolDetector
     from ..runtimes.main import PythonRuntimeDetector
-    from ...context import DetectContext
 
 
 class PythonEnvironmentDetector:
     """
-    Detects Python environments (venv, base, user).
+    Detects Python virtual environments (venv).
+
+    Base and user environments are detected by BaseUserEnvDetector,
+    which is cascaded from PythonRuntimeDetector.
     """
 
     def __init__(

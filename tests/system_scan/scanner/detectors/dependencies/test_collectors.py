@@ -22,88 +22,45 @@ class TestParseDistInfoDirname:
     Test parse_dist_info_dirname function.
     """
 
-    def test_parse_valid_dist_info_with_version(self) -> None:
-        """
-        Test parsing valid dist-info directory with version.
-        """
-        name, version = parse_dist_info_dirname(
-            "requests-2.31.0.dist-info", ".dist-info"
-        )
-
-        assert name == "requests"
-        assert version == "2.31.0"
-
-    def test_parse_valid_dist_info_name_only(self) -> None:
-        """
-        Test parsing dist-info directory with name only.
-        """
-        name, version = parse_dist_info_dirname("mypackage.dist-info", ".dist-info")
-
-        assert name == "mypackage"
-        assert version is None
-
-    def test_parse_dist_info_with_hyphens_in_name(self) -> None:
-        """
-        Test parsing dist-info with hyphens in package name.
-        """
-        name, version = parse_dist_info_dirname(
-            "package-with-hyphens-1.0.0.dist-info", ".dist-info"
-        )
-
-        assert name == "package-with-hyphens"
-        assert version == "1.0.0"
-
-    def test_parse_dist_info_invalid_version_format(self) -> None:
-        """
-        Test parsing dist-info with invalid version format.
-        """
-        name, version = parse_dist_info_dirname(
-            "package-invalidversion.dist-info", ".dist-info"
-        )
-
-        assert name == "package-invalidversion"
-        assert version is None
-
-    def test_parse_dist_info_wrong_suffix(self) -> None:
-        """
-        Test parsing with wrong suffix.
-        """
-        name, version = parse_dist_info_dirname(
-            "requests-2.31.0.egg-info", ".dist-info"
-        )
-
-        assert name is None
-        assert version is None
-
-    def test_parse_dist_info_complex_version(self) -> None:
-        """
-        Test parsing with complex version numbers.
-        """
-        name, version = parse_dist_info_dirname(
-            "numpy-1.24.0rc1.dist-info", ".dist-info"
-        )
-
-        assert name == "numpy"
-        assert version == "1.24.0rc1"
-
-    def test_parse_dist_info_empty_string(self) -> None:
-        """
-        Test parsing empty string.
-        """
-        name, version = parse_dist_info_dirname("", ".dist-info")
-
-        assert name is None
-        assert version is None
-
-    def test_parse_dist_info_edge_case_split_failure(self) -> None:
-        """
-        Test parsing edge case where split fails unexpectedly.
-        """
-        # This tests the fallback return for unexpected parse results
-        name, version = parse_dist_info_dirname("package-.dist-info", ".dist-info")
-
-        assert name == "package-"
-        assert version is None
+    @pytest.mark.parametrize(
+        "dirname, expected",
+        [
+            pytest.param(
+                "requests-2.31.0.dist-info",
+                ("requests", "2.31.0"),
+                id="valid_with_version",
+            ),
+            pytest.param("mypackage.dist-info", ("mypackage", None), id="name_only"),
+            pytest.param(
+                "package-with-hyphens-1.0.0.dist-info",
+                ("package-with-hyphens", "1.0.0"),
+                id="hyphens_in_name",
+            ),
+            pytest.param(
+                "package-invalidversion.dist-info",
+                ("package-invalidversion", None),
+                id="invalid_version_format",
+            ),
+            pytest.param("requests-2.31.0.egg-info", (None, None), id="wrong_suffix"),
+            pytest.param(
+                "Django-4.1.0.dist-info", ("Django", "4.1.0"), id="case_preservation"
+            ),
+            pytest.param(
+                "numpy-1.24.0rc1.dist-info",
+                ("numpy", "1.24.0rc1"),
+                id="complex_version",
+            ),
+            pytest.param("", (None, None), id="empty_string"),
+            pytest.param(
+                "package-.dist-info", ("package-", None), id="trailing_hyphen"
+            ),
+        ],
+    )
+    def test_parse_dist_info_dirname(
+        self, dirname: str, expected: tuple[str | None, str | None]
+    ) -> None:
+        result = parse_dist_info_dirname(dirname, ".dist-info")
+        assert result == expected
 
 
 @pytest.mark.unit
@@ -112,73 +69,90 @@ class TestParseEggInfoDirname:
     Test parse_egg_info_dirname function.
     """
 
-    def test_parse_valid_egg_info_with_version(self) -> None:
-        """
-        Test parsing valid egg-info directory with version.
-        """
-        name, version = parse_egg_info_dirname(
-            "setuptools-65.0.0.egg-info", ".egg-info"
-        )
-
-        assert name == "setuptools"
-        assert version == "65.0.0"
-
-    def test_parse_egg_info_name_only(self) -> None:
-        """
-        Test parsing egg-info directory with name only.
-        """
-        name, version = parse_egg_info_dirname("mypackage.egg-info", ".egg-info")
-
-        assert name == "mypackage"
-        assert version is None
-
-    def test_parse_egg_info_with_hyphens_in_name(self) -> None:
-        """
-        Test parsing egg-info with hyphens in package name.
-        """
-        name, version = parse_egg_info_dirname("my-package-2.0.0.egg-info", ".egg-info")
-
-        assert name == "my-package"
-        assert version == "2.0.0"
-
-    def test_parse_egg_info_invalid_version(self) -> None:
-        """
-        Test parsing egg-info with invalid version.
-        """
-        name, version = parse_egg_info_dirname(
-            "package-notversion.egg-info", ".egg-info"
-        )
-
-        assert name == "package-notversion"
-        assert version is None
-
-    def test_parse_egg_info_wrong_suffix(self) -> None:
-        """
-        Test parsing with wrong suffix.
-        """
-        name, version = parse_egg_info_dirname("package-1.0.0.dist-info", ".egg-info")
-
-        assert name is None
-        assert version is None
-
-    def test_parse_egg_info_edge_case_split_failure(self) -> None:
-        """
-        Test parsing edge case where split returns unexpected results.
-        """
-        # This tests the fallback return for unexpected parse results
-        name, version = parse_egg_info_dirname("package-.egg-info", ".egg-info")
-
-        assert name == "package-"
-        assert version is None
-
-    def test_parse_egg_info_version_starts_with_letter(self) -> None:
-        """
-        Test parsing egg-info where version starts with a letter (not digit).
-        """
-        name, version = parse_egg_info_dirname("package-abc123.egg-info", ".egg-info")
-
-        assert name == "package-abc123"
-        assert version is None
+    @pytest.mark.parametrize(
+        "dirname, expected",
+        [
+            # ── Basic parsing ────────────────────────────────────────
+            pytest.param(
+                "setuptools-65.0.0.egg-info",
+                ("setuptools", "65.0.0"),
+                id="valid_with_version",
+            ),
+            pytest.param("mypackage.egg-info", ("mypackage", None), id="name_only"),
+            pytest.param(
+                "my-package-2.0.0.egg-info",
+                ("my-package", "2.0.0"),
+                id="hyphens_in_name",
+            ),
+            pytest.param(
+                "Django-4.1.0.egg-info", ("Django", "4.1.0"), id="case_preservation"
+            ),
+            pytest.param(
+                "package-notversion.egg-info",
+                ("package-notversion", None),
+                id="invalid_version",
+            ),
+            pytest.param("package-1.0.0.dist-info", (None, None), id="wrong_suffix"),
+            pytest.param("package-.egg-info", ("package-", None), id="trailing_hyphen"),
+            pytest.param(
+                "package-abc123.egg-info",
+                ("package-abc123", None),
+                id="version_starts_with_letter",
+            ),
+            # ── -pyX.Y python version tags ───────────────────────────
+            pytest.param(
+                "cryptography-36.0.1-py3.9.egg-info",
+                ("cryptography", "36.0.1"),
+                id="py_tag",
+            ),
+            pytest.param(
+                "systemd_python-235-py3.9.egg-info",
+                ("systemd_python", "235"),
+                id="py_tag_single_segment_version",
+            ),
+            pytest.param(
+                "ruamel.yaml-0.16.6-py3.9.egg-info",
+                ("ruamel.yaml", "0.16.6"),
+                id="py_tag_dotted_name",
+            ),
+            pytest.param(
+                "package-1.0.0rc1-py3.12.egg-info",
+                ("package", "1.0.0rc1"),
+                id="py_tag_prerelease",
+            ),
+            pytest.param(
+                "package-1.0.0-py3.9.1.egg-info",
+                ("package", "1.0.0"),
+                id="py_tag_xyz_micro",
+            ),
+            pytest.param(
+                "attrs-23.1.0-py3.13.egg-info",
+                ("attrs", "23.1.0"),
+                id="py_tag_two_digit_minor",
+            ),
+            # ── Non-pyX.Y tags → parser falls back to full stem ──────
+            pytest.param(
+                "package-1.0-linux-x86_64.egg-info",
+                ("package-1.0-linux-x86_64", None),
+                id="platform_tag_fallback",
+            ),
+            pytest.param(
+                "package-2.0-cp39.egg-info",
+                ("package-2.0-cp39", None),
+                id="abi_tag_fallback",
+            ),
+            pytest.param(
+                "package-1.0-py3.9-linux-x86_64.egg-info",
+                ("package-1.0-py3.9-linux-x86_64", None),
+                id="py_plus_platform_tag_fallback",
+            ),
+        ],
+    )
+    def test_parse_egg_info_dirname(
+        self, dirname: str, expected: tuple[str | None, str | None]
+    ) -> None:
+        result = parse_egg_info_dirname(dirname, ".egg-info")
+        assert result == expected
 
 
 @pytest.mark.unit

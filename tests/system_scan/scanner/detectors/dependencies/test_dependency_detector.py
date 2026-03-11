@@ -14,35 +14,23 @@ from safety.system_scan.scanner.filesystem import FsRuntime
 @pytest.mark.unit
 class TestPythonDependencyDetector:
     """
-    Test Python dependency detection functionality.
+    Orchestration tests for detect_packages: scandir dispatch and error handling.
     """
 
     @pytest.fixture
     def detector(self) -> PythonDependencyDetector:
-        """
-        Fresh detector instance.
-        """
         return PythonDependencyDetector()
 
     @pytest.fixture
     def mock_fs(self) -> Mock:
-        """
-        Mock filesystem runtime.
-        """
         return Mock(spec=FsRuntime)
 
     @pytest.fixture
     def site_packages_path(self) -> Path:
-        """
-        Mock site-packages path.
-        """
         return Path("/test/env/lib/python3.9/site-packages")
 
     @pytest.fixture
     def env_path(self) -> Path:
-        """
-        Mock environment path.
-        """
         return Path("/test/env")
 
     def test_detect_packages_nonexistent_directory(
@@ -53,7 +41,7 @@ class TestPythonDependencyDetector:
         env_path: Path,
     ) -> None:
         """
-        Test detection handles non-existent site-packages directory.
+        Non-existent site-packages directory yields nothing.
         """
         mock_fs.is_dir.return_value = False
 
@@ -74,7 +62,7 @@ class TestPythonDependencyDetector:
         exception_type: type,
     ) -> None:
         """
-        Test detection handles filesystem errors gracefully.
+        Filesystem errors during scandir are caught gracefully.
         """
         mock_fs.is_dir.return_value = True
 
@@ -99,11 +87,10 @@ class TestPythonDependencyDetector:
         env_path: Path,
     ) -> None:
         """
-        Test detection of packages with dist-info directories.
+        A .dist-info entry dispatches to _process_dist_info and yields a detection.
         """
         mock_fs.is_dir.return_value = True
 
-        # Mock directory entry
         mock_entry = Mock()
         mock_entry.name = "requests-2.28.0.dist-info"
         mock_entry.path = str(site_packages_path / "requests-2.28.0.dist-info")
@@ -112,7 +99,6 @@ class TestPythonDependencyDetector:
         mock_scandir.return_value.__enter__.return_value = [mock_entry]
         mock_scandir.return_value.__exit__.return_value = None
 
-        # Mock dependency info
         mock_dep_info = Mock()
         mock_collect_info.return_value = mock_dep_info
 
@@ -143,11 +129,10 @@ class TestPythonDependencyDetector:
         env_path: Path,
     ) -> None:
         """
-        Test detection of packages with egg-info directories.
+        An .egg-info entry dispatches to _process_egg_info and yields a detection.
         """
         mock_fs.is_dir.return_value = True
 
-        # Mock directory entry
         mock_entry = Mock()
         mock_entry.name = "old_package-1.0.egg-info"
         mock_entry.path = str(site_packages_path / "old_package-1.0.egg-info")
@@ -156,7 +141,6 @@ class TestPythonDependencyDetector:
         mock_scandir.return_value.__enter__.return_value = [mock_entry]
         mock_scandir.return_value.__exit__.return_value = None
 
-        # Mock dependency info
         mock_dep_info = Mock()
         mock_collect_info.return_value = mock_dep_info
 
@@ -170,22 +154,49 @@ class TestPythonDependencyDetector:
         assert detection.subtype == "python"
         assert detection.meta == mock_dep_info
 
-    def test_process_dist_info_with_valid_dirname(
-        self, detector: PythonDependencyDetector, mock_fs: Mock, env_path: Path
+
+@pytest.mark.unit
+class TestProcessDistInfo:
+    """
+    Tests for _process_dist_info: does it take the right branch, read the
+    right file, and pass the correct args to collect_python_dependency_info?
+    """
+
+    @pytest.fixture
+    def detector(self) -> PythonDependencyDetector:
+        return PythonDependencyDetector()
+
+    @pytest.fixture
+    def mock_fs(self) -> Mock:
+        return Mock(spec=FsRuntime)
+
+    @pytest.fixture
+    def env_path(self) -> Path:
+        return Path("/test/env")
+
+    @pytest.fixture
+    def site_packages_path(self) -> Path:
+        return Path("/test/site-packages")
+
+    # ── A: Both name and version come from dirname ───────────────────────
+
+    def test_both_from_dirname(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
     ) -> None:
         """
-        Test processing dist-info with valid directory name.
+        Dirname provides both name and version → METADATA is not read.
         """
         dist_info_path = Path("/test/site-packages/requests-2.28.0.dist-info")
-        site_packages_path = Path("/test/site-packages")
 
-        # Mock collect_python_dependency_info
         mock_dep_info = Mock()
-
         with patch(
             "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
             return_value=mock_dep_info,
-        ):
+        ) as mock_collect:
             detections = list(
                 detector._process_dist_info(
                     dist_info_path, env_path, site_packages_path, mock_fs
@@ -198,17 +209,26 @@ class TestPythonDependencyDetector:
         assert detection.subtype == "python"
         assert detection.meta == mock_dep_info
         assert "requests-2.28.0.dist-info" in detection.primary_path
+        # METADATA should NOT be read when dirname gives both fields
+        mock_fs.read_text.assert_not_called()
+        mock_collect.assert_called_once_with(
+            dist_info_path, "requests", "2.28.0", mock_fs
+        )
 
-    def test_process_dist_info_fallback_to_metadata(
-        self, detector: PythonDependencyDetector, mock_fs: Mock, env_path: Path
+    # ── B: Both name and version come from METADATA ──────────────────────
+
+    def test_both_from_metadata(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
     ) -> None:
         """
-        Test fallback to METADATA file when dirname parsing fails.
+        Dirname parsing fails completely → falls back to METADATA for both fields.
         """
         dist_info_path = Path("/test/site-packages/invalid.dist-info")
-        site_packages_path = Path("/test/site-packages")
 
-        # Mock METADATA content
         metadata_content = "Name: requests\nVersion: 2.28.0\n"
         mock_fs.read_text.return_value = metadata_content
 
@@ -216,7 +236,7 @@ class TestPythonDependencyDetector:
         with patch(
             "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
             return_value=mock_dep_info,
-        ):
+        ) as mock_collect:
             detections = list(
                 detector._process_dist_info(
                     dist_info_path, env_path, site_packages_path, mock_fs
@@ -227,22 +247,100 @@ class TestPythonDependencyDetector:
         mock_fs.read_text.assert_called_once_with(
             dist_info_path / "METADATA", max_bytes=64_000
         )
+        mock_collect.assert_called_once_with(
+            dist_info_path, "requests", "2.28.0", mock_fs
+        )
 
-    def test_process_dist_info_no_name_no_detection(
-        self, detector: PythonDependencyDetector, mock_fs: Mock, env_path: Path
+    # ── C: Name from dirname, version from METADATA ──────────────────────
+
+    def test_name_from_dirname_version_from_metadata(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
     ) -> None:
         """
-        Test that no detection is created when package name cannot be determined.
+        Dirname gives name but no version → METADATA supplies version.
+        """
+        dist_info_path = Path("/test/site-packages/mypackage.dist-info")
+
+        mock_fs.read_text.return_value = "Name: mypackage\nVersion: 3.0.0\n"
+
+        mock_dep_info = Mock()
+        with patch(
+            "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
+            return_value=mock_dep_info,
+        ) as mock_collect:
+            detections = list(
+                detector._process_dist_info(
+                    dist_info_path, env_path, site_packages_path, mock_fs
+                )
+            )
+
+        assert len(detections) == 1
+        mock_fs.read_text.assert_called_once_with(
+            dist_info_path / "METADATA", max_bytes=64_000
+        )
+        mock_collect.assert_called_once_with(
+            dist_info_path, "mypackage", "3.0.0", mock_fs
+        )
+
+    # ── D: Name corrected by METADATA ────────────────────────────────────
+
+    def test_name_corrected_by_metadata(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
+    ) -> None:
+        """
+        Dirname gives a garbled name with no version → METADATA corrects the name.
+
+        parse_dist_info_dirname("garbled-name.dist-info", ...) returns
+        ("garbled-name", None) — name present but no version triggers METADATA read,
+        and METADATA's Name field overrides the dirname-derived name.
+        """
+        dist_info_path = Path("/test/site-packages/garbled-name.dist-info")
+
+        mock_fs.read_text.return_value = "Name: real-package\nVersion: 1.0.0\n"
+
+        mock_dep_info = Mock()
+        with patch(
+            "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
+            return_value=mock_dep_info,
+        ) as mock_collect:
+            detections = list(
+                detector._process_dist_info(
+                    dist_info_path, env_path, site_packages_path, mock_fs
+                )
+            )
+
+        assert len(detections) == 1
+        # METADATA Name should override the dirname-derived name
+        mock_collect.assert_called_once_with(
+            dist_info_path, "real-package", "1.0.0", mock_fs
+        )
+
+    # ── E: No name anywhere ──────────────────────────────────────────────
+
+    def test_no_name_anywhere(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
+    ) -> None:
+        """
+        Neither dirname nor METADATA provide a name → no detection yielded.
         """
         dist_info_path = Path("/test/site-packages/invalid.dist-info")
-        site_packages_path = Path("/test/site-packages")
 
-        # Mock directory parsing to fail and METADATA reading to also fail to provide name
         with patch(
             "safety.system_scan.scanner.detectors.dependencies.main.parse_dist_info_dirname",
             return_value=(None, None),
         ):
-            # Mock METADATA content that doesn't contain Name field
             mock_fs.read_text.return_value = "Summary: Some package\n"
 
             detections = list(
@@ -251,22 +349,82 @@ class TestPythonDependencyDetector:
                 )
             )
 
-            assert detections == []
+        assert detections == []
 
-    def test_process_egg_info_with_valid_dirname(
-        self, detector: PythonDependencyDetector, mock_fs: Mock, env_path: Path
+    # ── F: METADATA file empty ───────────────────────────────────────────
+
+    def test_metadata_file_empty(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
     ) -> None:
         """
-        Test processing egg-info with valid directory name.
+        Dirname parse fails and METADATA is empty → no detection yielded.
+        """
+        dist_info_path = Path("/test/site-packages/invalid.dist-info")
+
+        with patch(
+            "safety.system_scan.scanner.detectors.dependencies.main.parse_dist_info_dirname",
+            return_value=(None, None),
+        ):
+            mock_fs.read_text.return_value = ""
+
+            detections = list(
+                detector._process_dist_info(
+                    dist_info_path, env_path, site_packages_path, mock_fs
+                )
+            )
+
+        assert detections == []
+        mock_fs.read_text.assert_called_once_with(
+            dist_info_path / "METADATA", max_bytes=64_000
+        )
+
+
+@pytest.mark.unit
+class TestProcessEggInfo:
+    """
+    Tests for _process_egg_info: does it take the right branch, read the
+    right file, and pass the correct args to collect_python_dependency_info?
+    """
+
+    @pytest.fixture
+    def detector(self) -> PythonDependencyDetector:
+        return PythonDependencyDetector()
+
+    @pytest.fixture
+    def mock_fs(self) -> Mock:
+        return Mock(spec=FsRuntime)
+
+    @pytest.fixture
+    def env_path(self) -> Path:
+        return Path("/test/env")
+
+    @pytest.fixture
+    def site_packages_path(self) -> Path:
+        return Path("/test/site-packages")
+
+    # ── A: Both name and version come from dirname ───────────────────────
+
+    def test_both_from_dirname(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
+    ) -> None:
+        """
+        Dirname provides both name and version → PKG-INFO is not read.
         """
         egg_info_path = Path("/test/site-packages/requests-2.28.0.egg-info")
-        site_packages_path = Path("/test/site-packages")
 
         mock_dep_info = Mock()
         with patch(
             "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
             return_value=mock_dep_info,
-        ):
+        ) as mock_collect:
             detections = list(
                 detector._process_egg_info(
                     egg_info_path, env_path, site_packages_path, mock_fs
@@ -278,23 +436,30 @@ class TestPythonDependencyDetector:
         assert detection.kind == DetectionKind.DEPENDENCY
         assert detection.subtype == "python"
         assert detection.meta == mock_dep_info
+        # PKG-INFO should NOT be read when dirname gives both fields
+        mock_fs.read_text.assert_not_called()
+        mock_collect.assert_called_once_with(
+            egg_info_path, "requests", "2.28.0", mock_fs
+        )
 
-    def test_process_egg_info_fallback_to_pkg_info(
-        self, detector: PythonDependencyDetector, mock_fs: Mock, env_path: Path
+    # ── B: Both name and version come from PKG-INFO ──────────────────────
+
+    def test_both_from_pkg_info(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
     ) -> None:
         """
-        Test fallback to PKG-INFO file when dirname parsing fails completely.
+        Dirname parsing fails completely → falls back to PKG-INFO for both fields.
         """
-        # Use a path that doesn't end with .egg-info to make dirname parsing return (None, None)
         egg_info_path = Path("/test/site-packages/weird_dir.egg-info")
-        site_packages_path = Path("/test/site-packages")
 
-        # Mock the directory name parsing to fail
         with patch(
             "safety.system_scan.scanner.detectors.dependencies.main.parse_egg_info_dirname",
             return_value=(None, None),
         ):
-            # Mock PKG-INFO content
             pkg_info_content = "Name: requests\nVersion: 2.28.0\n"
             mock_fs.read_text.return_value = pkg_info_content
 
@@ -302,33 +467,110 @@ class TestPythonDependencyDetector:
             with patch(
                 "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
                 return_value=mock_dep_info,
-            ):
+            ) as mock_collect:
                 detections = list(
                     detector._process_egg_info(
                         egg_info_path, env_path, site_packages_path, mock_fs
                     )
                 )
 
-            assert len(detections) == 1
-            mock_fs.read_text.assert_called_once_with(
-                egg_info_path / "PKG-INFO", max_bytes=32_000
-            )
+        assert len(detections) == 1
+        mock_fs.read_text.assert_called_once_with(
+            egg_info_path / "PKG-INFO", max_bytes=32_000
+        )
+        mock_collect.assert_called_once_with(
+            egg_info_path, "requests", "2.28.0", mock_fs
+        )
 
-    def test_process_egg_info_no_name_no_detection(
-        self, detector: PythonDependencyDetector, mock_fs: Mock, env_path: Path
+    # ── C: Name from dirname, version from PKG-INFO ──────────────────────
+
+    def test_name_from_dirname_version_from_pkg_info(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
     ) -> None:
         """
-        Test that no detection is created when package name cannot be determined from egg-info.
+        Dirname gives name but no version → PKG-INFO supplies version.
+        """
+        egg_info_path = Path("/test/site-packages/mypackage.egg-info")
+
+        mock_fs.read_text.return_value = "Name: mypackage\nVersion: 2.0.0\n"
+
+        mock_dep_info = Mock()
+        with patch(
+            "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
+            return_value=mock_dep_info,
+        ) as mock_collect:
+            detections = list(
+                detector._process_egg_info(
+                    egg_info_path, env_path, site_packages_path, mock_fs
+                )
+            )
+
+        assert len(detections) == 1
+        mock_fs.read_text.assert_called_once_with(
+            egg_info_path / "PKG-INFO", max_bytes=32_000
+        )
+        mock_collect.assert_called_once_with(
+            egg_info_path, "mypackage", "2.0.0", mock_fs
+        )
+
+    # ── D: Name corrected by PKG-INFO ────────────────────────────────────
+
+    def test_name_corrected_by_pkg_info(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
+    ) -> None:
+        """
+        Dirname with platform tag gives wrong name → PKG-INFO corrects it.
+
+        "package-1.0-linux-x86_64.egg-info" → parse_egg_info_dirname returns
+        ("package-1.0-linux-x86_64", None). Since version is None, PKG-INFO
+        is read. PKG-INFO's Name overrides the garbled dirname-derived name.
+        No parser mock needed — the real parser returns the expected fallback.
+        """
+        egg_info_path = Path("/test/site-packages/package-1.0-linux-x86_64.egg-info")
+
+        mock_fs.read_text.return_value = "Name: package\nVersion: 1.0\n"
+
+        mock_dep_info = Mock()
+        with patch(
+            "safety.system_scan.scanner.detectors.dependencies.main.collect_python_dependency_info",
+            return_value=mock_dep_info,
+        ) as mock_collect:
+            detections = list(
+                detector._process_egg_info(
+                    egg_info_path, env_path, site_packages_path, mock_fs
+                )
+            )
+
+        assert len(detections) == 1
+        # PKG-INFO Name should override the dirname-derived name
+        mock_collect.assert_called_once_with(egg_info_path, "package", "1.0", mock_fs)
+
+    # ── E: No name anywhere ──────────────────────────────────────────────
+
+    def test_no_name_anywhere(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
+    ) -> None:
+        """
+        Neither dirname nor PKG-INFO provide a name → no detection yielded.
         """
         egg_info_path = Path("/test/site-packages/invalid.egg-info")
-        site_packages_path = Path("/test/site-packages")
 
-        # Mock directory parsing to fail and PKG-INFO reading to also fail to provide name
         with patch(
             "safety.system_scan.scanner.detectors.dependencies.main.parse_egg_info_dirname",
             return_value=(None, None),
         ):
-            # Mock PKG-INFO content that doesn't contain Name field
             mock_fs.read_text.return_value = "Summary: Some package\n"
 
             detections = list(
@@ -337,112 +579,35 @@ class TestPythonDependencyDetector:
                 )
             )
 
-            assert detections == []
+        assert detections == []
 
+    # ── F: PKG-INFO file empty ───────────────────────────────────────────
 
-@pytest.mark.unit
-class TestCollectorFunctions:
-    """
-    Test utility functions for dependency collection.
-    """
-
-    @pytest.mark.parametrize(
-        "dirname,expected",
-        [
-            ("requests-2.28.0.dist-info", ("requests", "2.28.0")),
-            ("Django-4.1.0.dist-info", ("Django", "4.1.0")),
-            ("setuptools-65.6.3.dist-info", ("setuptools", "65.6.3")),
-            ("invalid-name.dist-info", ("invalid-name", None)),
-            ("no-version.dist-info", ("no-version", None)),
-        ],
-    )
-    def test_parse_dist_info_dirname(
-        self, dirname: str, expected: tuple[str | None, str | None]
+    def test_pkg_info_file_empty(
+        self,
+        detector: PythonDependencyDetector,
+        mock_fs: Mock,
+        env_path: Path,
+        site_packages_path: Path,
     ) -> None:
         """
-        Test parsing package name and version from dist-info dirname.
+        Dirname parse fails and PKG-INFO is empty → no detection yielded.
         """
-        from safety.system_scan.scanner.detectors.dependencies.collectors import (
-            parse_dist_info_dirname,
+        egg_info_path = Path("/test/site-packages/invalid.egg-info")
+
+        with patch(
+            "safety.system_scan.scanner.detectors.dependencies.main.parse_egg_info_dirname",
+            return_value=(None, None),
+        ):
+            mock_fs.read_text.return_value = ""
+
+            detections = list(
+                detector._process_egg_info(
+                    egg_info_path, env_path, site_packages_path, mock_fs
+                )
+            )
+
+        assert detections == []
+        mock_fs.read_text.assert_called_once_with(
+            egg_info_path / "PKG-INFO", max_bytes=32_000
         )
-
-        result = parse_dist_info_dirname(dirname, ".dist-info")
-        assert result == expected
-
-    @pytest.mark.parametrize(
-        "dirname,expected",
-        [
-            ("requests-2.28.0.egg-info", ("requests", "2.28.0")),
-            ("Django-4.1.0.egg-info", ("Django", "4.1.0")),
-            ("invalid-name.egg-info", ("invalid-name", None)),
-        ],
-    )
-    def test_parse_egg_info_dirname(
-        self, dirname: str, expected: tuple[str | None, str | None]
-    ) -> None:
-        """
-        Test parsing package name and version from egg-info dirname.
-        """
-        from safety.system_scan.scanner.detectors.dependencies.collectors import (
-            parse_egg_info_dirname,
-        )
-
-        result = parse_egg_info_dirname(dirname, ".egg-info")
-        assert result == expected
-
-    def test_extract_metadata_field(self) -> None:
-        """
-        Test extracting fields from metadata content.
-        """
-        from safety.system_scan.scanner.detectors.dependencies.collectors import (
-            extract_metadata_field,
-        )
-
-        metadata = "Name: requests\nVersion: 2.28.0\nSummary: HTTP library\nAuthor: Kenneth Reitz\n"
-
-        assert extract_metadata_field(metadata, "Name") == "requests"
-        assert extract_metadata_field(metadata, "Version") == "2.28.0"
-        assert extract_metadata_field(metadata, "Summary") == "HTTP library"
-        assert extract_metadata_field(metadata, "Author") == "Kenneth Reitz"
-        assert extract_metadata_field(metadata, "NonExistent") is None
-
-    def test_extract_metadata_field_multiline_values(self) -> None:
-        """
-        Test extracting metadata field that handles multiline values correctly.
-        """
-        from safety.system_scan.scanner.detectors.dependencies.collectors import (
-            extract_metadata_field,
-        )
-
-        metadata = """Name: requests
-Version: 2.28.0
-Description: A simple HTTP library
-    that supports multiple features
-    including authentication
-Author: Kenneth Reitz
-"""
-
-        assert extract_metadata_field(metadata, "Name") == "requests"
-        # Should only get first line of multiline description
-        description = extract_metadata_field(metadata, "Description")
-        assert description == "A simple HTTP library"
-
-    def test_collect_python_dependency_info(self) -> None:
-        """
-        Test collecting comprehensive dependency information.
-        """
-        from safety.system_scan.scanner.detectors.dependencies.collectors import (
-            collect_python_dependency_info,
-        )
-
-        package_path = Path("/test/requests-2.28.0.dist-info")
-        name = "requests"
-        version = "2.28.0"
-
-        mock_fs = Mock()
-
-        info = collect_python_dependency_info(package_path, name, version, mock_fs)
-
-        assert info.name == name
-        assert info.version == version
-        assert info.canonical_path == str(package_path)

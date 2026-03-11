@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from sys import platform as sys_platform
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -72,9 +71,6 @@ class TestToolDetectorIntegration:
             assert tool.scope in ["system", "user"]
 
     @pytest.mark.unix_only
-    @pytest.mark.skipif(
-        sys_platform not in ["linux", "linux2", "darwin"], reason="Unix-specific test"
-    )
     def test_scan_usr_bin_directory(self, detector: ToolDetector, real_fs: FsRuntime):
         """
         Test scanning /usr/bin directory on Unix systems.
@@ -108,7 +104,6 @@ class TestToolDetectorIntegration:
                 assert result.subtype in ToolDetector.TOOL_PATTERNS.values()
 
     @pytest.mark.darwin
-    @pytest.mark.skipif(sys_platform != "darwin", reason="macOS-specific test")
     def test_scan_homebrew_bin_directory(
         self, detector: ToolDetector, real_fs: FsRuntime
     ):
@@ -170,9 +165,6 @@ class TestToolDetectorIntegration:
                 break
 
     @pytest.mark.unix_only
-    @pytest.mark.skipif(
-        sys_platform not in ["linux", "linux2", "darwin"], reason="Unix-specific tests"
-    )
     def test_is_system_tool_real_paths(self, detector: ToolDetector):
         """
         Test _is_system_tool with real system paths.

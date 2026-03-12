@@ -8,6 +8,12 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.8.0b3 (2026-03-12)
+
+### Feat
+
+- report global/user packages linked (#843)
+
 ## 3.8.0b2 (2026-03-10)
 
 ### Feat

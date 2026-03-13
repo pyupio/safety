@@ -11,7 +11,6 @@
 > [Come and join us at SafetyCLI](https://apply.workable.com/safety/). We are hiring for various roles.
 
 # Table of Contents
-- [Table of Contents](#table-of-contents)
 - [Introduction](#introduction)
 - [Key Features](#key-features)
 - [Getting Started](#getting-started)

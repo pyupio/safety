@@ -16,4 +16,6 @@ def is_pinned_requirement(spec: SpecifierSet) -> bool:
 
     specifier = next(iter(spec))
 
-    return (specifier.operator == '==' and '*' != specifier.version[-1]) or specifier.operator == '==='
+    return (
+        specifier.operator == "==" and "*" != specifier.version[-1]
+    ) or specifier.operator == "==="

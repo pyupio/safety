@@ -1,4 +1,5 @@
 """Allow safety to be executable through `python -m safety`."""
+
 from safety.cli import cli
 
 

@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 import logging
 from typing import List, Dict, Tuple, Optional
 
-
 from safety.formatter import FormatterAPI
+from safety.models import Vulnerability
 from safety.formatters.json import build_json_report
-from safety.output_utils import get_report_brief_info, parse_html
-from safety.util import get_basic_announcements
+from safety.output_utils import parse_html
 
 LOG = logging.getLogger(__name__)
 
@@ -15,8 +16,15 @@ class HTMLReport(FormatterAPI):
     HTML report formatter for when the output is input for something else.
     """
 
-    def render_vulnerabilities(self, announcements: List[Dict], vulnerabilities: List[Dict], remediations: Dict,
-                               full: bool, packages: List[Dict], fixes: Tuple = ()) -> Optional[str]:
+    def render_vulnerabilities(
+        self,
+        announcements: List[Dict],
+        vulnerabilities: list[Vulnerability],
+        remediations: Dict,
+        full: bool,
+        packages: List[Dict],
+        fixes: Tuple = (),
+    ) -> Optional[str]:
         """
         Renders vulnerabilities in HTML format.
 
@@ -32,9 +40,12 @@ class HTMLReport(FormatterAPI):
             str: Rendered HTML vulnerabilities report.
         """
         LOG.debug(
-            f'HTML Output, Rendering {len(vulnerabilities)} vulnerabilities, {len(remediations)} package '
-            f'remediations with full_report: {full}')
-        report = build_json_report(announcements, vulnerabilities, remediations, packages)
+            f"HTML Output, Rendering {len(vulnerabilities)} vulnerabilities, {len(remediations)} package "
+            f"remediations with full_report: {full}"
+        )
+        report = build_json_report(
+            announcements, vulnerabilities, remediations, packages
+        )
 
         return parse_html(kwargs={"json_data": report})
 

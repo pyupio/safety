@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List
 
-from safety_schemas.models import Ecosystem, FileType, ConfigModel, DependencyResultModel
+from safety_schemas.models import (
+    Ecosystem,
+    FileType,
+    ConfigModel,
+    DependencyResultModel,
+)
 from typer import FileTextWrite
 
 NOT_IMPLEMENTED = "Not implemented funtion"
@@ -13,17 +17,14 @@ class Inspectable(ABC):
     """
 
     @abstractmethod
-    def inspect(self, config: ConfigModel) -> DependencyResultModel:
+    def inspect(self, config: ConfigModel) -> None:
         """
-        Inspects the object and returns the result of the dependency analysis.
+        Inspects the object and populates the dependency analysis results in-place.
 
         Args:
             config (ConfigModel): The configuration model for inspection.
-
-        Returns:
-            DependencyResultModel: The result of the dependency inspection.
         """
-        return NotImplementedError(NOT_IMPLEMENTED)
+        raise NotImplementedError(NOT_IMPLEMENTED)
 
 
 class Remediable(ABC):
@@ -32,11 +33,11 @@ class Remediable(ABC):
     """
 
     @abstractmethod
-    def remediate(self):
+    def remediate(self) -> None:
         """
         Remediates the object to address any detected issues.
         """
-        return NotImplementedError(NOT_IMPLEMENTED)
+        raise NotImplementedError(NOT_IMPLEMENTED)
 
 
 class InspectableFile(Inspectable):
@@ -54,5 +55,6 @@ class InspectableFile(Inspectable):
         self.file = file
         self.ecosystem: Ecosystem
         self.file_type: FileType
-        self.dependency_results: DependencyResultModel = \
-            DependencyResultModel(dependencies=[])
+        self.dependency_results: DependencyResultModel = DependencyResultModel(
+            dependencies=[]
+        )

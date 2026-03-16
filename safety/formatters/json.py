@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Iterable, List, Dict, Any
 
 from safety.formatter import FormatterAPI
-from safety.models import SafetyEncoder
+from safety.models import SafetyEncoder, Vulnerability
 from safety.output_utils import get_report_brief_info
 from safety.safety import find_vulnerabilities_fixed
 from safety.util import get_basic_announcements, SafetyContext
@@ -16,7 +16,7 @@ LOG = logging.getLogger(__name__)
 
 def build_json_report(
     announcements: List[Dict],
-    vulnerabilities: List[Dict],
+    vulnerabilities: List[Vulnerability],
     remediations: Dict[str, Any],
     packages: List[Any],
 ) -> Dict[str, Any]:
@@ -89,7 +89,7 @@ class JsonReport(FormatterAPI):
     def render_vulnerabilities(
         self,
         announcements: List[Dict],
-        vulnerabilities: List[Dict],
+        vulnerabilities: List[Vulnerability],
         remediations: Dict[str, Any],
         full: bool,
         packages: List[Any],

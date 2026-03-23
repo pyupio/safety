@@ -323,6 +323,9 @@ annotated_tag = true
 changelog_incremental = false
 
 
+[tool.ruff]
+# Anchor ruff config here so it doesn't walk up to root dirs.
+
 [tool.flake8]
 exclude = ["docs"]
 

@@ -16,8 +16,8 @@ CLI_SCAN_COMMAND_HELP = (
     "\nExample: safety scan to scan the current directory"
 )
 CLI_SYSTEM_SCAN_COMMAND_HELP = (
-    "\\[beta] Run a comprehensive scan for packages and vulnerabilities across your entire machine/environment."
-    "\nExample: safety system-scan"
+    "\\[beta] system-scan is part of the Safety commercial product."
+    "\nInstall Safety Client for full system-scan capabilities: https://getsafety.com/"
 )
 
 CLI_CHECK_COMMAND_HELP = (

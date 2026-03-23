@@ -5,11 +5,10 @@ from pathlib import Path
 
 import json
 import sys
-from typing import Any, Dict, List, Optional, Set, Tuple, Callable
+from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from safety.constants import EXIT_CODE_VULNERABILITIES_FOUND, DEFAULT_EPILOG
 from safety.safety import process_fixes_scan
-from safety.scan.finder.handlers import ECOSYSTEM_HANDLER_MAPPING, FileHandler
 from safety.scan.validators import output_callback, save_as_callback
 from safety.util import pluralize
 from ..cli_util import CustomContext, SafetyCLICommand, SafetyCLISubGroup
@@ -17,8 +16,9 @@ from safety.error_handlers import handle_cmd_exception
 from rich.padding import Padding
 import typer
 from safety.auth.constants import SAFETY_PLATFORM_URL
-from safety.cli_util import get_command_for, get_git_branch_name
+from safety.cli_util import get_git_branch_name
 from rich.console import Console
+from safety.console import main_console as console
 
 from safety.decorators import notify
 from safety.errors import SafetyError
@@ -44,11 +44,8 @@ from safety.scan.constants import (
 from safety.scan.decorators import (
     inject_metadata,
     scan_project_command_init,
-    scan_system_command_init,
 )
-from safety.scan.finder.file_finder import should_exclude
-from ..codebase_utils import load_unverified_project_from_config
-from safety.scan.main import load_policy_file, process_files, save_report_as
+from safety.scan.main import process_files, save_report_as
 from safety.scan.models import (
     ScanExport,
     ScanOutput,
@@ -67,7 +64,6 @@ from safety_schemas.models import (
     Ecosystem,
     FileModel,
     FileType,
-    ProjectModel,
     ReportModel,
     ScanType,
     VulnerabilitySeverityLabels,
@@ -1164,8 +1160,6 @@ def scan(
     name=CMD_SYSTEM_NAME,
     epilog=DEFAULT_EPILOG,
 )
-@inject_metadata
-@scan_system_command_init
 @handle_cmd_exception
 @notify
 def system_scan(
@@ -1206,310 +1200,12 @@ def system_scan(
         typer.Option(help=SYSTEM_SCAN_SAVE_AS_HELP, show_default=False),
     ] = (None, None),
 ):
-    """
-    Scans a system (machine) for supply-chain security and configuration issues\n
-    This will search for projects, requirements files and environment variables
-    """
-    if not all(save_as):
-        ctx.params["save_as"] = None
-
-    console = ctx.obj.console
-    version = ctx.obj.schema
-    metadata = ctx.obj.metadata
-    telemetry = ctx.obj.telemetry
-
-    ecosystems = [Ecosystem(member.value) for member in list(ScannableEcosystems)]
-    ecosystems.append(Ecosystem.SAFETY_PROJECT)
-
-    config = ctx.obj.config
-
     console.print(
-        "Searching for Python projects, requirements files and virtual environments across this machine."
+        "\n[bold yellow]system-scan is part of the Safety commercial product.[/bold yellow]\n\n"
+        "To use system-scan, install Safety Client from Safety Platform:\n\n"
+        "  [bold cyan]https://getsafety.com/[/bold cyan]\n"
     )
-    console.print(
-        "If necessary, please grant Safety permission to access folders you want scanned."
-    )
-    console.print()
-
-    with console.status("...", spinner=DEFAULT_SPINNER) as status:
-        handlers: Set[FileHandler] = set(
-            ECOSYSTEM_HANDLER_MAPPING[ecosystem]() for ecosystem in ecosystems
-        )
-        for handler in handlers:
-            if handler.ecosystem:
-                wait_msg = "Fetching Safety's proprietary vulnerability database..."
-                status.update(wait_msg)
-                handler.download_required_assets(ctx.obj.auth)
-
-        file_paths = {}
-        file_finders = []
-        to_include = {
-            file_type: paths
-            for file_type, paths in config.scan.include_files.items()
-            if file_type.ecosystem in ecosystems
-        }
-
-        for target in targets:
-            file_finder = FileFinder(
-                target=target,
-                ecosystems=ecosystems,
-                max_level=config.scan.max_depth,
-                exclude=config.scan.ignore,
-                # console=console,
-                include_files=to_include,
-                live_status=status,
-                handlers=handlers,
-            )
-            file_finders.append(file_finder)
-
-            _, target_paths = file_finder.search()
-
-            for file_type, paths in target_paths.items():
-                current = file_paths.get(file_type, set())
-                current.update(paths)
-                file_paths[file_type] = current
-
-    scan_project_command = get_command_for(
-        name=CMD_PROJECT_NAME, typer_instance=scan_project_app
-    )
-
-    projects_dirs = set()
-    projects: List[ProjectModel] = []
-
-    project_data = {}
-    with console.status(":mag:", spinner=DEFAULT_SPINNER) as status:
-        # Handle projects first
-        if FileType.SAFETY_PROJECT.value in file_paths.keys():
-            projects_file_paths = file_paths[FileType.SAFETY_PROJECT.value]
-            basic_params = ctx.params.copy()
-            basic_params.pop("targets", None)
-
-            prjs_console = Console(quiet=True)
-
-            for project_path in projects_file_paths:
-                projects_dirs.add(project_path.parent)
-                project_dir = str(project_path.parent)
-                try:
-                    project = load_unverified_project_from_config(project_path.parent)
-                    local_policy_file = load_policy_file(
-                        project_path.parent / ".safety-policy.yml"
-                    )
-                except Exception as e:
-                    LOG.exception(
-                        f"Unable to load project from {project_path}. Reason {e}"
-                    )
-                    console.print(
-                        f"{project_dir}: unable to load project found, skipped, use --debug for more details."
-                    )
-                    continue
-
-                if not project or not project.id:
-                    LOG.warning(
-                        f"{project_path} parsed but project id is not defined or valid."
-                    )
-                    continue
-
-                if not ctx.obj.platform_enabled:
-                    msg = f"project found and skipped, navigate to `{project.project_path}` and scan this project with ‘safety scan’"
-                    console.print(f"{project.id}: {msg}")
-                    continue
-
-                msg = f"Existing project found at {project_dir}"
-                console.print(f"{project.id}: {msg}")
-                project_data[project.id] = {
-                    "path": project_dir,
-                    "report_url": None,
-                    "project_url": None,
-                    "failed_exception": None,
-                }
-
-                upload_request_id = None
-                try:
-                    result = ctx.obj.auth.platform.project_scan_request(
-                        project_id=project.id
-                    )
-                    if "scan_upload_request_id" in result:
-                        upload_request_id = result["scan_upload_request_id"]
-                    else:
-                        raise SafetyError(message=str(result))
-                except Exception as e:
-                    project_data[project.id]["failed_exception"] = e
-                    LOG.exception(f"Unable to get a valid scan request id. Reason {e}")
-                    console.print(
-                        Padding(
-                            f":no_entry_sign: Unable to start project scan for {project.id}, reason: {e}",
-                            (0, 0, 0, 1),
-                        ),
-                        emoji=True,
-                    )
-                    continue
-
-                projects.append(
-                    ProjectModel(id=project.id, upload_request_id=upload_request_id)
-                )
-
-                kwargs = {
-                    "target": project_dir,
-                    "output": str(ScanOutput.NONE.value),
-                    "save_as": (None, None),
-                    "upload_request_id": upload_request_id,
-                    "local_policy": local_policy_file,
-                    "console": prjs_console,
-                }
-                try:
-                    # TODO: Refactor to avoid calling invoke, also, launch
-                    # this on background.
-                    console.print(
-                        Padding(
-                            f"Running safety scan for {project.id} project",
-                            (0, 0, 0, 1),
-                        ),
-                        emoji=True,
-                    )
-                    status.update(f":mag: Processing project scan for {project.id}")
-
-                    project_url, report, report_url = ctx.invoke(
-                        scan_project_command, **{**basic_params, **kwargs}
-                    )
-                    project_data[project.id]["project_url"] = project_url
-                    project_data[project.id]["report_url"] = report_url
-
-                except Exception as e:
-                    project_data[project.id]["failed_exception"] = e
-                    console.print(
-                        Padding(
-                            f":cross_mark: Failed project scan for {project.id}, reason: {e}",
-                            (0, 0, 0, 1),
-                        ),
-                        emoji=True,
-                    )
-                    LOG.exception(
-                        f"Failed to run scan on project {project.id}, "
-                        f"Upload request ID: {upload_request_id}. Reason {e}"
-                    )
-
-                console.print()
-
-        file_paths.pop(FileType.SAFETY_PROJECT.value, None)
-
-        files: List[FileModel] = []
-
-        status.update(":mag: Finishing projects processing.")
-
-        for k, f_paths in file_paths.items():
-            file_paths[k] = {
-                fp
-                for fp in f_paths
-                if not should_exclude(excludes=projects_dirs, to_analyze=fp)
-            }
-
-        pkgs_count = 0
-        file_count = 0
-        venv_count = 0
-
-        for path, analyzed_file in process_files(paths=file_paths, config=config):
-            status.update(f":mag: {path}")
-            files.append(
-                FileModel(
-                    location=path,
-                    file_type=analyzed_file.file_type,
-                    results=analyzed_file.dependency_results,
-                )
-            )
-            file_pkg_count = len(analyzed_file.dependency_results.dependencies)
-
-            affected_dependencies = (
-                analyzed_file.dependency_results.get_affected_dependencies()
-            )
-
-            # Per file
-            affected_pkgs_count = 0
-            critical_vulns_count = 0
-            other_vulns_count = 0
-
-            if any(affected_dependencies):
-                affected_pkgs_count = len(affected_dependencies)
-
-                for dep in affected_dependencies:
-                    for spec in dep.specifications:
-                        for vuln in spec.vulnerabilities:
-                            if vuln.ignored:
-                                continue
-                            if (
-                                vuln.CVE
-                                and vuln.CVE.cvssv3
-                                and VulnerabilitySeverityLabels(
-                                    vuln.CVE.cvssv3.get("base_severity", "none").lower()
-                                )
-                                is VulnerabilitySeverityLabels.CRITICAL
-                            ):
-                                critical_vulns_count += 1
-                            else:
-                                other_vulns_count += 1
-
-            msg = pluralize("package", file_pkg_count)
-            if analyzed_file.file_type is FileType.VIRTUAL_ENVIRONMENT:
-                msg = f"installed {msg} found"
-                venv_count += 1
-            else:
-                file_count += 1
-
-            pkgs_count += file_pkg_count
-            console.print(f":package: {file_pkg_count} {msg} in {path}", emoji=True)
-
-            if affected_pkgs_count <= 0:
-                msg = "No vulnerabilities found"
-            else:
-                msg = f"{affected_pkgs_count} vulnerable {pluralize('package', affected_pkgs_count)}"
-                if critical_vulns_count > 0:
-                    msg += f", {critical_vulns_count} critical"
-                if other_vulns_count > 0:
-                    msg += f" and {other_vulns_count} other {pluralize('vulnerability', other_vulns_count)} found"
-
-            console.print(Padding(msg, (0, 0, 0, 1)), emoji=True)
-            console.print()
-
-    report = ReportModel(
-        version=version,
-        metadata=metadata,
-        telemetry=telemetry,
-        files=files,
-        projects=projects,
-    )
-
-    console.print()
-    total_count = sum([finder.file_count for finder in file_finders], 0)
-    console.print(f"Searched {total_count:,} files for dependency security issues")
-    packages_msg = f"{pkgs_count:,} {pluralize('package', pkgs_count)} found across"
-    files_msg = f"{file_count:,} {pluralize('file', file_count)}"
-    venv_msg = f"{venv_count:,} virtual {pluralize('environment', venv_count)}"
-    console.print(
-        f":package: Python files and environments: {packages_msg} {files_msg} and {venv_msg}",
-        emoji=True,
-    )
-    console.print()
-
-    proccessed = dict(
-        filter(
-            lambda item: item[1]["report_url"] and item[1]["project_url"],
-            project_data.items(),
-        )
-    )
-
-    if proccessed:
-        run_word = "runs" if len(proccessed) == 1 else "run"
-        console.print(
-            f"Project {pluralize('scan', len(proccessed))} {run_word} on {len(proccessed)} existing {pluralize('project', len(proccessed))}:"
-        )
-
-        for prj, data in proccessed.items():
-            console.print(f"[bold]{prj}[/bold] at {data['path']}")
-            for detail in [f"{prj} dashboard: {data['project_url']}"]:
-                console.print(
-                    Padding(detail, (0, 0, 0, 1)), emoji=True, overflow="crop"
-                )
-
-    process_report(ctx.obj, console, report, **{**ctx.params})
+    sys.exit(1)
 
 
 def get_vulnerability_summary(report: Dict[str, Any]) -> Tuple[int, int]:

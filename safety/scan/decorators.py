@@ -2,17 +2,15 @@ from functools import wraps
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Optional
 
-from rich.padding import Padding
 from safety_schemas.models import ConfigModel, ProjectModel
 from safety.auth.cli import render_email_note
 from safety.cli_util import process_auth_status_not_ready
 from safety.console import SafeConsole, main_console
-from safety.constants import SYSTEM_POLICY_FILE, USER_POLICY_FILE
 from safety.errors import SafetyException
 from safety.scan.main import download_policy, load_policy_file, resolve_policy
-from safety.scan.models import ScanOutput, SystemScanOutput
+from safety.scan.models import ScanOutput
 from safety.scan.render import (
     print_announcements,
     print_header,
@@ -22,7 +20,7 @@ from safety.scan.util import GIT
 from ..codebase_utils import load_unverified_project_from_config
 
 
-from safety.util import build_telemetry_data, pluralize
+from safety.util import build_telemetry_data
 from safety_schemas.models import (
     MetadataModel,
     ScanType,
@@ -204,115 +202,6 @@ def scan_project_command_init(func):
 
         result = func(ctx, target=target, output=output, *args, **kwargs)
 
-        return result
-
-    return inner
-
-
-def scan_system_command_init(func):
-    """
-    Decorator to make general verifications before each system scan command.
-    """
-
-    @wraps(func)
-    def inner(
-        ctx,
-        policy_file_path: Optional[Path],
-        targets: List[Path],
-        output: SystemScanOutput,
-        console: "SafeConsole" = main_console,
-        *args,
-        **kwargs,
-    ):
-        ctx.obj.console = console
-        ctx.params.pop("console", None)
-
-        if output.is_silent():
-            console.quiet = True
-
-        if not ctx.obj.auth.is_valid():
-            process_auth_status_not_ready(console=console, auth=ctx.obj.auth, ctx=ctx)
-
-        console.print()
-        print_header(console=console, targets=targets, is_system_scan=True)
-
-        if not policy_file_path:
-            if SYSTEM_POLICY_FILE.exists():
-                policy_file_path = SYSTEM_POLICY_FILE
-            elif USER_POLICY_FILE.exists():
-                policy_file_path = USER_POLICY_FILE
-
-        # Load Policy file
-        ctx.obj.system_scan_policy = (
-            load_policy_file(policy_file_path) if policy_file_path else None
-        )
-        config = (
-            ctx.obj.system_scan_policy.config
-            if ctx.obj.system_scan_policy and ctx.obj.system_scan_policy.config
-            else ConfigModel()
-        )
-
-        # Preserve global telemetry preference.
-        if ctx.obj.config:
-            if ctx.obj.config.telemetry_enabled is not None:
-                config.telemetry_enabled = ctx.obj.config.telemetry_enabled
-
-        ctx.obj.config = config
-
-        if not any(targets):
-            if any(config.scan.system_targets):
-                targets = [
-                    Path(t).expanduser().absolute() for t in config.scan.system_targets
-                ]
-            else:
-                targets = [Path("/")]
-
-            ctx.obj.metadata.scan_locations = targets
-
-        console.print()
-
-        if ctx.obj.auth.org and ctx.obj.auth.org.name:
-            console.print(f"[bold]Organization[/bold]: {ctx.obj.auth.org.name}")
-
-        details = {
-            "Account": f"{ctx.obj.auth.name}, {ctx.obj.auth.email}",
-            "Scan stage": ctx.obj.auth.stage,
-        }
-
-        if ctx.obj.system_scan_policy:
-            if ctx.obj.system_scan_policy.source is PolicySource.cloud:
-                policy_type = "remote"
-            else:
-                policy_type = f'local ("{ctx.obj.system_scan_policy.id}")'
-
-            org_name = " "
-            if ctx.obj.auth.org and ctx.obj.auth.org.name:
-                org_name = f" {ctx.obj.auth.org.name} "
-
-            details["System scan policy"] = (
-                f"{policy_type}{org_name}organization policy:"
-            )
-
-        for k, v in details.items():
-            console.print(f"[bold]{k}[/bold]: {v}")
-
-        if ctx.obj.system_scan_policy:
-            dirs = [ign for ign in ctx.obj.config.scan.ignore if Path(ign).is_dir()]
-
-            policy_details = [
-                f"-> scanning from root {', '.join([str(t) for t in targets])} to a max folder depth of {ctx.obj.config.scan.max_depth}",
-                f"-> excluding {len(dirs)} {pluralize('directory', len(dirs))} and their sub-directories",
-                "-> target ecosystems: Python",
-            ]
-            for policy_detail in policy_details:
-                console.print(Padding(policy_detail, (0, 0, 0, 1)), emoji=True)
-
-        print_announcements(console=console, ctx=ctx)
-
-        console.print()
-
-        kwargs.update({"targets": targets})
-        result = func(ctx, *args, **kwargs)
         return result
 
     return inner

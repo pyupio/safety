@@ -103,7 +103,7 @@ class GIT:
             )
         except Exception as e:
             LOG.exception(
-                "Failed to run git command %r: %s", " ".join(self.git + cmd), e
+                "Failed to run git command %r: %s", " ".join(str(p) for p in self.git + cmd), e
             )
 
         return None

@@ -69,10 +69,15 @@ def pytest_collection_modifyitems(config, items):
 
 def pytest_configure(config):
     main_deps_specs = get_project_dependencies()
-    all_dists = {
-        canonicalize_name(dist.metadata["Name"]): (dist.metadata["Name"], dist.version)
-        for dist in distributions()
-    }
+    all_dists = {}
+    for dist in distributions():
+        try:
+            name = dist.metadata.get("Name")
+            if name and isinstance(name, str):
+                all_dists[canonicalize_name(name)] = (name, dist.version)
+        except Exception:
+            # Skip distributions with corrupted metadata
+            continue
 
     # Main dependencies table
     print(f"\n[{len(main_deps_specs)}] Main Dependencies:")

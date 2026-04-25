@@ -16,7 +16,13 @@ from pathlib import Path
 
 import click
 import typer
-import typer.rich_utils
+
+# Conditional import for typer.rich_utils - removed in some typer versions
+try:
+    import typer.rich_utils
+except (ImportError, AttributeError):
+    typer.rich_utils = None
+
 from packaging import version as packaging_version
 from packaging.version import InvalidVersion
 from safety_schemas.config.schemas.v3_0 import main as v3_0
@@ -1211,7 +1217,10 @@ def configure(
 
 
 cli_app = typer.Typer(rich_markup_mode="rich", cls=SafetyCLISubGroup)
-typer.rich_utils.STYLE_HELPTEXT = ""
+
+# Set STYLE_HELPTEXT if rich_utils is available (typer < 0.17 compatibility)
+if hasattr(typer, 'rich_utils') and typer.rich_utils is not None:
+    typer.rich_utils.STYLE_HELPTEXT = ""
 
 
 def print_check_updates_header(console):

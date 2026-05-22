@@ -152,7 +152,14 @@ def status_to_tool_status(status: "FirewallConfigStatus") -> List[ToolStatus]:
 
         if command_path:
             args = [command_path, "--version"]
-            result = subprocess.run(args, capture_output=True, text=True, env=get_env(), encoding="utf-8", errors="replace")
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                env=get_env(),
+                encoding="utf-8",
+                errors="replace",
+            )
 
             if result.returncode == 0:
                 output = result.stdout

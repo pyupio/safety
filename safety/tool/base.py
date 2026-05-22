@@ -195,7 +195,7 @@ class BaseCommand(ABC):
             else:
                 from safety.init.command import init_scan_ui
 
-                init_scan_ui(ctx, prompt_user=True)
+                init_scan_ui(ctx, prompt_user=True)  # pyright: ignore[reportArgumentType]
 
     def __run_silent_scan(self, ctx: typer.Context, target: Path):
         """

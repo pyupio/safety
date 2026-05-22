@@ -340,6 +340,8 @@ class WindowsInterceptor(CommandInterceptor):
                         capture_output=True,
                         text=True,
                         check=False,
+                        encoding="utf-8",
+                        errors="replace"
                     )
                 except FileNotFoundError:
                     logger.info(f"{shell_name} not found, skipping profile setup")
@@ -352,7 +354,7 @@ class WindowsInterceptor(CommandInterceptor):
                     "Get-Variable PROFILE -ValueOnly | Select-Object -ExpandProperty CurrentUserAllHosts",
                 ]
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, check=False
+                    cmd, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace"
                 )
                 result_stdout = result.stdout.strip()
                 if result.returncode == 0 and result_stdout:

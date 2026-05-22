@@ -88,6 +88,8 @@ class TestGetUnwrappedCommand:
             capture_output=True,
             text=True,
             env={"PATH": "C:\\Python39\\Scripts"},
+            encoding="utf-8",
+            errors="replace",
         )
 
     @patch("safety.tool.resolver.get_env")

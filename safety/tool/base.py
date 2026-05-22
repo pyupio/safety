@@ -328,7 +328,14 @@ class BaseCommand(ABC):
         base_cmd = [get_unwrapped_command(name=command[0])]
         args = base_cmd + command[1:]
 
-        result = subprocess.run(args, capture_output=True, env=self.env(ctx), text=True, encoding="utf-8", errors="replace")
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            env=self.env(ctx),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         return self.parse_package_list_output(result.stdout)
 
     def _perform_diff(self, ctx: typer.Context, tool_path: Optional[str] = None):

@@ -30,7 +30,7 @@ def get_unwrapped_command(name: str) -> str:
                 text=True,
                 env=get_env(),
                 encoding="utf-8",
-                errors="replace" # garbage in output should not cause crash, just be skipped
+                errors="replace",  # garbage in output should not cause crash, just be skipped
             )
 
             logger.debug(f"where.exe returncode: {where_result.returncode}")

@@ -29,9 +29,7 @@ class TestGetInstalledPackagesEncoding:
     @pytest.mark.unit
     @patch("safety.tool.base.get_unwrapped_command", return_value="npm")
     @patch("safety.tool.base.subprocess.run")
-    def test_handles_utf8_output_with_smart_quote(
-        self, mock_run, _mock_unwrapped
-    ):
+    def test_handles_utf8_output_with_smart_quote(self, mock_run, _mock_unwrapped):
         """
         UTF-8 stdout containing a smart quote (U+201D) must parse cleanly.
         Reproduces the customer crash on Windows where the default cp1252
@@ -53,9 +51,7 @@ class TestGetInstalledPackagesEncoding:
         cmd = NpmCommand(["install", "resend"])
         result = cmd._get_installed_packages(self.ctx)
 
-        assert result == [
-            {"name": "quick-lru", "version": "5.2.0", "location": "/x"}
-        ]
+        assert result == [{"name": "quick-lru", "version": "5.2.0", "location": "/x"}]
 
     @pytest.mark.unit
     @patch("safety.tool.base.get_unwrapped_command", return_value="npm")

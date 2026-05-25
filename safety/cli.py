@@ -128,7 +128,7 @@ import safety.asyncio_patch  # noqa: F401
 LOG = logging.getLogger(__name__)
 
 
-def preprocess_args(f):
+def debug_proccesing(f):
     if "--debug" in sys.argv:
         index = sys.argv.index("--debug")
         if len(sys.argv) > index + 1:
@@ -178,7 +178,7 @@ def configure_logger(ctx, param, debug):
 @click.option("--debug", is_flag=True, help=CLI_DEBUG_HELP, callback=configure_logger)
 @click.version_option(version=get_version())
 @click.pass_context
-@preprocess_args
+@debug_proccesing
 def cli(ctx, debug, disable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.
@@ -279,7 +279,7 @@ def clean_check_command(f):
 
 
 def print_deprecation_message(
-    old_command: str, deprecation_date: datetime, new_command: Optional[str] = None
+    old_command: str, deprecation_date: datetime, suggested_command: Optional[str] = None
 ) -> None:
     """
     Print a formatted deprecation message for a command.
@@ -297,7 +297,7 @@ def print_deprecation_message(
     Parameters:
     - old_command (str): The name of the deprecated command.
     - deprecation_date (datetime): The date when the command will no longer be supported.
-    - new_command (str, optional): The name of the alternative command to suggest. Default is None.
+    - suggested_command (str, optional): The name of the alternative command to suggest. Default is None.
     """
     click.echo("\n")
     click.echo(click.style(BAR_LINE, fg="yellow", bold=True))
@@ -311,11 +311,11 @@ def print_deprecation_message(
         )
     )
 
-    if new_command:
+    if suggested_command:
         click.echo("\n")
         click.echo(
             click.style("We highly encourage switching to the new ", fg="green")
-            + click.style(f"`{new_command}`", fg="green", bold=True)
+            + click.style(f"`{suggested_command}`", fg="green", bold=True)
             + click.style(
                 " command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.",
                 fg="green",
@@ -559,7 +559,7 @@ def check(
         and not no_prompt
     )
     kwargs = {"version": json_version} if output == "json" else {}
-    print_deprecation_message("check", date(2024, 6, 1), new_command="scan")
+    print_deprecation_message("check", date(2024, 6, 1), suggested_command="scan")
     # try:
     packages = safety_core.get_packages(files, stdin)
 
@@ -701,7 +701,7 @@ def check(
         )
 
         safety_core.save_report(save_html, "safety-report.html", html_report)
-    print_deprecation_message("check", date(2024, 6, 1), new_command="scan")
+    print_deprecation_message("check", date(2024, 6, 1), suggested_command="scan")
     if exit_code and found_vulns:
         LOG.info("Exiting with default code for vulnerabilities found")
         sys.exit(EXIT_CODE_VULNERABILITIES_FOUND)
@@ -764,7 +764,7 @@ def license(ctx, db, output, cache, files):
     """
     Find the open source licenses used by your Python dependencies.
     """
-    print_deprecation_message("license", date(2024, 6, 1), new_command=None)
+    print_deprecation_message("license", date(2024, 6, 1), suggested_command=None)
     LOG.info("Running license command")
     packages = safety_core.get_packages(files, False)
     licenses_db = {}
@@ -793,10 +793,11 @@ def license(ctx, db, output, cache, files):
     )
 
     click.secho(output_report, nl=True)
-    print_deprecation_message("license", date(2024, 6, 1), new_command=None)
+    print_deprecation_message("license", date(2024, 6, 1), suggested_command=None)
 
 
 @cli.command(
+    "generate",
     cls=SafetyCLILegacyCommand,
     context_settings={CONTEXT_COMMAND_TYPE: CommandType.UTILITY},
     help=CLI_GENERATE_HELP,
@@ -811,7 +812,7 @@ def license(ctx, db, output, cache, files):
 @click.pass_context
 @handle_cmd_exception
 @notify
-def generate(ctx, name, path, minimum_cvss_severity):
+def generate_CLI_file(ctx, name, path, minimum_cvss_severity):
     """Create a boilerplate Safety CLI policy file
 
     NAME is the name of the file type to generate. Valid values are: policy_file
@@ -946,6 +947,7 @@ def generate_policy_file(name, path):
 
 
 @cli.command(
+    "validate",
     cls=SafetyCLILegacyCommand,
     context_settings={CONTEXT_COMMAND_TYPE: CommandType.UTILITY},
 )
@@ -959,7 +961,7 @@ def generate_policy_file(name, path):
 @click.pass_context
 @handle_cmd_exception
 @notify
-def validate(ctx, name, version, path):
+def validate_policy_file(ctx, name, version, path):
     """Verify that a local policy file is valid. NAME is the name of the file type to validate. Valid values are: policy_file"""
     if name != "policy_file":
         click.secho(
@@ -983,7 +985,7 @@ def validate(ctx, name, version, path):
         )
         sys.exit(EXIT_CODE_FAILURE)
 
-    def fail_validation(e):
+    def fail_message(e):
         click.secho(str(e).lstrip(), fg="red", file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
 
@@ -1000,7 +1002,7 @@ def validate(ctx, name, version, path):
 
             policy = load_policy_file(Path(path))
         except Exception as e:
-            fail_validation(e)
+            fail_message(e)
 
         click.secho(
             f"The Safety policy ({version}) file "
@@ -1241,10 +1243,6 @@ class Output(str, Enum):
 @notify
 def check_updates(
     ctx: "SafetyCustomContext",
-    version: Annotated[
-        int,
-        typer.Option(min=1),
-    ] = 1,
     output: Annotated[
         Output, typer.Option(help="The main output generated by Safety CLI.")
     ] = Output.SCREEN,
@@ -1271,7 +1269,6 @@ def check_updates(
     with console.status(wait_msg, spinner=DEFAULT_SPINNER):
         try:
             data = ctx.obj.auth.platform.check_updates(
-                version=1,
                 safety_version=VERSION,
                 python_version=PYTHON_VERSION,
                 os_type=OS_TYPE,
@@ -1294,13 +1291,11 @@ def check_updates(
             }
             console.print_json(json.dumps(response))
         else:
-            console.print()
             console.print(
-                "[red]Safety is not authenticated, please first authenticate and try again.[/red]"
+                "\n[red]Safety is not authenticated, please first authenticate and try again.[/red]"
             )
-            console.print()
             console.print(
-                "To authenticate, use the `auth` command: `safety auth login` Or for more help: `safety auth —help`"
+                "\nTo authenticate, use the `auth` command: `safety auth login` Or for more help: `safety auth —help`"
             )
         sys.exit(1)
 
@@ -1316,43 +1311,39 @@ def check_updates(
     current_version = (
         f"Current version: {VERSION} (Python {PYTHON_VERSION} on {OS_TYPE})"
     )
-    latest_available_version = data.get("safety_updates", {}).get("stable_version", "-")
+    latest_stable_version = data.get("safety_updates", {}).get("stable_version", "-")
 
     details = [
         f"Organization: {organization}",
         f"Account: {account}",
         current_version,
-        f"Latest stable available version: {latest_available_version}",
+        f"Latest stable available version: {latest_stable_version}",
     ]
 
     for msg in details:
-        console.print(Padding(msg, (0, 0, 0, 1)), emoji=True)
+        console.print(Padding(msg, (0, 0, 1, 1)), emoji=True)
 
-    console.print()
-
-    if latest_available_version:
+    if latest_stable_version:
         try:
             # Compare the current version and the latest available version using packaging.version
             if packaging_version.parse(
-                latest_available_version
+                latest_stable_version
             ) > packaging_version.parse(VERSION):
                 console.print(
-                    f"Update available: Safety version {latest_available_version}"
+                    f"Update available: Safety version {latest_stable_version}"
                 )
-                console.print()
                 console.print(
-                    f"If Safety was installed from a requirements file, update Safety to version {latest_available_version} in that requirements file."
+                    f"\nIf Safety was installed from a requirements file, update Safety to version {latest_stable_version} in that requirements file."
                 )
-                console.print()
                 console.print(
-                    f"Pip: To install the updated version of Safety directly via pip, run: pip install safety=={latest_available_version}"
+                    f"\nPip: To install the updated version of Safety directly via pip, run: pip install safety=={latest_stable_version}"
                 )
             elif packaging_version.parse(
-                latest_available_version
+                latest_stable_version
             ) < packaging_version.parse(VERSION):
                 # Notify user about downgrading
                 console.print(
-                    f"Latest stable version is {latest_available_version}. If you want to downgrade to this version, you can run: pip install safety=={latest_available_version}"
+                    f"Latest stable version is {latest_stable_version}. If you want to downgrade to this version, you can run: pip install safety=={latest_stable_version}"
                 )
             else:
                 console.print(
@@ -1361,7 +1352,7 @@ def check_updates(
         except InvalidVersion as invalid_version:
             LOG.exception(f"Invalid version format encountered: {invalid_version}")
             console.print(
-                f"Error: Invalid version format encountered for the latest available version: {latest_available_version}"
+                f"Error: Invalid version format encountered for the latest available version: {latest_stable_version}"
             )
             console.print("Please report this issue or try again later.")
 

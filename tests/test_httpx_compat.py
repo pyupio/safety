@@ -72,6 +72,15 @@ def test_httpx_network_error_types_falls_back_to_concrete_errors():
     )
 
 
+def test_httpx_network_error_types_omits_missing_request_error():
+    fake_httpx = SimpleNamespace(
+        TimeoutException=FakeTimeoutException,
+        HTTPStatusError=FakeHTTPStatusError,
+    )
+
+    assert httpx_network_error_types(fake_httpx) == ()
+
+
 def test_httpx_transient_error_types_include_timeout():
     fake_httpx = SimpleNamespace(
         ConnectError=FakeConnectError,
@@ -84,6 +93,15 @@ def test_httpx_transient_error_types_include_timeout():
         FakeConnectError,
         FakeTimeoutException,
     )
+
+
+def test_httpx_transient_error_types_handles_missing_request_error():
+    fake_httpx = SimpleNamespace(
+        TimeoutException=FakeTimeoutException,
+        HTTPStatusError=FakeHTTPStatusError,
+    )
+
+    assert httpx_transient_error_types(fake_httpx) == (FakeTimeoutException,)
 
 
 def test_httpx_retry_error_types_include_http_status_error():

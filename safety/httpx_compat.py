@@ -3,6 +3,14 @@ from typing import Any, Tuple, Type
 import httpx
 
 
+def _httpx_exception_type(
+    httpx_module: Any,
+    name: str,
+) -> Tuple[Type[BaseException], ...]:
+    exception_type = getattr(httpx_module, name, None)
+    return (exception_type,) if exception_type is not None else ()
+
+
 def httpx_network_error_types(
     httpx_module: Any = httpx,
 ) -> Tuple[Type[BaseException], ...]:
@@ -24,16 +32,22 @@ def httpx_network_error_types(
     if transport_error is not None:
         return (transport_error,)
 
-    return (httpx_module.RequestError,)
+    return _httpx_exception_type(httpx_module, "RequestError")
 
 
 def httpx_transient_error_types(
     httpx_module: Any = httpx,
 ) -> Tuple[Type[BaseException], ...]:
-    return (*httpx_network_error_types(httpx_module), httpx_module.TimeoutException)
+    return (
+        *httpx_network_error_types(httpx_module),
+        *_httpx_exception_type(httpx_module, "TimeoutException"),
+    )
 
 
 def httpx_retry_error_types(
     httpx_module: Any = httpx,
 ) -> Tuple[Type[BaseException], ...]:
-    return (*httpx_transient_error_types(httpx_module), httpx_module.HTTPStatusError)
+    return (
+        *httpx_transient_error_types(httpx_module),
+        *_httpx_exception_type(httpx_module, "HTTPStatusError"),
+    )

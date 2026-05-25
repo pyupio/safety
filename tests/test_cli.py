@@ -831,9 +831,9 @@ class TestSafetyCLI(unittest.TestCase):
     def test_debug_flag_with_value_1(self, *args):
         sys.argv = ["safety", "--debug", "1", "scan"]
 
-        from safety.cli import preprocess_args
+        from safety.cli import debug_prossesing
 
-        @preprocess_args
+        @debug_prossesing
         def dummy_function():
             pass
 
@@ -855,9 +855,9 @@ class TestSafetyCLI(unittest.TestCase):
     def test_debug_flag_with_value_true(self, *args):
         sys.argv = ["safety", "--debug", "true", "scan"]
 
-        from safety.cli import preprocess_args
+        from safety.cli import debug_prossesing
 
-        @preprocess_args
+        @debug_prossesing
         def dummy_function():
             pass
 

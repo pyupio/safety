@@ -128,7 +128,7 @@ import safety.asyncio_patch  # noqa: F401
 LOG = logging.getLogger(__name__)
 
 
-def debug_proccesing(f):
+def debug_prossesing(f):
     if "--debug" in sys.argv:
         index = sys.argv.index("--debug")
         if len(sys.argv) > index + 1:
@@ -178,7 +178,7 @@ def configure_logger(ctx, param, debug):
 @click.option("--debug", is_flag=True, help=CLI_DEBUG_HELP, callback=configure_logger)
 @click.version_option(version=get_version())
 @click.pass_context
-@debug_proccesing
+@debug_prossesing
 def cli(ctx, debug, disable_optional_telemetry):
     """
     Scan and secure Python projects against package vulnerabilities. To get started navigate to a Python project and run `safety scan`.

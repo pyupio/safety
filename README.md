@@ -72,7 +72,7 @@ Leveraging the industry's most comprehensive database of vulnerabilities and mal
 - `safety --help`: Access help and display all available commands.
 - `safety auth`: Start authentication flow or display status.
 - `safety scan`: Perform a vulnerability scan in the current directory.
-- `safety system-scan`: Perform a scan across the entire development machine.
+- `safety system-scan`: Discover supply-chain assets on your development machine — AI assistants (e.g. Claude Code, Claude Desktop), dependencies, runtimes, environments, and developer tools. Available as part of the Safety commercial product — see [https://getsafety.com/](https://getsafety.com/).
 - `safety scan --apply-fixes`: Update vulnerable dependencies.
 
 # Service-Level Agreement (SLA)
@@ -91,7 +91,6 @@ Included in the documentation are the following key topics:
 - [Quick Start Guide](https://docs.safetycli.com/safety-docs/safety-cli-3/quick-start-guide)
 - [Installation and Authentication](https://docs.safetycli.com/safety-docs/safety-cli-3/installation-and-authentication)
 - [Scanning for Vulnerable and Malicious Packages](https://docs.safetycli.com/safety-docs/safety-cli-3/scanning-for-vulnerable-and-malicious-packages)
-- [System-Wide Developer Machine Scanning](https://docs.safetycli.com/safety-docs/safety-cli-3/system-wide-developer-machine-scanning)
 - [Viewing Scan Results](https://docs.safetycli.com/safety-docs/safety-cli-3/viewing-scan-results)
 - [Available Commands and Inputs](https://docs.safetycli.com/safety-docs/safety-cli-3/available-commands-and-inputs)
 - [Scanning in CI/CD](https://docs.safetycli.com/safety-docs/safety-cli-3/scanning-in-ci-cd)

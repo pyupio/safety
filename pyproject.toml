@@ -46,7 +46,7 @@ dependencies = [
   "tenacity>=8.1.0",
   "ruamel.yaml>=0.17.21",
   "safety-schemas==0.0.16",
-  "typer>=0.16.0",
+  "typer>=0.16.0,<0.26.0",
   "typing-extensions>=4.7.1",
   "nltk>=3.9",
   "tomli; python_version < '3.11'",
@@ -158,7 +158,7 @@ matrix.targets.dependencies = [
     { value = "pydantic~=2.10.0", if = ["pydantic-2_10"] },
     { value = "pydantic~=2.11.0", if = ["pydantic-2_11"] },
     { value = "pydantic~=2.0b0", if = ["pydantic-latest"] },
-    
+
     { value = "typer==0.16.0", if = ["typer-minimal"] },
     { value = "Click==8.0.2", if = ["typer-minimal"] },
 
@@ -217,7 +217,7 @@ targets = [
 ]
 os_type = [
   "ubuntu-24.04",
-  "ubuntu-24.04-arm", 
+  "ubuntu-24.04-arm",
   "windows-2022",
   "macos-14",
   "macos-15-intel",

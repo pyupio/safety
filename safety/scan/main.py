@@ -141,7 +141,7 @@ def resolve_policy(
 
 
 def save_report_as(
-    scan_type: ScanType, export_type: ScanExport, at: Path, report: Any
+    scan_type: ScanType, export_type: ScanExport, save_path: Path, report: Any
 ) -> None:
     """
     Saves the scan report to the specified location.
@@ -149,17 +149,17 @@ def save_report_as(
     Args:
         scan_type (ScanType): The type of scan.
         export_type (ScanExport): The type of export.
-        at (Path): The path to save the report.
+        save_path (Path): The path to save the report.
         report (Any): The report content.
     """
     tag = int(time.time())
 
-    if at.is_dir():
-        at = at / Path(
+    if save_path.is_dir():
+        save_path = save_path / Path(
             f"{scan_type.value}-{export_type.get_default_file_name(tag=tag)}"
         )
 
-    with open(at, "w+") as report_file:
+    with open(save_path, "w+") as report_file:
         report_file.write(report)
 
 

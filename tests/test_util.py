@@ -3,16 +3,16 @@ import os
 import sys
 import unittest
 from io import StringIO
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import click as click
 
 from safety import util
 from safety.models import SafetyRequirement
 from safety.util import (
-    read_requirements,
-    get_processed_options,
     SafetyPolicyFile,
+    get_processed_options,
+    read_requirements,
     transform_ignore,
 )
 
@@ -136,6 +136,24 @@ class ReadRequirementsTestCase(unittest.TestCase):
         )
 
         self.assertEqual(ignore, cli_ignores)
+
+    @patch.object(
+        click,
+        "get_current_context",
+        Mock(
+            get_parameter_source=Mock(return_value=click.core.ParameterSource.DEFAULT)
+        ),
+    )
+    def test_policy_file_accepts_sfty_vulnerability_ids(self):
+        path_pf = os.path.join(self.dirname, ".policy_with_ignores.yml")
+        policy_file = SafetyPolicyFile().convert(value=path_pf, param=None, ctx=None)
+
+        ignore = policy_file.get("security", {}).get("ignore-vulnerabilities", {})
+        self.assertIn("SFTY-20260218-01424", ignore)
+        self.assertEqual(
+            ignore["SFTY-20260218-01424"]["reason"],
+            "Fixed nltk version 3.9.3 requires Python>=3.10",
+        )
 
     @patch.object(
         click,

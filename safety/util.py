@@ -12,13 +12,12 @@ from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, U
 import click
 from click import BadParameter
 from dparse import filetypes, parse
+from httpx import URL
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version
-from httpx import URL
 from ruamel.yaml import YAML
 from ruamel.yaml.error import MarkedYAMLError
-from safety.meta import get_version
 from safety_schemas.models import TelemetryModel
 
 from safety.constants import (
@@ -28,6 +27,7 @@ from safety.constants import (
 )
 from safety.errors import InvalidProvidedReportError
 from safety.events.event_bus import start_event_bus
+from safety.meta import get_version
 from safety.models import (
     Package,
     RequirementFile,
@@ -35,13 +35,12 @@ from safety.models import (
     is_pinned_requirement,
 )
 
-
 if TYPE_CHECKING:
+    import typer
+
+    from safety.auth.models import Auth
     from safety.cli_util import CustomContext
     from safety.models import SafetyCLI
-    from safety.auth.models import Auth
-
-    import typer
 
 
 LOG = logging.getLogger(__name__)
@@ -1078,14 +1077,22 @@ class SafetyPolicyFile(click.ParamType):
                     expires = ignored_vuln_config.get("expires", "")
                     expires = str(expires) if expires else None
 
+                    vuln_id_str = str(ignored_vuln_id)
+                    is_valid_id = False
+
                     try:
-                        if int(ignored_vuln_id) < 0:
-                            raise ValueError("Negative Vulnerability ID")
+                        is_valid_id = int(vuln_id_str) > 0
                     except ValueError:
+                        pass
+                    if not is_valid_id:
+                        is_valid_id = bool(re.match(r"^SFTY-\d{8}-\d+$", vuln_id_str))
+                    if not is_valid_id:
                         self.fail(
                             msg.format(
-                                hint=f"vulnerability id {ignored_vuln_id} under the 'ignore-vulnerabilities' root needs to "
-                                f"be a positive integer"
+                                hint=(
+                                    f"vulnerability id {ignored_vuln_id} under the 'ignore-vulnerabilities' root needs to "
+                                    + "be a positive integer or a valid SFTY ID (e.g., SFTY-20260218-01424)"
+                                )
                             )
                         )
 
@@ -1468,9 +1475,9 @@ def initialize_event_bus(ctx: Union["CustomContext", "typer.Context"]) -> bool:
                 if event_bus := obj.event_bus:
                     # Trigger here CLI GROUP LOADED event
                     from safety.events.utils import (
-                        create_internal_event,
                         InternalEventType,
                         InternalPayload,
+                        create_internal_event,
                     )
 
                     event = create_internal_event(

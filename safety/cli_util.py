@@ -623,33 +623,38 @@ def process_auth_status_not_ready(
                 login_command = get_command_for(name="login", typer_instance=auth_app)
                 ctx.invoke(login_command)
             else:
-                console.print(MSG_NO_AUTHD_DEV_STG)
-                console.print()
-                choices = ["L", "R", "l", "r"]
-                next_command = Prompt.ask(
-                    MSG_NO_AUTHD_DEV_STG_PROMPT,
-                    default=None,
-                    choices=choices,
-                    show_choices=False,
-                    console=console,
-                )
+                if sys.stdin.isatty():
+                    console.print(MSG_NO_AUTHD_DEV_STG)
+                    console.print()
+                    choices = ["L", "R", "l", "r"]
+                    next_command = Prompt.ask(
+                        MSG_NO_AUTHD_DEV_STG_PROMPT,
+                        default=None,
+                        choices=choices,
+                        show_choices=False,
+                        console=console,
+                    )
 
-                from safety.auth.cli import auth_app
+                    from safety.auth.cli import auth_app
 
-                login_command = get_command_for(name="login", typer_instance=auth_app)
-                register_command = get_command_for(
-                    name="register", typer_instance=auth_app
-                )
-                if next_command is None or next_command.lower() not in choices:
-                    sys.exit(0)
+                    login_command = get_command_for(name="login", typer_instance=auth_app)
+                    register_command = get_command_for(
+                        name="register", typer_instance=auth_app
+                    )
+                    if next_command is None or next_command.lower() not in choices:
+                        sys.exit(0)
 
-                console.print()
-                if next_command.lower() == "r":
-                    ctx.invoke(register_command)
+                    console.print()
+                    if next_command.lower() == "r":
+                        ctx.invoke(register_command)
+                    else:
+                        ctx.invoke(login_command)
+
+                    if not auth.email_verified:
+                        sys.exit(1)
                 else:
-                    ctx.invoke(login_command)
-
-                if not auth.email_verified:
+                    console.print("non_interactble_terminal detected")
+                    console.print("Currently working on solution, sorry for your inconvinience")
                     sys.exit(1)
         else:
             if not auth.org:

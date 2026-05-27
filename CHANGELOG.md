@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - report global/user packages linked (#843)
 
+### Fix
+
+- **fix**: correct typo errors in render.py and insecure_full.json (#574)
+
 ## 3.8.0b2 (2026-03-10)
 
 ### Feat

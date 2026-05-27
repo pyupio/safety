@@ -22,7 +22,7 @@
                 "specs": [
                     "<1.9"
                 ],
-                "advisory": "Some adivsory",
+                "advisory": "Some advisory",
                 "transitive": false,
                 "more_info_path": "/v/42108/97c",
                 "ids": [
@@ -40,7 +40,7 @@
                 "specs": [
                     "<1.9"
                 ],
-                "advisory": "Some other adivsory",
+                "advisory": "Some other advisory",
                 "transitive": false,
                 "more_info_path": "/v/42108/97c",
                 "ids": [

@@ -790,7 +790,7 @@ def create_spdx_document(*, report: ReportModel, spdx_version: str) -> Optional[
 
     packages = create_packages(depedencies)
 
-    # Requirement for document to have atleast one relationship
+    # Requirement for document to have at least one relationship
     relationship = Relationship(
         "SPDXRef-DOCUMENT", RelationshipType.DESCRIBES, "SPDXRef-DOCUMENT"
     )

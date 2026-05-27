@@ -1,10 +1,12 @@
 security:
-    ignore-vulnerabilities:
-        44423:
-            reason: we don't use the vulnerable function
-            expires: '2022-01-21'
-        44741:
-            reason: This is a low severity vuln, we can ignore
-            expires: '2022-02-22 14:00:00'
-        35797:
-        23231:
+  ignore-vulnerabilities:
+    44423:
+      reason: we don't use the vulnerable function
+      expires: "2022-01-21"
+    44741:
+      reason: This is a low severity vuln, we can ignore
+      expires: "2022-02-22 14:00:00"
+    35797:
+    23231:
+    SFTY-20260218-01424:
+      reason: Fixed nltk version 3.9.3 requires Python>=3.10

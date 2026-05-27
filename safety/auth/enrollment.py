@@ -11,6 +11,7 @@ import httpx
 
 from safety.constants import get_required_config_setting
 from safety.errors import EnrollmentTransientFailure
+from safety.httpx_compat import httpx_transient_error_types
 
 if TYPE_CHECKING:
     from safety.platform.client import SafetyPlatformClient
@@ -27,7 +28,7 @@ def call_enrollment_endpoint(
 ) -> dict:
     """Public wrapper — delegates to platform_client.enroll().
 
-    Catches transient network errors (httpx.NetworkError, httpx.TimeoutException)
+    Catches transient network errors and httpx.TimeoutException
     that tenacity re-raises after retry exhaustion and wraps them in
     EnrollmentTransientFailure (exit code 75) so MDM orchestrators can
     distinguish retryable failures from permanent ones.
@@ -60,7 +61,7 @@ def call_enrollment_endpoint(
     # Broader than @retry's types: also wraps ReadError/WriteError/CloseError
     # (transient, but not retried) as exit-code 75 for MDM orchestrators.
     # Excludes ProtocolError / UnsupportedProtocol (non-transient config bugs).
-    except (httpx.NetworkError, httpx.TimeoutException) as exc:
+    except httpx_transient_error_types() as exc:
         raise EnrollmentTransientFailure(
             f"Enrollment failed after retries: {exc}"
         ) from exc

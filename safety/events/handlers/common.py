@@ -16,6 +16,7 @@ from tenacity import (
 )
 import tenacity
 
+from safety.httpx_compat import httpx_retry_error_types
 from safety.meta import get_identifier, get_meta_http_headers, get_version
 
 from ..types import (
@@ -167,9 +168,7 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.1, min=0.2, max=1.0),
-        retry=retry_if_exception_type(
-            (httpx.NetworkError, httpx.TimeoutException, httpx.HTTPStatusError)
-        ),
+        retry=retry_if_exception_type(httpx_retry_error_types()),
         before_sleep=before_sleep_log(logging.getLogger("api_client"), logging.WARNING),
     )
     async def _send_events(

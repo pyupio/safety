@@ -510,7 +510,7 @@ def start_scan(
 
     Args:
         ctx: The Typer context object containing configuration and project information
-        target: The target directory to scan
+        targets_directory: The target directory to scan
         use_server_matching: Whether to use server-side vulnerability matching
 
     Returns:
@@ -526,7 +526,7 @@ def start_scan(
     )
 
     scan_type = ScanType(command_name)
-    targets = [target]
+    targets_directory = [target]
 
     if not scan_type:
         raise SafetyException("Missing scan_type.")
@@ -534,7 +534,7 @@ def start_scan(
     metadata = MetadataModel(
         scan_type=scan_type,
         stage=stage,
-        scan_locations=targets,
+        scan_locations=targets_directory,
         authenticated=is_authenticated,
         authentication_type=auth_type,
         telemetry=telemetry,

@@ -8,6 +8,12 @@ The format is partly based on [Keep a Changelog](https://keepachangelog.com/en/1
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [PEP 440](https://peps.python.org/pep-0440/)
 
 
+## 3.8.1 (2026-05-27)
+
+### Fix
+
+- support SFTY-format vulnerability IDs in policy files (#868)
+
 ## 3.8.0 (2026-05-26)
 
 ## 3.8.0b4 (2026-05-26)

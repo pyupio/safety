@@ -1,0 +1,143 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "[CLI]: Safety CLI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "safety",
+            "args": "${input:mainCommand}",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            // "cwd": "${workspaceFolder}/poetry-test-1/my-project-v4"
+            "env": {
+                "SAFETY_REQUEST_TIMEOUT": "5"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testPath",
+            "type": "pickString",
+            "description": "Choose the test path (selecting 'tests' will run all tests)",
+            // Note: This is a manual list and works for now.
+            "options": [
+                "tests",
+                "tests/alerts",
+                "tests/auth",
+                "tests/scan",
+                "tests/formatters",
+                "tests/test_cli.py",
+                "tests/test_models.py",
+                "tests/test_output_utils.py",
+                "tests/test_safety.py",
+                "tests/test_util.py",
+                "tests/test_policy_file.py",
+                "tests/test_db.py"
+            ],
+            "default": "tests/"
+        },
+        {
+            "id": "environment",
+            "type": "pickString",
+            "description": "Select environment",
+            // Note: This is a manual list and works for now.
+            "options": [
+                "py3.8",
+                "py3.9",
+                "py3.10",
+                "py3.11",
+                "py3.12",
+                "py3.13",
+                "py3.8-pydantic-latest",
+                "py3.8-typer-latest",
+                "py3.13-pydantic-latest",
+                "py3.13-typer-latest",
+            ],
+            "default": "py3.8"
+        },
+        {
+            "id": "mainCommand",
+            "type": "pickString",
+            "description": "Select Safety command with options",
+            "options": [
+                // Auth commands
+                "auth",
+                "auth login",
+                "auth login --headless",
+                "auth logout",
+                "auth status",
+                
+                // Scan commands
+                "scan",
+                "--key $SAFETY_API_KEY scan",
+                "--stage cicd --key $SAFETY_API_KEY scan",
+                "scan --use-server-matching",
+                "scan --detailed-output",
+                "--debug scan",
+                "--disable-optional-telemetry scan",
+                "scan --output json --output-file json",
+                "scan --help",
+
+                // Firewall commands
+                "init --help",
+                "init local_prj", // Directory has to be created manually
+                "init",
+                "pip list",
+                "pip install insecure-package",
+                "pip install --index-url https://pkgs.safetycli.com insecure-package",
+                "pip install --index-url https://pkgs.safetycli.com --requirement requirements.txt",
+                "pip install 'pyyaml>=5.0.0'",
+                "pip install -r requirements.txt",
+                "pip install djanga fest-api==2.2.2",
+                "pip install fastapi",
+                "pip install lodestone",
+                "pip3 install asdadsadsadasdasdasd",
+                "pip3.13 install asdadsadsadasdasdasd",
+                "pip list",
+                "uv sync",
+                "uv sync --frozen --no-install-project --no-group dev --no-group test",
+                "uv pip list",
+                "uv pip install asdadsadsadasdasdasd",
+                "uv pip install insecure-package",
+                "uv pip install --index-url https://pkgs.safetycli.com insecure-package",
+                "uv pip install --index-url https://pkgs.safetycli.com --requirement requirements.txt",
+                "uv pip install 'pyyaml>=5.0.0'",
+                "uv pip install -r requirements.txt",
+                "uv pip install djanga fest-api==0.115.12",
+                "uv pip install fastapi",
+                "uv pip install lodestone",
+                "uv pip uninstall fastapi",
+                "uv tool install ruff",
+                "uv tool list --show-paths --show-version-specifiers",
+                "poetry about",
+                "poetry init",
+                "poetry install",
+                "poetry add pytest requests --dev --optional --group test --extras 'security,http2' --python '>=3.8,<3.11' --dry-run --no-interaction",
+                "poetry add request@2.32.3",
+                "poetry add --source other request@2.32.3",
+                "poetry add 'request@^2.25.0'",
+                "poetry add 'request[extra]@^1.0.0'",
+                "poetry add 'request~1.0.0'",
+                "poetry add 'request^3.2.3'",
+                "poetry add 'request[security]>=2.25.0' numpi 'panda>=1.3.0,!=1.4.1'",
+                "poetry add requests",
+                "poetry add request==3.2.3",
+                "poetry add lodestone",
+                
+                // Check commands
+                "check",
+                "--debug check",
+                
+                // Other commands
+                "license",
+                "--help",
+                "validate --help",
+                "--key foo --help",
+                "configure"
+            ],
+            "default": "scan"
+        }                
+    ]
+}

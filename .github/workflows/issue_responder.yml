@@ -1,0 +1,31 @@
+name: Issue Responder
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  respond:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install GitHub CLI
+        run: sudo apt-get install gh
+
+      - name: Respond to new issues
+        run: gh issue comment ${{ github.event.issue.number }} --body "$BODY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            Hi @${{ github.event.issue.user.login }}, thank you for opening this issue!
+
+            We appreciate your effort in reporting this. Our team will review it and get back to you soon.
+            If you have any additional details or updates, feel free to add them to this issue.
+
+            **Note:** If this is a serious security issue that could impact the security of Safety CLI users, please email security@safetycli.com immediately.
+
+            Thank you for contributing to Safety CLI!

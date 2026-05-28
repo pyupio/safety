@@ -1,0 +1,122 @@
+{
+    "meta": {
+        "advisory": "PyUp.io metadata",
+        "timestamp": 1675459691,
+        "last_updated": "2023-02-03 21:28:11",
+        "base_domain": "https://pyup.io",
+        "schema_version": "2.0.0",
+        "packages": {
+            "numpy": {
+                "secure_versions": [
+                    "1.22.3"
+                ],
+                "insecure_versions": [
+                    "1.22.2",
+                    "1.22.1",
+                    "1.22.0",
+                    "1.22.0rc3",
+                    "1.21.5"
+                ],
+                "latest_version": null,
+                "latest_secure_version": "",
+                "more_info_path": "/p/pypi/numpy/97c/"
+            }
+        },
+        "attribution": "Licensed under CC-BY-4.0 by pyup.io"
+    },
+    "vulnerable_packages": {
+        "numpy": [
+            {
+                "specs": [
+                    ">=1.22.0rc3,<=1.22.0"
+                ],
+                "advisory": null,
+                "transitive": false,
+                "more_info_path": "/v/28/97c",
+                "ids": [
+                    {
+                        "type": "pyup",
+                        "id": "28"
+                    },
+                    {
+                        "type": "cve",
+                        "id": "CVE-2000-20001"
+                    }
+                ],
+                "published_date": "2022-Feb-16",
+                "fixed_versions": [
+                    ""
+                ],
+                "affected_versions": [
+                    "1.22.0rc3",
+                    "1.22.0"
+                ],
+                "vulnerability_resources": [
+                    "https://pyup.io/v/28/eda",
+                    "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2000-20001"
+                ]
+            },
+            {
+                "specs": [
+                    ">=1.21.5,<=1.22.0"
+                ],
+                "advisory": null,
+                "transitive": false,
+                "more_info_path": "/v/29/97c",
+                "ids": [
+                    {
+                        "type": "pyup",
+                        "id": "29"
+                    },
+                    {
+                        "type": "cve",
+                        "id": "CVE-2000-20001"
+                    }
+                ],
+                "published_date": "2022-Feb-16",
+                "fixed_versions": [
+                    ""
+                ],
+                "affected_versions": [
+                    "1.21.5",
+                    "1.22.0rc3",
+                    "1.22.0"
+                ],
+                "vulnerability_resources": [
+                    "https://pyup.io/v/29/eda",
+                    "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2000-20001"
+                ]
+            },
+            {
+                "specs": [
+                    ">=1.22.1,<=1.22.2"
+                ],
+                "advisory": null,
+                "transitive": false,                
+                "more_info_path": "/v/30/97c",
+                "ids": [
+                    {
+                        "type": "pyup",
+                        "id": "30"
+                    },
+                    {
+                        "type": "cve",
+                        "id": "CVE-2000-20001"
+                    }
+                ],
+                "published_date": "2022-Feb-16",
+                "fixed_versions": [
+                    ""
+                ],
+                "affected_versions": [
+                    "1.22.1",
+                    "1.22.2"
+                ],
+                "vulnerability_resources": [
+                    "https://pyup.io/v/30/eda",
+                    "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2000-20001"
+                ]
+            }
+        ]
+    }
+}

@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "advisory": "PyUp.io metadata",
+    "timestamp": 1675459691,
+    "last_updated": "2023-02-03 21:28:11",
+    "base_domain": "https://pyup.io",
+    "schema_version": "2.0.0",
+    "attribution": "Licensed under CC-BY-4.0 by pyup.io"
+  },
+  "vulnerable_packages": {
+    "django": [
+      "<1.9",
+      "<1.8.3"
+    ]
+  }
+}

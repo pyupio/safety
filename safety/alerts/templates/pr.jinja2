@@ -1,0 +1,47 @@
+Vulnerability fix: This PR updates [{{ pkg }}]({{ remediation['more_info_url'] }}) from **{% if remediation['version'] %}{{ remediation['version'] }}{% else %}{{ remediation['requirement']['specifier'] }}{% endif %}** to **{{ remediation['recommended_version'] }}** to fix {{ vulns | length }} vulnerabilit{{ "y" if vulns|length == 1 else "ies" }}{% if overall_impact %}{{ " rated " + overall_impact if vulns|length == 1 else " with the highest CVSS severity rating being " + overall_impact }}{% endif %}.
+
+To read more about the impact of {{ "this vulnerability" if vulns|length == 1 else "these vulnerabilities" }} see [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}).
+
+{{ hint }}
+
+<details>
+  <summary>Vulnerabilities Fixed</summary>
+{% for vuln in vulns %}
+   * {{ vuln.advisory }}
+{% if vuln.severity and vuln.severity.cvssv3 and vuln.severity.cvssv3.base_severity %}
+       * This vulnerability was rated {{ vuln.severity.cvssv3.base_severity }} ({{ vuln.severity.cvssv3.base_score }}) on CVSSv3.
+{% endif %}
+       * To read more about this vulnerability, see PyUp’s [vulnerability page]({{ vuln.more_info_url }})
+{% endfor %}
+</details>
+
+<details>
+  <summary>Changelog</summary>
+{% if summary_changelog %}
+The full changelog is too long to post here. See [PyUp’s {{ pkg }} page]({{ remediation['more_info_url'] }}) for more information.
+{% else %}
+{% for version, log in changelog.items() %}
+### {{ version }}
+
+   ```
+   {{ log }}
+   ```
+{% endfor %}
+{% endif %}
+</details>
+
+<details>
+  <summary>Ignoring {{ "This Vulnerability" if vulns|length == 1 else "These Vulnerabilities" }}</summary>
+
+If you wish to [ignore this vulnerability](https://docs.pyup.io/docs/safety-20-policy-file), you can add the following to `.safety-policy.yml` in this repo:
+
+```
+security:
+    ignore-vulnerabilities:{% for vuln in vulns %}
+        {{ vuln.vulnerability_id }}:
+            reason: enter a reason as to why you're ignoring this vulnerability
+            expires: 'YYYY-MM-DD' # datetime string - date this ignore will expire
+{% endfor %}
+```
+
+</details>

@@ -1,0 +1,471 @@
+name: Build Package and Binaries
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.12"
+      bump-command:
+        required: false
+        type: string
+        default: ""
+      branch-name:
+        required: false
+        type: string
+        default: ""
+      is-release:
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      package-version:
+        description: "The version of the package that was built"
+        value: ${{ jobs.prepare.outputs.version }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      slug: ${{ steps.slug.outputs.SLUG }}
+      version: ${{ steps.get-version.outputs.version }}
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Hatch
+      run: |
+        python -m pip install --upgrade pip
+        pip install hatch "click<8.3.0" "virtualenv<21"
+
+    - name: Generate SLUG
+      if: inputs.bump-command == 'local-bump'
+      id: slug
+      run: |
+        if [[ -z "${{ inputs.branch-name }}" ]]; then
+          echo "Error: branch-name is required for local-bump command"
+          exit 1
+        fi
+        BRANCH_NAME="${{ inputs.branch-name }}"
+        SLUG=$(echo "$BRANCH_NAME" | iconv -t ascii//TRANSLIT | sed -r 's/[^a-zA-Z0-9]+/./g' | sed -r 's/^.+\|.+$//g' | tr A-Z a-z)
+        echo "SLUG=$SLUG" >> $GITHUB_OUTPUT
+
+    - name: Get version
+      id: get-version
+      run: |
+        VERSION=$(hatch version)
+        if [[ -n "${{ inputs.branch-name }}" ]]; then
+          VERSION_STRING="${VERSION}+${{ steps.slug.outputs.SLUG }}"
+        else
+          VERSION_STRING="${VERSION}"
+        fi
+        echo "version=$VERSION_STRING" >> $GITHUB_OUTPUT
+
+    - name: Generate matrix
+      id: set-matrix
+      run: |
+        matrix=$(python .github/scripts/matrix.py pyproject.toml --only-os-matrix)
+        echo "Generated matrix:"
+        echo "$matrix" | jq '.'
+        echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false
+    
+    runs-on: ${{ matrix.os_type }}
+    environment: ${{ inputs.is-release && 'production' || '' }}
+
+    steps:                
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install Hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch "click<8.3.0" "virtualenv<21"
+
+      - name: Create temporary CI config
+        run: |
+          python .github/scripts/ci_pyproject.py pyproject.toml
+
+      - name: Set environment name
+        id: set_env
+        shell: bash
+        run: |
+          ENV_NAME="test.py${{ matrix.python-version }}${{ matrix.target && format('-{0}', matrix.target) }}${{ matrix.os_type && format('-{0}', matrix.os_type) }}"
+          echo "env_name=$ENV_NAME" >> $GITHUB_OUTPUT
+
+      - name: Run tests
+        run: |
+          hatch run ${{ steps.set_env.outputs.env_name }}:test
+
+      - name: Check if should build
+        id: should_build
+        shell: bash
+        run: |
+          binary=$(uv -q run .github/scripts/should_build.py binary pyproject.toml \
+            --os-type "${{ matrix.os_type }}" \
+            --python-version "${{ matrix.python-version }}" \
+            --target "${{ matrix.target }}")
+
+          package=$(uv -q run .github/scripts/should_build.py package pyproject.toml \
+            --os-type "${{ matrix.os_type }}" \
+            --python-version "${{ matrix.python-version }}" \
+            --rust-target "${{ matrix.rust_target }}")
+
+          echo "binary=$binary" >> $GITHUB_OUTPUT
+          echo "package=$package" >> $GITHUB_OUTPUT
+
+          if [ "$binary" = "true" ] || [ "$package" = "true" ]; then
+            any="true"
+          else
+            any="false"
+          fi
+
+          echo "any=$any" >> $GITHUB_OUTPUT
+
+      - name: Install Rust (for binary builds)
+        if: steps.should_build.outputs.binary == 'true'
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Version bump (PR)
+        if: inputs.branch-name != '' && steps.should_build.outputs.any == 'true'
+        run: |
+          hatch run local-bump "${{ needs.prepare.outputs.version }}"
+
+      - name: Build Python package
+        id: package_build
+        if: steps.should_build.outputs.package == 'true'
+        run: |
+          hatch build --target wheel --target sdist
+
+      - name: Upload package artifact
+        if: steps.should_build.outputs.package == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 2
+
+      - name: Set binary target name
+        if: steps.should_build.outputs.binary == 'true'
+        shell: bash
+        run: |
+          # Set default binary extension
+          if [[ "${{ matrix.os_type }}" == windows* ]]; then
+            BIN_EXT=".exe"
+          else
+            BIN_EXT=""
+          fi
+
+          # Generate target name from os_type for native builds
+          case "${{ matrix.os_type }}" in
+              ubuntu-24.04)
+                TARGET_NAME="x86_64-unknown-linux-gnu"
+                OS_LABEL="linux"
+                ;;
+              ubuntu-24.04-arm)
+                TARGET_NAME="aarch64-unknown-linux-gnu"
+                OS_LABEL="linux"
+                ;;
+              windows-2022)
+                TARGET_NAME="x86_64-pc-windows-msvc"
+                OS_LABEL="windows"
+                ;;
+              macos-15-intel)
+                TARGET_NAME="x86_64-apple-darwin"
+                OS_LABEL="macos"
+                ;;
+              macos-14)
+                TARGET_NAME="aarch64-apple-darwin"
+                OS_LABEL="macos"
+                ;;
+              *)
+                TARGET_NAME="unknown"
+                OS_LABEL="unknown"
+                ;;
+            esac
+
+          if [ -n "${{ matrix.rust_target }}" ] && [ "${{ matrix.rust_target }}" != "null" ]; then
+            TARGET_NAME="${{ matrix.rust_target }}"            
+          fi
+
+          echo "TARGET_NAME=$TARGET_NAME" >> $GITHUB_ENV
+          echo "OS_LABEL=$OS_LABEL" >> $GITHUB_ENV
+          echo "BIN_EXT=$BIN_EXT" >> $GITHUB_ENV
+  
+      - name: Download and prepare Python distributions
+        if: steps.should_build.outputs.binary == 'true' && matrix.needs_cross != true
+        shell: bash
+        run: |          
+          # Download Python distribution
+          bash .github/scripts/download-python-dist.sh "${{ env.TARGET_NAME }}" python-dist
+          
+          # Install dependencies in distribution
+          bash .github/scripts/install-dependencies.sh ${GITHUB_WORKSPACE}/python-dist .
+          
+          # Create bundle for distribution
+          if [[ "${{ matrix.os_type }}" == windows* ]]; then
+            bash .github/scripts/prepare-python-bundle.sh python-dist python-dist.zip
+            echo "PYAPP_DISTRIBUTION_PATH=${GITHUB_WORKSPACE}/python-dist.zip" >> $GITHUB_ENV
+            echo "PYAPP_DISTRIBUTION_PYTHON_PATH=python\python.exe" >> $GITHUB_ENV
+          else
+            bash .github/scripts/prepare-python-bundle.sh python-dist python-dist.tar.gz
+            echo "PYAPP_DISTRIBUTION_PATH=${GITHUB_WORKSPACE}/python-dist.tar.gz" >> $GITHUB_ENV
+            echo "PYAPP_DISTRIBUTION_PYTHON_PATH=python/bin/python" >> $GITHUB_ENV
+          fi
+
+      - name: Build wheel for offline installation
+        id: wheel_for_offline_installation
+        if: steps.should_build.outputs.binary == 'true'
+        shell: bash
+        run: |
+          echo "Building wheel for offline installation"
+          hatch build --target wheel
+          echo "wheel_path=${GITHUB_WORKSPACE}/dist/safety-${{ needs.prepare.outputs.version }}-py3-none-any.whl" >> $GITHUB_OUTPUT
+
+      - name: Build Binary Packages
+        id: binary_build
+        if: steps.should_build.outputs.binary == 'true' && matrix.needs_cross != true
+        shell: bash
+        env:
+          PYAPP_DISTRIBUTION_EMBED: "1"
+          PYAPP_FULL_ISOLATION: "1"
+          PYAPP_PROJECT_NAME: "safety"
+          PYAPP_PROJECT_VERSION: "${{ needs.prepare.outputs.version }}"
+          PYAPP_DISTRIBUTION_PATH: "${{ env.PYAPP_DISTRIBUTION_PATH }}"
+          PYAPP_DISTRIBUTION_PYTHON_PATH: "${{ env.PYAPP_DISTRIBUTION_PYTHON_PATH }}"
+          PYAPP_DISTRIBUTION_PIP_AVAILABLE: "1"
+          PYAPP_SKIP_INSTALL: "1"
+          PYAPP_EXEC_MODULE: "safety"
+          PYAPP_PROJECT_PATH: "${{ steps.wheel_for_offline_installation.outputs.wheel_path }}"
+          PYAPP_EXPOSE_ALL_COMMANDS: "0"
+        run: |
+          echo "Building binary package for ${{ env.TARGET_NAME }}"
+          cargo install pyapp --force --root ${GITHUB_WORKSPACE}/dist/
+          mkdir -p ${GITHUB_WORKSPACE}/dist/binary/
+          mv ${GITHUB_WORKSPACE}/dist/bin/pyapp ${GITHUB_WORKSPACE}/dist/binary/safety-${{ needs.prepare.outputs.version }}${{ env.BIN_EXT }}
+
+      - name: Download, prepare and build (x86_64-unknown-linux-musl)
+        if: steps.should_build.outputs.binary == 'true' && matrix.needs_cross == true && matrix.rust_target == 'x86_64-unknown-linux-musl'
+        shell: bash
+        run: |
+          docker run --rm -v ${GITHUB_WORKSPACE}:/workspace -w /workspace \
+            -e PYAPP_DISTRIBUTION_EMBED="1" \
+            -e PYAPP_FULL_ISOLATION="1" \
+            -e PYAPP_PROJECT_NAME="safety" \
+            -e PYAPP_PROJECT_VERSION="${{ needs.prepare.outputs.version }}" \
+            -e PYAPP_DISTRIBUTION_PATH="/workspace/python-dist.tar.gz" \
+            -e PYAPP_DISTRIBUTION_PYTHON_PATH="python/bin/python" \
+            -e PYAPP_DISTRIBUTION_PIP_AVAILABLE="1" \
+            -e PYAPP_SKIP_INSTALL="1" \
+            -e PYAPP_EXEC_MODULE="safety" \
+            -e PYAPP_PROJECT_PATH="/workspace/dist/safety-${{ needs.prepare.outputs.version }}-py3-none-any.whl" \
+            -e PYAPP_EXPOSE_ALL_COMMANDS="0" \
+            ghcr.io/astral-sh/uv:alpine \
+            sh -c "
+              set -e
+              set -x
+              apk add --no-cache bash curl wget build-base libgcc
+              
+              # Install Rust for building PyApp
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+              export PATH=/root/.cargo/bin:\$PATH
+              rustc --version
+              ls -la /workspace/
+              bash .github/scripts/download-python-dist.sh '${{ env.TARGET_NAME }}' python-dist
+              bash .github/scripts/install-dependencies.sh /workspace/python-dist .
+              bash .github/scripts/prepare-python-bundle.sh python-dist python-dist.tar.gz
+              
+              # Use PyApp
+              mkdir -p /workspace/dist/binary/
+              cargo install pyapp --force --root /workspace/dist/
+              mv /workspace/dist/bin/pyapp /workspace/dist/binary/safety-${{ needs.prepare.outputs.version }}${{ env.BIN_EXT }}
+
+              echo 'Listing binary output:'
+              ls -la /workspace/dist/binary/
+              echo 'Build completed successfully!'
+            "
+
+          echo "PYAPP_DISTRIBUTION_PATH=${GITHUB_WORKSPACE}/python-dist.tar.gz" >> $GITHUB_ENV
+          echo "PYAPP_DISTRIBUTION_PYTHON_PATH=python/bin/python" >> $GITHUB_ENV
+
+      - name: Fix permissions
+        if: steps.should_build.outputs.binary == 'true' && matrix.needs_cross == true && matrix.rust_target == 'x86_64-unknown-linux-musl'
+        run: sudo chown -R $(id -u):$(id -g) dist/
+
+      - name: Rename and set binary outputs
+        if: steps.should_build.outputs.binary == 'true'
+        id: binary_rename
+        shell: bash
+        run: |
+          BINARY_NAME="safety-${{ env.TARGET_NAME }}${{ env.BIN_EXT }}"
+          mv "dist/binary/safety-${{ needs.prepare.outputs.version }}${{ env.BIN_EXT }}" \
+            "dist/binary/${BINARY_NAME}"
+          echo "binary_name=${BINARY_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Smoke Test Binary
+        if: steps.should_build.outputs.binary == 'true' && matrix.needs_cross != true
+        shell: bash
+        run: |
+          bash .github/scripts/smoke_test_binary.sh \
+            "dist/binary/${{ steps.binary_rename.outputs.binary_name }}" \
+            "${{ needs.prepare.outputs.version }}"
+
+      - name: Azure Login (for Windows signing)
+        if: steps.should_build.outputs.binary == 'true' && env.OS_LABEL == 'windows' && inputs.is-release == true
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign Windows Binary
+        if: steps.should_build.outputs.binary == 'true' && env.OS_LABEL == 'windows' && inputs.is-release == true
+        uses: azure/trusted-signing-action@v0.5
+        with:        
+          endpoint: https://eus.codesigning.azure.net/
+          trusted-signing-account-name: safetycodesign
+          certificate-profile-name: safetycodesign
+          files-folder: dist/binary
+          files-folder-filter: exe
+          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: "Safety CLI"
+          description-url: https://getsafety.com/
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+
+      - name: Install cosign
+        if: steps.should_build.outputs.binary == 'true' && env.OS_LABEL == 'linux' && inputs.is-release == true
+        uses: sigstore/cosign-installer@v4.0.0
+
+      - name: Sign Linux Binary
+        if: steps.should_build.outputs.binary == 'true' && env.OS_LABEL == 'linux' && inputs.is-release == true
+        shell: bash
+        run: |
+          cd dist/binary
+          BINARY_NAME="${{ steps.binary_rename.outputs.binary_name }}"
+
+          cosign sign-blob --yes --bundle "${BINARY_NAME}.cosign.bundle" "${BINARY_NAME}"
+
+      - name: Sign and Notarize macOS Binary
+        if: steps.should_build.outputs.binary == 'true' && env.OS_LABEL == 'macos' && inputs.is-release == true
+        shell: bash
+        run: |
+          BINARY_PATH="dist/binary/${{ steps.binary_rename.outputs.binary_name }}"
+
+          echo "🔐 Setting up keychain..."
+          echo "${{ secrets.MACOS_CERT_P12 }}" | base64 -d > cert.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import cert.p12 -k build.keychain -P "${{ secrets.MACOS_CERT_PASSWORD }}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
+
+          echo "✍️  Signing binary..."
+          codesign --force --sign "Developer ID Application: Safety CLI Cybersecurity Inc (A3W9FN72XG)" -i "com.getsafety.cli" --options runtime --timestamp "$BINARY_PATH"
+          codesign --verify --verbose "$BINARY_PATH"
+
+          echo "📦 Creating zip for notarization..."
+          ditto -c -k --keepParent "$BINARY_PATH" safety.zip
+
+          echo "🔑 Setting up API key..."
+          echo "${{ secrets.MACOS_API_KEY }}" | base64 -d > AuthKey.p8
+
+          echo "🚀 Submitting for notarization..."
+          xcrun notarytool submit safety.zip \
+            --key AuthKey.p8 \
+            --key-id "${{ secrets.MACOS_API_KEY_ID }}" \
+            --issuer "${{ secrets.MACOS_API_ISSUER_ID }}" \
+            --wait \
+            --timeout 30m
+
+          echo "🧹 Cleanup..."
+          rm cert.p12 safety.zip AuthKey.p8
+          security delete-keychain build.keychain
+
+          echo "✅ Done!"
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v4
+        if: steps.should_build.outputs.binary == 'true'
+        with:
+          name: ${{ steps.binary_rename.outputs.binary_name }}
+          path: dist/binary/
+          if-no-files-found: error
+
+  post-build:
+    runs-on: ubuntu-24.04
+    needs: [build]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: safety-*
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f SHASUMS256.txt
+          find . -maxdepth 1 -type f ! -name 'SHASUMS256.txt' -printf '%P\0' \
+            | sort -z | xargs -0 sha256sum -- > SHASUMS256.txt
+
+      - name: Install cosign
+        if: inputs.is-release == true
+        uses: sigstore/cosign-installer@v4.0.0
+
+      - name: Sign checksums
+        if: inputs.is-release == true
+        working-directory: artifacts
+        run: |
+          cosign sign-blob --yes --bundle SHASUMS256.txt.cosign.bundle SHASUMS256.txt
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        if: inputs.is-release != true
+        with:
+          name: checksums
+          path: |
+            artifacts/SHASUMS256.txt
+          compression-level: 0
+
+      - name: Upload checksums with signature
+        if: inputs.is-release == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: |
+            artifacts/SHASUMS256.txt
+            artifacts/SHASUMS256.txt.cosign.bundle
+          compression-level: 0

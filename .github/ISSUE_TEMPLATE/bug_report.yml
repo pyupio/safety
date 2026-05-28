@@ -1,0 +1,97 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I agree to the terms within the [Safety Code of Conduct](https://github.com/pyupio/safety/blob/main/CODE_OF_CONDUCT.md).
+          required: true
+        - label: I have searched existing issues to ensure this bug hasn't been reported before.
+          required: true
+
+  - type: textarea
+    id: safety-version
+    attributes:
+      label: Safety version
+      description: Specify the version of Safety you're using.
+      placeholder: e.g., 3.2.5
+    validations:
+      required: true
+
+  - type: textarea
+    id: python-version
+    attributes:
+      label: Python version
+      description: Specify the version of Python you're using.
+      placeholder: e.g., 3.11.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: os
+    attributes:
+      label: Operating System
+      description: Specify the operating system you're using.
+      placeholder: e.g., macOS 13, Windows 10
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug description
+      description: |
+        Describe the bug including:
+        - What you were trying to do
+        - What you expected to happen
+        - What actually happened
+      placeholder: |
+        When I run `safety scan`, I expected it to output rich formatted results, but instead it crashes with a traceback...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide clear steps to reproduce the behavior.
+      placeholder: |
+        1. Run command: `safety scan`
+        2. With these options: `--output report.json`
+        3. Using this requirements file: `requirements.txt`
+        4. See error output
+    validations:
+      required: true
+
+  - type: textarea
+    id: command-output
+    attributes:
+      label: Command and output
+      description: |
+        Paste the command(s) you ran and the full output. If there was a crash, please include the complete traceback.
+        
+        ⚠️ **Important**: Please remove any sensitive information such as:
+        - API keys, tokens, or passwords
+        - File paths that might contain usernames or sensitive directory names
+        - Private package names or internal URLs
+        - Any other personally identifiable or confidential information
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here, including screenshots if applicable.
+    validations:
+      required: false

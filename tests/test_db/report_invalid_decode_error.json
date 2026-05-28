@@ -1,0 +1,89 @@
+{
+    "report_meta": {
+        "scan_target": "environment"
+        "scanned": [
+            "/usr/local/lib/python3.9/site-packages"
+        ],
+        "api_key": true,
+        "packages_found": 50,
+        "timestamp": "2022-04-30 08:16:30",
+        "safety_version": "2.0b1"
+    },
+    "scanned_packages": {
+        "safety": {
+            "name": "safety",
+            "version": "2.0b1",
+            "spec": "==2.0b1"
+        },
+        "click": {
+            "name": "click",
+            "version": "8.0.4",
+            "spec": "==8.0.4"
+        },
+        "insecure-package": {
+            "name": "insecure-package",
+            "version": "0.1.0",
+            "spec": "==0.1.0"
+        }
+    },
+    "affected_packages": {
+        "insecure-package": {
+            "name": "insecure-package",
+            "version": "0.1.0",
+            "spec": "==0.1.0",
+            "found": "/usr/local/lib/python3.9/site-packages",
+            "insecure_versions": [
+                "0.1.0"
+            ],
+            "secure_versions": [],
+            "latest_version_without_known_vulnerabilities": "",
+            "latest_version": "0.1.0",
+            "more_info_url": "https://pyup.io/packages/pypi/insecure-package/"
+        }
+    },
+    "announcements": [],
+    "vulnerabilities": [
+        {
+            "vulnerability_id": "25853",
+            "package_name": "insecure-package",
+            "ignored": false,
+            "ignored_reason": "",
+            "ignored_expires": "",
+            "vulnerable_spec": "<0.2.0",
+            "all_vulnerable_specs": [
+                "<0.2.0"
+            ],
+            "analyzed_version": "0.1.0",
+            "analyzed_requirement": "insecure-package==0.1.0",
+            "advisory": "This is an insecure package with lots of exploitable security vulnerabilities.",
+            "is_transitive": false,
+            "published_date": "2021-Apr-14",
+            "fixed_versions": [
+                ""
+            ],
+            "closest_versions_without_known_vulnerabilities": [],
+            "resources": [
+                "https://pypi.org/project/insecure-package"
+            ],
+            "CVE": {
+                "name": "PVE-2021-25853",
+                "cvssv2": null,
+                "cvssv3": null
+            },
+            "affected_versions": [
+                "0.1.0"
+            ],
+            "more_info_url": "https://pyup.io/vulnerabilities/PVE-2021-25853/25853/"
+        }
+    ],
+    "ignored_vulnerabilities": [],
+    "remediations": {
+        "insecure-package": {
+            "current_version": "0.1.0",
+            "vulnerabilities_found": 1,
+            "recommended_version": null,
+            "other_recommended_versions": [],
+            "more_info_url": "https://pyup.io/packages/pypi/insecure-package/"
+        }
+    }
+}

@@ -1,0 +1,18 @@
+[[package]]
+name = "secure-package"
+version = "0.1.0"
+description = "Secure package, don't use it."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.10"
+content-hash = "a7a19d1b76edc5b4e84dff4e17cf4b3580d5ae3ad27e9f5afaafb7a1aef2c1e4"
+
+[metadata.files]
+secure-package = [
+    {file = "secure_package-0.1.0-py2.py3-none-any.whl", hash = "sha256:35b8b4b1658f0207012877c83b04ef3a64b828e07b125f0ada8117c45a23d171"},
+    {file = "secure_package-0.1.0.tar.gz", hash = "sha256:3d973c0c48835ec3174b6aa0ab5649e67eb80874b3451d572ff2a7feb2b14020"},
+]

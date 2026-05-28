@@ -1,0 +1,106 @@
+name: cd
+
+on:
+  push:
+    tags:
+      # Stable releases (1.2.3)
+      - 'v?[0-9]+.[0-9]+.[0-9]+'
+      # Beta releases (1.2.3b0)
+      - 'v?[0-9]+.[0-9]+.[0-9]+b[0-9]+'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml  
+  
+  build:
+    needs: [ci]
+    uses: ./.github/workflows/reusable-build.yml
+    permissions:
+      id-token: write
+      contents: read
+    secrets: inherit 
+    with:
+      is-release: true
+  
+  release:
+    needs: [ci, build]
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with: 
+          pattern: safety-*
+          path: release/
+          merge-multiple: true
+          
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: release/dist/
+          
+      - name: Download checksums
+        uses: actions/download-artifact@v4
+        with:
+          name: checksums
+          path: release/
+        
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag version: $VERSION"
+          
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)
+          NOTES=$(git log ${PREV_TAG}..HEAD --pretty=format:"* %s (%h)")
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "## What's Changed" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2.0.1
+        with:
+          name: Version ${{ steps.get_version.outputs.version }}
+          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          files: |
+            release/SHASUMS256.txt
+            release/SHASUMS256.txt.cosign.bundle
+            release/dist/*
+            release/safety-*
+          prerelease: ${{ contains(steps.get_version.outputs.version, 'b') }}
+          token: ${{ secrets.SAFETY_BOT_TOKEN }}
+
+  publish:
+    needs: [release]
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/p/safety
+    permissions:
+      id-token: write
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+          
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          verbose: true
+          print-hash: true

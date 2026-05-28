@@ -1,0 +1,59 @@
+{
+    "meta": {
+        "advisory": "PyUp.io metadata",
+        "timestamp": 1675459691,
+        "last_updated": "2023-02-03 21:28:11",
+        "base_domain": "https://pyup.io",
+        "schema_version": "2.0.0",
+        "attribution": "Licensed under CC-BY-4.0 by pyup.io",
+        "packages": {
+            "django": {
+                "secure_versions": ["2.1", "1.9", "2.0"],
+                "insecure_versions": ["1.8"],
+                "latest_version": "2.1",
+                "latest_secure_version": "2.1",
+                "more_info_path": "/p/pypi/django/97c/"
+            }
+        }
+    },
+    "vulnerable_packages": {
+        "django": [
+            {
+                "specs": [
+                    "<1.9"
+                ],
+                "advisory": "Some adivsory",
+                "transitive": false,
+                "more_info_path": "/v/42108/97c",
+                "ids": [
+                    {
+                        "type": "pyup",
+                        "id": "some id"
+                    },
+                    {
+                        "type": "cve",
+                        "id": "some cve"
+                    }
+                ]                
+            },
+            {
+                "specs": [
+                    "<1.9"
+                ],
+                "advisory": "Some other adivsory",
+                "transitive": false,
+                "more_info_path": "/v/42108/97c",
+                "ids": [
+                    {
+                        "type": "pyup",
+                        "id": "some other id"
+                    },
+                    {
+                        "type": "cve",
+                        "id": "some other cve"
+                    }
+                ]                        
+            }
+        ]
+    }
+}

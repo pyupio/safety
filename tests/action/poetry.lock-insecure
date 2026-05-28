@@ -1,0 +1,18 @@
+[[package]]
+name = "insecure-package"
+version = "0.1.0"
+description = "Insecure Package, don't use it"
+category = "main"
+optional = false
+python-versions = "*"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.10"
+content-hash = "27e25e27372dfd4e6e2068573a1e1d6fe00885d4f91a3a363e7ac29b24ebefd3"
+
+[metadata.files]
+insecure-package = [
+    {file = "insecure-package-0.1.0.tar.gz", hash = "sha256:4da7b05a052f19841c1efbd4cc8edea9a78aaaa295360923cb2b052b547b7877"},
+    {file = "insecure_package-0.1.0-py2.py3-none-any.whl", hash = "sha256:4d9485a53c970c892f887e10fd99e97b82848ac9010e79bc715585e1a6a74422"},
+]

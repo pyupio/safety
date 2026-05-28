@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"
+          integrity="sha256-wLz3iY/cO4e6vKZ4zRmo4+9XDpMcgKOvv/zEU3OMlRo=" crossorigin="anonymous">
+    <title>Safety Check Report</title>
+</head>
+<body>
+<div class="container">
+
+    {% if json_data.announcements|length > 0 %}
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card my-3">
+                <div class="card-body">
+                    <h3 class="card-title">Announcements</h3>
+                    <ul class="list-group list-group-flush">
+                        {% for announcement in json_data.announcements %}
+                        {% set color = "#DC3545" if announcement.type == "error" else "#8B4000" if
+                        announcement.type == "warning" else "#6C757D" %}
+                        <li class="list-group-item p-0" style="color: {{ color }}">{{ announcement.message }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <h1 class="text-center mb-3 mt-5">Safety Check Report</h1>
+
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card my-2">
+                <div class="card-body">
+                    <h4 class="card-title mb-3">Scan Summary</h4>
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="card bg-secondary bg-opacity-25 text-black">
+                                <div class="card-body">
+                                    <p class="card-text">Packages Found (<a href="#scanned-packages">details &#8595;</a>)</p>
+                                    <h5 class="card-title fs-3">{{ json_data.scanned_packages|length }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card {{ 'bg-danger' if json_data.vulnerabilities|length > 0 else 'bg-success' }}  bg-opacity-25 text-black">
+                                <div class="card-body">
+                                    <p class="card-text">Vulnerabilities Reported (<a href="#vulnerabilities-found">details &#8595;</a>)</p>
+                                    <h5 class="card-title fs-3">{{ json_data.vulnerabilities|length }}</h5>
+                                    {% if json_data.ignored_vulnerabilities|length > 0 %}
+                                        <p>Found vulnerabilities that were ignored: {{ json_data.ignored_vulnerabilities|length }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% if json_data.report_meta.remediations_recommended > 0 %}
+                            <div class="col-md-4">
+                                <div class="card bg-success bg-opacity-25 text-black">
+                                    <div class="card-body">
+                                        <p class="card-text">Remediations Suggested (<a href="#remediations-suggested">details &#8595;</a>)</p>
+                                        <h5 class="card-title fs-3">{{ json_data.report_meta.remediations_recommended }}</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-3 card bg-secondary bg-opacity-10">
+                        <div class="card-body fs-sm">
+                            <h5 class="mb-2">Meta-data</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="my-1"><span class="fw-bold">Time</span>: {{json_data.report_meta.timestamp}}</p>
+                                    <p class="my-1"><span class="fw-bold">Safety version</span>: {{json_data.report_meta.safety_version}}</p>
+                                    <p class="my-1">
+                                        <span class="fw-bold">{{json_data.report_meta.using_sentence}}</span>
+                                        {% if not json_data.report_meta.api_key %}
+                                            &nbsp; <a href="#use-api-key">Use an API key</a>
+                                        {% endif %}
+                                    </p>
+                                    <p class="my-1">
+                                        <span class="fw-bold">Configuration file: </span>
+                                        {% if json_data.report_meta.policy_file %}
+                                            {{ json_data.report_meta.policy_file }} (source: {{json_data.report_meta.policy_file_source}} )
+                                        {% else %}
+                                            None
+                                        {% endif%}
+                                    </p>
+                                    {% if json_data.report_meta.audit_and_monitor %}
+                                        <p class="my-1"><span class="fw-bold">Audit and monitor: </span>Enabled. Logging scan results to {{ json_data.report_meta.audit_and_monitor }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="my-1"><span class="fw-bold">Scan target</span>: {{json_data.report_meta.scan_target}}</p>
+                                    <p class="my-1"><span class="fw-bold">Scan paths</span>: <br/>{{json_data.report_meta.scanned}}</p>
+                                    {% if json_data.report_meta.git %}
+                                        {% if not json_data.report_meta.git.error %}
+                                            <p class="my-1"><span class="fw-bold">Scan git context</span></p>
+                                            <p class="my-1"><span class="fw-bold"> &nbsp; origin: </span> {{ json_data.report_meta.git.origin }}</p>
+                                            <p class="my-1"><span class="fw-bold"> &nbsp; branch: </span> {{ json_data.report_meta.git.branch }}</p>
+                                        {% endif %}
+                                    {% endif %}     
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-5">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-12" id="scanned-packages">
+                    <h4 class="mt-2 mb-3 px-2">Scanned Packages [ <a href="#scanned-packages">#</a> ]</h4>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Package name</th>
+                                <th>Found requirements</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for key, value in json_data.scanned_packages.items() %}
+                            <tr>
+                                <td>{{value.name}}</td>
+                                <td>
+                                    <ul>
+                                        {% for req in value.requirements %}
+                                        <li>{{ req }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-5">
+        <div class="card-body">
+
+            <div class="row">
+                <div class="col-12" id="vulnerabilities-found">
+                    <h4 class="mt-2 mb-3 px-2">Vulnerabilities Reported [ <a href="#vulnerabilities-found">#</a> ]</h4>
+                    {% if json_data.vulnerabilities|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Vulnerability ID</th>
+                                <th>Package name</th>
+                                <th>Analyzed requirement</th>
+                                <th>Vulnerable spec</th>
+                                <th>All vulnerable specs</th>
+                                <th>Advisory</th>
+                                <th>Published date</th>
+                                <th>CVE</th>
+                                <th>severity</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for data in json_data.vulnerabilities %}
+                            <tr>
+                                <td><a href="{{ data.more_info_url }}" target="_blank">{{ data.vulnerability_id }}</a></td>
+                                <td>{{data.package_name}}</td>
+                                <td>{{data.analyzed_requirement}}</td>
+                                <td>{{data.vulnerable_spec}}</td>
+                                <td>{{data.all_vulnerable_specs}}</td>
+                                <td>{{data.advisory}}</td>
+                                <td>{{data.published_date}}</td>
+                                <td>{{data.CVE}}</td>
+                                <td>
+                                    {% if not json_data.report_meta.api_key and not data.severity %}
+                                        Use API Key (<a href="#use-api-key">?</a>)
+                                    {% else %}
+                                        {{data.severity}}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="mx-2">
+                        No known security vulnerabilities were found.
+                        {% if not json_data.report_meta.api_key %}
+                            Vulnerabilities may be missing. For comprehensive vulnerability scanning, <a href="#use-api-key">use an API key</a>
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if json_data.ignored_vulnerabilities|length > 0 %}
+            <div class="row">
+                <div class="col-12" id="vulnerabilities-ignored">
+                    <h4 class="mt-2 mb-3 px-2">Vulnerabilities ignored [ <a href="#vulnerabilities-ignored">#</a> ]</h4>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>Vulnerability ID</th>
+                                <th>Package name</th>
+                                <th>Version/Spec</th>
+                                <th>Notes</th>
+                                <th>Expires</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for data in json_data.ignored_vulnerabilities %}
+                            <tr>
+                                <td><a href="{{ data.more_info_url }}" target="_blank">{{ data.vulnerability_id }}</a></td>
+                                <td>{{data.package_name}}</td>
+                                <td>
+                                    {% if data.analyzed_version %}
+                                        {{ data.analyzed_version }}
+                                    {% else %}
+                                        {{ data.analyzed_requirement }}
+                                    {% endif %}
+                                </td>
+                                <td>{{data.ignored_reason|default("-", true)}}</td>
+                                <td>{{data.ignored_expires|default("-", true)}}</td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if json_data.vulnerabilities|length > 0 %}
+                <div class="row">
+                    <div class="col-12" id="affectied-packages">
+                        <h4 class="mt-2 mb-2 px-2">Affected Packages [ <a href="#affectied-packages">#</a> ]</h4>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                <tr>
+                                    <th>Package name</th>
+                                    <th>Version/Requirements</th>
+                                    <th>Location</th>
+                                    <th>Insecure versions</th>
+                                    <th>Latest version without known vulnerabilities</th>
+                                    <th>More info</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for key, value in json_data.affected_packages.items() %}
+                                <tr>
+                                    <td>{{value.name}}</td>
+                                    <td>
+                                        {% if value.version %}
+                                            {{ value.version }}
+                                        {% else %}
+                                        <ul>
+                                            {% for req in value.requirements %}
+                                            <li>{{ req }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% endif %}
+                                    </td>
+                                    <td style="max-width: 150px;">
+                                        <ul class="ps-3">
+                                            {% for req in value.requirements %}
+                                                <li style="word-wrap: break-word;">{{ req.found }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </td>
+                                    <td>{{value.insecure_versions}}</td>
+                                    <td>{{value.latest_version_without_known_vulnerabilities}}</td>
+                                    <td>
+                                        <a class="btn btn-primary" href="{{value.more_info_url}}" target="_blank">More Info</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    {% if json_data.vulnerabilities|length > 0 %}
+    <div class="card mt-5">
+        <div class="card-body">   
+            <div class="row">
+                <div class="col-12" id="remediations-suggested">
+                    <h4 class="mt-2 mb-3 px-2">Remediations suggested [ <a href="#remediations-suggested">#</a> ]</h4>
+                    {% if json_data.remediations|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                <tr>
+                                    <th>Package name</th>
+                                    <th>Version/Requirement</th>
+                                    <th>Vulnerabilities reported</th>
+                                    <th>Recommended versions</th>
+                                    <th>Other recommended versions</th>
+                                    <th>More info</th>
+                                </tr>
+
+                                </thead>
+                                <tbody>
+                                {% for package, remediation in json_data.remediations.items() %}
+                                    {% for req_rem, value in remediation.requirements.items() %}
+                                    <tr>
+                                        <td>{{ package }}</td>
+                                        <td>
+                                            {% if value.version %}
+                                                {{ value.version }}
+                                            {% else %}
+                                                {{ value.requirement }}
+                                            {% endif %}
+                                        </td>
+                                        <td>{{value.vulnerabilities_found}}</td>
+                                        <td>
+                                            {% if not json_data.report_meta.api_key and not value.recommended_version %}
+                                                Use API Key (<a href="#use-api-key">?</a>)
+                                            {% else %}
+                                                {{value.recommended_version}}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if not json_data.report_meta.api_key and value.other_recommended_versions|length==0 %}
+                                                Use API Key (<a href="#use-api-key">?</a>)
+                                            {% else %}
+                                                {{value.other_recommended_versions}}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if value.more_info_url %}
+                                                <a href="{{ value.more_info_url }}" target="_blank">{{value.more_info_url}}</a>
+                                            {% else %}
+                                                Use API Key (<a href="#use-api-key">?</a>)
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p>Use an API key to get remediation recommendations (<a href="#use-api-key">?</a>)</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not json_data.report_meta.api_key %}
+    <div class="card my-5">
+        <div class="card-body"> 
+            <div class="my-2" id="use-api-key">
+                <p class="mx-3"><span class="fw-bold">Use API Key</span>: Running Safety using an API Key uses a more comprehensive commercial vulnerability database and adds other features such as remediation suggestions and enhanced vulnerability and package information. <a href="https://safetycli.com">Learn more and get a free API Key</a></p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="my-5 text-center text-secondary fst-italic">
+        <p>Safety Scanner and vulnerability data proudly maintained by <a href="https://safetycli.com" target="_blank">Safety Cybersecurity</a></p>
+    </div>
+
+    <div style="height:400px;">
+        &nbsp;
+    </div>
+
+</div>
+</body>
+</html>

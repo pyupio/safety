@@ -1,0 +1,13 @@
+
+security:
+    ignore-cvss-severity-below: 7
+    ignore-cvss-unknown-severity: False
+    ignore-vulnerabilities:
+        44423:
+            reason: we don't use the vulnerable function
+            expires: '2022-01-21'
+        44741:
+            reason: This is a low severity vuln, we can ignore
+            expires: '2022-02-22 14:00:00'
+        35797:
+    continue-on-vulnerability-error: False

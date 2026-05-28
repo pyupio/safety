@@ -1,0 +1,74 @@
+name: 🚀 Feature Request
+description: Suggest an idea or a feature for this project
+labels: ["feature request"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this feature request!
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I agree to the terms within the [Safety Code of Conduct](https://github.com/pyupio/safety/blob/main/CODE_OF_CONDUCT.md).
+          required: true
+
+  - type: textarea
+    id: safety-version
+    attributes:
+      label: Safety version
+      description: Specify the version of Safety you're using (if relevant to the feature request).
+      placeholder: e.g., 3.2.5
+    validations:
+      required: false
+
+  - type: textarea
+    id: python-version
+    attributes:
+      label: Python version
+      description: Specify the version of Python you're using (if relevant to the feature request).
+      placeholder: e.g., 3.11.2
+    validations:
+      required: false
+
+  - type: textarea
+    id: os
+    attributes:
+      label: Operating System
+      description: Specify the operating system you're using (if relevant to the feature request).
+      placeholder: e.g., macOS 13, Windows 10
+    validations:
+      required: false
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature description
+      description: |
+        Describe the feature you'd like to see including:
+        - What problem it would solve or use case it addresses
+        - How you envision it working
+      placeholder: |
+        I'd like Safety to support scanning container images directly. This would help with CI/CD pipelines where we build Docker images and want to scan them for vulnerabilities before deployment...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives-and-workarounds
+    attributes:
+      label: Alternatives and current workarounds
+      description: A clear and concise description of any alternatives you've considered or any workarounds that are currently in place.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context or screenshots about the feature request here.
+    validations:
+      required: false
+

@@ -486,9 +486,9 @@ class TestSafetyCLI(unittest.TestCase):
             )
             self.assertEqual(msg, cleaned_stdout)
 
-    def test_generate_with_unsupported_argument(self):
+    def test_generate_with_unsupported_argument(self): 
         result = self.runner.invoke(self.cli, ["generate", "safety_ci"])
-        msg = 'This Safety version only supports "policy_file" generation. "safety_ci" is not supported.\n'
+        msg = 'This Safety version only supports "policy_file" or "installation_policy" generation. "safety_ci" is not supported.\n'
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 

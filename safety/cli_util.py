@@ -808,6 +808,10 @@ class SafetyCLILegacyGroup(click.Group):
         self.all_commands[name] = cmd
 
     def parse_args(self, ctx: click.Context, args: List[str]) -> List[str]:
+        """
+        Function that normalizes different versions of pip
+        For example: pip, pip3 = pip
+        """
         ctx = cast(CustomContext, ctx)
 
         if len(args) >= 1:
@@ -870,6 +874,7 @@ class SafetyCLILegacyGroup(click.Group):
         return proxy, key
 
     def get_filtered_commands(self, ctx: click.Context) -> Dict[str, click.Command]:
+        """Function that returns filtered commands from constants"""
         from safety.auth.utils import initialize
 
         initialize(ctx, refresh=False)

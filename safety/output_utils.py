@@ -1143,7 +1143,7 @@ def build_scanned_count_sentence(packages: List[Package]) -> List[Dict[str, Any]
 
 def add_warnings_if_needed(brief_info: List[List[Dict[str, Any]]]):
     """
-    Add warnings to the brief info if needed.
+    Add warnings to the brief info if couldn't filter severity data.
 
     Args:
         brief_info (List[List[Dict[str, Any]]]): Brief info details.

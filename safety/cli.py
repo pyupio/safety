@@ -203,6 +203,12 @@ def cli(ctx, debug, disable_optional_telemetry):
 def clean_check_command(f):
     """
     Main entry point for validation.
+
+    This decorator wraps the legacy ``check`` command to handle:
+      - Authentication validation (--apply-security-updates requires auth)
+      - Policy file loading for auto-remediation limits
+      - Mutually exclusive option validation (--json-version)
+      - Legacy key/proxy argument cleanup
     """
 
     @wraps(f)
@@ -548,6 +554,7 @@ def check(
     """
     LOG.info("Running check command")
 
+    # Determine if we're in non-interactive mode (CI/CD, pipe, etc.)
     non_interactive = (
         not sys.stdout.isatty()
         and os.environ.get("SAFETY_OS_DESCRIPTION", None) != "run"

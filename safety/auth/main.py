@@ -1,3 +1,18 @@
+"""
+Core authentication workflow for the Safety CLI.
+
+Handles the OAuth2 authorization code flow with PKCE for user login,
+session token management, token refresh, and logout. Supports:
+
+  - Interactive login via browser (opens auth.safetycli.com)
+  - Headless login with manual URL copy-paste
+  - Machine enrollment (MDM) with pre-provisioned tokens
+  - API-key-based authentication for CI/CD environments
+
+The flow uses Authlib's ``OAuth2Client`` and stores tokens in
+``~/.safety/auth.ini``.
+"""
+
 import configparser
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union

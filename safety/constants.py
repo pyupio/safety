@@ -1,4 +1,14 @@
 # -*- coding: utf-8 -*-
+"""
+Constants, configuration paths, and URL settings for the Safety CLI.
+
+This module defines:
+    - Filesystem paths for config/cache/policy files (user and system level)
+    - URL endpoints for the Safety Platform, Auth, Data, and Firewall APIs
+    - Exit codes used by the CLI for script-friendly error handling
+    - Feature flags and messaging templates used throughout the application
+    - ANSI color name constants reused across the formatters
+"""
 import configparser
 import os
 from enum import Enum
@@ -10,6 +20,8 @@ from safety.meta import get_version
 JSON_SCHEMA_VERSION = "2.0.0"
 
 # TODO fix this
+# Free/open vulnerability database mirrors — used when no API key is provided.
+# These serve a limited subset of the full vulnerability database.
 OPEN_MIRRORS = [
     f"https://pyup.io/aws/safety/free/{JSON_SCHEMA_VERSION}/",
 ]

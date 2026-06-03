@@ -1,3 +1,12 @@
+"""
+Authentication-specific constants and URLs.
+
+Defines the OAuth2 endpoints, scopes, claim URLs, and CLI messaging
+templates used by the authentication subsystem. All URLs are resolved
+through ``safety.constants.get_required_config_setting`` to support
+runtime overrides via environment variables or config files.
+"""
+
 from safety.constants import get_required_config_setting
 
 HOST: str = "localhost"
@@ -5,6 +14,7 @@ HOST: str = "localhost"
 CLIENT_ID = get_required_config_setting("CLIENT_ID")
 AUTH_SERVER_URL = get_required_config_setting("AUTH_SERVER_URL")
 SAFETY_PLATFORM_URL = get_required_config_setting("SAFETY_PLATFORM_URL")
+# OpenID Connect scope requesting identity, email, and offline refresh token
 OAUTH2_SCOPE = "openid email profile offline_access"
 
 
@@ -13,12 +23,14 @@ OPENID_CONFIG_URL = f"{AUTH_SERVER_URL}/.well-known/openid-configuration"
 CLAIM_EMAIL_VERIFIED_API = "https://api.safetycli.com/email_verified"
 CLAIM_EMAIL_VERIFIED_AUTH_SERVER = "email_verified"
 
+# CLI-specific auth endpoints on the Safety Platform
 CLI_AUTH = f"{SAFETY_PLATFORM_URL}/cli/auth"
 CLI_AUTH_SUCCESS = f"{SAFETY_PLATFORM_URL}/cli/auth/success"
 CLI_AUTH_LOGOUT = f"{SAFETY_PLATFORM_URL}/cli/logout"
 CLI_CALLBACK = f"{SAFETY_PLATFORM_URL}/cli/callback"
 CLI_LOGOUT_SUCCESS = f"{SAFETY_PLATFORM_URL}/cli/logout/success"
 
+# Messaging templates
 MSG_NON_AUTHENTICATED = (
     "Safety is not authenticated. Please run 'safety auth login' to log in"
     " or 'safety auth enroll' to enroll via MDM."
@@ -32,6 +44,7 @@ MSG_LOGOUT_DONE = "[green]Logout done.[/green]"
 MSG_LOGOUT_FAILED = "[red]Logout failed. Try again.[/red]"
 
 ENROLLMENT_ENDPOINT = "/api/enroll"
+# Pattern for Safety Enrollment Keys (sfek_ prefix, 43 alphanumeric chars + hyphens/underscores)
 ENROLLMENT_KEY_PATTERN = r"^sfek_[A-Za-z0-9_-]{43}$"
 MACHINE_ID_MAX_LENGTH = 255
 MSG_MACHINE_TOKEN_NOT_ACCEPTED = "Machine token authentication is not accepted for this operation. Run 'safety auth login' or use '--key' to authenticate."

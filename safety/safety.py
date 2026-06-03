@@ -1,5 +1,23 @@
 # -*- coding: utf-8 -*-
 # type: ignore
+"""
+Core vulnerability database operations and package scanning logic.
+
+This module is the engine behind the legacy ``safety check`` command. It
+handles:
+
+  - Fetching vulnerability databases from remote mirrors (API or free tier)
+  - Reading local vulnerability databases from disk
+  - Caching database responses with configurable TTL
+  - Matching installed/required packages against known vulnerabilities
+  - Computing remediations (recommended version bumps)
+  - Applying automatic security updates to requirement files
+
+Key functions:
+    fetch_database      — resolve mirror (URL or local path) and fetch DB
+    check               — scan packages against a loaded DB
+    process_fixes_scan  — apply remediations and write fixed requirement files
+"""
 from dataclasses import asdict
 import errno
 import itertools
@@ -284,7 +302,10 @@ def fetch_database_url(
     except httpx.TimeoutException:
         raise RequestTimeoutError()
     except httpx.RequestError:
-        raise DatabaseFetchError()
+        raise DatabaseFetchError(
+            "Unable to fetch the vulnerability database due to an unexpected HTTP error. "
+            "Please check your network connection and try again."
+        )
     except OAuthError as e:
         LOG.error("OAuthError: %s", e)
         raise InvalidCredentialError()
@@ -375,21 +396,31 @@ def fetch_database(
     """
     Fetches the database from a mirror or a local file.
 
+    This is the main entry point for database resolution. It determines the
+    correct source based on authentication state:
+      - Authenticated users → API_MIRRORS (private/paid vulnerability feed)
+      - ``--db`` argument   → local path or custom remote mirror
+      - Neither            → OPEN_MIRRORS (free, limited feed)
+
     Args:
-        http_client (OAuth2Client): The OAuth2 client.
-        platform (SafetyPlatformClient): The Safety Platform client.
-        full (bool): Whether to fetch the full database.
-        db (Optional[str]): The path to the local database file.
-        cached (int): The cache validity in seconds.
+        auth (Auth): The Auth model holding platform client credentials.
+        full (bool): Whether to fetch the full database (``insecure_full.json``).
+        db (Optional[str]): The path to the local database file or a custom mirror URL.
+        cached (int): The cache validity in seconds (0 = no caching).
         telemetry (bool): Whether to include telemetry data.
-        ecosystem (Optional[Ecosystem]): The ecosystem.
-        from_cache (bool): Whether to fetch from cache.
+        ecosystem (Optional[Ecosystem]): The ecosystem filter.
+        from_cache (bool): Whether to attempt a cache hit before fetching.
 
     Returns:
         Dict[str, Any]: The fetched database.
+
+    Raises:
+        DatabaseFetchError: If the database cannot be fetched from any source.
+        MalformedDatabase: If the fetched data has an unsupported schema version.
     """
     from safety.utils.auth_session import AuthenticationType
 
+    # Machine tokens (used for MDM enrollment) are not valid for database fetching.
     if auth.platform.get_authentication_type() == AuthenticationType.machine_token:
         raise DatabaseFetchError(
             "Machine token authentication is not accepted for this operation. "
@@ -434,7 +465,10 @@ def fetch_database(
                 f"This Safety version supports only schema version {JSON_SCHEMA_VERSION}",
             )
 
-    raise DatabaseFetchError()
+    raise DatabaseFetchError(
+        "Unable to fetch the vulnerability database from any of the configured sources. "
+        "Please check your network connection, API key, and database mirror configuration."
+    )
 
 
 def get_vulnerabilities(
@@ -656,6 +690,11 @@ def is_vulnerable(
     """
     Checks if a package version is vulnerable.
 
+    For pinned packages (e.g. ``Django==3.2``) this uses a simple ``contains()``
+    check on the vulnerable spec. For unpinned ranges (e.g. ``Django>=3.0,<4.0``)
+    it intersects the install specifier with the vulnerable specifier and returns
+    ``True`` if any version falls in both ranges.
+
     Args:
         vulnerable_spec (SpecifierSet): The specifier set for vulnerable versions.
         requirement (SafetyRequirement): The package requirement.
@@ -668,7 +707,8 @@ def is_vulnerable(
         try:
             return vulnerable_spec.contains(next(iter(requirement.specifier)).version)
         except Exception:
-            # Ugly for now...
+            # If the version string is invalid per PEP 440, skip silently
+            # but warn the user via local announcements.
             message = f"Version {requirement.specifier} for {package.name} is invalid and is ignored by Safety. Please See PEP 440."
             if message not in [a["message"] for a in SafetyContext.local_announcements]:
                 SafetyContext.local_announcements.append(
@@ -1732,7 +1772,10 @@ def get_licenses(
             licenses = fetch_database_file(mirror, db_name=db_name, ecosystem=None)
         if licenses:
             return licenses
-    raise DatabaseFetchError()
+    raise DatabaseFetchError(
+        "Unable to fetch the vulnerability database from any of the configured sources. "
+        "Please check your network connection, API key, and database mirror configuration."
+    )
 
 
 def add_local_notifications(

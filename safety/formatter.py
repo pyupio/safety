@@ -1,3 +1,17 @@
+"""
+Output formatting abstraction for Safety CLI reports.
+
+Uses the **Strategy** pattern: ``SafetyFormatter`` is the context that
+delegates to one of several concrete format implementations:
+
+  - ``ScreenReport`` — Rich-formatted terminal output (default)
+  - ``TextReport``   — Plain text stripped of Rich markup
+  - ``JsonReport``   — Structured JSON output
+  - ``BareReport``   — Minimal machine-readable output
+  - ``HTMLReport``   — Self-contained HTML report for sharing
+
+All implementations conform to the ``FormatterAPI`` protocol.
+"""
 from __future__ import annotations
 
 import logging

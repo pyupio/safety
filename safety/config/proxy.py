@@ -68,7 +68,9 @@ def _should_build_proxy_config(
     if not host or not host.strip():
         if any(v is not None for v in other_values):
             raise ValueError(
-                f"Proxy host must be provided when using other proxy options in {source}."
+                f"Proxy host must be provided when using other proxy options "
+                f"(from {source}). Please specify --proxy-host or configure the "
+                f"host in your Safety config file."
             )
         return False
 
@@ -83,7 +85,10 @@ def _build_proxy_config(
 ) -> ProxyConfig:
     if not host or not host.strip():
         logger.error(PROXY_HOST_EMPTY, extra={"source": source})
-        raise ValueError("Proxy host must not be empty")
+        raise ValueError(
+            f"Proxy host must not be empty (from {source}). "
+            f"Please provide a valid proxy host."
+        )
 
     host = host.strip()
 
@@ -92,7 +97,10 @@ def _build_proxy_config(
         logger.error(
             PROXY_PROTOCOL_INVALID, extra={"protocol": scheme, "source": source}
         )
-        raise ValueError(f"Invalid proxy protocol: {scheme!r}")
+        raise ValueError(
+            f"Invalid proxy protocol '{scheme}' (from {source}). "
+            f"Allowed protocols are: http, https."
+        )
 
     port = port or DEFAULT_PROXY_PORT
 
@@ -139,7 +147,11 @@ def _proxy_from_config_ini(config_path: Path) -> Optional[ProxyConfig]:
         return None
 
     if not host_raw:
-        raise ValueError("Proxy host must not be empty")
+        raise ValueError(
+            "Proxy host must not be empty in config file. "
+            "Please set a valid 'host' value under the [proxy] section "
+            "in your Safety config file."
+        )
 
     return _build_proxy_config(
         host=host_raw,
@@ -170,7 +182,10 @@ def _proxy_from_cli_options(
         return None
 
     if not host:
-        raise ValueError("Proxy host must not be empty")
+        raise ValueError(
+            "Proxy host must not be empty. "
+            "Please provide a valid host using --proxy-host."
+        )
 
     port_val = None
 
@@ -178,7 +193,10 @@ def _proxy_from_cli_options(
         try:
             port_val = int(port)
         except ValueError:
-            raise ValueError("Proxy port must be an integer")
+            raise ValueError(
+                f"Proxy port must be an integer, got '{port}'. "
+                f"Please provide a valid port number using --proxy-port."
+            )
 
     return _build_proxy_config(
         host=host,

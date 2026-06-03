@@ -1430,12 +1430,21 @@ def build_primary_announcement(
 
     for line in lines:
         if "words" not in line:
-            raise ValueError("Missing words keyword")
+            raise ValueError(
+                "Missing 'words' keyword in announcement JSON. "
+                "Each announcement line must include a 'words' field."
+            )
         if len(line["words"]) <= 0:
-            raise ValueError("No words in this line")
+            raise ValueError(
+                "No words found in announcement line. "
+                "Each 'words' field must contain at least one word."
+            )
         for word in line["words"]:
             if "value" not in word or not word["value"]:
-                raise ValueError("Empty word or without value")
+                raise ValueError(
+                    "Empty word or missing 'value' in announcement JSON. "
+                    "Each word in the 'words' array must have a non-empty 'value' field."
+                )
 
     message = style_lines(lines, columns, start_line="", end_line="")
 
@@ -1577,7 +1586,10 @@ def print_service(
     formats = ["text", "screen"]
 
     if out_format not in formats:
-        raise ValueError(f"Print is only allowed for {', '.join(formats)}")
+        raise ValueError(
+            f"Output format '{out_format}' is not supported for printing. "
+            f"Print is only allowed for: {', '.join(formats)}."
+        )
 
     if not format_text:
         format_text = {
@@ -1620,7 +1632,10 @@ def prompt_service(
     formats = ["text", "screen"]
 
     if out_format not in formats:
-        raise ValueError(f"Prompt is only allowed for {', '.join(formats)}")
+        raise ValueError(
+            f"Output format '{out_format}' is not supported for prompting. "
+            f"Prompt is only allowed for: {', '.join(formats)}."
+        )
 
     if not format_text:
         format_text = {

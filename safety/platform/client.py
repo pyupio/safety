@@ -235,7 +235,10 @@ class SafetyPlatformClient:
                 **client_kwargs,
             )
         else:
-            raise ValueError(f"Unexpected auth_type: {self._auth_type}")
+            raise ValueError(
+                f"Unexpected authentication type '{self._auth_type}'. "
+                f"Supported types: api_key, token, machine_token."
+            )
 
     def _initialize_with_tls_fallback(self) -> None:
         """Initialize the client by testing TLS with a lightweight HEAD probe.

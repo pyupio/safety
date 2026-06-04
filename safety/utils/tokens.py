@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal, Optional
 import logging
 
 from authlib.oidc.core import CodeIDToken
-from authlib.jose import jwt
+from authlib.jwt import jwt
 from authlib.jose.errors import ExpiredTokenError
 
 

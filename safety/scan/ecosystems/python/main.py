@@ -38,7 +38,7 @@ from ..base import InspectableFile, Remediable
 
 from packaging.version import parse as parse_version
 from packaging.utils import canonicalize_name
-from packaging.specifiers import SpecifierSet
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 
 LOG = logging.getLogger(__name__)
@@ -338,7 +338,14 @@ class PythonFile(InspectableFile, Remediable):
             if name in vulnerable_packages:
                 # we have a candidate here, build the spec set
                 for specifier in db["vulnerable_packages"][name]:
-                    spec_set = SpecifierSet(specifiers=specifier)
+                    try:
+                        spec_set = SpecifierSet(specifiers=specifier)
+                    except InvalidSpecifier:
+                        LOG.warning(
+                            "Skipping invalid specifier '%s' for package '%s'",
+                            specifier, name
+                        )
+                        continue
 
                     if spec.is_vulnerable(spec_set, dependency.insecure_versions):
                         if not db_full:

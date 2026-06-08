@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from authlib.oauth2.rfc6749 import OAuth2Token
-from authlib.oidc.core import CodeIDToken
 from typing import Any, Dict, Literal, Optional
 
 import logging
@@ -20,7 +19,7 @@ class Token:
         token_type: Literal["access_token", "id_token"],
         jwks: Dict[str, Any],
         silent_if_expired: bool = False,
-    ) -> Optional[CodeIDToken]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Decode and validate the token data.
 
@@ -31,7 +30,7 @@ class Token:
             silent_if_expired (bool): Whether to silently ignore expired tokens.
 
         Returns:
-            Optional[CodeIDToken]: The decoded token data, or None if invalid.
+            Optional[Dict[str, Any]]: The decoded token data, or None if invalid.
         """
         return get_token_claims(token, token_type, jwks, silent_if_expired)
 

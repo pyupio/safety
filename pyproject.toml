@@ -34,6 +34,7 @@ classifiers = [
 requires-python = ">=3.9"
 dependencies = [
   "Authlib>=1.2.0",
+  "joserfc>=1.0.0",
   "Click>=8.0.2",
   "dparse>=0.6.4",
   "filelock>=3.16.1,<4.0",

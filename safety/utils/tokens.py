@@ -5,12 +5,21 @@ Token validation utilities shared across the application.
 from typing import Any, Dict, Literal, Optional
 import logging
 
-from authlib.oidc.core import CodeIDToken
-from authlib.jose import jwt
-from authlib.jose.errors import ExpiredTokenError
+from joserfc import jwt
+from joserfc.errors import ExpiredTokenError
+from joserfc.jwk import KeySet
+from joserfc.jwt import JWTClaimsRegistry
 
 
 logger = logging.getLogger(__name__)
+
+_CLAIMS_REGISTRY = JWTClaimsRegistry(
+    iss={"essential": True},
+    sub={"essential": True},
+    aud={"essential": True},
+    exp={"essential": True},
+    iat={"essential": True},
+)
 
 
 def get_token_claims(
@@ -18,7 +27,7 @@ def get_token_claims(
     token_type: Literal["access_token", "id_token"],
     jwks: Dict[str, Any],
     silent_if_expired: bool = False,
-) -> Optional[CodeIDToken]:
+) -> Optional[Dict[str, Any]]:
     """
     Decode and validate token claims.
 
@@ -41,8 +50,10 @@ def get_token_claims(
     claims = None
 
     try:
-        claims = jwt.decode(token, jwks, claims_cls=CodeIDToken)  # type: ignore
-        claims.validate()
+        key_set = KeySet.import_key_set(jwks)
+        token_obj = jwt.decode(token, key_set)
+        claims = token_obj.claims
+        _CLAIMS_REGISTRY.validate(claims)
     except ExpiredTokenError as e:
         if not silent_if_expired:
             raise e

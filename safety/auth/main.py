@@ -2,8 +2,6 @@ import configparser
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
-from authlib.jose.errors import ExpiredTokenError
-
 from safety.auth.models import Organization
 from safety.auth.constants import (
     CLI_AUTH_LOGOUT,
@@ -14,6 +12,7 @@ from safety.auth.oauth2 import Token
 from safety.config import AuthConfig, AUTH_CONFIG_USER
 from safety.constants import CONFIG
 from safety.utils.auth_session import discard_token
+from joserfc.errors import ExpiredTokenError
 from safety_schemas.models import Stage
 
 from authlib.integrations.httpx_client import OAuth2Client

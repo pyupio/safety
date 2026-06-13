@@ -1224,7 +1224,45 @@ def print_check_updates_header(console):
 class Output(str, Enum):
     SCREEN = "screen"
     JSON = "json"
+# new extracted functions to help refactoring (making the code more readable)
+def _handle_auth_error_output(console) -> None:
+    """Maneja la salida en consola cuando el usuario no está autenticado."""
+    if console.quiet:
+        console.quiet = False
+        response = {
+            "status": 401,
+            "message": "Authenticated failed, please authenticate Safety and try again",
+            "data": {},
+        }
+        console.print_json(json.dumps(response))
+    else:
+        console.print()
+        console.print("[red]Safety is not authenticated, please first authenticate and try again.[/red]")
+        console.print()
+        console.print("To authenticate, use the `auth` command: `safety auth login` Or for more help: `safety auth --help`")
 
+def _evaluate_and_print_versions(console, current_version: str, latest_available_version: str) -> None:
+    """Compara las versiones y renderiza el mensaje adecuado para el usuario."""
+    try:
+        parsed_latest = packaging_version.parse(latest_available_version)
+        parsed_current = packaging_version.parse(current_version)
+
+        if parsed_latest > parsed_current:
+            console.print(f"Update available: Safety version {latest_available_version}")
+            console.print()
+            console.print(f"If Safety was installed from a requirements file, update Safety to version {latest_available_version} in that requirements file.")
+            console.print()
+            console.print(f"Pip: To install the updated version of Safety directly via pip, run: pip install safety=={latest_available_version}")
+        elif parsed_latest < parsed_current:
+            console.print(f"Latest stable version is {latest_available_version}. If you want to downgrade to this version, you can run: pip install safety=={latest_available_version}")
+        else:
+            console.print("You are already using the latest stable version of Safety.")
+            
+    except InvalidVersion as invalid_version:
+        LOG.exception(f"Invalid version format encountered: {invalid_version}")
+        console.print(f"Error: Invalid version format encountered for the latest available version: {latest_available_version}")
+        console.print("Please report this issue or try again later.")
+# end of new functions por refactoring
 
 @cli_app.command(
     cls=SafetyCLICommand,
@@ -1258,8 +1296,6 @@ def check_updates(
 
     print_check_updates_header(console)
 
-    wait_msg = "Authenticating and checking for Safety CLI updates"
-
     VERSION = get_version()
     PYTHON_VERSION = platform.python_version()
     OS_TYPE = platform.system()
@@ -1268,7 +1304,7 @@ def check_updates(
     data = None
 
     console.print()
-    with console.status(wait_msg, spinner=DEFAULT_SPINNER):
+    with console.status("Authenticating and checking for Safety CLI updates", spinner=DEFAULT_SPINNER):
         try:
             data = ctx.obj.auth.platform.check_updates(
                 version=1,
@@ -1283,25 +1319,9 @@ def check_updates(
         except Exception as e:
             LOG.exception(f"Failed to check updates, reason: {e}")
             raise e
-
+#here
     if not authenticated:
-        if console.quiet:
-            console.quiet = False
-            response = {
-                "status": 401,
-                "message": "Authenticated failed, please authenticate Safety and try again",
-                "data": {},
-            }
-            console.print_json(json.dumps(response))
-        else:
-            console.print()
-            console.print(
-                "[red]Safety is not authenticated, please first authenticate and try again.[/red]"
-            )
-            console.print()
-            console.print(
-                "To authenticate, use the `auth` command: `safety auth login` Or for more help: `safety auth —help`"
-            )
+        _handle_auth_error_output(console)
         sys.exit(1)
 
     if not data:
@@ -1313,15 +1333,13 @@ def check_updates(
 
     organization = data.get("organization", "-")
     account = data.get("user_email", "-")
-    current_version = (
-        f"Current version: {VERSION} (Python {PYTHON_VERSION} on {OS_TYPE})"
-    )
     latest_available_version = data.get("safety_updates", {}).get("stable_version", "-")
-
+#here
+    current_version_str= f"Current version: {VERSION} (Phyton {PYTHON_VERSION} on {OS_TYPE})"
     details = [
         f"Organization: {organization}",
         f"Account: {account}",
-        current_version,
+        current_version_str,
         f"Latest stable available version: {latest_available_version}",
     ]
 
@@ -1329,42 +1347,10 @@ def check_updates(
         console.print(Padding(msg, (0, 0, 0, 1)), emoji=True)
 
     console.print()
-
-    if latest_available_version:
-        try:
-            # Compare the current version and the latest available version using packaging.version
-            if packaging_version.parse(
-                latest_available_version
-            ) > packaging_version.parse(VERSION):
-                console.print(
-                    f"Update available: Safety version {latest_available_version}"
-                )
-                console.print()
-                console.print(
-                    f"If Safety was installed from a requirements file, update Safety to version {latest_available_version} in that requirements file."
-                )
-                console.print()
-                console.print(
-                    f"Pip: To install the updated version of Safety directly via pip, run: pip install safety=={latest_available_version}"
-                )
-            elif packaging_version.parse(
-                latest_available_version
-            ) < packaging_version.parse(VERSION):
-                # Notify user about downgrading
-                console.print(
-                    f"Latest stable version is {latest_available_version}. If you want to downgrade to this version, you can run: pip install safety=={latest_available_version}"
-                )
-            else:
-                console.print(
-                    "You are already using the latest stable version of Safety."
-                )
-        except InvalidVersion as invalid_version:
-            LOG.exception(f"Invalid version format encountered: {invalid_version}")
-            console.print(
-                f"Error: Invalid version format encountered for the latest available version: {latest_available_version}"
-            )
-            console.print("Please report this issue or try again later.")
-
+  #here
+    if latest_available_version and latest_available_version != "-":
+         _evaluate_and_print_versions(console, VERSION, latest_available_version)
+    
     if console.quiet:
         console.quiet = False
         response = {"status": 200, "message": "", "data": data}

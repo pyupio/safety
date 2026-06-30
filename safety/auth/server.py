@@ -112,7 +112,7 @@ def auth_process(
         return platform.fetch_user_info()
 
     except Exception as e:
-        LOG.exception(e)
+        LOG.exception("Authentication failed unexpectedly: %s", e)
         sys.exit(1)
 
 

@@ -232,6 +232,11 @@ def configure_auth_session(
         assert machine_creds is not None
         client_kwargs["machine_id"] = machine_creds.machine_id
         client_kwargs["machine_token"] = machine_creds.machine_token
+        # Populate org name from org_slug stored at enrollment time when the
+        # [organization] config section has no name (machine-token devices
+        # don't go through OAuth2 so org_name is never written there).
+        if org is not None and not org.name and machine_creds.org_slug:
+            org = Organization(id=org.id, name=machine_creds.org_slug)
     else:
         # API key and OAuth2 paths both pass OAuth2 deps (preserves existing
         # behavior).  On the API key path these are stored but unused by

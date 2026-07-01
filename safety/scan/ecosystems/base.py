@@ -8,7 +8,7 @@ from safety_schemas.models import (
 )
 from typer import FileTextWrite
 
-NOT_IMPLEMENTED = "Not implemented funtion"
+NOT_IMPLEMENTED = "Not implemented function"
 
 
 class Inspectable(ABC):

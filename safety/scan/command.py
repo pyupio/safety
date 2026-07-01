@@ -305,6 +305,10 @@ def process_report(
 
         if output is ScanOutput.JSON or ScanOutput.is_format(output, ScanOutput.SPDX):
             if output is ScanOutput.JSON:
+                report_to_output = inject_cve_into_vulnerabilities(
+                    report_to_output, obj.project.files
+                )
+
                 if detailed_output:
                     report_to_output = add_cve_details_to_report(
                         report_to_output, obj.project.files
@@ -408,6 +412,61 @@ def generate_cve_details(files: List[FileModel]) -> List[Dict[str, Any]]:
                         }
                     )
     return sort_cve_data(cve_data)
+
+
+def _build_vuln_lookup(files: List[FileModel]) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    lookup = {}
+    for file in files:
+        for spec in file.results.get_affected_specifications():
+            for vuln in spec.vulnerabilities:
+                key = (spec.name, vuln.vulnerability_id)
+                cve_list = filter_valid_cves(vuln.CVE) if vuln.CVE else []
+                severity_info = None
+                if vuln.severity and vuln.severity.cvssv3:
+                    severity_info = {
+                        "base_severity": vuln.severity.cvssv3.get("base_severity", ""),
+                    }
+                    if "vector" in vuln.severity.cvssv3:
+                        severity_info["vector"] = vuln.severity.cvssv3["vector"]
+                    if "base_score" in vuln.severity.cvssv3:
+                        severity_info["base_score"] = vuln.severity.cvssv3["base_score"]
+                lookup[key] = {
+                    "CVE": cve_list,
+                    "severity": severity_info,
+                }
+    return lookup
+
+
+def inject_cve_into_vulnerabilities(json_str: str, files: List[FileModel]) -> str:
+    """
+    Inject CVE and severity information directly into each vulnerability entry
+    in the JSON report output.
+
+    Args:
+        json_str (str): The current JSON string of the report.
+        files (List[FileModel]): List of scanned files containing vulnerability data.
+
+    Returns:
+        str: The updated JSON string with CVE and severity fields added to each vulnerability.
+    """
+    lookup = _build_vuln_lookup(files)
+    report_dict = json.loads(json_str)
+
+    scan_results = report_dict.get("scan_results", {})
+    for file_entry in scan_results.get("files", []):
+        for spec in file_entry.get("specifications", []):
+            vulns = spec.get("vulnerabilities", {})
+            known_vulns = vulns.get("known_vulnerabilities", [])
+            for vuln_entry in known_vulns:
+                key = (spec.get("name", ""), vuln_entry.get("id", ""))
+                extra = lookup.get(key)
+                if extra:
+                    if extra["CVE"]:
+                        vuln_entry["CVE"] = extra["CVE"]
+                    if extra["severity"]:
+                        vuln_entry["severity"] = extra["severity"]
+
+    return json.dumps(report_dict, indent=4)
 
 
 def add_cve_details_to_report(report_to_output: str, files: List[FileModel]) -> str:

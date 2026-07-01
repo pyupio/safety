@@ -361,7 +361,7 @@ class Requirement(object):
         """
         semver = {"major": 0, "minor": 0, "patch": 0}
         version_parts = version.split(".")
-        # don't be overly clever here. repitition makes it more readable and works exactly how
+        # don't be overly clever here. repetition makes it more readable and works exactly how
         # it is supposed to
         try:
             semver["major"] = int(version_parts[0])

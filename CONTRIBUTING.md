@@ -74,16 +74,19 @@ Please read and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a 
    git clone https://github.com/pyupio/safety.git
    ```
 
-2. **Set up your environment:**
-- Ensure you are using Python 3.11.2.
-- Install dependencies:
+2. **Set up your environment using Hatch:**
+- Ensure you are using Python 3.9 or later.
+- Install Hatch and create the development environment:
     ```bash
-    pip install -r requirements.txt
+    pip install hatch
+    hatch shell
     ```
 
 ### Running Tests
 We use pytest for running tests. To run the tests locally:
-    ```pytest```
+        ```bash
+    hatch run test
+    ```
 
 Ensure all tests pass before submitting your changes.
 

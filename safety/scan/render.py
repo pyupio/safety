@@ -399,9 +399,12 @@ def print_wait_policy_download(
         try:
             f, kwargs = closure
             policy = f(**kwargs)
-        except Exception as e:
-            LOG.exception(f"Policy download failed, reason: {e}")
-            console.print("Not using cloud policy file.")
+        except Exception:
+            LOG.exception("Failed to download policy from Safety Platform.")
+            console.print(
+                "[yellow]Unable to download cloud policy from Safety Platform. "
+                "Continuing the scan without cloud policy configuration.[/yellow]"
+            )
 
         if policy:
             wait_msg = "Policy fetched from Safety Platform."

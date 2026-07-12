@@ -148,6 +148,6 @@ We maintain a policy of supporting all maintained and secure versions of Python,
 - [Documentation](https://docs.safetycli.com)
 - [Careers/Hiring](https://apply.workable.com/safety/)
 - [Security Research and Blog](https://safetycli.com/blog)
-- [GitHub Action](https://github.com/safetycli/action)
+- [GitHub Action](https://github.com/pyupio/safety-action)
 - [Support](mailto:support@safetycli.com)
 - [Status Page](https://status.safetycli.com)

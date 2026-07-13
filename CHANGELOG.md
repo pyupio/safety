@@ -296,7 +296,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package version upgrade for psutil and filelock (#652)
 - Package version upgrade for typer (#654)
 - Package version upgrade for pydantic (#655)
-- Add "--use-server-matching" arguement (#640)
+- Add "--use-server-matching" argument (#640)
 - Bugfix for safety "NoneType is not iterable" error (#657)
 
 

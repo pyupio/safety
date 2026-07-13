@@ -107,7 +107,7 @@ def get_from_cache(
         skip_time_verification (bool): Whether to skip time verification.
 
     Returns:
-        Optional[[Dict[str, Any]]: The cached database if available and valid, otherwise False.
+        Optional[Dict[str, Any]: The cached database if available and valid, otherwise False.
     """
     cache_file_lock = f"{DB_CACHE_FILE}.lock"
     os.makedirs(os.path.dirname(cache_file_lock), exist_ok=True)

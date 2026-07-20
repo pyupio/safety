@@ -45,7 +45,7 @@ dependencies = [
   "certifi",
   "tenacity>=8.1.0",
   "ruamel.yaml>=0.17.21",
-  "safety-schemas==0.0.16",
+  "safety-schemas==0.0.19",
   "typer>=0.16.0,<0.26.0",
   "typing-extensions>=4.7.1",
   "nltk>=3.9",

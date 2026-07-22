@@ -159,6 +159,12 @@ def get_config_setting(name: str, default=None) -> Optional[str]:
 
 
 def get_required_config_setting(name: str) -> str:
+    """Checks config for required settings
+    Args:
+        name: name of setting that it needs to check
+    Raises:
+        MissingConfigError: if value "name" not found
+    """
     value = get_config_setting(name)
     if not value:
         raise MissingConfigError(f"Missing required config setting: {name}")

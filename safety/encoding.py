@@ -24,5 +24,5 @@ def detect_encoding(file_path: Path) -> str:
 
         return "utf-8"
     except Exception:
-        logger.exception("Error detecting encoding")
+        logger.exception("Error detecting encoding for file %s, falling back to utf-8", file_path)
         return "utf-8"

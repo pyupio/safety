@@ -45,7 +45,7 @@ class InspectableFileContext:
                 file_type=self.file_type, file=file
             )
         except Exception:
-            logger.exception("Error opening file")
+            logger.exception("Error opening file %s for scanning", self.file_path)
 
         return self.inspectable_file
 

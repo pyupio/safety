@@ -58,6 +58,13 @@ LOG = logging.getLogger(__name__)
 
 
 class CommandType(Enum):
+    """
+    Classifies CLI commands for help-text rendering groups.
+
+    - MAIN:      Primary feature commands (scan, check, auth)
+    - UTILITY:   Ancillary utilities (generate, configure)
+    - BETA:      Experimental features flagged with a beta disclaimer
+    """
     MAIN = "main"
     UTILITY = "utility"
     BETA = "beta"

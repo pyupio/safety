@@ -1,3 +1,13 @@
+"""
+Package data models for the Safety CLI.
+
+This module re-exports the main model classes used throughout Safety:
+  - Vulnerability / CVE / Severity / Fix  — vulnerability report data
+  - SafetyRequirement / Package           — parsed dependency data
+  - RequirementFile                       — parsed requirements files
+  - SafetyCLI                             — CLI context object
+  - ToolResult                            — result from tool interception
+"""
 from .obj import SafetyCLI
 from .requirements import is_pinned_requirement
 from .vulnerabilities import (

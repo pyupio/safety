@@ -48,7 +48,7 @@ LOG = logging.getLogger(__name__)
 
 def is_a_remote_mirror(mirror: str) -> bool:
     """
-    Check if a mirror URL is remote.
+    Check if a mirror URL is remote (http/https) vs local filesystem path.
 
     Args:
         mirror (str): The mirror URL.
@@ -62,6 +62,9 @@ def is_a_remote_mirror(mirror: str) -> bool:
 def is_supported_by_parser(path: str) -> bool:
     """
     Check if the file path is supported by the parser.
+
+    Safety can parse requirements.txt, Pipfile, Pipfile.lock, setup.cfg,
+    poetry.lock, and various other dependency file formats.
 
     Args:
         path (str): The file path.
@@ -1186,10 +1189,14 @@ class SafetyPolicyFile(click.ParamType):
 
 class SingletonMeta(type):
     """
-    A metaclass for singleton classes.
+    Thread-safe singleton metaclass.
+
+    Ensures that only one instance of any class using this metaclass exists
+    at runtime. Uses a class-level lock to prevent race conditions during
+    concurrent instantiation.
     """
 
-    _instances: Dict[type, Any] = {}
+    _instances: Dict[type, object] = {}
 
     _lock: Lock = Lock()
 
@@ -1203,7 +1210,15 @@ class SingletonMeta(type):
 
 class SafetyContext(metaclass=SingletonMeta):
     """
-    A singleton class to hold the Safety context.
+    Global singleton holding the Safety CLI execution context.
+
+    This is the single source of truth for the current scan session's
+    state, including packages, authentication, database mirror, ignored
+    vulnerabilities, proxy settings, and telemetry configuration.
+
+    It is populated by the ``@sync_safety_context`` decorator before each
+    major command handler runs, and read by formatters, reporters, and
+    event emitters throughout the lifecycle of a command.
     """
 
     packages = []

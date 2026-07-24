@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock, patch
 
 from safety.alerts import utils
 from tests.test_cli import get_vulnerability
@@ -147,3 +148,27 @@ class TestUtils(unittest.TestCase):
         score = 11.0
         expected_label = None
         self.assertEqual(utils.cvss3_score_to_label(score), expected_label)
+
+    @patch("safety.alerts.utils.httpx.get")
+    def test_fetch_changelog_bounds_upgrade_range_by_target_version(self, mock_get):
+        # Changelog spanning below, within, and above the requested range.
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = {
+            "0.4": "too old",
+            "1.2.1": "in range",
+            "1.3": "in range (target)",
+            "2.0": "beyond target",
+        }
+        mock_get.return_value = response
+
+        changelog = utils.fetch_changelog(
+            "requests",
+            from_version="1.2",
+            to_version="1.3",
+            api_key=self.api_key,
+        )
+
+        # Only releases in (1.2, 1.3] should be included: 2.0 is past the
+        # target version and 0.4 is before the starting version.
+        self.assertEqual(set(changelog), {"1.2.1", "1.3"})

@@ -322,7 +322,9 @@ def fetch_changelog(
                     and from_spec.contains(parsed_version)
                 )
 
-                if version_check or spec_check and parsed_version <= to_version_parsed:
+                if (
+                    version_check or spec_check
+                ) and parsed_version <= to_version_parsed:
                     changelog[version] = log
 
     return changelog

@@ -225,6 +225,57 @@ class TestSafety(unittest.TestCase):
         self.assertEqual(len(vulns), 1)
 
     @patch("safety.safety.fetch_database_url")
+    def test_check_invalid_specifier_in_db(self, mock_fetch_db):
+        # A vulnerability DB entry with a malformed specifier such as
+        # "=1.7.0" (single equals) must be skipped instead of crashing.
+        insecure_path = os.path.join(self.dirname, "test_db", "insecure.json")
+        insecure_full_path = os.path.join(self.dirname, "test_db", "insecure_full.json")
+
+        with open(insecure_path) as f:
+            insecure_db = json.load(f)
+        with open(insecure_full_path) as f:
+            insecure_full_db = json.load(f)
+
+        insecure_db["vulnerable_packages"]["insecure-package"] = ["=1.7.0", "<1.0"]
+        insecure_full_db["vulnerable_packages"]["insecure-package"] = [
+            {
+                "specs": ["<1.0"],
+                "advisory": "Test advisory for insecure-package",
+                "transitive": False,
+                "more_info_path": "/v/test/path",
+                "ids": [{"type": "pyup", "id": "test-id"}],
+            }
+        ]
+
+        def mock_fetch_side_effect(*args, **kwargs):
+            db_name = kwargs.get(
+                "db_name", args[2] if len(args) > 2 else "insecure.json"
+            )
+            if db_name == "insecure_full.json":
+                return insecure_full_db
+            else:
+                return insecure_db
+
+        mock_fetch_db.side_effect = mock_fetch_side_effect
+
+        reqs = StringIO("insecure-package==0.1")
+        packages = read_requirements(reqs)
+
+        vulns, _ = check(
+            auth=self.auth,
+            packages=packages,
+            db_mirror=False,
+            cached=0,
+            ignore_vulns={},
+            ignore_severity_rules=None,
+            proxy={},
+            telemetry=False,
+        )
+
+        # The valid "<1.0" specifier is still matched.
+        self.assertEqual(len(vulns), 1)
+
+    @patch("safety.safety.fetch_database_url")
     def test_check_cached(self, mock_fetch_db):
         from safety.constants import DB_CACHE_FILE
 

@@ -15,7 +15,7 @@ from typing import Dict, Optional, List, Any, Union, Iterator
 
 from authlib.integrations.base_client.errors import OAuthError
 import httpx
-from packaging.specifiers import SpecifierSet
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.utils import canonicalize_name
 from packaging.version import parse as parse_version, Version
 from pydantic_core import to_jsonable_python
@@ -753,7 +753,15 @@ def check(
         if name in vulnerable_packages:
             # we have a candidate here, build the spec set
             for specifier in db["vulnerable_packages"][name]:
-                spec_set = SpecifierSet(specifiers=specifier)
+                try:
+                    spec_set = SpecifierSet(specifiers=specifier)
+                except InvalidSpecifier:
+                    LOG.warning(
+                        "Skipping invalid specifier '%s' for package '%s'",
+                        specifier,
+                        name,
+                    )
+                    continue
 
                 if is_vulnerable(spec_set, req, pkg):
                     if not db_full:

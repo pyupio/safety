@@ -194,7 +194,7 @@ class RequirementFile(object):
             req.index_server = dep.index_server
             if self.is_pipfile:
                 req.pipfile = self.path
-            req.hashes = dep.hashes
+            req.hashes = dep.hashes if dep.hashes is not None else []
             self._requirements.append(req)
         self._other_files = result.resolved_files
 

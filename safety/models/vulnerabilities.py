@@ -100,7 +100,7 @@ class SafetyRequirement(Requirement):
         if "#" in to_parse:
             to_parse = dep.line.split("#")[0]
 
-        for req_hash in dep.hashes:
+        for req_hash in (dep.hashes or []):
             to_parse = to_parse.replace(req_hash, "")
 
         to_parse = to_parse.replace("\\", "").rstrip()

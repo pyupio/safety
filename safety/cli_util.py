@@ -21,6 +21,7 @@ from typing import (
 )
 
 import click
+import httpx
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -40,6 +41,7 @@ from safety.constants import (
     CONTEXT_COMMAND_TYPE,
     FeatureType,
 )
+from safety.errors import NetworkConnectionError
 from safety.scan.constants import CONSOLE_HELP_THEME
 from safety.models import SafetyCLI
 from safety.auth import configure_auth_session
@@ -906,7 +908,13 @@ class SafetyCLILegacyGroup(click.Group):
             "key": ctx.params.pop("key", None),
             "stage": ctx.params.pop("stage", None),
         }
-        configure_auth_session(**session_kwargs)
+        try:
+            configure_auth_session(**session_kwargs)
+        except (httpx.RequestError, NetworkConnectionError) as e:
+            # Continue unauthenticated rather than aborting dispatch
+            LOG.warning("Unable to reach the Safety Platform: %s", e)
+            if not ctx.obj:
+                ctx.obj = SafetyCLI()
 
         # call initialize if the --key is used.
         if session_kwargs["key"]:

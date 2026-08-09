@@ -947,12 +947,18 @@ def scan(
         ):
             # Update counts and track vulnerabilities
             count += len(analyzed_file.dependency_results.dependencies)
-            if exit_code == 0 and analyzed_file.dependency_results.failed:
-                exit_code = EXIT_CODE_VULNERABILITIES_FOUND
 
             affected_specifications = (
                 analyzed_file.dependency_results.get_affected_specifications()
             )
+            
+            if exit_code == 0:
+                if analyzed_file.dependency_results.failed:
+                    exit_code = EXIT_CODE_VULNERABILITIES_FOUND
+                elif not ctx.obj.project.policy:
+                    if any(not vuln.ignored for spec in affected_specifications for vuln in spec.vulnerabilities):
+                        exit_code = EXIT_CODE_VULNERABILITIES_FOUND
+
             affected_count += len(affected_specifications)
 
             # Sort vulnerabilities by severity

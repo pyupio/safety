@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from authlib.oauth2.rfc6749 import OAuth2Token
-from typing import Any, Dict, Literal, Optional
-
 import logging
-from safety.logs_helpers import log_call
+from typing import Any, Literal
 
-from safety.utils.tokens import get_token_claims
+from authlib.oauth2.rfc6749 import OAuth2Token
+
 from safety.config import AuthConfig
+from safety.logs_helpers import log_call
+from safety.utils.tokens import get_token_claims
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +17,9 @@ class Token:
     def get_claims_for(
         token: str,
         token_type: Literal["access_token", "id_token"],
-        jwks: Dict[str, Any],
+        jwks: dict[str, Any],
         silent_if_expired: bool = False,
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Decode and validate the token data.
 

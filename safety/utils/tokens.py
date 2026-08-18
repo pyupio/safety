@@ -2,13 +2,14 @@
 Token validation utilities shared across the application.
 """
 
-from typing import Any, Dict, Literal, Optional
+from __future__ import annotations
+
 import logging
+from typing import Any, Literal
 
 from joserfc import jwt
-from joserfc.jwk import KeySet
 from joserfc.errors import ExpiredTokenError
-
+from joserfc.jwk import KeySet
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,9 @@ _CLAIMS_REGISTRY = jwt.JWTClaimsRegistry()
 def get_token_claims(
     token: str,
     token_type: Literal["access_token", "id_token"],
-    jwks: Dict[str, Any],
+    jwks: dict[str, Any],
     silent_if_expired: bool = False,
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Decode and validate token claims.
 

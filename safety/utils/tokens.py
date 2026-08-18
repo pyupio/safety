@@ -50,7 +50,7 @@ def get_token_claims(
     claims = None
 
     try:
-        key_set = KeySet.import_key_set(jwks)
+        key_set = KeySet.import_key_set(jwks)  # type: ignore
         token_obj = jwt.decode(token, key_set)
         claims = token_obj.claims
         _CLAIMS_REGISTRY.validate(claims)

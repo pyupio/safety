@@ -2,7 +2,7 @@ import configparser
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
-from authlib.jose.errors import ExpiredTokenError
+from joserfc.errors import ExpiredTokenError
 
 from safety.auth.models import Organization
 from safety.auth.constants import (
@@ -163,7 +163,7 @@ def get_auth_info(auth: "Auth") -> Optional[Dict]:
 
                 if verified:
                     # refresh only if needed
-                    raise ExpiredTokenError
+                    raise ExpiredTokenError("exp")
 
         except ExpiredTokenError:
             # id_token expired. So fire a manually a refresh

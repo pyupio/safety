@@ -5,12 +5,16 @@ Token validation utilities shared across the application.
 from typing import Any, Dict, Literal, Optional
 import logging
 
-from authlib.oidc.core import CodeIDToken
-from authlib.jose import jwt
-from authlib.jose.errors import ExpiredTokenError
+from joserfc import jwt
+from joserfc.jwk import KeySet
+from joserfc.errors import ExpiredTokenError
 
 
 logger = logging.getLogger(__name__)
+
+# JWTClaimsRegistry is stateless once constructed; reuse a single instance
+# across calls instead of allocating per decode.
+_CLAIMS_REGISTRY = jwt.JWTClaimsRegistry()
 
 
 def get_token_claims(
@@ -18,7 +22,7 @@ def get_token_claims(
     token_type: Literal["access_token", "id_token"],
     jwks: Dict[str, Any],
     silent_if_expired: bool = False,
-) -> Optional[CodeIDToken]:
+) -> Optional[dict[str, Any]]:
     """
     Decode and validate token claims.
 
@@ -26,10 +30,14 @@ def get_token_claims(
         token: The token to decode
         token_type: Type of token (access_token or id_token)
         jwks: JSON Web Key Set for validation
-        silent_if_expired: Whether to silently ignore expired tokens
+        silent_if_expired: If True, suppress ExpiredTokenError and still
+            return the decoded claims (callers may need fields like
+            ``exp`` or custom claims from an expired token).
 
     Returns:
-        Decoded token claims, or None if invalid
+        Decoded token claims as a dict, or None if decoding failed.
+        When ``silent_if_expired`` is True and the token is expired,
+        the claims are still returned.
 
     Raises:
         ValueError: If token_type is invalid
@@ -41,10 +49,12 @@ def get_token_claims(
     claims = None
 
     try:
-        claims = jwt.decode(token, jwks, claims_cls=CodeIDToken)  # type: ignore
-        claims.validate()
-    except ExpiredTokenError as e:
+        key_set = KeySet.import_key_set(jwks)
+        token_obj = jwt.decode(token, key_set)
+        claims = token_obj.claims
+        _CLAIMS_REGISTRY.validate(claims)
+    except ExpiredTokenError:
         if not silent_if_expired:
-            raise e
+            raise
 
     return claims

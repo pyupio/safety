@@ -17,6 +17,12 @@ logger = logging.getLogger(__name__)
 # across calls instead of allocating per decode.
 _CLAIMS_REGISTRY = jwt.JWTClaimsRegistry()
 
+# Pin decoding to the asymmetric algorithms our IdP advertises (RS256 today,
+# PS256 if it rotates) and deliberately exclude the symmetric HS* family. This
+# blocks the HS* alg-confusion path (a token that HMAC-signs itself with the
+# JWKS public key) even if a symmetric key is ever added to the JWKS.
+_ALLOWED_ALGORITHMS = ["RS256", "PS256"]
+
 
 def get_token_claims(
     token: str,
@@ -51,7 +57,7 @@ def get_token_claims(
 
     try:
         key_set = KeySet.import_key_set(jwks)  # type: ignore
-        token_obj = jwt.decode(token, key_set)
+        token_obj = jwt.decode(token, key_set, algorithms=_ALLOWED_ALGORITHMS)
         claims = token_obj.claims
         _CLAIMS_REGISTRY.validate(claims)
     except ExpiredTokenError:

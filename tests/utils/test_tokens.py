@@ -8,12 +8,13 @@ regression in the reused JWTClaimsRegistry or the expiry branch is caught.
 from __future__ import annotations
 
 import time
+import warnings
 from typing import Any
 
 import pytest
 from joserfc import jwt as joserfc_jwt
-from joserfc.errors import ExpiredTokenError
-from joserfc.jwk import RSAKey
+from joserfc.errors import ExpiredTokenError, UnsupportedAlgorithmError
+from joserfc.jwk import OctKey, RSAKey
 
 from safety.utils.tokens import get_token_claims
 
@@ -66,3 +67,20 @@ def test_invalid_token_type_raises_value_error() -> None:
 
     with pytest.raises(ValueError):
         get_token_claims(token, "bogus", jwks)  # type: ignore[arg-type]
+
+
+def test_alg_confusion_hs256_is_rejected() -> None:
+    # Forge an HS256 token whose HMAC secret is the RSA public key from the
+    # JWKS. Without the algorithm allowlist joserfc would verify it; the
+    # allowlist refuses the disallowed alg before any key is used.
+    key, jwks = _key_and_jwks()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # joserfc warns on RSA-PEM-as-oct-key
+        forged = joserfc_jwt.encode(
+            {"alg": "HS256", "kid": "test-kid"},
+            {"sub": "attacker", "exp": int(time.time()) + 3600},
+            OctKey.import_key(key.as_pem(private=False)),
+        )
+
+    with pytest.raises(UnsupportedAlgorithmError):
+        get_token_claims(forged, "id_token", jwks)

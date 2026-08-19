@@ -13,10 +13,6 @@ from joserfc.jwk import KeySet
 
 logger = logging.getLogger(__name__)
 
-# JWTClaimsRegistry is stateless once constructed; reuse a single instance
-# across calls instead of allocating per decode.
-_CLAIMS_REGISTRY = jwt.JWTClaimsRegistry()
-
 # Pin decoding to the asymmetric algorithms our IdP advertises (RS256 today,
 # PS256 if it rotates) and deliberately exclude the symmetric HS* family. This
 # blocks the HS* alg-confusion path (a token that HMAC-signs itself with the
@@ -39,11 +35,11 @@ def get_token_claims(
         jwks: JSON Web Key Set for validation
         silent_if_expired: If True, suppress ExpiredTokenError and still
             return the decoded claims (callers may need fields like
-            ``exp`` or custom claims from an expired token).
+            `exp` or custom claims from an expired token).
 
     Returns:
         Decoded token claims as a dict, or None if decoding failed.
-        When ``silent_if_expired`` is True and the token is expired,
+        When `silent_if_expired` is True and the token is expired,
         the claims are still returned.
 
     Raises:
@@ -59,7 +55,7 @@ def get_token_claims(
         key_set = KeySet.import_key_set(jwks)  # type: ignore
         token_obj = jwt.decode(token, key_set, algorithms=_ALLOWED_ALGORITHMS)
         claims = token_obj.claims
-        _CLAIMS_REGISTRY.validate(claims)
+        jwt.JWTClaimsRegistry().validate(claims)
     except ExpiredTokenError:
         if not silent_if_expired:
             raise

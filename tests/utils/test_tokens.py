@@ -45,8 +45,8 @@ def test_expired_token_raises_when_not_silent() -> None:
     key, jwks = _key_and_jwks()
     token = _sign(key, {"sub": "user-1", "exp": int(time.time()) - 10})
 
-    # Guards the reused-registry behavior: the module-level JWTClaimsRegistry
-    # must read the clock per call, so an already-expired token is rejected.
+    # A JWTClaimsRegistry is constructed per call, so it reads the clock at
+    # validate time and an already-expired token is rejected.
     with pytest.raises(ExpiredTokenError):
         get_token_claims(token, "id_token", jwks, silent_if_expired=False)
 

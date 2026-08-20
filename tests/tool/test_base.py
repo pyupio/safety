@@ -45,7 +45,7 @@ class TestGetInstalledPackagesEncoding:
             }
         }
         mock_run.return_value = CompletedProcess(
-            args=[], returncode=0, stdout=json.dumps(payload)
+            args=[], returncode=0, stdout=json.dumps(payload, ensure_ascii=False)
         )
 
         cmd = NpmCommand(["install", "resend"])

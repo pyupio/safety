@@ -118,16 +118,16 @@ def get_id_token_claims(jwks: dict[str, Any]) -> dict:
     if not id_token:
         raise ValueError("Invalid auth config.")
 
-    claims = Token.get_claims_for(
+    decoded = Token.get_claims_for(
         token=id_token,
         token_type="id_token",
         jwks=jwks,
     )
 
-    if not claims:
+    if decoded is None:
         raise ValueError("Unable to get claims for id_token.")
 
-    return claims
+    return decoded.claims
 
 
 def get_auth_info(auth: Auth) -> dict | None:

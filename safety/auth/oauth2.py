@@ -4,6 +4,7 @@ import logging
 from typing import Any, Literal
 
 from authlib.oauth2.rfc6749 import OAuth2Token
+from joserfc.jwt import Token as JWTToken
 
 from safety.config import AuthConfig
 from safety.logs_helpers import log_call
@@ -19,7 +20,7 @@ class Token:
         token_type: Literal["access_token", "id_token"],
         jwks: dict[str, Any],
         silent_if_expired: bool = False,
-    ) -> dict[str, Any] | None:
+    ) -> JWTToken | None:
         """
         Decode and validate the token data.
 
@@ -30,7 +31,7 @@ class Token:
             silent_if_expired (bool): Whether to silently ignore expired tokens.
 
         Returns:
-            Optional[dict[str, Any]]: The decoded token claims, or None if invalid.
+            The decoded joserfc `Token` (payload via `.claims`), or None if invalid.
         """
         return get_token_claims(token, token_type, jwks, silent_if_expired)
 

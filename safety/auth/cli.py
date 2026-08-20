@@ -73,14 +73,14 @@ def _extract_org_uuid_from_jwt(ctx: "typer.Context") -> str:
     if not auth_config:
         return ""
     try:
-        claims = get_token_claims(
+        decoded = get_token_claims(
             auth_config.access_token,
             "access_token",
             ctx.obj.auth.jwks,
             silent_if_expired=True,
         )
-        if claims:
-            org_uuid = claims.get("https://api.safetycli.com/org_uuid", "")
+        if decoded is not None:
+            org_uuid = decoded.claims.get("https://api.safetycli.com/org_uuid", "")
             return str(org_uuid) if org_uuid else ""
     except Exception:
         LOG.warning("Failed to extract org UUID from access token", exc_info=True)

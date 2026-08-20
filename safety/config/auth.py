@@ -144,14 +144,14 @@ class AuthConfig:
         Returns:
             OAuth2Token: The OAuth2 token.
         """
-        claims = get_token_claims(
+        decoded = get_token_claims(
             self.access_token, "access_token", jwks, silent_if_expired=True
         )
 
-        if not claims:
+        if decoded is None:
             raise ValueError("Invalid access token")
 
-        expires_at = claims.get(self._CLAIMS_EXPIRES_AT, None)
+        expires_at = decoded.claims.get(self._CLAIMS_EXPIRES_AT, None)
 
         if not expires_at:
             raise ValueError("Invalid access token, missing expiration time.")

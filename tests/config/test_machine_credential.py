@@ -1,3 +1,6 @@
+# Pre-existing typing/style debt below is out of scope for the JWT migration;
+# modernizing it is deferred to its own PR.
+# ruff: noqa: FA100, SIM117, UP006, UP035
 import configparser
 import multiprocessing
 import time
@@ -617,7 +620,9 @@ class TestAuthConfigToToken:
         )
         mock_claims = {"exp": 1700000000}
 
-        with patch("safety.config.auth.get_token_claims", return_value=_decoded(mock_claims)):
+        with patch(
+            "safety.config.auth.get_token_claims", return_value=_decoded(mock_claims)
+        ):
             token = auth.to_token(jwks={"keys": []})
 
         assert token["access_token"] == "at-test"
@@ -647,7 +652,9 @@ class TestAuthConfigToToken:
         )
         mock_claims = {"sub": "user-123"}  # Has content but no "exp" key
 
-        with patch("safety.config.auth.get_token_claims", return_value=_decoded(mock_claims)):
+        with patch(
+            "safety.config.auth.get_token_claims", return_value=_decoded(mock_claims)
+        ):
             with pytest.raises(ValueError, match="missing expiration"):
                 auth.to_token(jwks={"keys": []})
 

@@ -1,3 +1,7 @@
+# Pre-existing typing/style debt below is out of scope for the JWT migration.
+# Modernizing the annotations (PEP 585/604) would break the runtime `cast()`
+# calls on Python 3.9, so it is deferred to its own PR.
+# ruff: noqa: FA100, I001, UP006, UP035
 from authlib.oauth2.rfc6749 import OAuth2Token
 from dataclasses import dataclass
 import configparser

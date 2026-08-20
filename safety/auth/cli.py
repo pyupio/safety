@@ -1,4 +1,8 @@
 # type: ignore
+# Pre-existing typing/style debt below is out of scope for the JWT migration.
+# Adding `from __future__ import annotations` here would change how Typer
+# resolves command annotations at runtime, so it is deferred to its own PR.
+# ruff: noqa: DTZ005, FA100, I001, UP035
 import logging
 import os
 import re

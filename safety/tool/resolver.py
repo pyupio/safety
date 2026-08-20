@@ -28,9 +28,9 @@ def get_unwrapped_command(name: str) -> str:
                 ["where.exe", lookup_term],
                 capture_output=True,
                 text=True,
-                env=get_env(),
                 encoding="utf-8",
-                errors="replace",  # garbage in output should not cause crash, just be skipped
+                errors="replace",
+                env=get_env(),
             )
 
             logger.debug(f"where.exe returncode: {where_result.returncode}")

@@ -156,9 +156,9 @@ def status_to_tool_status(status: "FirewallConfigStatus") -> List[ToolStatus]:
                 args,
                 capture_output=True,
                 text=True,
-                env=get_env(),
                 encoding="utf-8",
                 errors="replace",
+                env=get_env(),
             )
 
             if result.returncode == 0:

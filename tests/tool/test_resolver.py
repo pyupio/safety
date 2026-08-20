@@ -87,9 +87,9 @@ class TestGetUnwrappedCommand:
             ["where.exe", "pip.exe"],
             capture_output=True,
             text=True,
-            env={"PATH": "C:\\Python39\\Scripts"},
             encoding="utf-8",
             errors="replace",
+            env={"PATH": "C:\\Python39\\Scripts"},
         )
 
     @patch("safety.tool.resolver.get_env")

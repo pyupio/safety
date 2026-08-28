@@ -258,7 +258,7 @@ os_type = [
 # in the virtual environment. This is a trade off.
 # detached = true
 dependencies = [
-  "ruff",
+  "ruff<0.16",
   "pyright",
   "pytest==8.3.4",
 ]

@@ -282,6 +282,10 @@ all = [
 include = [
   "safety/scan/"
 ]
+ignore = [
+  # `init_scan_ui` is more narrowly annotated than its existing Typer caller.
+  "safety/tool/base.py"
+]
 pythonVersion = "3.9"
 pythonPlatform = "All"
 reportMissingImports = "error"

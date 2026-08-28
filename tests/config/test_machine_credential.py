@@ -1,3 +1,6 @@
+# Pre-existing typing/style debt below is out of scope for the JWT migration;
+# modernizing it is deferred to its own PR.
+# ruff: noqa: FA100, SIM117, UP006, UP035
 import configparser
 import multiprocessing
 import time
@@ -7,8 +10,14 @@ from unittest.mock import patch
 
 import pytest
 from authlib.oauth2.rfc6749 import OAuth2Token
+from joserfc.jwt import Token as JWTToken
 
 from safety.config.auth import AuthConfig, MachineCredentialConfig
+
+
+def _decoded(claims: Dict) -> JWTToken:
+    """A joserfc Token wrapping the given claims (what get_token_claims returns)."""
+    return JWTToken({"alg": "RS256"}, claims)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -611,7 +620,9 @@ class TestAuthConfigToToken:
         )
         mock_claims = {"exp": 1700000000}
 
-        with patch("safety.config.auth.get_token_claims", return_value=mock_claims):
+        with patch(
+            "safety.config.auth.get_token_claims", return_value=_decoded(mock_claims)
+        ):
             token = auth.to_token(jwks={"keys": []})
 
         assert token["access_token"] == "at-test"
@@ -641,7 +652,9 @@ class TestAuthConfigToToken:
         )
         mock_claims = {"sub": "user-123"}  # Has content but no "exp" key
 
-        with patch("safety.config.auth.get_token_claims", return_value=mock_claims):
+        with patch(
+            "safety.config.auth.get_token_claims", return_value=_decoded(mock_claims)
+        ):
             with pytest.raises(ValueError, match="missing expiration"):
                 auth.to_token(jwks={"keys": []})
 
@@ -656,7 +669,7 @@ class TestAuthConfigToToken:
         mock_claims = {"exp": 1700000000}
 
         with patch(
-            "safety.config.auth.get_token_claims", return_value=mock_claims
+            "safety.config.auth.get_token_claims", return_value=_decoded(mock_claims)
         ) as mock_get_claims:
             auth.to_token(jwks=jwks)
 

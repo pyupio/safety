@@ -1,3 +1,7 @@
+# Pre-existing typing/style debt below is out of scope for the JWT migration.
+# Modernizing the annotations (PEP 585/604) would break the runtime `cast()`
+# calls on Python 3.9, so it is deferred to its own PR.
+# ruff: noqa: FA100, I001, UP006, UP035
 from authlib.oauth2.rfc6749 import OAuth2Token
 from dataclasses import dataclass
 import configparser
@@ -144,14 +148,14 @@ class AuthConfig:
         Returns:
             OAuth2Token: The OAuth2 token.
         """
-        claims = get_token_claims(
+        decoded = get_token_claims(
             self.access_token, "access_token", jwks, silent_if_expired=True
         )
 
-        if not claims:
+        if decoded is None:
             raise ValueError("Invalid access token")
 
-        expires_at = claims.get(self._CLAIMS_EXPIRES_AT, None)
+        expires_at = decoded.claims.get(self._CLAIMS_EXPIRES_AT, None)
 
         if not expires_at:
             raise ValueError("Invalid access token, missing expiration time.")

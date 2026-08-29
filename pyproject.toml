@@ -297,7 +297,8 @@ markers = [
     "linux: mark test to run only on Linux platforms",
     "darwin: mark test to run only on macOS platforms",
     "integration: mark test as integration test",
-    "slow: mark test as slow running"
+    "slow: mark test as slow running",
+    "requires_network: mark test as requiring outbound network access to the Safety Platform"
 ]
 
 [tool.coverage.run]

@@ -24,11 +24,6 @@ def is_email_verified(info: Dict[str, Any]) -> Optional[bool]:
     Returns:
         bool: True
     """
-    # return info.get(CLAIM_EMAIL_VERIFIED_API) or info.get(
-    #     CLAIM_EMAIL_VERIFIED_AUTH_SERVER
-    # )
-
-    # Always return True to avoid email verification
     return True
 
 

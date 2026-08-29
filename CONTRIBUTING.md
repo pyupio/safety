@@ -69,18 +69,40 @@ Please use the following labels as needed:
 Please read and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a welcoming environment for all contributors.
 
 ### Development Setup
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/pyupio/safety.git
-   ```
 
-2. **Set up your environment:**
-- Ensure you are using Python 3.11.2.
-- Install dependencies:
+1. **Install `uv` (if not already installed):**
+    `uv` is used for ultra-fast dependency management and Python version isolation. Install it globally on your machine:
+    
+    * **macOS / Linux:**
     ```bash
-    pip install -r requirements.txt
+    curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | sh
+    ```
+    
+    * **Windows (PowerShell):**
+    ```powershell
+    powershell -ExecutionPolicy ByPass -c "irm [https://astral.sh/uv/install.ps1](https://astral.sh/uv/install.ps1) | iex"
     ```
 
+2. **Clone the repository**
+    Clone the repository using HTTPS:
+    ```bash
+    git clone https://github.com/pyupio/safety.git
+    cd safety
+    ```
+    ```
+    OR
+    ```
+    Clone the repository using SSH:
+    ```bash
+    git clone git@github.com:pyupio/safety.git
+    cd safety
+    ```
+
+3  **Set up your enviroment and dependencies**
+    You do not need to manually create a virtual environment or manage Python installation. `uv` will automatically pull the required Python version (3.11.2) and sync all project dependencies:
+    ```bash
+    uv sync
+    ```
 ### Running Tests
 We use pytest for running tests. To run the tests locally:
     ```pytest```

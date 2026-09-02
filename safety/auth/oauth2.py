@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from authlib.oauth2.rfc6749 import OAuth2Token
-from authlib.oidc.core import CodeIDToken
-from typing import Any, Dict, Literal, Optional
-
 import logging
-from safety.logs_helpers import log_call
+from typing import Any, Literal
 
-from safety.utils.tokens import get_token_claims
+from authlib.oauth2.rfc6749 import OAuth2Token
+from joserfc.jwt import Token as JWTToken
+
 from safety.config import AuthConfig
+from safety.logs_helpers import log_call
+from safety.utils.tokens import get_token_claims
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +18,9 @@ class Token:
     def get_claims_for(
         token: str,
         token_type: Literal["access_token", "id_token"],
-        jwks: Dict[str, Any],
+        jwks: dict[str, Any],
         silent_if_expired: bool = False,
-    ) -> Optional[CodeIDToken]:
+    ) -> JWTToken | None:
         """
         Decode and validate the token data.
 
@@ -31,7 +31,7 @@ class Token:
             silent_if_expired (bool): Whether to silently ignore expired tokens.
 
         Returns:
-            Optional[CodeIDToken]: The decoded token data, or None if invalid.
+            The decoded joserfc `Token` (payload via `.claims`), or None if invalid.
         """
         return get_token_claims(token, token_type, jwks, silent_if_expired)
 

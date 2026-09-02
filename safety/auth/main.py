@@ -1,35 +1,35 @@
+from __future__ import annotations
+
 import configparser
-
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
-
-from authlib.jose.errors import ExpiredTokenError
-
-from safety.auth.models import Organization
-from safety.auth.constants import (
-    CLI_AUTH_LOGOUT,
-    CLI_CALLBACK,
-    CLI_AUTH,
-)
-from safety.auth.oauth2 import Token
-from safety.config import AuthConfig, AUTH_CONFIG_USER
-from safety.constants import CONFIG
-from safety.utils.auth_session import discard_token
-from safety_schemas.models import Stage
+from typing import TYPE_CHECKING, Any
 
 from authlib.integrations.httpx_client import OAuth2Client
+from joserfc.errors import ExpiredTokenError
+from safety_schemas.models import Stage
+
+from safety.auth.constants import (
+    CLI_AUTH,
+    CLI_AUTH_LOGOUT,
+    CLI_CALLBACK,
+)
+from safety.auth.models import Organization
+from safety.auth.oauth2 import Token
+from safety.config import AUTH_CONFIG_USER, AuthConfig
+from safety.constants import CONFIG
+from safety.utils.auth_session import discard_token
 
 if TYPE_CHECKING:
     from safety.auth.models import Auth
 
 
 def get_authorization_data(
-    http_client: "OAuth2Client",
+    http_client: OAuth2Client,
     code_verifier: str,
-    organization: Optional[Organization] = None,
+    organization: Organization | None = None,
     sign_up: bool = False,
     ensure_auth: bool = False,
     headless: bool = False,
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """
     Generate the authorization URL for the authentication process.
 
@@ -82,7 +82,7 @@ def get_redirect_url() -> str:
     return CLI_CALLBACK
 
 
-def get_organization() -> Optional[Organization]:
+def get_organization() -> Organization | None:
     """
     Retrieve the organization configuration.
 
@@ -92,13 +92,13 @@ def get_organization() -> Optional[Organization]:
     config = configparser.ConfigParser()
     config.read(CONFIG)
 
-    org_conf: Union[Dict[str, str], configparser.SectionProxy] = (
+    org_conf: dict[str, str] | configparser.SectionProxy = (
         config["organization"] if "organization" in config.sections() else {}
     )
-    org_id: Optional[str] = (
+    org_id: str | None = (
         org_conf["id"].replace('"', "") if org_conf.get("id", None) else None
     )
-    org_name: Optional[str] = (
+    org_name: str | None = (
         org_conf["name"].replace('"', "") if org_conf.get("name", None) else None
     )
 
@@ -110,7 +110,7 @@ def get_organization() -> Optional[Organization]:
     return org
 
 
-def get_id_token_claims(jwks: Dict[str, Any]) -> Dict:
+def get_id_token_claims(jwks: dict[str, Any]) -> dict:
     id_token = None
     if auth_config := AuthConfig.from_storage():
         id_token = auth_config.id_token
@@ -118,19 +118,19 @@ def get_id_token_claims(jwks: Dict[str, Any]) -> Dict:
     if not id_token:
         raise ValueError("Invalid auth config.")
 
-    claims = Token.get_claims_for(
+    decoded = Token.get_claims_for(
         token=id_token,
         token_type="id_token",
         jwks=jwks,
     )
 
-    if not claims:
+    if decoded is None:
         raise ValueError("Unable to get claims for id_token.")
 
-    return claims
+    return decoded.claims
 
 
-def get_auth_info(auth: "Auth") -> Optional[Dict]:
+def get_auth_info(auth: Auth) -> dict | None:
     """
     Retrieve the authentication information.
 
@@ -163,7 +163,7 @@ def get_auth_info(auth: "Auth") -> Optional[Dict]:
 
                 if verified:
                     # refresh only if needed
-                    raise ExpiredTokenError
+                    raise ExpiredTokenError("exp")
 
         except ExpiredTokenError:
             # id_token expired. So fire a manually a refresh
@@ -174,15 +174,15 @@ def get_auth_info(auth: "Auth") -> Optional[Dict]:
                 )
                 info = get_id_token_claims(jwks=auth.jwks)
 
-            except Exception as _e:
+            except Exception as _e:  # noqa: BLE001
                 discard_token(oauth2_client=oauth2_client)
-        except Exception as _g:
+        except Exception as _g:  # noqa: BLE001
             discard_token(oauth2_client=oauth2_client)
 
     return info
 
 
-def get_token(name: str = "access_token") -> Optional[str]:
+def get_token(name: str = "access_token") -> str | None:
     """ "
     Retrieve a token from the local authentication configuration.
 
@@ -206,7 +206,7 @@ def get_token(name: str = "access_token") -> Optional[str]:
     return None
 
 
-def get_host_config(key_name: str) -> Optional[Any]:
+def get_host_config(key_name: str) -> Any | None:
     """
     Retrieve a configuration value from the host configuration.
 
@@ -224,14 +224,13 @@ def get_host_config(key_name: str) -> Optional[Any]:
 
     host_section = dict(config.items("host"))
 
-    if key_name in host_section:
-        if key_name == "stage":
-            # Support old alias in the config.ini
-            if host_section[key_name] == "dev":
-                host_section[key_name] = "development"
-            if host_section[key_name] not in {env.value for env in Stage}:
-                return None
-            return Stage(host_section[key_name])
+    if key_name in host_section and key_name == "stage":
+        # Support old alias in the config.ini
+        if host_section[key_name] == "dev":
+            host_section[key_name] = "development"
+        if host_section[key_name] not in {env.value for env in Stage}:
+            return None
+        return Stage(host_section[key_name])
 
     return None
 

@@ -43,7 +43,9 @@ def test_valid_token_returns_claims() -> None:
 
 def test_expired_token_raises_when_not_silent() -> None:
     key, jwks = _key_and_jwks()
-    token = _sign(key, {"sub": "user-1", "exp": int(time.time()) - 10})
+    # Well past the leeway, so this is genuinely expired rather than
+    # within the clock-skew grace period.
+    token = _sign(key, {"sub": "user-1", "exp": int(time.time()) - 3600})
 
     # A JWTClaimsRegistry is constructed per call, so it reads the clock at
     # validate time and an already-expired token is rejected.
@@ -53,12 +55,36 @@ def test_expired_token_raises_when_not_silent() -> None:
 
 def test_expired_token_returns_claims_when_silent() -> None:
     key, jwks = _key_and_jwks()
-    token = _sign(key, {"sub": "user-1", "exp": int(time.time()) - 10})
+    # Well past the leeway, so this is genuinely expired rather than
+    # within the clock-skew grace period.
+    token = _sign(key, {"sub": "user-1", "exp": int(time.time()) - 3600})
 
     decoded = get_token_claims(token, "id_token", jwks, silent_if_expired=True)
 
     assert decoded is not None
     assert decoded.claims["sub"] == "user-1"
+
+
+def test_token_issued_slightly_in_the_future_is_accepted() -> None:
+    # A few seconds of clock skew between this machine and the token
+    # issuer is normal and shouldn't reject an otherwise valid token.
+    key, jwks = _key_and_jwks()
+    now = int(time.time())
+    token = _sign(key, {"sub": "user-1", "exp": now + 3600, "iat": now + 5})
+
+    decoded = get_token_claims(token, "id_token", jwks)
+
+    assert decoded is not None
+    assert decoded.claims["sub"] == "user-1"
+
+
+def test_token_issued_far_in_the_future_is_rejected() -> None:
+    key, jwks = _key_and_jwks()
+    now = int(time.time())
+    token = _sign(key, {"sub": "user-1", "exp": now + 7200, "iat": now + 600})
+
+    with pytest.raises(Exception, match="future"):
+        get_token_claims(token, "id_token", jwks)
 
 
 def test_invalid_token_type_raises_value_error() -> None:

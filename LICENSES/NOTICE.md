@@ -18,12 +18,10 @@
 | httpx | 0.28.1 | BSD-3-Clause |
 | idna | 3.10 | BSD License |
 | jinja2 | 3.1.6 | BSD License |
-| joblib | 1.4.2 | BSD 3-Clause |
 | markdown-it-py | 3.0.0 | MIT License |
 | markupsafe | 2.1.5 | BSD-3-Clause |
 | marshmallow | 3.22.0 | MIT License |
 | mdurl | 0.1.2 | MIT License |
-| nltk | 3.9.1 | Apache License, Version 2.0 |
 | packaging | 25.0 | Apache Software License |
 | pip | 23.0.1 | MIT |
 | psutil | 6.1.1 | BSD-3-Clause |
@@ -31,7 +29,6 @@
 | pydantic | 2.9.2 | MIT |
 | pydantic-core | 2.23.4 | MIT |
 | pygments | 2.19.1 | BSD-2-Clause |
-| regex | 2024.11.6 | Apache Software License |
 | requests | 2.32.3 | Apache-2.0 |
 | rich | 14.0.0 | MIT |
 | ruamel-yaml | 0.18.10 | MIT license |
@@ -43,7 +40,6 @@
 | tenacity | 9.0.0 | Apache 2.0 |
 | tomli | 2.2.1 | MIT License |
 | tomlkit | 0.13.2 | MIT |
-| tqdm | 4.67.1 | MPL-2.0 AND MIT |
 | typer | 0.15.2 | MIT License |
 | typing-extensions | 4.13.2 | PSF-2.0 |
 | urllib3 | 2.2.3 | MIT License |

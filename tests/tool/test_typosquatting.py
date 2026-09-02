@@ -2,11 +2,15 @@
 Test suite for TyposquattingProtection functionality.
 """
 
-import pytest
+import ast
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from safety.tool.typosquatting import TyposquattingProtection
+import pytest
+
+from safety.tool import typosquatting
 from safety.tool.intents import CommandToolIntention, ToolIntentionType
+from safety.tool.typosquatting import TyposquattingProtection
 
 
 @pytest.mark.unit
@@ -217,19 +221,25 @@ class TestTyposquattingProtection:
         assert is_valid is False
         assert suggestion == "requests"
 
-    def test_nltk_edit_distance_calculation(self):
-        """Test that NLTK edit distance is used correctly"""
-        # Test known edit distances
-        with patch(
-            "safety.tool.typosquatting.nltk.edit_distance"
-        ) as mock_edit_distance:
-            mock_edit_distance.return_value = 1
+    def test_short_transposition_is_not_within_edit_distance_threshold(self):
+        """A transposition counts as two edits with the default algorithm."""
+        protection = TyposquattingProtection(["ab"])
 
-            is_valid, suggestion = self.protection.check_package("reqests")
+        is_valid, suggestion = protection.check_package("ba")
 
-            # Should have called nltk.edit_distance
-            mock_edit_distance.assert_called()
-            assert is_valid is False
+        assert is_valid is True
+        assert suggestion == "ba"
+
+    def test_has_no_nltk_import(self):
+        """The vendored edit distance must not be swapped back for the NLTK package."""
+        tree = ast.parse(Path(typosquatting.__file__).read_text())
+        imported_roots = {
+            ast.unparse(node).split()[1].split(".")[0]
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+        }
+
+        assert "nltk" not in imported_roots
 
     @pytest.mark.parametrize(
         "package_name,expected_valid,expected_suggestion",

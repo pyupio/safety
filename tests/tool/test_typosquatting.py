@@ -4,13 +4,13 @@ Test suite for TyposquattingProtection functionality.
 
 import ast
 from pathlib import Path
-
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from safety.tool import typosquatting
-from safety.tool.typosquatting import TyposquattingProtection
 from safety.tool.intents import CommandToolIntention, ToolIntentionType
+from safety.tool.typosquatting import TyposquattingProtection
 
 
 @pytest.mark.unit

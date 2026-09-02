@@ -3,10 +3,11 @@ Typosquatting detection for various tools.
 """
 
 import logging
-from typing import Tuple
+
+from rich.prompt import Prompt
 
 from safety.console import main_console as console
-from rich.prompt import Prompt
+
 from ._vendor.nltk_distance import edit_distance
 from .intents import CommandToolIntention, ToolIntentionType
 
@@ -18,10 +19,10 @@ class TyposquattingProtection:
     Base class for typosquatting detection.
     """
 
-    def __init__(self, popular_packages: Tuple[str]):
+    def __init__(self, popular_packages: tuple[str]):
         self.popular_packages = popular_packages
 
-    def check_package(self, package_name: str) -> Tuple[bool, str]:
+    def check_package(self, package_name: str) -> tuple[bool, str]:
         """
         Check if a package name is likely to be a typosquatting attempt.
 

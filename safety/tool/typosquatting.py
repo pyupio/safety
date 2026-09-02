@@ -3,6 +3,7 @@ Typosquatting detection for various tools.
 """
 
 import logging
+from collections.abc import Sequence
 
 from rich.prompt import Prompt
 
@@ -19,7 +20,7 @@ class TyposquattingProtection:
     Base class for typosquatting detection.
     """
 
-    def __init__(self, popular_packages: tuple[str]):
+    def __init__(self, popular_packages: Sequence[str]):
         self.popular_packages = popular_packages
 
     def check_package(self, package_name: str) -> tuple[bool, str]:

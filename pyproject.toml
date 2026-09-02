@@ -49,7 +49,6 @@ dependencies = [
   "safety-schemas==0.0.19",
   "typer>=0.16.0,<0.26.0",
   "typing-extensions>=4.7.1",
-  "nltk>=3.9",
   "tomli; python_version < '3.11'",
   "tomlkit",
   "truststore>=0.10.4; python_version >= '3.10'",

@@ -3,11 +3,11 @@ Typosquatting detection for various tools.
 """
 
 import logging
-import nltk
 from typing import Tuple
 
 from safety.console import main_console as console
 from rich.prompt import Prompt
+from ._vendor.nltk_distance import edit_distance
 from .intents import CommandToolIntention, ToolIntentionType
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class TyposquattingProtection:
         for pkg in self.popular_packages:
             if (
                 abs(len(pkg) - len(package_name)) <= max_edit_distance
-                and nltk.edit_distance(pkg, package_name) <= max_edit_distance
+                and edit_distance(pkg, package_name) <= max_edit_distance
             ):
                 return (False, pkg)
 

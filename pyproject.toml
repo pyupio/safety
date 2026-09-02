@@ -257,7 +257,7 @@ os_type = [
 # in the virtual environment. This is a trade off.
 # detached = true
 dependencies = [
-  "ruff",
+  "ruff<0.16",
   "pyright",
   "pytest==8.3.4",
 ]
@@ -280,6 +280,10 @@ all = [
 [tool.pyright]
 include = [
   "safety/scan/"
+]
+ignore = [
+  # `init_scan_ui` is more narrowly annotated than its existing Typer caller.
+  "safety/tool/base.py"
 ]
 pythonVersion = "3.9"
 pythonPlatform = "All"

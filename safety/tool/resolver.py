@@ -28,6 +28,8 @@ def get_unwrapped_command(name: str) -> str:
                 ["where.exe", lookup_term],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 env=get_env(),
             )
 

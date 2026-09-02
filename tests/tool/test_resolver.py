@@ -87,6 +87,8 @@ class TestGetUnwrappedCommand:
             ["where.exe", "pip.exe"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             env={"PATH": "C:\\Python39\\Scripts"},
         )
 

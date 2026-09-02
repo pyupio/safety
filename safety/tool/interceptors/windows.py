@@ -339,6 +339,8 @@ class WindowsInterceptor(CommandInterceptor):
                         [shell, "-Command", "exit"],
                         capture_output=True,
                         text=True,
+                        encoding="utf-8",
+                        errors="replace",
                         check=False,
                     )
                 except FileNotFoundError:
@@ -352,7 +354,12 @@ class WindowsInterceptor(CommandInterceptor):
                     "Get-Variable PROFILE -ValueOnly | Select-Object -ExpandProperty CurrentUserAllHosts",
                 ]
                 result = subprocess.run(
-                    cmd, capture_output=True, text=True, check=False
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=False,
                 )
                 result_stdout = result.stdout.strip()
                 if result.returncode == 0 and result_stdout:

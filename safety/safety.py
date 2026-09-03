@@ -1182,7 +1182,10 @@ def process_fixes_scan(
             )
         except Exception:
             LOG.error(
-                "Error getting upper remediation version, ignoring", exc_info=True
+                "Error parsing upper remediation version %r for %s, ignoring",
+                spec.remediation.closest_secure.upper,
+                spec,
+                exc_info=True,
             )
 
         try:
@@ -1193,14 +1196,19 @@ def process_fixes_scan(
             )
         except Exception:
             LOG.error(
-                "Error getting lower remediation version, ignoring", exc_info=True
+                "Error parsing lower remediation version %r for %s, ignoring",
+                spec.remediation.closest_secure.lower,
+                spec,
+                exc_info=True,
             )
 
         try:
             recommended = Version(spec.remediation.recommended)
         except Exception:
             LOG.error(
-                "Error getting recommended version for remediation, ignoring",
+                "Error parsing recommended version %r for %s, ignoring",
+                spec.remediation.recommended,
+                spec,
                 exc_info=True,
             )
 

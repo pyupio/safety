@@ -3,14 +3,18 @@ Test suite for TyposquattingProtection functionality.
 """
 
 import ast
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from safety.tool import typosquatting
+from safety.tool.constants import MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES
 from safety.tool.intents import CommandToolIntention, ToolIntentionType
 from safety.tool.typosquatting import TyposquattingProtection
+
+GOLDEN_PATH = Path(__file__).parent / "data" / "edit_distance_golden.json"
 
 
 @pytest.mark.unit
@@ -230,16 +234,40 @@ class TestTyposquattingProtection:
         assert is_valid is True
         assert suggestion == "ba"
 
-    def test_has_no_nltk_import(self):
-        """The vendored edit distance must not be swapped back for the NLTK package."""
+    def test_has_no_nltk_or_vendor_import(self):
+        """The clean-room edit distance must not be swapped back for the NLTK
+        package or a vendored copy of it."""
         tree = ast.parse(Path(typosquatting.__file__).read_text())
-        imported_roots = {
-            ast.unparse(node).split()[1].split(".")[0]
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.Import, ast.ImportFrom))
-        }
+        imported_modules = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported_modules.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                # Also record the imported names so `from . import _vendor`
+                # (module=None) cannot slip through.
+                imported_modules.add(node.module or "")
+                imported_modules.update(alias.name for alias in node.names)
 
-        assert "nltk" not in imported_roots
+        banned = [
+            module
+            for module in imported_modules
+            if module == "nltk" or module.startswith("nltk.") or "_vendor" in module
+        ]
+        assert banned == []
+
+    def test_check_package_matches_golden_corpus(self):
+        """Every generated typo of the real popular-package list must get the
+        same verdict and suggestion the nltk-backed implementation gave."""
+        protection = TyposquattingProtection(MOST_FREQUENTLY_DOWNLOADED_PYPI_PACKAGES)
+        with GOLDEN_PATH.open() as f:
+            cases = json.load(f)["check_package_cases"]
+
+        failures = []
+        for query, expected_valid, expected_suggestion in cases:
+            actual = protection.check_package(query)
+            if actual != (expected_valid, expected_suggestion):
+                failures.append((query, (expected_valid, expected_suggestion), actual))
+        assert failures == []
 
     @pytest.mark.parametrize(
         "package_name,expected_valid,expected_suggestion",

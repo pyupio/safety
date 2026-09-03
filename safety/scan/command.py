@@ -169,7 +169,7 @@ def process_report(
     obj: "SafetyContext",
     console: Console,
     report: ReportModel,
-    output: str,
+    output_format: str,
     save_as: Optional[Tuple[str, Path]],
     detailed_output: bool = False,
     filter_keys: Optional[List[str]] = None,
@@ -200,7 +200,7 @@ def process_report(
         export_type, export_path = save_as
         export_type = ScanExport(export_type)
 
-    output = ScanOutput(output)
+    output_format = ScanOutput(output_format)
 
     report_to_export = None
     report_to_output = None
@@ -209,7 +209,7 @@ def process_report(
         spdx_format, html_format = None, None
 
         if ScanExport.is_format(export_type, ScanExport.SPDX) or ScanOutput.is_format(
-            output, ScanOutput.SPDX
+            output_format, ScanOutput.SPDX
         ):
             spdx_version = None
             if export_type:
@@ -220,16 +220,16 @@ def process_report(
                     else None
                 )
 
-            if not spdx_version and output:
+            if not spdx_version and output_format:
                 spdx_version = (
-                    output.version
-                    if output.version and ScanOutput.is_format(output, ScanOutput.SPDX)
+                    output_format.version
+                    if output_format.version and ScanOutput.is_format(output_format, ScanOutput.SPDX)
                     else None
                 )
 
             spdx_format = render_scan_spdx(report, obj, spdx_version=spdx_version)
 
-        if export_type is ScanExport.HTML or output is ScanOutput.HTML:
+        if export_type is ScanExport.HTML or output_format is ScanOutput.HTML:
             html_format = render_scan_html(report, obj)
 
         save_as_format_mapping = {
@@ -249,7 +249,7 @@ def process_report(
         }
 
         report_to_export = save_as_format_mapping.get(export_type, None)
-        report_to_output = output_format_mapping.get(output, None)
+        report_to_output = output_format_mapping.get(output_format, None)
 
         if report_to_export:
             msg = f"Saving {export_type} report at: {export_path}"
@@ -276,7 +276,7 @@ def process_report(
             except Exception as e:
                 raise e
 
-        if output is ScanOutput.SCREEN:
+        if output_format is ScanOutput.SCREEN:
             console.print()
             lines = []
 
@@ -300,11 +300,11 @@ def process_report(
             for line in lines:
                 console.print(line, emoji=True)
 
-    if output.is_silent():
+    if output_format.is_silent():
         console.quiet = False
 
-        if output is ScanOutput.JSON or ScanOutput.is_format(output, ScanOutput.SPDX):
-            if output is ScanOutput.JSON:
+        if output_format is ScanOutput.JSON or ScanOutput.is_format(output_format, ScanOutput.SPDX):
+            if output_format is ScanOutput.JSON:
                 if detailed_output:
                     report_to_output = add_cve_details_to_report(
                         report_to_output, obj.project.files
@@ -492,7 +492,7 @@ def validate_save_as(
 
 def initialize_file_finder(
     ctx: "SafetyContext",
-    target: Path,
+    target_directory: Path,
     console: Optional[Console],
     ecosystems: List[Ecosystem],
 ) -> FileFinder:
@@ -515,7 +515,7 @@ def initialize_file_finder(
     }
 
     file_finder = FileFinder(
-        target=target,
+        target=target_directory,
         ecosystems=ecosystems,
         max_level=ctx.obj.config.scan.max_depth,
         exclude=ctx.obj.config.scan.ignore,
@@ -588,9 +588,8 @@ def print_file_info(console: Console, path: Path, target: Path) -> None:
         path (Path): The file path of the current file.
         target (Path): The base path to which the file path is relative.
     """
-    console.print()
     msg = f"{ICON_PENCIL} {TAG_FILE_TITLE_START}{path.relative_to(target)}:{TAG_FILE_TITLE_END}"
-    console.print(msg)
+    console.print(f"\n{msg}")
 
 
 def sort_and_filter_vulnerabilities(
@@ -635,8 +634,8 @@ def count_critical_vulnerabilities(vulnerabilities: List[Vulnerability]) -> int:
 
 
 def generate_vulnerability_message(
-    spec_name: str,
-    spec_raw: str,
+    dependency_name: str,
+    dependency_raw: str,
     vulns_found: int,
     critical_vulns_count: int,
     vuln_word: str,
@@ -645,8 +644,8 @@ def generate_vulnerability_message(
     Generate a formatted message for vulnerabilities in a specific dependency.
 
     Args:
-        spec_name (str): Name of the dependency.
-        spec_raw (str): Raw specification string of the dependency.
+        dependency_name (str): Name of the dependency.
+        dependency_raw (str): Raw specification string of the dependency.
         vulns_found (int): Number of vulnerabilities found.
         critical_vulns_count (int): Number of critical vulnerabilities found.
         vuln_word (str): Pluralized form of the word "vulnerability."
@@ -654,7 +653,7 @@ def generate_vulnerability_message(
     Returns:
         str: Formatted vulnerability message.
     """
-    msg = f"{TAG_DEP_NAME_START}{spec_name}{TAG_DEP_NAME_END}{TAG_SPECIFIER_START}{spec_raw.replace(spec_name, '')}{TAG_SPECIFIER_END} [{vulns_found} {vuln_word} found"
+    msg = f"{TAG_DEP_NAME_START}{dependency_name}{TAG_DEP_NAME_END}{TAG_SPECIFIER_START}{dependency_raw.replace(dependency_name, '')}{TAG_SPECIFIER_END} [{vulns_found} {vuln_word} found"
 
     if (
         vulns_found > CRITICAL_VULN_THRESHOLD
@@ -774,7 +773,7 @@ def process_file_fixes(
     specs_to_fix: List[Any],
     options: Dict,
     policy_limits: List[SecurityUpdates.UpdateLevel],
-    output: ScanOutput,
+    outpu_format: ScanOutput,
     no_output: bool,
     prompt: bool,
 ) -> Any:
@@ -786,7 +785,7 @@ def process_file_fixes(
         specs_to_fix (List[Any]): The specifications to fix in the file.
         options (Dict): Mapping of file types to update limits.
         policy_limits (List[SecurityUpdates.UpdateLevel]): Policy-defined update limits.
-        output (ScanOutput): The scan output format.
+        output_format (ScanOutput): The scan output format.
         no_output (bool): Whether to suppress output.
         prompt (bool): Whether to prompt the user for confirmation.
 
@@ -811,7 +810,7 @@ def process_file_fixes(
         file_to_fix,
         specs_to_fix,
         update_limits,
-        output,
+        outpu_format,
         no_output=no_output,
         prompt=prompt,
     )
@@ -1096,7 +1095,7 @@ def scan(
         obj=ctx.obj,
         console=console,
         report=report,
-        output=output,
+        output_format=output,
         save_as=save_as if save_as and all(save_as) else None,
         detailed_output=detailed_output,
         filter_keys=filter_keys,

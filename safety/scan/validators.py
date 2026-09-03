@@ -53,20 +53,20 @@ def save_as_callback(
     )
 
 
-def output_callback(output: ScanOutput) -> str:
+def output_callback(output_format: ScanOutput) -> str:
     """
     Callback function to handle output parameter and validate if spdx extension is installed.
 
     Args:
-        output (ScanOutput): The output format.
+        output_format (ScanOutput): The output format.
 
     Returns:
         str: The validated output format.
     """
-    if ScanOutput.is_format(output, ScanExport.SPDX):
+    if ScanOutput.is_format(output_format, ScanExport.SPDX):
         raise_if_not_spdx_extension_installed()
 
-    return output.value
+    return output_format.value
 
 
 def fail_if_not_allowed_stage(ctx: "SafetyContext"):

@@ -2,7 +2,9 @@
 Typosquatting detection for various tools.
 """
 
+import functools
 import logging
+import time
 from collections.abc import Sequence
 
 from rich.prompt import Prompt
@@ -14,6 +16,22 @@ from .intents import CommandToolIntention, ToolIntentionType
 
 logger = logging.getLogger(__name__)
 
+# Temporary benchmark instrumentation, removed in the next commit: per-call
+# check_package durations in seconds, read by the benchmark driver.
+_check_package_timings: list = []
+
+
+def _timed(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            _check_package_timings.append(time.perf_counter() - start)
+
+    return wrapper
+
 
 class TyposquattingProtection:
     """
@@ -23,6 +41,7 @@ class TyposquattingProtection:
     def __init__(self, popular_packages: Sequence[str]):
         self.popular_packages = popular_packages
 
+    @_timed
     def check_package(self, package_name: str) -> tuple[bool, str]:
         """
         Check if a package name is likely to be a typosquatting attempt.

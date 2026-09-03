@@ -168,7 +168,7 @@ class SecurityEventsHandler(EventHandler[SecurityEventTypes]):
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.1, min=0.2, max=1.0),
         retry=retry_if_exception_type(
-            (httpx.NetworkError, httpx.TimeoutException, httpx.HTTPStatusError)
+            (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError)
         ),
         before_sleep=before_sleep_log(logging.getLogger("api_client"), logging.WARNING),
     )

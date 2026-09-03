@@ -74,16 +74,18 @@ Please read and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a 
    git clone https://github.com/pyupio/safety.git
    ```
 
-2. **Set up your environment:**
-- Ensure you are using Python 3.11.2.
-- Install dependencies:
+2. 2. **Set up your environment:**
+- Ensure you are using Python 3.9 or later.
+- Install the project in editable mode with development dependencies:
     ```bash
-    pip install -r requirements.txt
+    pip install -e ".[dev]"
     ```
 
 ### Running Tests
 We use pytest for running tests. To run the tests locally:
-    ```pytest```
+        ```bash
+    pytest
+    ```
 
 Ensure all tests pass before submitting your changes.
 

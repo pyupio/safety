@@ -1,3 +1,29 @@
+"""
+Custom exception and error classes used by the Safety CLI.
+
+Hierarchy:
+    SafetyException (base, exit code 1)
+    └── SafetyError (generic error base)
+         ├── MalformedDatabase
+         ├── DatabaseFetchError
+         │    ├── InvalidCredentialError
+         │    ├── TooManyRequestsError
+         │    ├── RequestTimeoutError
+         │    └── ServerError
+         ├── DatabaseFileNotFoundError
+         ├── InvalidProvidedReportError
+         ├── InvalidRequirementError
+         ├── NotVerifiedEmailError
+         ├── NetworkConnectionError
+         │    └── SSLCertificateError
+         ├── EnrollmentError
+         │    └── EnrollmentTransientFailure
+         └── MachineIdUnavailableError
+
+Each class defines a ``get_exit_code()`` method returning a dedicated
+exit code from ``safety.constants`` so that callers can distinguish
+error types in scripts and CI pipelines.
+"""
 from typing import Optional
 
 from safety.constants import (
@@ -26,7 +52,9 @@ class SafetyException(Exception):
     """
 
     def __init__(
-        self, message: str = "Unhandled exception happened: {info}", info: str = ""
+        self,
+        message: str = "An unexpected Safety CLI error occurred: {info}",
+        info: str = "",
     ):
         self.message = message.format(info=info)
         super().__init__(self.message)
@@ -52,7 +80,7 @@ class SafetyError(Exception):
 
     def __init__(
         self,
-        message: str = "Unhandled Safety generic error",
+        message: str = "An unexpected Safety CLI error occurred.",
         error_code: Optional[int] = None,
     ):
         self.message = message
@@ -83,11 +111,10 @@ class MalformedDatabase(SafetyError):
         self,
         reason: Optional[str] = None,
         fetched_from: str = "server",
-        message: str = "Sorry, something went wrong.\n"
-        "Safety CLI cannot read the data fetched from {fetched_from} because it is malformed.\n",
+        message: str = "The vulnerability database fetched from {fetched_from} is malformed "
+        "and cannot be read by Safety CLI.\n",
     ):
-        info = f"Reason, {reason}" if reason else ""
-        info = "Reason, {reason}".format(reason=reason)
+        info = f"Reason: {reason}" if reason else ""
         self.message = message.format(fetched_from=fetched_from) + (
             info if reason else ""
         )
@@ -111,7 +138,10 @@ class DatabaseFetchError(SafetyError):
         message (str): The error message.
     """
 
-    def __init__(self, message: str = "Unable to load vulnerability database"):
+    def __init__(
+        self, message: str = "Unable to fetch the vulnerability database. "
+        "Please check your network connection and try again."
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -161,7 +191,10 @@ class InvalidRequirementError(SafetyError):
     """
 
     def __init__(
-        self, message: str = "Unable to parse the requirement: {line}", line: str = ""
+        self,
+        message: str = "Unable to parse the package requirement: '{line}'. "
+        "Please ensure the requirement format is valid.",
+        line: str = "",
     ):
         self.message = message.format(line=line)
         super().__init__(self.message)
@@ -188,7 +221,8 @@ class DatabaseFileNotFoundError(DatabaseFetchError):
     def __init__(
         self,
         db: Optional[str] = None,
-        message: str = "Unable to find vulnerability database in {db}",
+        message: str = "Unable to find the vulnerability database file at: {db}. "
+        "Please verify the file exists and the path is correct.",
     ):
         self.db = db
         self.message = message.format(db=db)
@@ -217,17 +251,16 @@ class InvalidCredentialError(DatabaseFetchError):
     def __init__(
         self,
         credential: Optional[str] = None,
-        message: str = "Your authentication credential{credential}is invalid. See {link}.",
+        message: str = "Your authentication credential is invalid. See {link}.",
         reason: Optional[str] = None,
     ):
         self.credential = credential
         self.link = (
             "https://docs.safetycli.com/safety-docs/support/invalid-api-key-error"
         )
+        credential_info = f" Credential: '{credential}'" if credential else ""
         self.message = (
-            message.format(credential=f" '{self.credential}' ", link=self.link)
-            if self.credential
-            else message.format(credential=" ", link=self.link)
+            message.format(link=self.link) + credential_info
         )
         info = f" Reason: {reason}"
         self.message = self.message + (info if reason else "")
@@ -251,7 +284,11 @@ class NotVerifiedEmailError(SafetyError):
         message (str): The error message.
     """
 
-    def __init__(self, message: str = "email is not verified"):
+    def __init__(
+        self,
+        message: str = "Your Safety account email is not verified. "
+        "Please check your inbox and verify your email address to continue.",
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -275,7 +312,10 @@ class TooManyRequestsError(DatabaseFetchError):
     """
 
     def __init__(
-        self, reason: Optional[str] = None, message: str = "Too many requests."
+        self,
+        reason: Optional[str] = None,
+        message: str = "Too many requests sent to the Safety server. "
+        "Please wait and try again later.",
     ):
         info = f" Reason: {reason}"
         self.message = message + (info if reason else "")
@@ -301,7 +341,8 @@ class NetworkConnectionError(SafetyError):
 
     def __init__(
         self,
-        message: str = "Check your network connection, unable to reach the server.",
+        message: str = "Unable to reach the Safety server. "
+        "Please check your network connection and try again.",
     ):
         self.message = message
         super().__init__(self.message)
@@ -315,7 +356,12 @@ class SSLCertificateError(NetworkConnectionError):
         message (str): The error message.
     """
 
-    def __init__(self, message: str = "There is a SSL certificate issue."):
+    def __init__(
+        self,
+        message: str = "SSL certificate verification failed when connecting to the Safety server. "
+        "This may be caused by a proxy, corporate firewall, or outdated root certificates. "
+        "See https://docs.safetycli.com for TLS configuration options.",
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -329,7 +375,9 @@ class RequestTimeoutError(DatabaseFetchError):
     """
 
     def __init__(
-        self, message: str = "Check your network connection, the request timed out."
+        self,
+        message: str = "Request to the Safety server timed out. "
+        "Please check your network connection and try again.",
     ):
         self.message = message
         super().__init__(self.message)
@@ -347,8 +395,8 @@ class ServerError(DatabaseFetchError):
     def __init__(
         self,
         reason: Optional[str] = None,
-        message: str = "Sorry, something went wrong.\n"
-        "Our engineers are working quickly to resolve the issue.",
+        message: str = "The Safety server encountered an error. "
+        "Our engineers are working to resolve the issue. Please try again later.",
     ):
         info = f" Reason: {reason}"
         self.message = message + (info if reason else "")
@@ -363,7 +411,11 @@ class EnrollmentError(SafetyError):
         message (str): The error message.
     """
 
-    def __init__(self, message: str = "Enrollment failed"):
+    def __init__(
+        self,
+        message: str = "Machine enrollment failed. "
+        "Please check your enrollment key and try again.",
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -388,7 +440,11 @@ class EnrollmentTransientFailure(EnrollmentError):
         message (str): The error message.
     """
 
-    def __init__(self, message: str = "Enrollment failed (transient error)"):
+    def __init__(
+        self,
+        message: str = "Machine enrollment failed due to a transient error. "
+        "This is usually temporary. Please try again.",
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -410,7 +466,12 @@ class MachineIdUnavailableError(SafetyError):
         message (str): The error message.
     """
 
-    def __init__(self, message: str = "Unable to determine system identity"):
+    def __init__(
+        self,
+        message: str = "Unable to determine the unique identity of this machine. "
+        "This is required for enrollment. "
+        "Ensure the machine has a unique hostname and the required system files are accessible.",
+    ):
         self.message = message
         super().__init__(self.message)
 

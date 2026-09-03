@@ -83,7 +83,7 @@ def save_project_info(project: ProjectModel, project_path: Path) -> bool:
         with open(project_path, "w") as configfile:
             config.write(configfile)
     except Exception:
-        logger.exception("Error saving project info")
+        logger.exception("Error saving project info to %s", project_path)
         return False
 
     return True

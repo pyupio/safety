@@ -359,7 +359,7 @@ def launch_auth_if_needed(ctx: "SafetyContext", console: Console) -> Optional[st
         data = auth.platform.initialize()  # type: ignore
         org_slug = data.get("organization-data", {}).get("slug")
     except Exception:
-        logger.exception("Unable to load data on the init command")
+        logger.exception("Unable to load organization data during init. Check your authentication and network connectivity.")
 
     return org_slug
 

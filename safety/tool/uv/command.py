@@ -106,7 +106,7 @@ class AuditableUvCommand(UvCommand, InstallationAuditMixin):
             {
                 # Default index URL
                 # When the package manager is wrapped, we provide a default index so the search always falls back to the Safety index
-                # UV_INDEX_URL is deprecated by UV, we comment it out to avoid a anoying warning, UV_DEFAULT_INDEX is available since uv 0.4.23
+                # UV_INDEX_URL is deprecated by UV, we comment it out to avoid an annoying warning, UV_DEFAULT_INDEX is available since uv 0.4.23
                 # So we decided to support only UV_DEFAULT_INDEX, as we don't inject the uv version in the command pipeline yet.
                 #
                 # "UV_INDEX_URL": default_index_url,

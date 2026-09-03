@@ -9,7 +9,7 @@ from rich.prompt import Prompt
 
 from safety.console import main_console as console
 
-from ._vendor.nltk_distance import edit_distance
+from .edit_distance import is_within_distance
 from .intents import CommandToolIntention, ToolIntentionType
 
 logger = logging.getLogger(__name__)
@@ -39,10 +39,7 @@ class TyposquattingProtection:
             return (True, package_name)
 
         for pkg in self.popular_packages:
-            if (
-                abs(len(pkg) - len(package_name)) <= max_edit_distance
-                and edit_distance(pkg, package_name) <= max_edit_distance
-            ):
+            if is_within_distance(pkg, package_name, max_edit_distance):
                 return (False, pkg)
 
         return (True, package_name)

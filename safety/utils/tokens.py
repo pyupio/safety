@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 # JWKS public key) even if a symmetric key is ever added to the JWKS.
 _ALLOWED_ALGORITHMS = ["RS256", "PS256"]
 
+# Tolerance, in seconds, for clock skew between this machine and the token
+# issuer when validating iat/exp/nbf. Without this, a token issued even a
+# few seconds ago can fail validation as "issued in the future" on a
+# machine whose clock is slightly behind the issuer's.
+_CLAIMS_LEEWAY_SECONDS = 60
+
 
 def get_token_claims(
     token: str,
@@ -55,7 +61,7 @@ def get_token_claims(
     try:
         key_set = KeySet.import_key_set(jwks)  # type: ignore
         decoded = jwt.decode(token, key_set, algorithms=_ALLOWED_ALGORITHMS)
-        jwt.JWTClaimsRegistry().validate(decoded.claims)
+        jwt.JWTClaimsRegistry(leeway=_CLAIMS_LEEWAY_SECONDS).validate(decoded.claims)
     except ExpiredTokenError:
         if not silent_if_expired:
             raise

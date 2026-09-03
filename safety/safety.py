@@ -682,8 +682,57 @@ def is_vulnerable(
             prereleases=True,
         )
     )
+# Refactor the check function to extract smaller functions and improve readability and maintainability.
+def _ensure_full_db(db_full, auth, db_mirror, cached, telemetry):
+    """Lazy loads the full database if it does not exist yet."""
+    if not db_full:
+        return fetch_database(
+            auth=auth,
+            full=True,
+            db=db_mirror,
+            cached=cached,
+            telemetry=telemetry,
+        )
+    return db_full
 
+def _extract_pyup_vuln_id(data: Dict[str, Any]) -> str:
+    """Isolates complex logic about vulnerabilty ID extraction."""
+    try:
+        return str(
+            next(
+                filter(
+                    lambda i: i.get("type", None) == "pyup",
+                    data.get("ids", []),
+                )
+            ).get("id", "")
+        )
+    except StopIteration:
+        return ""
 
+def _process_single_vulnerability(
+    data, vuln_id, specifier, db_full, name, pkg, req, ignore_vulns, ignore_severity_rules, include_ignored, is_env_scan
+):
+    """Builds and aplies rules to determinate if a vulnerability should be reported, ignored or discarded."""
+    cve = get_cve_from(data, db_full)
+    
+    ignore_vuln_if_needed(pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules, req)
+
+    vulnerability = get_vulnerability_from(
+        vuln_id, cve, data, specifier, db_full, name, pkg, ignore_vulns, req,
+    )
+
+    should_add_vuln = not (vulnerability.is_transitive and is_env_scan)
+    
+    # safe manage in case ignore_vulne is None
+    safe_ignore_vulns = ignore_vulns or {}
+    is_not_ignored = include_ignored or vulnerability.vulnerability_id not in safe_ignore_vulns
+
+    if is_not_ignored and should_add_vuln:
+        return vulnerability
+        
+    return None
+
+#refactor of the check function per se
 @sync_safety_context
 def check(
     *,
@@ -702,23 +751,6 @@ def check(
 ) -> tuple:
     """
     Performs a vulnerability check on the provided packages.
-
-    Args:
-        auth (Auth): The authentication object.
-        packages (List[Package]): The list of packages to check.
-        db_mirror (Union[Optional[str], bool]): The database mirror.
-        cached (int): The cache validity in seconds.
-        ignore_vulns (Optional[Dict[str, Any]]): The ignored vulnerabilities.
-        ignore_severity_rules (Optional[Dict[str, Any]]): The severity rules for ignoring vulnerabilities.
-        proxy (Optional[Dict[str, Any]]): The proxy settings.
-        include_ignored (bool): Whether to include ignored vulnerabilities.
-        is_env_scan (bool): Whether it is an environment scan.
-        telemetry (bool): Whether to include telemetry data.
-        params (Optional[Dict[str, Any]]): Additional parameters.
-        project (Optional[str]): The project name.
-
-    Returns:
-        tuple: A tuple containing the list of vulnerabilities and the full database.
     """
     SafetyContext().command = "check"
     db = fetch_database(auth=auth, db=db_mirror, cached=cached, telemetry=telemetry)
@@ -736,84 +768,54 @@ def check(
     for req in requirements:
         vuln_per_req = {}
         name = canonicalize_name(req.name)
-
         pkg = found_pkgs.get(name, None)
 
+        if not pkg:
+            continue
+
         if not pkg.version:
-            if not db_full:
-                db_full = fetch_database(
-                    auth=auth,
-                    full=True,
-                    db=db_mirror,
-                    cached=cached,
-                    telemetry=telemetry,
-                )
+            db_full = _ensure_full_db(db_full, auth, db_mirror, cached, telemetry)
             pkg.refresh_from(db_full)
 
-        if name in vulnerable_packages:
-            # we have a candidate here, build the spec set
-            for specifier in db["vulnerable_packages"][name]:
-                spec_set = SpecifierSet(specifiers=specifier)
+        if name not in vulnerable_packages:
+            continue
 
-                if is_vulnerable(spec_set, req, pkg):
-                    if not db_full:
-                        db_full = fetch_database(
-                            auth=auth,
-                            full=True,
-                            db=db_mirror,
-                            cached=cached,
-                            telemetry=telemetry,
-                        )
-                    if not pkg.latest_version:
-                        pkg.refresh_from(db_full)
+        # we have a candidate here, build the spec set
+        for specifier in db["vulnerable_packages"][name]:
+            spec_set = SpecifierSet(specifiers=specifier)
 
-                    for data in get_vulnerabilities(
-                        pkg=name, spec=specifier, db=db_full
-                    ):
-                        try:
-                            vuln_id: str = str(
-                                next(
-                                    filter(
-                                        lambda i: i.get("type", None) == "pyup",
-                                        data.get("ids", []),
-                                    )
-                                ).get("id", "")
-                            )
-                        except StopIteration:
-                            vuln_id: str = ""
+            if not is_vulnerable(spec_set, req, pkg):
+                continue
+                
+            db_full = _ensure_full_db(db_full, auth, db_mirror, cached, telemetry)
+            
+            if not pkg.latest_version:
+                pkg.refresh_from(db_full)
 
-                        if vuln_id in vuln_per_req:
-                            vuln_per_req[vuln_id].vulnerable_spec.add(specifier)
-                            continue
+            for data in get_vulnerabilities(pkg=name, spec=specifier, db=db_full):
+                vuln_id = _extract_pyup_vuln_id(data)
 
-                        cve = get_cve_from(data, db_full)
+                if vuln_id in vuln_per_req:
+                    vuln_per_req[vuln_id].vulnerable_spec.add(specifier)
+                    continue
 
-                        ignore_vuln_if_needed(
-                            pkg, vuln_id, cve, ignore_vulns, ignore_severity_rules, req
-                        )
+                vulnerability = _process_single_vulnerability(
+                    data=data,
+                    vuln_id=vuln_id,
+                    specifier=specifier,
+                    db_full=db_full,
+                    name=name,
+                    pkg=pkg,
+                    req=req,
+                    ignore_vulns=ignore_vulns,
+                    ignore_severity_rules=ignore_severity_rules,
+                    include_ignored=include_ignored,
+                    is_env_scan=is_env_scan
+                )
 
-                        vulnerability = get_vulnerability_from(
-                            vuln_id,
-                            cve,
-                            data,
-                            specifier,
-                            db_full,
-                            name,
-                            pkg,
-                            ignore_vulns,
-                            req,
-                        )
-
-                        should_add_vuln = not (
-                            vulnerability.is_transitive and is_env_scan
-                        )
-
-                        if (
-                            include_ignored
-                            or vulnerability.vulnerability_id not in ignore_vulns
-                        ) and should_add_vuln:
-                            vuln_per_req[vulnerability.vulnerability_id] = vulnerability
-                            vulnerabilities.append(vulnerability)
+                if vulnerability:
+                    vuln_per_req[vulnerability.vulnerability_id] = vulnerability
+                    vulnerabilities.append(vulnerability)
 
     return vulnerabilities, db_full
 

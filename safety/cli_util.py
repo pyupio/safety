@@ -193,6 +193,103 @@ def pass_safety_cli_obj(func):
 
     return inner
 
+# functions for refactoring pretty_help_format
+def _categorize_params(obj, ctx):
+    """Clasifica los parámetros en argumentos y opciones según sus paneles."""
+    from typer.rich_utils import ARGUMENTS_PANEL_TITLE, OPTIONS_PANEL_TITLE
+    import click
+    from collections import defaultdict
+
+    panel_to_arguments = defaultdict(list)
+    panel_to_options = defaultdict(list)
+
+    for param in obj.get_params(ctx):
+        if getattr(param, "hidden", False):
+            continue
+        
+        if isinstance(param, click.Argument):
+            panel_name = getattr(param, "rich_help_panel", None) or ARGUMENTS_PANEL_TITLE
+            panel_to_arguments[panel_name].append(param)
+        elif isinstance(param, click.Option):
+            panel_name = getattr(param, "rich_help_panel", None) or OPTIONS_PANEL_TITLE
+            panel_to_options[panel_name].append(param)
+            
+    return panel_to_arguments, panel_to_options
+
+def _categorize_commands(obj, ctx):
+    """Agrupa los subcomandos disponibles por nombre de panel."""
+    from typer.rich_utils import COMMANDS_PANEL_TITLE
+    import click
+    from collections import defaultdict
+
+    panel_to_commands = defaultdict(list)
+    if isinstance(obj, click.MultiCommand):
+        for command_name in obj.list_commands(ctx):
+            command = obj.get_command(ctx, command_name)
+            if command and not command.hidden:
+                panel_name = getattr(command, "rich_help_panel", None) or COMMANDS_PANEL_TITLE
+                panel_to_commands[panel_name].append(command)
+                
+    return panel_to_commands
+
+def _print_commands_panels(panel_to_commands, console):
+    """Imprime los paneles de comandos, dando prioridad al panel por defecto."""
+    from typer.rich_utils import COMMANDS_PANEL_TITLE
+    if not panel_to_commands:
+        return
+
+    if COMMANDS_PANEL_TITLE in panel_to_commands:
+        custom_print_commands_panel(
+            name=COMMANDS_PANEL_TITLE,
+            commands=panel_to_commands[COMMANDS_PANEL_TITLE],
+            console=console,
+        )
+        
+    for panel_name, commands in panel_to_commands.items():
+        if panel_name != COMMANDS_PANEL_TITLE:
+            custom_print_commands_panel(name=panel_name, commands=commands, console=console)
+
+def _print_params_panels(panel_dict, default_title, ctx, console):
+    """Imprime genéricamente paneles de parámetros (Opciones o Argumentos)."""
+    if not panel_dict:
+        return
+
+    if default_title in panel_dict:
+        custom_print_options_panel(
+            name=default_title, 
+            params=panel_dict[default_title], 
+            ctx=ctx, 
+            console=console
+        )
+        
+    for panel_name, params in panel_dict.items():
+        if panel_name != default_title:
+            custom_print_options_panel(name=panel_name, params=params, ctx=ctx, console=console)
+
+def _print_global_options(ctx, console):
+    """Extrae e imprime las opciones globales heredadas del comando padre."""
+    import click
+    if ctx.parent:
+        params = [param for param in ctx.parent.command.params if isinstance(param, click.Option)]
+        if params:
+            custom_print_options_panel(
+                name="Global-Options",
+                params=params,
+                ctx=ctx.parent,
+                console=console,
+            )
+
+def _print_epilog(obj, console):
+    """Formatea e imprime el epílogo del comando."""
+    from rich.align import Align
+    from rich.padding import Padding
+    
+    if obj.epilog:
+        lines = obj.epilog.split("\n\n")
+        epilogue = "\n".join([x.replace("\n", " ").strip() for x in lines])
+        epilogue_text = custom_make_rich_text(text=epilogue)
+        console.print(Padding(Align(epilogue_text, pad=False), 1))
+
 
 def pretty_format_help(
     obj: Union[click.Command, click.Group], ctx: click.Context, markup_mode: MarkupMode
@@ -224,119 +321,25 @@ def pretty_format_help(
         # Print command / group help if we have some
         if obj.help:
             console.print()
-
-            # Print with some padding
-            console.print(
+            console.print(  # Print with some padding
                 Padding(Align(custom_get_help_text(obj=obj), pad=False), (0, 1, 0, 1))
             )
-
         # Print usage
         console.print(
             Padding(highlighter(obj.get_usage(ctx)), 1), style=STYLE_USAGE_COMMAND
         )
-
-        if isinstance(obj, click.MultiCommand):
-            panel_to_commands: DefaultDict[str, List[click.Command]] = defaultdict(list)
-            for command_name in obj.list_commands(ctx):
-                command = obj.get_command(ctx, command_name)
-                if command and not command.hidden:
-                    panel_name = (
-                        getattr(command, "rich_help_panel", None)
-                        or COMMANDS_PANEL_TITLE
-                    )
-                    panel_to_commands[panel_name].append(command)
-
-            # Print each command group panel
-            default_commands = panel_to_commands.get(COMMANDS_PANEL_TITLE, [])
-            custom_print_commands_panel(
-                name=COMMANDS_PANEL_TITLE,
-                commands=default_commands,
-                console=console,
-            )
-            for panel_name, commands in panel_to_commands.items():
-                if panel_name == COMMANDS_PANEL_TITLE:
-                    # Already printed above
-                    continue
-                custom_print_commands_panel(
-                    name=panel_name,
-                    commands=commands,
-                    console=console,
-                )
-
-        panel_to_arguments: DefaultDict[str, List[click.Argument]] = defaultdict(list)
-        panel_to_options: DefaultDict[str, List[click.Option]] = defaultdict(list)
-        for param in obj.get_params(ctx):
-            # Skip if option is hidden
-            if getattr(param, "hidden", False):
-                continue
-            if isinstance(param, click.Argument):
-                panel_name = (
-                    getattr(param, "rich_help_panel", None) or ARGUMENTS_PANEL_TITLE
-                )
-                panel_to_arguments[panel_name].append(param)
-            elif isinstance(param, click.Option):
-                panel_name = (
-                    getattr(param, "rich_help_panel", None) or OPTIONS_PANEL_TITLE
-                )
-                panel_to_options[panel_name].append(param)
-
-        default_options = panel_to_options.get(OPTIONS_PANEL_TITLE, [])
-        custom_print_options_panel(
-            name=OPTIONS_PANEL_TITLE,
-            params=default_options,
-            ctx=ctx,
-            console=console,
-        )
-        for panel_name, options in panel_to_options.items():
-            if panel_name == OPTIONS_PANEL_TITLE:
-                # Already printed above
-                continue
-            custom_print_options_panel(
-                name=panel_name,
-                params=options,
-                ctx=ctx,
-                console=console,
-            )
-
-        default_arguments = panel_to_arguments.get(ARGUMENTS_PANEL_TITLE, [])
-        custom_print_options_panel(
-            name=ARGUMENTS_PANEL_TITLE,
-            params=default_arguments,
-            ctx=ctx,
-            console=console,
-        )
-        for panel_name, arguments in panel_to_arguments.items():
-            if panel_name == ARGUMENTS_PANEL_TITLE:
-                # Already printed above
-                continue
-            custom_print_options_panel(
-                name=panel_name,
-                params=arguments,
-                ctx=ctx,
-                console=console,
-            )
-
-        if ctx.parent:
-            params = []
-            for param in ctx.parent.command.params:
-                if isinstance(param, click.Option):
-                    params.append(param)
-
-            custom_print_options_panel(
-                name="Global-Options",
-                params=params,
-                ctx=ctx.parent,
-                console=console,
-            )
-
-        # Epilogue if we have it
-        if obj.epilog:
-            # Remove single linebreaks, replace double with single
-            lines = obj.epilog.split("\n\n")
-            epilogue = "\n".join([x.replace("\n", " ").strip() for x in lines])
-            epilogue_text = custom_make_rich_text(text=epilogue)
-            console.print(Padding(Align(epilogue_text, pad=False), 1))
-
+        # Command panel
+        panel_to_commands = _categorize_commands(obj, ctx)
+        _print_commands_panels(panel_to_commands, console)
+        # Args and options panels
+        panel_to_arguments, panel_to_options = _categorize_params(obj, ctx)
+        _print_params_panels(panel_to_options, OPTIONS_PANEL_TITLE, ctx, console)
+        _print_params_panels(panel_to_arguments, ARGUMENTS_PANEL_TITLE, ctx, console)
+        # Global options
+        _print_global_options(ctx, console)
+        # Epilogue
+        _print_epilog(obj, console)
+        
 
 def print_main_command_panels(
     *,

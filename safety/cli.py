@@ -129,6 +129,7 @@ LOG = logging.getLogger(__name__)
 
 
 def preprocess_args(f):
+    """Decorator to sanitize debug flag from unneeded values for example: debug true = debug"""
     if "--debug" in sys.argv:
         index = sys.argv.index("--debug")
         if len(sys.argv) > index + 1:
@@ -139,6 +140,7 @@ def preprocess_args(f):
 
 
 def configure_logger(ctx, param, debug):
+    """Function that configures logging level and configures inital debug"""
     level = logging.CRITICAL
 
     if debug:
@@ -814,11 +816,11 @@ def license(ctx, db, output, cache, files):
 def generate(ctx, name, path, minimum_cvss_severity):
     """Create a boilerplate Safety CLI policy file
 
-    NAME is the name of the file type to generate. Valid values are: policy_file
+    NAME is the name of the file type to generate. Valid values are: policy_file, installation_policy
     """
     if name != "policy_file" and name != "installation_policy":
         click.secho(
-            f'This Safety version only supports "policy_file" generation. "{name}" is not supported.',
+            f'This Safety version only supports "policy_file" or "installation_policy" generation. "{name}" is not supported.',
             fg="red",
             file=sys.stderr,
         )
@@ -835,6 +837,7 @@ def generate(ctx, name, path, minimum_cvss_severity):
 def generate_installation_policy(
     ctx: "SafetyCustomContext", name, path, minimum_cvss_severity
 ):
+    """Generates installation policy for function generate"""
     all_severities = [severity.name.lower() for severity in VulnerabilitySeverityLabels]
     policy_severities = all_severities[
         all_severities.index(minimum_cvss_severity.lower()) :
@@ -923,6 +926,7 @@ def generate_installation_policy(
 
 
 def generate_policy_file(name, path):
+    """Generates and handles errors that could happen with creation of policy file"""
     path = Path(path)
     if not path.exists():
         click.secho(f'The path "{path}" does not exist.', fg="red", file=sys.stderr)
@@ -984,6 +988,7 @@ def validate(ctx, name, version, path):
         sys.exit(EXIT_CODE_FAILURE)
 
     def fail_validation(e):
+        """prints error to console and then exit the program"""
         click.secho(str(e).lstrip(), fg="red", file=sys.stderr)
         sys.exit(EXIT_CODE_FAILURE)
 
@@ -1215,6 +1220,7 @@ typer.rich_utils.STYLE_HELPTEXT = ""
 
 
 def print_check_updates_header(console):
+    """Prints safety version to console"""
     VERSION = get_version()
     console.print(
         f"Safety {VERSION} checking for Safety version and configuration updates:"

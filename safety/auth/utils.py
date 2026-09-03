@@ -119,7 +119,12 @@ def save_flags_config(flags: Dict[FeatureType, bool]) -> None:
         with open(CONFIG_FILE_USER, "w") as config_file:
             config.write(config_file)
     except Exception:
-        LOG.exception("Unable to save flags configuration.")
+        LOG.exception(
+            "Unable to save feature flags configuration to %s. "
+            "The application will continue using existing configuration "
+            "or default flag values until the next restart.",
+            CONFIG_FILE_USER,
+        )
 
 
 def get_feature_name(feature: FeatureType, as_attr: bool = False) -> str:

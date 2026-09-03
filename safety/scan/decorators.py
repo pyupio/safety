@@ -113,6 +113,8 @@ def scan_project_command_init(func):
         ctx.obj.project.git = git_data
         ctx.obj.project.upload_request_id = upload_request_id
 
+        is_explicit_policy_file = policy_file_path is not None
+
         if not policy_file_path:
             policy_file_path = target / Path(".safety-policy.yml")
 
@@ -120,7 +122,7 @@ def scan_project_command_init(func):
         local_policy = kwargs.pop("local_policy", load_policy_file(policy_file_path))
 
         cloud_policy = None
-        if ctx.obj.platform_enabled:
+        if ctx.obj.platform_enabled and not is_explicit_policy_file:
             cloud_policy = print_wait_policy_download(
                 console,
                 (
@@ -134,7 +136,10 @@ def scan_project_command_init(func):
                 ),
             )
 
-        ctx.obj.project.policy = resolve_policy(local_policy, cloud_policy)
+        if is_explicit_policy_file and local_policy:
+            ctx.obj.project.policy = local_policy
+        else:
+            ctx.obj.project.policy = resolve_policy(local_policy, cloud_policy)
         config = (
             ctx.obj.project.policy.config
             if ctx.obj.project.policy and ctx.obj.project.policy.config

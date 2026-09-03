@@ -277,6 +277,22 @@ class PythonFile(InspectableFile, Remediable):
         self.ecosystem = file_type.ecosystem
         self.file_type = file_type
 
+    def _load_full_db(self) -> dict | None:
+        """
+        Lazily loads the full vulnerability database from the local cache.
+
+        Returns:
+            dict | None: The full database, or None if unavailable or invalid.
+        """
+        db_full = get_from_cache(
+            db_name="insecure_full.json", skip_time_verification=True
+        )
+        if not db_full:
+            LOG.debug(
+                "Cache data for insecure_full.json is not available or is invalid."
+            )
+        return db_full
+
     def __find_dependency_vulnerabilities__(
         self, dependencies: List[PythonDependency], config: ConfigModel
     ) -> None:
@@ -325,13 +341,8 @@ class PythonFile(InspectableFile, Remediable):
 
             if not dependency.version:
                 if not db_full:
-                    db_full = get_from_cache(
-                        db_name="insecure_full.json", skip_time_verification=True
-                    )
+                    db_full = self._load_full_db()
                     if not db_full:
-                        LOG.debug(
-                            "Cache data for insecure_full.json is not available or is invalid."
-                        )
                         return
                 dependency.refresh_from(db_full)
 
@@ -342,14 +353,8 @@ class PythonFile(InspectableFile, Remediable):
 
                     if spec.is_vulnerable(spec_set, dependency.insecure_versions):
                         if not db_full:
-                            db_full = get_from_cache(
-                                db_name="insecure_full.json",
-                                skip_time_verification=True,
-                            )
+                            db_full = self._load_full_db()
                             if not db_full:
-                                LOG.debug(
-                                    "Cache data for insecure_full.json is not available or is invalid."
-                                )
                                 return
                         if not dependency.latest_version:
                             dependency.refresh_from(db_full)
@@ -497,9 +502,7 @@ class PythonFile(InspectableFile, Remediable):
         """
         Remediates the vulnerabilities in the file.
         """
-        db_full = get_from_cache(
-            db_name="insecure_full.json", skip_time_verification=True
-        )
+        db_full = self._load_full_db()
         if not db_full:
             return
 

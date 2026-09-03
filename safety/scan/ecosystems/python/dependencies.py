@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+import json
 import sys
 from typing import Generator, List, Optional
 
@@ -225,6 +226,28 @@ def read_dependencies(
     found = absolute_path
 
     content = fh.read()
+    #solution for error "Unhandled exception happened:'hashes' in issue 849
+    if path and path.endswith("Pipfile.lock"):
+            try:
+                # content comes as a string, it gets parsed into json format and converted into a dictionary
+                data = json.loads(content)
+                modified = False
+                
+                # Pipfile.lock groups dependencies as "deafault" and "develop"
+                for section in ["default", "develop"]:
+                    if section in data:
+                        for pkg_name, pkg_meta in data[section].items():
+                            # if it is a pkg dictonary and has no hashes, it gets blinded/blocked
+                            if isinstance(pkg_meta, dict) and "hashes" not in pkg_meta:
+                                pkg_meta["hashes"] = []
+                                modified = True
+                
+                # if changes were made, it gets converted back to a string
+                if modified:
+                    content = json.dumps(data)
+            except Exception:
+                # if the file is not a JSON for any reason, it silently fails and dparse handles the error
+                pass
     dependency_file = parse(content, path=path, resolve=resolve)
 
     reqs_pkg = defaultdict(list)

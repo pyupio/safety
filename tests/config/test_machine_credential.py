@@ -1253,6 +1253,7 @@ class TestSaveIsAtomic:
         assert survivor.machine_token == "tok-original"
 
     @pytest.mark.unit
+    @pytest.mark.unix_only  # Windows chmod only honours the read-only bit
     def test_save_preserves_existing_file_permissions(self, tmp_path: Path) -> None:
         config_path = tmp_path / "auth.ini"
         cred = MachineCredentialConfig(

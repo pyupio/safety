@@ -5,6 +5,7 @@
 from authlib.oauth2.rfc6749 import OAuth2Token
 from dataclasses import dataclass
 import configparser
+import os
 
 from filelock import FileLock
 from pathlib import Path
@@ -14,6 +15,37 @@ from typing import Any, Dict, Optional, Tuple, cast
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _write_config_atomically(config: configparser.ConfigParser, path: Path) -> None:
+    """Replace the file at `path` with `config` in a single step.
+
+    Writing straight to `path` truncates it before the new contents land.
+    This file holds credentials and `from_storage` reads it without taking
+    the lock, so that window hands an empty file to any concurrent reader,
+    and a write that fails partway through loses the credentials outright.
+
+    Write a sibling temp file and rename over the target instead. `os.replace`
+    is atomic on POSIX and Windows, so a reader sees either the old contents
+    or the new ones.
+    """
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+
+    try:
+        with open(tmp, "w") as configfile:
+            config.write(configfile)
+            configfile.flush()
+            os.fsync(configfile.fileno())
+
+        if path.exists():
+            # `os.replace` keeps the temp file's own mode, so carry the
+            # existing one over rather than widening a tightened config.
+            os.chmod(tmp, path.stat().st_mode & 0o777)
+
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 @dataclass
@@ -131,8 +163,7 @@ class AuthConfig:
                 self._KEY_ORG_LEGACY_UUID: self.org_legacy_uuid,
             }
 
-            with open(path, "w") as configfile:
-                config.write(configfile)
+            _write_config_atomically(config, path)
 
     def to_token(self, jwks: Dict[str, Any]) -> OAuth2Token:
         """
@@ -234,8 +265,7 @@ class MachineCredentialConfig:
                 "org_slug": self.org_slug,
             }
 
-            with open(path, "w") as configfile:
-                config.write(configfile)
+            _write_config_atomically(config, path)
 
     @classmethod
     def clear(cls, path: Optional[Path] = None) -> None:
@@ -249,5 +279,4 @@ class MachineCredentialConfig:
             config.read(path)
             if config.has_section(cls._SECTION_MACHINE):
                 config.remove_section(cls._SECTION_MACHINE)
-                with open(path, "w") as configfile:
-                    config.write(configfile)
+                _write_config_atomically(config, path)

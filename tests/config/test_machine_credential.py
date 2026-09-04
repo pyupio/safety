@@ -1214,3 +1214,54 @@ class TestConcurrentReadAccess:
             success_count += 1
 
         assert success_count == iterations * 2
+
+
+class TestSaveIsAtomic:
+    """
+    save() must never leave the config file empty or partial.
+
+    The file holds the user's credentials. A truncate-then-write loses them
+    outright if the write fails partway, and exposes an empty file to any
+    concurrent reader, since from_storage() takes no lock.
+    """
+
+    @pytest.mark.unit
+    def test_failed_save_leaves_existing_credentials_intact(
+        self, tmp_path: Path
+    ) -> None:
+        config_path = tmp_path / "auth.ini"
+        MachineCredentialConfig(
+            machine_id="m-original",
+            machine_token="tok-original",
+            enrolled_at="2025-01-01T00:00:00Z",
+        ).save(path=config_path)
+
+        replacement = MachineCredentialConfig(
+            machine_id="m-replacement",
+            machine_token="tok-replacement",
+            enrolled_at="2025-02-02T00:00:00Z",
+        )
+
+        # Simulate the process dying midway through writing the new contents.
+        with patch("configparser.ConfigParser.write", side_effect=OSError("disk full")):
+            with pytest.raises(OSError):
+                replacement.save(path=config_path)
+
+        survivor = MachineCredentialConfig.from_storage(path=config_path)
+        assert survivor is not None, "save() destroyed the existing credentials"
+        assert survivor.machine_id == "m-original"
+        assert survivor.machine_token == "tok-original"
+
+    @pytest.mark.unit
+    @pytest.mark.unix_only  # Windows chmod only honours the read-only bit
+    def test_save_preserves_existing_file_permissions(self, tmp_path: Path) -> None:
+        config_path = tmp_path / "auth.ini"
+        cred = MachineCredentialConfig(
+            machine_id="m-1", machine_token="tok-1", enrolled_at="2025-01-01T00:00:00Z"
+        )
+        cred.save(path=config_path)
+        config_path.chmod(0o600)
+
+        cred.save(path=config_path)
+
+        assert config_path.stat().st_mode & 0o777 == 0o600

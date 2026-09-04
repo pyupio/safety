@@ -21,6 +21,25 @@ logger = logging.getLogger(__name__)
 _ALLOWED_ALGORITHMS = ["RS256", "PS256"]
 
 
+def _required_claims_registry() -> jwt.JWTClaimsRegistry:
+    """A registry that requires the registered claims to be present.
+
+    JWTClaimsRegistry requires nothing by default and validates only the
+    claims a token happens to carry. Without this a signature-valid token
+    with no "exp" has nothing for the expiry check to compare against, so it
+    never fails and is accepted forever. These are the claims authlib's
+    CodeIDToken required before the joserfc migration, applied to both token
+    types as it was then, so this is the contract 3.8.1 shipped with.
+    """
+    return jwt.JWTClaimsRegistry(
+        iss={"essential": True},
+        sub={"essential": True},
+        aud={"essential": True},
+        iat={"essential": True},
+        exp={"essential": True},
+    )
+
+
 def get_token_claims(
     token: str,
     token_type: Literal["access_token", "id_token"],
@@ -45,6 +64,8 @@ def get_token_claims(
 
     Raises:
         ValueError: If token_type is invalid
+        MissingClaimError: If the token omits a registered claim. This is
+            never silenced; silent_if_expired only forgives expiry.
         ExpiredTokenError: If token is expired and silent_if_expired is False
     """
     if token_type not in ("access_token", "id_token"):
@@ -55,7 +76,7 @@ def get_token_claims(
     try:
         key_set = KeySet.import_key_set(jwks)  # type: ignore
         decoded = jwt.decode(token, key_set, algorithms=_ALLOWED_ALGORITHMS)
-        jwt.JWTClaimsRegistry().validate(decoded.claims)
+        _required_claims_registry().validate(decoded.claims)
     except ExpiredTokenError:
         if not silent_if_expired:
             raise

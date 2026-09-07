@@ -74,18 +74,18 @@ Please read and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a 
    git clone https://github.com/pyupio/safety.git
    ```
 
-2. **Set up your environment:**
-- Ensure you are using Python 3.11.2.
-- Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+2. **Set up your development environment:**
+
+   Safety uses Hatch to manage development environments and dependencies. The repository provides a development container with the required tooling.
+
+   Open the repository in a development container using VS Code and the Dev Containers extension. The development container installs Hatch and the project's development dependencies automatically.
 
 ### Running Tests
-We use pytest for running tests. To run the tests locally:
-    ```pytest```
+Tests are managed with Hatch. To run the test suite:
 
-Ensure all tests pass before submitting your changes.
+```bash
+hatch run test
+```
 
 ## Pull Request Process
 

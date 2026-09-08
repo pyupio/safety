@@ -76,7 +76,7 @@ Please read and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a 
 
 2. **Set up your development environment:**
 
-   Safety uses Hatch to manage development environments and dependencies. The repository provides a development container with the required tooling.
+   Safety uses Hatch to manage development environments and dependencies, and requires Python >=3.9 (see pyproject.toml). The repository provides a development container with the required tooling.
 
    Open the repository in a development container using VS Code and the Dev Containers extension. The development container installs Hatch and the project's development dependencies automatically.
 

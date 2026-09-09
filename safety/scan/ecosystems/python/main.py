@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import itertools
 import logging
 from typing import List
@@ -75,7 +75,7 @@ def ignore_vuln_if_needed(
     if vuln_ignored and ignore_vulns[vuln_id].code is IgnoreCodes.manual:
         if (
             not ignore_vulns[vuln_id].expires
-            or ignore_vulns[vuln_id].expires > datetime.utcnow().date()
+            or ignore_vulns[vuln_id].expires > datetime.now(timezone.utc).date()
         ):
             return
 

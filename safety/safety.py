@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, List, Any, Union, Iterator
 
 from authlib.integrations.base_client.errors import OAuthError
@@ -495,7 +495,7 @@ def get_vulnerability_from(
         and should_ignore
         and (
             not ignore_vulns[vuln_id]["expires"]
-            or ignore_vulns[vuln_id]["expires"] > datetime.utcnow()
+            or ignore_vulns[vuln_id]["expires"] > datetime.now(timezone.utc).replace(tzinfo=None)
         )
     )
     more_info_url = f"{base_domain}{data.get('more_info_path', '')}"

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import click
+import pytest
 from importlib.metadata import version
 
 from click.testing import CliRunner
@@ -220,6 +221,7 @@ class TestSafetyCLI(unittest.TestCase):
             self.assertEqual(result.exit_code, expected_exit_code)
             self.assertIn(expected, click.unstyle(result.output))
 
+    @pytest.mark.requires_network
     @patch("safety.safety.check")
     def test_check_vulnerabilities_found_default(self, check_func):
         check_func.return_value = [get_vulnerability()], None
@@ -227,6 +229,7 @@ class TestSafetyCLI(unittest.TestCase):
         result = self.runner.invoke(self.cli, ["check"])
         self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_FOUND)
 
+    @pytest.mark.requires_network
     @patch("safety.safety.check")
     def test_check_vulnerabilities_not_found_default(self, check_func):
         check_func.return_value = [], None
@@ -234,6 +237,7 @@ class TestSafetyCLI(unittest.TestCase):
         result = self.runner.invoke(self.cli, ["check"])
         self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_NOT_FOUND)
 
+    @pytest.mark.requires_network
     @patch("safety.safety.check")
     def test_check_vulnerabilities_found_with_outputs(self, check_func):
         check_func.return_value = [get_vulnerability()], None
@@ -243,6 +247,7 @@ class TestSafetyCLI(unittest.TestCase):
             result = self.runner.invoke(self.cli, ["check", "--output", output])
             self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_FOUND)
 
+    @pytest.mark.requires_network
     @patch("safety.safety.check")
     def test_check_vulnerabilities_not_found_with_outputs(self, check_func):
         check_func.return_value = [], None
@@ -252,6 +257,7 @@ class TestSafetyCLI(unittest.TestCase):
             result = self.runner.invoke(self.cli, ["check", "--output", output])
             self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_VULNS_NOT_FOUND)
 
+    @pytest.mark.requires_network
     @patch("safety.safety.check")
     def test_check_continue_on_error(self, check_func):
         EXPECTED_EXIT_CODE_CONTINUE_ON_ERROR = 0
@@ -269,6 +275,7 @@ class TestSafetyCLI(unittest.TestCase):
                 )
                 self.assertEqual(result.exit_code, EXPECTED_EXIT_CODE_CONTINUE_ON_ERROR)
 
+    @pytest.mark.requires_network
     @patch("safety.safety.get_announcements")
     def test_announcements_if_is_not_tty(self, get_announcements_func):
         announcement = {"type": "error", "message": "Please upgrade now"}
@@ -278,6 +285,7 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertTrue("ANNOUNCEMENTS" in result.stderr)
         self.assertTrue(message in result.stderr)
 
+    @pytest.mark.requires_network
     @patch("safety.safety.check")
     def test_check_ignore_format_backward_compatible(self, check):
         runner = CliRunner()
@@ -501,6 +509,7 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertEqual(click.unstyle(result.stderr), msg)
         self.assertEqual(result.exit_code, 1)
 
+    @pytest.mark.requires_network
     def test_check_with_fix_does_verify_api_key(self):
         dirname = os.path.dirname(__file__)
         req_file = os.path.join(dirname, "test_fix", "basic", "reqs_simple.txt")
@@ -513,6 +522,7 @@ class TestSafetyCLI(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 65)
 
+    @pytest.mark.requires_network
     def test_check_with_fix_only_works_with_files(self):
         result = self.runner.invoke(
             self.cli, ["check", "--key", "TEST-API_KEY", "--apply-security-updates"]
@@ -523,6 +533,7 @@ class TestSafetyCLI(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 1)
 
+    @pytest.mark.requires_network
     @patch("safety.util.SafetyContext")
     @patch("safety.safety.check")
     @patch("safety.safety.calculate_remediations")
@@ -643,6 +654,7 @@ class TestSafetyCLI(unittest.TestCase):
             with open(req_file) as f:
                 self.assertEqual("django==2.0\nsafety==2.3.0\nflask==0.87.0", f.read())
 
+    @pytest.mark.requires_network
     def test_check_ignore_unpinned_requirements(self):
         dirname = os.path.dirname(__file__)
         db = os.path.join(dirname, "test_db")
@@ -739,6 +751,7 @@ class TestSafetyCLI(unittest.TestCase):
         except json.JSONDecodeError:
             self.fail(f"Failed to parse JSON output. Extracted JSON was: {json_output}")
 
+    @pytest.mark.requires_network
     def test_basic_html_output_pass(self):
         dirname = os.path.dirname(__file__)
         db = os.path.join(dirname, "test_db")
@@ -763,6 +776,7 @@ class TestSafetyCLI(unittest.TestCase):
         self.assertIn("remediations-suggested", result.stdout)
         self.assertIn("Use API Key", result.stdout)
 
+    @pytest.mark.requires_network
     @patch("safety.safety.fetch_database_url")
     def test_license_with_file(self, fetch_database_url):
         licenses_db = {
@@ -781,6 +795,7 @@ class TestSafetyCLI(unittest.TestCase):
         print(result.stdout)
         self.assertEqual(result.exit_code, 0)
 
+    @pytest.mark.requires_network
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
     @patch(
@@ -869,6 +884,7 @@ class TestSafetyCLI(unittest.TestCase):
             f"Preprocessed args: {preprocessed_args}"
         )
 
+    @pytest.mark.requires_network
     @patch("safety.auth.utils.get_config_setting", return_value=None)
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
@@ -941,6 +957,7 @@ class TestSafetyCLI(unittest.TestCase):
                             f"Output: {cleaned_stdout}\n"
                         )
 
+    @pytest.mark.requires_network
     @patch("safety.auth.cli.get_auth_info", return_value={"email": "test@test.com"})
     @patch.object(Auth, "is_valid", return_value=True)
     @patch(

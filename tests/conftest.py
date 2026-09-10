@@ -2,7 +2,9 @@ from importlib.metadata import distributions
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
+import socket
 import sys
+from urllib.parse import urlparse
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -55,13 +57,39 @@ _PLATFORM_MARKERS = {
 }
 
 
+def _can_resolve(url: str, timeout: float = 2.0) -> bool:
+    host = urlparse(url).hostname
+    if not host:
+        return False
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.gethostbyname(host)
+        return True
+    except OSError:
+        return False
+
+
+def _has_platform_network() -> bool:
+    from safety.auth.constants import SAFETY_PLATFORM_URL
+
+    return _can_resolve(SAFETY_PLATFORM_URL)
+
+
+_NETWORK_MARKERS = {
+    "requires_network": _has_platform_network(),
+}
+
+
 def pytest_collection_modifyitems(config, items):
-    for marker_name, condition_met in _PLATFORM_MARKERS.items():
+    for marker_name, condition_met in {**_PLATFORM_MARKERS, **_NETWORK_MARKERS}.items():
         if condition_met:
             continue
-        skip = pytest.mark.skip(
-            reason=f"requires {marker_name} (platform={sys.platform})"
+        reason = (
+            f"requires {marker_name} (platform={sys.platform})"
+            if marker_name in _PLATFORM_MARKERS
+            else "requires network access to the Safety Platform"
         )
+        skip = pytest.mark.skip(reason=reason)
         for item in items:
             if marker_name in item.keywords:
                 item.add_marker(skip)

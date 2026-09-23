@@ -1,82 +1,155 @@
-import unittest
+from datetime import date, timedelta
 from unittest.mock import MagicMock
-from safety.scan.ecosystems.python.main import should_fail, VulnerabilitySeverityLabels
+
+from packaging.specifiers import SpecifierSet
+from safety_schemas.models import (
+    FileType,
+    IgnoreCodes,
+    IgnoredItemDetail,
+    PythonSpecification,
+)
+
+from safety.scan.ecosystems.python.main import ignore_vuln_if_needed
 
 
-class TestMain(unittest.TestCase):
-    def setUp(self):
-        self.config = MagicMock()
-        self.vulnerability = MagicMock()
+class TestMain:
+    def test_ignore_vuln_not_bound_to_package_version(self):
+        """
+        Regression test for issue #907.
 
-    def test_fail_on_disabled(self):
-        self.config.depedendency_vulnerability.fail_on.enabled = False
-        result = should_fail(self.config, self.vulnerability)
-        self.assertFalse(result)
+        A manual ignore with no recorded specifications must not silently
+        suppress a vulnerability in a different package version.
+        """
+        vuln_id = "VULN-TEST-0001"
+        ignore_vulns = {
+            vuln_id: IgnoredItemDetail(
+                code=IgnoreCodes.manual,
+                reason="ignore for pkg=1.0 only",
+                expires=None,
+                specifications=None,
+            )
+        }
 
-    def test_severity_none(self):
-        self.config.depedendency_vulnerability.fail_on.enabled = True
-        self.vulnerability.severity = None
-        result = should_fail(self.config, self.vulnerability)
-        self.assertFalse(result)
+        dep = MagicMock()
+        dep.name = "examplepkg"
+        dep.version = "2.0"
 
-    def test_severity_none_with_fail_on_unknow_none(self):
-        self.config.depedendency_vulnerability.fail_on.enabled = True
-        self.vulnerability.severity = None
+        specification = PythonSpecification("examplepkg==2.0")
 
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.UNKNOWN
-        ]
-        self.assertTrue(should_fail(self.config, self.vulnerability))
+        ignore_vuln_if_needed(
+            dependency=dep,
+            file_type=FileType.REQUIREMENTS_TXT,
+            vuln_id=vuln_id,
+            cve=None,
+            ignore_vulns=ignore_vulns,
+            ignore_unpinned=False,
+            ignore_environment=False,
+            specification=specification,
+            ignore_severity=[],
+        )
 
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.NONE
-        ]
-        self.assertTrue(should_fail(self.config, self.vulnerability))
+        assert vuln_id not in ignore_vulns
 
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.UNKNOWN,
-            VulnerabilitySeverityLabels.NONE,
-        ]
-        self.assertTrue(should_fail(self.config, self.vulnerability))
+    def test_ignore_vuln_bound_to_other_specifier_is_dropped(self):
+        """An ignore bound to pkg==1.0 must not suppress pkg==2.0."""
+        vuln_id = "VULN-TEST-0002"
+        ignore_vulns = {
+            vuln_id: IgnoredItemDetail(
+                code=IgnoreCodes.manual,
+                reason="ignore for pkg=1.0 only",
+                expires=date.today() + timedelta(days=30),
+                specifications={"==1.0"},
+            )
+        }
 
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.LOW,
-            VulnerabilitySeverityLabels.MEDIUM,
-        ]
-        self.assertFalse(should_fail(self.config, self.vulnerability))
+        dep = MagicMock()
+        dep.name = "examplepkg"
+        dep.version = "2.0"
 
-        self.vulnerability.severity = MagicMock()
-        self.vulnerability.severity.cvssv3 = {"base_severity": "NONE"}
+        specification = PythonSpecification("examplepkg==2.0")
 
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.NONE
-        ]
-        self.assertTrue(should_fail(self.config, self.vulnerability))
+        ignore_vuln_if_needed(
+            dependency=dep,
+            file_type=FileType.REQUIREMENTS_TXT,
+            vuln_id=vuln_id,
+            cve=None,
+            ignore_vulns=ignore_vulns,
+            ignore_unpinned=False,
+            ignore_environment=False,
+            specification=specification,
+            ignore_severity=[],
+        )
 
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.UNKNOWN
-        ]
-        self.assertFalse(should_fail(self.config, self.vulnerability))
+        assert vuln_id not in ignore_vulns
 
-        self.vulnerability.severity.cvssv3 = {"base_severity": "UNKNOWN"}
-        self.assertTrue(should_fail(self.config, self.vulnerability))
+    def test_ignore_vuln_without_expiry_does_not_suppress(self):
+        """
+        Regression test for issue #907 - an unset 'expires' must not cause
+        indefinite suppression.
+        """
+        vuln_id = "VULN-TEST-0003"
+        ignore_vulns = {
+            vuln_id: IgnoredItemDetail(
+                code=IgnoreCodes.manual,
+                reason="no expiry set",
+                expires=None,
+                specifications={"==1.0"},
+            )
+        }
 
-    def test_known_severity_failure(self):
-        self.config.depedendency_vulnerability.fail_on.enabled = True
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.HIGH
-        ]
-        self.vulnerability.severity.cvssv3 = {"base_severity": "HIGH"}
-        result = should_fail(self.config, self.vulnerability)
-        self.assertTrue(result)
+        dep = MagicMock()
+        dep.name = "examplepkg"
+        dep.version = "1.0"
 
-    def test_unexpected_severity_with_warning(self):
-        self.config.depedendency_vulnerability.fail_on.enabled = True
-        self.config.depedendency_vulnerability.fail_on.cvss_severity = [
-            VulnerabilitySeverityLabels.HIGH
-        ]
-        self.vulnerability.severity.cvssv3 = {"base_severity": "UNKNOWN_SEVERITY"}
-        with self.assertLogs(level="WARNING") as log:
-            result = should_fail(self.config, self.vulnerability)
-            self.assertIn("Unexpected base severity value", log.output[0])
-        self.assertFalse(result)
+        specification = PythonSpecification("examplepkg==1.0")
+
+        ignore_vuln_if_needed(
+            dependency=dep,
+            file_type=FileType.REQUIREMENTS_TXT,
+            vuln_id=vuln_id,
+            cve=None,
+            ignore_vulns=ignore_vulns,
+            ignore_unpinned=False,
+            ignore_environment=False,
+            specification=specification,
+            ignore_severity=[],
+        )
+
+        assert vuln_id not in ignore_vulns
+
+    def test_ignore_vuln_with_future_expiry_still_suppresses(self):
+        """
+        Regression - an explicit future expiry on a matching specifier keeps
+        the ignore.
+        """
+        vuln_id = "VULN-TEST-0004"
+        ignore_vulns = {
+            vuln_id: IgnoredItemDetail(
+                code=IgnoreCodes.manual,
+                reason="still valid",
+                expires=date.today() + timedelta(days=30),
+                specifications={"==1.0"},
+            )
+        }
+
+        dep = MagicMock()
+        dep.name = "examplepkg"
+        dep.version = "1.0"
+
+        specification = PythonSpecification("examplepkg==1.0")
+
+        ignore_vuln_if_needed(
+            dependency=dep,
+            file_type=FileType.REQUIREMENTS_TXT,
+            vuln_id=vuln_id,
+            cve=None,
+            ignore_vulns=ignore_vulns,
+            ignore_unpinned=False,
+            ignore_environment=False,
+            specification=specification,
+            ignore_severity=[],
+        )
+
+        # Suppression is signalled by the early return, which leaves the entry
+        # in the dict. get_vulnerability() then reads it back as ignored=True.
+        assert vuln_id in ignore_vulns

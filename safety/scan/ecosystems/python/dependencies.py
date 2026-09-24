@@ -291,6 +291,10 @@ def read_virtual_environment_dependencies(
         dep_name, dep_version = dist_info_folder.name.replace(".dist-info", "").split(
             "-"
         )
+        # The .dist-info folder name is escaped per PEP 427, so a hyphenated project
+        # arrives with underscores. The vulnerability database is keyed on the PEP 503
+        # canonical name, which is what read_requirements and read_dependencies use.
+        dep_name = canonicalize_name(dep_name)
 
         yield PythonDependency(
             name=dep_name,

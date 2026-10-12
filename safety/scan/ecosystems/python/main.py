@@ -73,13 +73,21 @@ def ignore_vuln_if_needed(
     vuln_ignored: bool = vuln_id in ignore_vulns
 
     if vuln_ignored and ignore_vulns[vuln_id].code is IgnoreCodes.manual:
-        if (
-            not ignore_vulns[vuln_id].expires
-            or ignore_vulns[vuln_id].expires > datetime.utcnow().date()
-        ):
-            return
+        ignore_detail = ignore_vulns[vuln_id]
+        bound_specs = ignore_detail.specifications
 
-        del ignore_vulns[vuln_id]
+        # Issue #907: a manual ignore is only valid for the package specifier
+        # it was recorded against. An unbound ignore (specifications is None)
+        # or one bound to a different specifier must not silently suppress a
+        # vulnerability in a different package version.
+        if bound_specs is None or str(specification.specifier) not in bound_specs:
+            del ignore_vulns[vuln_id]
+        elif ignore_detail.expires and ignore_detail.expires > datetime.utcnow().date():
+            # Still within its explicit validity window - suppress.
+            return
+        else:
+            # Bound but expired (or no expiry set): no longer suppresses.
+            del ignore_vulns[vuln_id]
 
     if ignore_environment and file_type is FileType.VIRTUAL_ENVIRONMENT:
         reason = "Ignored environment by rule in policy file."
@@ -570,3 +578,5 @@ class PythonFile(InspectableFile, Remediable):
                     recommended=recommended,
                     other_recommended=other_recommended,
                 )
+
+    

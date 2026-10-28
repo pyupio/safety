@@ -47,9 +47,17 @@ def get_user_dir() -> Path:
     """
     Get the user directory for the safety configuration.
 
+    The base directory can be overridden with the SAFETY_USER_CONFIG_PATH
+    env var, e.g. when running in a container without a writable home.
+
     Returns:
         Path: The user directory path.
     """
+    raw_dir = os.getenv("SAFETY_USER_CONFIG_PATH")
+
+    if raw_dir:
+        return Path(raw_dir, DIR_NAME).expanduser()
+
     path = Path("~", DIR_NAME).expanduser()
     return path
 

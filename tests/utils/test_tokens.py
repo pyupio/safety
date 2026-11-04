@@ -7,14 +7,17 @@ regression in the per-call JWTClaimsRegistry or the expiry branch is caught.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import json
 import time
-import warnings
 from typing import Any
 
 import pytest
 from joserfc import jwt as joserfc_jwt
 from joserfc.errors import ExpiredTokenError, UnsupportedAlgorithmError
-from joserfc.jwk import OctKey, RSAKey
+from joserfc.jwk import RSAKey
 
 from safety.utils.tokens import get_token_claims
 
@@ -71,16 +74,26 @@ def test_invalid_token_type_raises_value_error() -> None:
 
 def test_alg_confusion_hs256_is_rejected() -> None:
     # Forge an HS256 token whose HMAC secret is the RSA public key from the
-    # JWKS. Without the algorithm allowlist joserfc would verify it; the
-    # allowlist refuses the disallowed alg before any key is used.
+    # JWKS. Without the algorithm allowlist a verifier would accept it; the
+    # allowlist refuses the disallowed alg before any key is used. The token
+    # is built by hand because recent joserfc refuses to import an RSA public
+    # key as an oct key, so it can no longer forge this itself.
     key, jwks = _key_and_jwks()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")  # joserfc warns on RSA-PEM-as-oct-key
-        forged = joserfc_jwt.encode(
-            {"alg": "HS256", "kid": "test-kid"},
-            {"sub": "attacker", "exp": int(time.time()) + 3600},
-            OctKey.import_key(key.as_pem(private=False)),
+
+    def b64(data: bytes) -> bytes:
+        return base64.urlsafe_b64encode(data).rstrip(b"=")
+
+    signing_input = (
+        b64(json.dumps({"alg": "HS256", "kid": "test-kid"}).encode())
+        + b"."
+        + b64(
+            json.dumps({"sub": "attacker", "exp": int(time.time()) + 3600}).encode()
         )
+    )
+    signature = hmac.new(
+        key.as_pem(private=False), signing_input, hashlib.sha256
+    ).digest()
+    forged = (signing_input + b"." + b64(signature)).decode()
 
     with pytest.raises(UnsupportedAlgorithmError):
         get_token_claims(forged, "id_token", jwks)

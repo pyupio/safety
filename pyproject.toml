@@ -24,20 +24,18 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
   "Authlib>=1.6.12,<2.0",
   "joserfc>=1.6.8",
   "Click>=8.0.2",
   "dparse>=0.6.4",
-  "filelock>=3.16.1,<4.0",
+  "filelock>=4.2.1,<5.0",
   "jinja2>=3.1.0",
   "marshmallow>=3.15.0", # TODO: To be removed
   "packaging>=21.0",
@@ -49,9 +47,8 @@ dependencies = [
   "safety-schemas==0.0.19",
   "typer>=0.16.0,<0.26.0",
   "typing-extensions>=4.7.1",
-  "tomli; python_version < '3.11'",
   "tomlkit",
-  "truststore>=0.10.4; python_version >= '3.10'",
+  "truststore>=0.10.4",
 ]
 license = "MIT"
 license-files = ["LICENSES/*"]
@@ -114,7 +111,7 @@ type = "virtual"
 # To reset the default environment, run:
 # hatch env remove
 # hatch env create
-python = "3.9"
+python = "3.11"
 path = ".venv"
 
 dependencies = [
@@ -189,12 +186,12 @@ matrix.os_type.scripts = [
 #
 [[tool.hatch.envs.test.matrix]]
 # Full Python version testing
-python = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+python = ["3.11", "3.12", "3.13", "3.14"]
 
 # Critical dependency testing only on boundary versions
 [[tool.hatch.envs.test.matrix]]
 python = [
-  "3.10", "3.13", "3.14"
+  "3.13", "3.14"
 ]
 targets = [
   "typer-minimal",
@@ -285,7 +282,7 @@ ignore = [
   # `init_scan_ui` is more narrowly annotated than its existing Typer caller.
   "safety/tool/base.py"
 ]
-pythonVersion = "3.9"
+pythonVersion = "3.11"
 pythonPlatform = "All"
 reportMissingImports = "error"
 reportMissingTypeStubs = false

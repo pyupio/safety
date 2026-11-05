@@ -1,0 +1,5 @@
+# Every PR requests a review from the Endpoint review rotation.
+# GitHub auto-assigns one team member, balanced by review load.
+# Code-owner approval is not required by this repo's rules, so this only
+# requests a reviewer; it never blocks a merge.
+* @pyupio/endpoint-reviewers

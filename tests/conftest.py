@@ -47,6 +47,16 @@ def get_project_dependencies():
         return {}
 
 
+def get_installed_distributions():
+    installed = {}
+    for dist in distributions():
+        name = dist.metadata.get("Name")
+        if not name:
+            continue
+        installed[canonicalize_name(name)] = (name, dist.version)
+    return installed
+
+
 _PLATFORM_MARKERS = {
     "unix_only": sys.platform != "win32",
     "windows_only": sys.platform == "win32",
@@ -69,10 +79,7 @@ def pytest_collection_modifyitems(config, items):
 
 def pytest_configure(config):
     main_deps_specs = get_project_dependencies()
-    all_dists = {
-        canonicalize_name(dist.metadata["Name"]): (dist.metadata["Name"], dist.version)
-        for dist in distributions()
-    }
+    all_dists = get_installed_distributions()
 
     # Main dependencies table
     print(f"\n[{len(main_deps_specs)}] Main Dependencies:")

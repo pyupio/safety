@@ -17,7 +17,7 @@ class TestJSONFormatter(unittest.TestCase):
     def test_render_vulnerabilities_with_remediations(self, get_report_brief_info):
         get_report_brief_info.return_value = {
             "scan_target": "environment",
-            "scanned": ["/usr/local/lib/python3.9/site-packages"],
+            "scanned": ["/usr/local/lib/python3.10/site-packages"],
             "target_languages": ["python"],
             "api_key": True,
             "packages_found": 2,
@@ -30,10 +30,10 @@ class TestJSONFormatter(unittest.TestCase):
             version="4.0.1",
             requirements=[
                 SafetyRequirement(
-                    "django==4.0.1", found="/usr/local/lib/python3.9/site-packages"
+                    "django==4.0.1", found="/usr/local/lib/python3.10/site-packages"
                 )
             ],
-            found="/usr/local/lib/python3.9/site-packages",
+            found="/usr/local/lib/python3.10/site-packages",
             insecure_versions=["4.0.1"],
             secure_versions=["4.0.4", "3.2.13", "2.2.28"],
             latest_version_without_known_vulnerabilities="",
@@ -100,7 +100,7 @@ class TestJSONFormatter(unittest.TestCase):
                 name="secure-package",
                 version="0.1.0",
                 requirements=[SafetyRequirement("secure-package==0.1.0")],
-                found="/usr/local/lib/python3.9/site-packages",
+                found="/usr/local/lib/python3.10/site-packages",
                 insecure_versions=[],
                 secure_versions=["0.1.0"],
                 latest_version_without_known_vulnerabilities="",
@@ -123,7 +123,7 @@ class TestJSONFormatter(unittest.TestCase):
             {
                 "report_meta": {
                     "scan_target": "environment",
-                    "scanned": ["/usr/local/lib/python3.9/site-packages"],
+                    "scanned": ["/usr/local/lib/python3.10/site-packages"],
                     "target_languages": ["python"],
                     "api_key": True,
                     "packages_found": 2,
@@ -160,7 +160,7 @@ class TestJSONFormatter(unittest.TestCase):
                                 "name": "django",
                                 "specifier": "==4.0.1",
                                 "url": None,
-                                "found": "/usr/local/lib/python3.9/site-packages",
+                                "found": "/usr/local/lib/python3.10/site-packages",
                             }
                         ],
                     },
@@ -177,7 +177,7 @@ class TestJSONFormatter(unittest.TestCase):
                                 "name": "django",
                                 "specifier": "==4.0.1",
                                 "url": None,
-                                "found": "/usr/local/lib/python3.9/site-packages",
+                                "found": "/usr/local/lib/python3.10/site-packages",
                             }
                         ],
                         "found": None,

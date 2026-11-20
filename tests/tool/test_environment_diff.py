@@ -18,7 +18,7 @@ class TestPackageLocation:
         """
         # Arrange
         name = "requests"
-        location = "/usr/local/lib/python3.9/site-packages"
+        location = "/usr/local/lib/python3.10/site-packages"
         package_loc = PackageLocation(name=name, location=location)
 
         # Act
@@ -37,16 +37,16 @@ class TestPackageLocation:
         """
         # Arrange
         loc1 = PackageLocation(
-            name="requests", location="/usr/local/lib/python3.9/site-packages"
+            name="requests", location="/usr/local/lib/python3.10/site-packages"
         )
         loc2 = PackageLocation(
-            name="requests", location="/usr/local/lib/python3.9/site-packages"
+            name="requests", location="/usr/local/lib/python3.10/site-packages"
         )
         loc3 = PackageLocation(
-            name="requests", location="/home/user/.local/lib/python3.9/site-packages"
+            name="requests", location="/home/user/.local/lib/python3.10/site-packages"
         )
         loc4 = PackageLocation(
-            name="urllib3", location="/usr/local/lib/python3.9/site-packages"
+            name="urllib3", location="/usr/local/lib/python3.10/site-packages"
         )
 
         # Act & Assert
@@ -74,7 +74,7 @@ class TestPipEnvironmentDiffTracker:
         Name and version should be canonicalized when computing diffs.
         """
         # Arrange: same package/location, case-different name and semver-equivalent version update
-        location = "/usr/local/lib/python3.9/site-packages"
+        location = "/usr/local/lib/python3.10/site-packages"
         before = [{"name": "Django", "version": "4.0.0", "location": location}]
         after = [{"name": "django", "version": "4.1.0", "location": location}]
 
@@ -118,42 +118,42 @@ class TestPipEnvironmentDiffTracker:
                     {
                         "name": "requests",
                         "version": "2.27.1",
-                        "location": "/usr/local/lib/python3.9/site-packages",
+                        "location": "/usr/local/lib/python3.10/site-packages",
                     },
                     {
                         "name": "urllib3",
                         "version": "1.26.11",
-                        "location": "/usr/local/lib/python3.9/site-packages",
+                        "location": "/usr/local/lib/python3.10/site-packages",
                     },
                 ],
                 [
                     {
                         "name": "requests",
                         "version": "2.28.1",
-                        "location": "/usr/local/lib/python3.9/site-packages",
+                        "location": "/usr/local/lib/python3.10/site-packages",
                     },
                     {
                         "name": "numpy",
                         "version": "1.23.5",
-                        "location": "/home/user/.local/lib/python3.9/site-packages",
+                        "location": "/home/user/.local/lib/python3.10/site-packages",
                     },
                 ],
                 {
                     PackageLocation(
                         name="numpy",
-                        location="/home/user/.local/lib/python3.9/site-packages",
+                        location="/home/user/.local/lib/python3.10/site-packages",
                     ): "1.23.5"
                 },
                 {
                     PackageLocation(
                         name="urllib3",
-                        location="/usr/local/lib/python3.9/site-packages",
+                        location="/usr/local/lib/python3.10/site-packages",
                     ): "1.26.11"
                 },
                 {
                     PackageLocation(
                         name="requests",
-                        location="/usr/local/lib/python3.9/site-packages",
+                        location="/usr/local/lib/python3.10/site-packages",
                     ): ("2.27.1", "2.28.1")
                 },
             ),
@@ -216,12 +216,12 @@ class TestPipEnvironmentDiffTracker:
             {
                 "name": "requests",
                 "version": "2.27.1",
-                "location": "/usr/lib/python3.9/site-packages",
+                "location": "/usr/lib/python3.10/site-packages",
             },
             {
                 "name": "requests",
                 "version": "2.28.0",
-                "location": "/home/user/.local/lib/python3.9/site-packages",
+                "location": "/home/user/.local/lib/python3.10/site-packages",
             },
         ]
 
@@ -229,12 +229,12 @@ class TestPipEnvironmentDiffTracker:
             {
                 "name": "requests",
                 "version": "2.28.1",
-                "location": "/usr/lib/python3.9/site-packages",
+                "location": "/usr/lib/python3.10/site-packages",
             },  # Updated
             {
                 "name": "requests",
                 "version": "2.28.1",
-                "location": "/home/user/.local/lib/python3.9/site-packages",
+                "location": "/home/user/.local/lib/python3.10/site-packages",
             },  # Updated
         ]
 
@@ -249,10 +249,10 @@ class TestPipEnvironmentDiffTracker:
         assert len(updated) == 2
 
         system_loc = PackageLocation(
-            name="requests", location="/usr/lib/python3.9/site-packages"
+            name="requests", location="/usr/lib/python3.10/site-packages"
         )
         user_loc = PackageLocation(
-            name="requests", location="/home/user/.local/lib/python3.9/site-packages"
+            name="requests", location="/home/user/.local/lib/python3.10/site-packages"
         )
 
         assert system_loc in updated
@@ -269,7 +269,7 @@ class TestPipEnvironmentDiffTracker:
             {
                 "name": "requests",
                 "version": "2.28.1",
-                "location": "/usr/local/lib/python3.9/site-packages",
+                "location": "/usr/local/lib/python3.10/site-packages",
             }
         ]
 
@@ -279,7 +279,7 @@ class TestPipEnvironmentDiffTracker:
 
         assert added == {
             PackageLocation(
-                name="requests", location="/usr/local/lib/python3.9/site-packages"
+                name="requests", location="/usr/local/lib/python3.10/site-packages"
             ): "2.28.1"
         }
         assert removed == {}
@@ -290,7 +290,7 @@ class TestPipEnvironmentDiffTracker:
             {
                 "name": "requests",
                 "version": "2.27.1",
-                "location": "/usr/local/lib/python3.9/site-packages",
+                "location": "/usr/local/lib/python3.10/site-packages",
             }
         ]
 
@@ -301,7 +301,7 @@ class TestPipEnvironmentDiffTracker:
         assert added == {}
         assert removed == {
             PackageLocation(
-                name="requests", location="/usr/local/lib/python3.9/site-packages"
+                name="requests", location="/usr/local/lib/python3.10/site-packages"
             ): "2.27.1"
         }
         assert updated == {}
@@ -315,11 +315,11 @@ class TestPipEnvironmentDiffTracker:
             {
                 "name": "requests",
                 "version": "2.27.1",
-                "location": "/usr/local/lib/python3.9/site-packages",
+                "location": "/usr/local/lib/python3.10/site-packages",
             },
             {
                 "version": "1.0.0",
-                "location": "/usr/local/lib/python3.9/site-packages",
+                "location": "/usr/local/lib/python3.10/site-packages",
             },  # Missing name
             {"name": "urllib3"},  # Missing version and location
             None,  # Completely invalid
@@ -330,7 +330,7 @@ class TestPipEnvironmentDiffTracker:
             {
                 "name": "requests",
                 "version": "2.28.1",
-                "location": "/usr/local/lib/python3.9/site-packages",
+                "location": "/usr/local/lib/python3.10/site-packages",
             }
         ]
 
@@ -342,7 +342,7 @@ class TestPipEnvironmentDiffTracker:
         # Assert - Only valid package should be processed
         assert len(updated) == 1
         requests_loc = PackageLocation(
-            name="requests", location="/usr/local/lib/python3.9/site-packages"
+            name="requests", location="/usr/local/lib/python3.10/site-packages"
         )
         assert requests_loc in updated
         assert updated[requests_loc] == ("2.27.1", "2.28.1")

@@ -198,7 +198,7 @@ class TestUvParser:
                 "pip",
                 "install",
                 "--python",
-                "3.9",
+                "3.10",
                 "--index-url",
                 "https://pypi.org/simple",
                 "requests",
@@ -209,7 +209,7 @@ class TestUvParser:
 
         # Value options should be parsed correctly
         assert "python" in intention.options
-        assert intention.options["python"]["value"] == "3.9"
+        assert intention.options["python"]["value"] == "3.10"
         assert "index-url" in intention.options
         assert intention.options["index-url"]["value"] == "https://pypi.org/simple"
 

@@ -4,7 +4,7 @@ from safety.models import Package, Vulnerability, SafetyRequirement
 VALID_REPORT = {
     "report_meta": {
         "scan_target": "environment",
-        "scanned": ["/usr/local/lib/python3.9/site-packages"],
+        "scanned": ["/usr/local/lib/python3.10/site-packages"],
         "api_key": True,
         "packages_found": 50,
         "local_database_path_used": None,
@@ -69,7 +69,7 @@ VALID_REPORT = {
                     "url": None,
                 }
             ],
-            "found": "/usr/local/lib/python3.9/site-packages",
+            "found": "/usr/local/lib/python3.10/site-packages",
             "insecure_versions": ["0.1.0"],
             "secure_versions": [],
             "latest_version_without_known_vulnerabilities": "",

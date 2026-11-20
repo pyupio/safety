@@ -2,7 +2,7 @@
     "report_meta": {
         "scan_target": "environment"
         "scanned": [
-            "/usr/local/lib/python3.9/site-packages"
+            "/usr/local/lib/python3.10/site-packages"
         ],
         "api_key": true,
         "packages_found": 50,
@@ -31,7 +31,7 @@
             "name": "insecure-package",
             "version": "0.1.0",
             "spec": "==0.1.0",
-            "found": "/usr/local/lib/python3.9/site-packages",
+            "found": "/usr/local/lib/python3.10/site-packages",
             "insecure_versions": [
                 "0.1.0"
             ],

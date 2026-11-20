@@ -541,7 +541,7 @@ class TestSafety(unittest.TestCase):
     def test_report_licenses_json(self, get_report_brief_info):
         get_report_brief_info.return_value = {
             "scan_target": "environment",
-            "scanned": ["/usr/local/lib/python3.9/site-packages"],
+            "scanned": ["/usr/local/lib/python3.10/site-packages"],
             "api_key": True,
             "packages_found": 2,
             "timestamp": "2022-03-03 16:31:30",
@@ -572,7 +572,7 @@ class TestSafety(unittest.TestCase):
             {
                 "report_meta": {
                     "scan_target": "environment",
-                    "scanned": ["/usr/local/lib/python3.9/site-packages"],
+                    "scanned": ["/usr/local/lib/python3.10/site-packages"],
                     "api_key": True,
                     "packages_found": 2,
                     "timestamp": "2022-03-03 16:31:30",

@@ -2,7 +2,7 @@
     "report_meta": {
         "scan_target": "environment",
         "scanned": [
-            "/usr/local/lib/python3.9/site-packages"
+            "/usr/local/lib/python3.10/site-packages"
         ],
         "policy_file": null,
         "api_key": true,
@@ -62,7 +62,7 @@
         "django": {
             "name": "django",
             "version": "4.0.1",
-            "found": "/usr/local/lib/python3.9/site-packages",
+            "found": "/usr/local/lib/python3.10/site-packages",
             "insecure_versions": [
                 "3.1.5",
                 "3.1.4",

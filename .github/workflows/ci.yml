@@ -4,9 +4,6 @@ on:
   workflow_call:
   push:
     branches:
-      - main
-      - chore/*
-      - ci/*
   pull_request:
     types:
       - opened

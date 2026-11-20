@@ -34,21 +34,21 @@ class TestEmitDiffOperations:
                 {
                     PackageLocation(
                         name="requests",
-                        location="/usr/local/lib/python3.9/site-packages",
+                        location="/usr/local/lib/python3.10/site-packages",
                     ): "2.28.1",
                     PackageLocation(
                         name="urllib3",
-                        location="/home/user/.local/lib/python3.9/site-packages",
+                        location="/home/user/.local/lib/python3.10/site-packages",
                     ): "1.26.12",
                 },
                 {
                     PackageLocation(
-                        name="old-package", location="/usr/lib/python3.9/site-packages"
+                        name="old-package", location="/usr/lib/python3.10/site-packages"
                     ): "1.0.0"
                 },
                 {
                     PackageLocation(
-                        name="numpy", location="/usr/local/lib/python3.9/site-packages"
+                        name="numpy", location="/usr/local/lib/python3.10/site-packages"
                     ): ("1.21.0", "1.23.5")
                 },
                 "/usr/bin/pip",
@@ -194,7 +194,7 @@ class TestEmitDiffOperations:
         self.ctx.obj.correlation_id = None
         added = {
             PackageLocation(
-                name="test-pkg", location="/usr/local/lib/python3.9/site-packages"
+                name="test-pkg", location="/usr/local/lib/python3.10/site-packages"
             ): "1.0.0"
         }
         removed = {}
@@ -302,7 +302,7 @@ class TestEmitDiffOperations:
         # Arrange
         added = {
             PackageLocation(
-                name="test-pkg", location="/usr/local/lib/python3.9/site-packages"
+                name="test-pkg", location="/usr/local/lib/python3.10/site-packages"
             ): "1.0.0"
         }
 
@@ -329,7 +329,7 @@ class TestEmitDiffOperations:
         """
         # Arrange
         package_loc = PackageLocation(
-            name="test-pkg", location="/usr/local/lib/python3.9/site-packages"
+            name="test-pkg", location="/usr/local/lib/python3.10/site-packages"
         )
         added = {package_loc: "1.0.0"}
         tool_path = "/usr/bin/pip"
@@ -355,6 +355,6 @@ class TestEmitDiffOperations:
         assert event.type == EventType.PACKAGE_INSTALLED
         assert event.payload.package_name == "test-pkg"
         assert event.payload.version == "1.0.0"
-        assert event.payload.location == "/usr/local/lib/python3.9/site-packages"
+        assert event.payload.location == "/usr/local/lib/python3.10/site-packages"
         assert event.payload.tool_path == tool_path
         assert event.payload.tool == by_tool

@@ -24,20 +24,19 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
   "Authlib>=1.6.12,<2.0",
   "joserfc>=1.6.8",
   "Click>=8.0.2",
   "dparse>=0.6.4",
-  "filelock>=3.16.1,<4.0",
+  "filelock>=4",
   "jinja2>=3.1.0",
   "marshmallow>=3.15.0", # TODO: To be removed
   "packaging>=21.0",
@@ -114,7 +113,7 @@ type = "virtual"
 # To reset the default environment, run:
 # hatch env remove
 # hatch env create
-python = "3.9"
+python = "3.10"
 path = ".venv"
 
 dependencies = [
@@ -189,7 +188,7 @@ matrix.os_type.scripts = [
 #
 [[tool.hatch.envs.test.matrix]]
 # Full Python version testing
-python = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
 # Critical dependency testing only on boundary versions
 [[tool.hatch.envs.test.matrix]]
@@ -285,7 +284,7 @@ ignore = [
   # `init_scan_ui` is more narrowly annotated than its existing Typer caller.
   "safety/tool/base.py"
 ]
-pythonVersion = "3.9"
+pythonVersion = "3.10"
 pythonPlatform = "All"
 reportMissingImports = "error"
 reportMissingTypeStubs = false
